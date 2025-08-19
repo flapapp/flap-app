@@ -1,0 +1,467 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+// Статус матчу
+enum MatchStatus {
+  open,       // Відкрито для участі
+  full,       // Заповнено
+  inProgress, // В процесі
+  finished,   // Завершено
+  cancelled   // Скасовано
+}
+
+// Рівень складності
+enum MatchLevel {
+  beginner,   // Початковий
+  intermediate, // Середній
+  advanced,   // Високий
+  professional // Професійний
+}
+
+// Результат матчу
+enum MatchResult {
+  teamAWins,  // Перемога команди А
+  teamBWins,  // Перемога команди Б
+  draw        // Нічия
+}
+
+// Клас команди
+class Team {
+  final String name;
+  final List<String> playerIds;
+  final double averageRating;
+  final Map<String, double> playerRatings;
+
+  Team({
+    required this.name,
+    required this.playerIds,
+    this.averageRating = 0.0,
+    this.playerRatings = const {},
+  });
+
+  // Створення з Firestore
+  factory Team.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Team(
+      name: data['name'] ?? '',
+      playerIds: List<String>.from(data['playerIds'] ?? []),
+      averageRating: (data['averageRating'] ?? 0.0).toDouble(),
+      playerRatings: Map<String, double>.from(data['playerRatings'] ?? {}),
+    );
+  }
+
+  // Конвертація в Map для Firestore
+  Map<String, dynamic> toFirestore() {
+    return {
+      'name': name,
+      'playerIds': playerIds,
+      'averageRating': averageRating,
+      'playerRatings': playerRatings,
+    };
+  }
+
+  // Копіювання з змінами
+  Team copyWith({
+    String? name,
+    List<String>? playerIds,
+    double? averageRating,
+    Map<String, double>? playerRatings,
+  }) {
+    return Team(
+      name: name ?? this.name,
+      playerIds: playerIds ?? this.playerIds,
+      averageRating: averageRating ?? this.averageRating,
+      playerRatings: playerRatings ?? this.playerRatings,
+    );
+  }
+}
+
+// Оцінка гравця
+class PlayerRating {
+  final String playerId;
+  final String ratedBy;
+  final double rating;
+  final DateTime ratedAt;
+  final Map<String, double> criteria; // техніка, фізика, тактика, командна гра
+
+  PlayerRating({
+    required this.playerId,
+    required this.ratedBy,
+    required this.rating,
+    required this.ratedAt,
+    this.criteria = const {},
+  });
+
+  // Створення з Firestore
+  factory PlayerRating.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return PlayerRating(
+      playerId: data['playerId'] ?? '',
+      ratedBy: data['ratedBy'] ?? '',
+      rating: (data['rating'] ?? 0.0).toDouble(),
+      ratedAt: (data['ratedAt'] as Timestamp).toDate(),
+      criteria: Map<String, double>.from(data['criteria'] ?? {}),
+    );
+  }
+
+  // Конвертація в Map для Firestore
+  Map<String, dynamic> toFirestore() {
+    return {
+      'playerId': playerId,
+      'ratedBy': ratedBy,
+      'rating': rating,
+      'ratedAt': Timestamp.fromDate(ratedAt),
+      'criteria': criteria,
+    };
+  }
+}
+
+// Основний клас матчу
+class Match {
+  final String id;
+  final String title;
+  final String description;
+  final String organizerId;
+  final String organizerName;
+  
+  // Час та місце
+  final DateTime date;
+  final String time;
+  final String location;
+  final String city;
+  final GeoPoint? coordinates;
+  
+  // Учасники
+  final int currentPlayers;
+  final int maxPlayers;
+  final List<String> participants;
+  final List<String> pendingApplications;
+  final List<String> rejectedApplications;
+  
+  // Налаштування
+  final MatchLevel level;
+  final double cost;
+  final bool autoBalance;
+  final bool isPrivate;
+  final List<String> invitedFriends;
+  
+  // Статус
+  final MatchStatus status;
+  
+  // Команди
+  final Team? teamA;
+  final Team? teamB;
+  
+  // Результат
+  final MatchResult? result;
+  final int? teamAScore;
+  final int? teamBScore;
+  final List<PlayerRating> playerRatings;
+  
+  // Метадані
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? startedAt;
+  final DateTime? finishedAt;
+
+  Match({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.organizerId,
+    required this.organizerName,
+    required this.date,
+    required this.time,
+    required this.location,
+    required this.city,
+    this.coordinates,
+    required this.currentPlayers,
+    required this.maxPlayers,
+    required this.participants,
+    this.pendingApplications = const [],
+    this.rejectedApplications = const [],
+    required this.level,
+    required this.cost,
+    required this.autoBalance,
+    required this.isPrivate,
+    this.invitedFriends = const [],
+    required this.status,
+    this.teamA,
+    this.teamB,
+    this.result,
+    this.teamAScore,
+    this.teamBScore,
+    this.playerRatings = const [],
+    required this.createdAt,
+    required this.updatedAt,
+    this.startedAt,
+    this.finishedAt,
+  });
+
+  // Створення з Firestore
+  factory Match.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    
+    return Match(
+      id: doc.id,
+      title: data['title'] ?? '',
+      description: data['description'] ?? '',
+      organizerId: data['organizerId'] ?? '',
+      organizerName: data['organizerName'] ?? '',
+      date: (data['date'] as Timestamp).toDate(),
+      time: data['time'] ?? '',
+      location: data['location'] ?? '',
+      city: data['city'] ?? '',
+      coordinates: data['coordinates'] as GeoPoint?,
+      currentPlayers: data['currentPlayers'] ?? 0,
+      maxPlayers: data['maxPlayers'] ?? 0,
+      participants: List<String>.from(data['participants'] ?? []),
+      pendingApplications: List<String>.from(data['pendingApplications'] ?? []),
+      rejectedApplications: List<String>.from(data['rejectedApplications'] ?? []),
+      level: MatchLevel.values.firstWhere(
+        (e) => e.toString().split('.').last == data['level'],
+        orElse: () => MatchLevel.intermediate,
+      ),
+      cost: (data['cost'] ?? 0.0).toDouble(),
+      autoBalance: data['autoBalance'] ?? false,
+      isPrivate: data['isPrivate'] ?? false,
+      invitedFriends: List<String>.from(data['invitedFriends'] ?? []),
+      status: MatchStatus.values.firstWhere(
+        (e) => e.toString().split('.').last == data['status'],
+        orElse: () => MatchStatus.open,
+      ),
+      teamA: data['teamA'] != null ? Team.fromFirestore(doc) : null,
+      teamB: data['teamB'] != null ? Team.fromFirestore(doc) : null,
+      result: data['result'] != null ? MatchResult.values.firstWhere(
+        (e) => e.toString().split('.').last == data['result'],
+        orElse: () => MatchResult.draw,
+      ) : null,
+      teamAScore: data['teamAScore'],
+      teamBScore: data['teamBScore'],
+      playerRatings: (data['playerRatings'] as List<dynamic>?)
+          ?.map((rating) => PlayerRating.fromFirestore(rating as DocumentSnapshot))
+          .toList() ?? [],
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      startedAt: data['startedAt'] != null ? (data['startedAt'] as Timestamp).toDate() : null,
+      finishedAt: data['finishedAt'] != null ? (data['finishedAt'] as Timestamp).toDate() : null,
+    );
+  }
+
+  // Конвертація в Map для Firestore
+  Map<String, dynamic> toFirestore() {
+    return {
+      'title': title,
+      'description': description,
+      'organizerId': organizerId,
+      'organizerName': organizerName,
+      'date': Timestamp.fromDate(date),
+      'time': time,
+      'location': location,
+      'city': city,
+      'coordinates': coordinates,
+      'currentPlayers': currentPlayers,
+      'maxPlayers': maxPlayers,
+      'participants': participants,
+      'pendingApplications': pendingApplications,
+      'rejectedApplications': rejectedApplications,
+      'level': level.toString().split('.').last,
+      'cost': cost,
+      'autoBalance': autoBalance,
+      'isPrivate': isPrivate,
+      'invitedFriends': invitedFriends,
+      'status': status.toString().split('.').last,
+      'teamA': teamA?.toFirestore(),
+      'teamB': teamB?.toFirestore(),
+      'result': result?.toString().split('.').last,
+      'teamAScore': teamAScore,
+      'teamBScore': teamBScore,
+      'playerRatings': playerRatings.map((rating) => rating.toFirestore()).toList(),
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+      'startedAt': startedAt != null ? Timestamp.fromDate(startedAt!) : null,
+      'finishedAt': finishedAt != null ? Timestamp.fromDate(finishedAt!) : null,
+    };
+  }
+
+  // Копіювання з змінами
+  Match copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? organizerId,
+    String? organizerName,
+    DateTime? date,
+    String? time,
+    String? location,
+    String? city,
+    GeoPoint? coordinates,
+    int? currentPlayers,
+    int? maxPlayers,
+    List<String>? participants,
+    List<String>? pendingApplications,
+    List<String>? rejectedApplications,
+    MatchLevel? level,
+    double? cost,
+    bool? autoBalance,
+    bool? isPrivate,
+    List<String>? invitedFriends,
+    MatchStatus? status,
+    Team? teamA,
+    Team? teamB,
+    MatchResult? result,
+    int? teamAScore,
+    int? teamBScore,
+    List<PlayerRating>? playerRatings,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    DateTime? startedAt,
+    DateTime? finishedAt,
+  }) {
+    return Match(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      organizerId: organizerId ?? this.organizerId,
+      organizerName: organizerName ?? this.organizerName,
+      date: date ?? this.date,
+      time: time ?? this.time,
+      location: location ?? this.location,
+      city: city ?? this.city,
+      coordinates: coordinates ?? this.coordinates,
+      currentPlayers: currentPlayers ?? this.currentPlayers,
+      maxPlayers: maxPlayers ?? this.maxPlayers,
+      participants: participants ?? this.participants,
+      pendingApplications: pendingApplications ?? this.pendingApplications,
+      rejectedApplications: rejectedApplications ?? this.rejectedApplications,
+      level: level ?? this.level,
+      cost: cost ?? this.cost,
+      autoBalance: autoBalance ?? this.autoBalance,
+      isPrivate: isPrivate ?? this.isPrivate,
+      invitedFriends: invitedFriends ?? this.invitedFriends,
+      status: status ?? this.status,
+      teamA: teamA ?? this.teamA,
+      teamB: teamB ?? this.teamB,
+      result: result ?? this.result,
+      teamAScore: teamAScore ?? this.teamAScore,
+      teamBScore: teamBScore ?? this.teamBScore,
+      playerRatings: playerRatings ?? this.playerRatings,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      startedAt: startedAt ?? this.startedAt,
+      finishedAt: finishedAt ?? this.finishedAt,
+    );
+  }
+
+  // Геттери для зручності
+  bool get isOpen => status == MatchStatus.open;
+  bool get isFull => status == MatchStatus.full;
+  bool get isInProgress => status == MatchStatus.inProgress;
+  bool get isFinished => status == MatchStatus.finished;
+  bool get isCancelled => status == MatchStatus.cancelled;
+  
+  bool get hasTeams => teamA != null && teamB != null;
+  bool get hasResult => result != null && teamAScore != null && teamBScore != null;
+  
+  int get availableSpots => maxPlayers - currentPlayers;
+  double get fillPercentage => (currentPlayers / maxPlayers) * 100;
+  
+  String get levelText {
+    switch (level) {
+      case MatchLevel.beginner:
+        return 'Початковий';
+      case MatchLevel.intermediate:
+        return 'Середній';
+      case MatchLevel.advanced:
+        return 'Високий';
+      case MatchLevel.professional:
+        return 'Професійний';
+    }
+  }
+  
+  String get statusText {
+    switch (status) {
+      case MatchStatus.open:
+        return 'Відкрито';
+      case MatchStatus.full:
+        return 'Заповнено';
+      case MatchStatus.inProgress:
+        return 'В процесі';
+      case MatchStatus.finished:
+        return 'Завершено';
+      case MatchStatus.cancelled:
+        return 'Скасовано';
+    }
+  }
+  
+  String get costText => cost > 0 ? '${cost.toInt()} грн' : 'Безкоштовно';
+  
+  // Перевірка чи користувач учасник
+  bool isParticipant(String userId) => participants.contains(userId);
+  
+  // Перевірка чи користувач організатор
+  bool isOrganizer(String userId) => organizerId == userId;
+  
+  // Перевірка чи можна приєднатися
+  bool canJoin(String userId) => 
+      isOpen && 
+      !isParticipant(userId) && 
+      !isOrganizer(userId) && 
+      availableSpots > 0;
+  
+  // Перевірка чи можна керувати
+  bool canManage(String userId) => isOrganizer(userId);
+  
+  // Перевірка чи можна оцінювати
+  bool canRate(String userId) => 
+      isFinished && 
+      isParticipant(userId) && 
+      !playerRatings.any((rating) => rating.ratedBy == userId);
+}
+
+// Утиліти для роботи з матчами
+class MatchUtils {
+  // Генерація назв команд
+  static final List<String> teamNames = [
+    'Веселі Бджілки', 'Швидкі Їжаки', 'Хитрі Лисички', 'Сильні Ведмеді',
+    'Граційні Леопарди', 'Розумні Сови', 'Енергійні Кенгуру', 'Спритні Мавпи',
+    'Гордовиті Леви', 'Мирні Панди', 'Швидкі Гепарди', 'Кумедні Пінгвіни'
+  ];
+  
+  static String generateTeamName() {
+    return teamNames[DateTime.now().millisecondsSinceEpoch % teamNames.length];
+  }
+  
+  // Розрахунок середнього рейтингу команди
+  static double calculateTeamAverageRating(List<String> playerIds, Map<String, double> playerRatings) {
+    if (playerIds.isEmpty) return 0.0;
+    
+    double totalRating = 0.0;
+    int ratedPlayers = 0;
+    
+    for (String playerId in playerIds) {
+      if (playerRatings.containsKey(playerId)) {
+        totalRating += playerRatings[playerId]!;
+        ratedPlayers++;
+      }
+    }
+    
+    return ratedPlayers > 0 ? totalRating / ratedPlayers : 0.0;
+  }
+  
+  // Перевірка чи матч можна почати
+  static bool canStartMatch(Match match) {
+    return match.isFull && 
+           match.hasTeams && 
+           match.teamA!.playerIds.isNotEmpty && 
+           match.teamB!.playerIds.isNotEmpty;
+  }
+  
+  // Перевірка чи матч можна завершити
+  static bool canFinishMatch(Match match) {
+    return match.isInProgress && 
+           match.hasTeams && 
+           match.teamA!.playerIds.isNotEmpty && 
+           match.teamB!.playerIds.isNotEmpty;
+  }
+}
+

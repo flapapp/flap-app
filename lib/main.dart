@@ -41,7 +41,8 @@ class MyApp extends StatelessWidget {
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
         '/profile': (context) => ProfileScreen(),
-        '/profile-edit': (context) => ProfileCreationScreen(),
+        '/profile-creation': (context) => ProfileCreationScreen(),
+        '/profile-edit': (context) => ProfileCreationScreen(isEditing: true),
         '/mode': (context) => ModeSelectionScreen(),
                     '/video-upload': (context) {
               final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;

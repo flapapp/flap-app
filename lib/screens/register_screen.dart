@@ -154,7 +154,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Реєстрація успішна!')),
                           );
-                          Navigator.pushReplacementNamed(context, '/profile');
+                          Navigator.pushReplacementNamed(context, '/profile-creation');
                         } on FirebaseAuthException catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text(e.message ?? 'Помилка реєстрації')),
