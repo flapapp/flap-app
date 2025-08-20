@@ -14,15 +14,37 @@ class ModeSelectionScreen extends StatefulWidget {
 class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
 
-  final List<String> _greetings = [
-    'Вітаю, Олександр! ��',
-    'Привіт, чемпіон! 🏆',
-    'Вітаю, майстер м\'яча! ⚽',
-    'Привіт, футбольний геній! 🧠',
-    'Вітаю, король поля! ��',
+  final List<Map<String, String>> _greetings = [
+    {
+      'greeting': 'Вітаю, Олександр! 👋',
+      'rating': 'Ваш рейтинг: 4.2 • 45 матчів зіграно',
+      'instruction': 'Оберіть режим роботи для початку гри'
+    },
+    {
+      'greeting': 'Готовий до нових викликів? 🔥',
+      'rating': 'Твій рейтинг: 4.2 • Відмінний результат! ',
+      'instruction': 'Обери свій шлях до перемоги'
+    },
+    {
+      'greeting': 'Привіт, чемпіоне! 🏆',
+      'rating': 'Рейтинг: 4.2 з 5.0 • Продовжуй у тому ж дусі!',
+      'instruction': 'Що сьогодні будемо робити?'
+    },
+    {
+      'greeting': 'Доброго дня, майстре! ⚡',
+      'rating': 'Твої досягнення: 4.2 • Ти на правильному шляху',
+      'instruction': 'Вибери напрямок для розвитку'
+    },
+    {
+      'greeting': 'З поверненням, легендо! 🌟',
+      'rating': 'Статистика: 4.2 рейтинг • 45 ігор',
+      'instruction': 'Куди спрямуємо твою енергію?'
+    },
   ];
 
   String _currentGreeting = '';
+  String _currentRatingText = '';
+  String _currentInstruction = '';
 
   @override
   void initState() {
@@ -36,9 +58,12 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   }
 
   void _updateGreeting() {
+    final idx = DateTime.now().millisecondsSinceEpoch % _greetings.length;
+    final g = _greetings[idx];
     setState(() {
-      _currentGreeting =
-          _greetings[DateTime.now().millisecond % _greetings.length];
+      _currentGreeting = g['greeting'] ?? '';
+      _currentRatingText = g['rating'] ?? '';
+      _currentInstruction = g['instruction'] ?? '';
     });
   }
 
@@ -101,14 +126,21 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF6a1b9a), Color(0xFF9c27b0)],
+                    colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   children: [
@@ -197,28 +229,29 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
                       },
                     ),
                     const SizedBox(height: 10),
-                                           Text(
-                         _currentGreeting,
-                         style: const TextStyle(
-                           fontSize: 18,
-                           color: Colors.white,
-                         ),
-                         textAlign: TextAlign.center,
-                       ),
-                    const SizedBox(height: 10),
                     Text(
-                      'Ваш рейтинг: 4.2 • 45 матчів зіграно',
+                      _currentGreeting,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _currentRatingText,
                       style: TextStyle(
                         fontSize: 16,
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withOpacity(0.9),
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
                     Text(
-                      'Оберіть режим роботи для початку гри',
+                      _currentInstruction,
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.white.withOpacity(0.7),
+                        color: Colors.white.withOpacity(0.8),
                       ),
                     ),
                   ],
@@ -233,8 +266,9 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
                   width: double.infinity,
                   height: 200,
                   decoration: BoxDecoration(
+                    // Відповідно до MVP: відео секція має теплий (червоний/оранжевий) градієнт
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+                      colors: [Color(0xFFFF6B6B), Color(0xFFEE5A24)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -301,8 +335,9 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
                   width: double.infinity,
                   height: 200,
                   decoration: BoxDecoration(
+                    // Відповідно до MVP: матчі секція має зелений градієнт
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFff9800), Color(0xFFffb74d)],
+                      colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),

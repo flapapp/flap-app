@@ -226,8 +226,8 @@ class ChallengeService {
 
       // Зберегти голос
       await challengeRef.update({
-        'votes.$currentUser.uid': totalRating,
-        'detailedVotes.$currentUser.uid': criteria,
+        'votes.${currentUser.uid}': totalRating,
+        'detailedVotes.${currentUser.uid}': criteria,
       });
 
       // Нарахувати монети за голос (+1 монета)

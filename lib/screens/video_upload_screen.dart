@@ -136,36 +136,51 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         final authorName = userData?['displayName'] ?? 'Невідомий';
         final city = userData?['city'] ?? 'Невідомо';
 
-        // Зберігаємо метадані в Firestore
-        final videoDoc = await FirebaseFirestore.instance.collection('videos').add({
-          'userId': uid,
-          'authorName': authorName,
-          'city': city,
-          'title': _titleController.text.trim(),
-          'description': _descriptionController.text.trim(),
-          'category': _selectedCategory,
-          'difficulty': _selectedDifficulty,
-          'videoUrl': videoUrl,
-          'thumbnailUrl': null, // Пізніше додамо
-          'duration': 0, // Пізніше додамо
-          'views': 0,
-          'likes': 0,
-          'dislikes': 0,
-          'rating': 0.0,
-          'challengeId': widget.challengeId, // ID челенджу, якщо є
-          'challengeTitle': widget.challengeTitle, // Назва челенджу, якщо є
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        if (widget.challengeId == null) {
+          // Зберігаємо метадані звичайного відео в колекції videos
+          await FirebaseFirestore.instance.collection('videos').add({
+            'userId': uid,
+            'authorName': authorName,
+            'city': city,
+            'title': _titleController.text.trim(),
+            'description': _descriptionController.text.trim(),
+            'category': _selectedCategory,
+            'difficulty': _selectedDifficulty,
+            'videoUrl': videoUrl,
+            'thumbnailUrl': null, // Пізніше додамо
+            'duration': 0, // Пізніше додамо
+            'views': 0,
+            'likes': 0,
+            'dislikes': 0,
+            'rating': 0.0,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        } else {
+          // Це відео для челенджу: записуємо тільки в submissions під челенджем
+          final challengeId = widget.challengeId!;
+          final submissionRef = FirebaseFirestore.instance
+              .collection('challenges')
+              .doc(challengeId)
+              .collection('submissions')
+              .doc(uid);
+          await submissionRef.set({
+            'userId': uid,
+            'authorName': authorName,
+            'title': _titleController.text.trim(),
+            'description': _descriptionController.text.trim(),
+            'videoUrl': videoUrl,
+            'createdAt': FieldValue.serverTimestamp(),
+            'rating': 0.0,
+            'votes': 0,
+          });
 
-        // Якщо це відео для челенджу, додаємо його до челенджу
-        if (widget.challengeId != null) {
+          // Позначаємо, що користувач подав відео на челендж
           try {
             final challengeService = ChallengeService();
-            await challengeService.addVideoToChallenge(widget.challengeId!, videoDoc.id);
+            await challengeService.addVideoToChallenge(challengeId, uid);
           } catch (e) {
-            print('Error adding video to challenge: $e');
-            // Не показуємо помилку користувачу, оскільки відео вже завантажено
+            print('Error updating challenge submission: $e');
           }
         }
 

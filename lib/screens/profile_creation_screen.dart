@@ -431,7 +431,31 @@ if (_pickedImage != null) {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-    // 3) Перехід
+    // 3) Додамо 3-4 друзів автоматично (з існуючих користувачів)
+    try {
+      final existing = await FirebaseFirestore.instance
+          .collection('users')
+          .where(FieldPath.documentId, isNotEqualTo: uid)
+          .limit(4)
+          .get();
+      final friendIds = existing.docs.map((d) => d.id).toList();
+      if (friendIds.isNotEmpty) {
+        final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+        await userRef.set({
+          'friends': FieldValue.arrayUnion(friendIds),
+        }, SetOptions(merge: true));
+        for (final fid in friendIds) {
+          final fRef = FirebaseFirestore.instance.collection('users').doc(fid);
+          await fRef.set({
+            'friends': FieldValue.arrayUnion([uid]),
+          }, SetOptions(merge: true));
+        }
+      }
+    } catch (e) {
+      // пропускаємо помилку, щоб не блокувати онбординг
+    }
+
+    // 4) Перехід
     Navigator.pushReplacementNamed(context, '/mode');
   }
 },

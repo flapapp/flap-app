@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'mode_selection_screen.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -15,48 +17,55 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF1e7d32),
+      backgroundColor: const Color(0xFF1e7d32),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
         child: Padding(
-          padding: EdgeInsets.all(20),
+          padding: const EdgeInsets.all(30),
           child: Form(
             key: _formKey,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Заголовок
-                Text(
-                  'Увійти',
+                // Заголовок і підзаголовок як у MVP
+                const Text(
+                  'Вхід до FLAP',
                   style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
                 ),
-                SizedBox(height: 40),
+                const SizedBox(height: 8),
+                Text(
+                  'Увійдіть до своєї футбольної спільноти',
+                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 30),
                 
                 // Email поле
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(25),
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
                   ),
                   child: TextFormField(
                     controller: _emailController,
-                    style: TextStyle(color: Colors.white),
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
                     decoration: InputDecoration(
-                      hintText: 'Email',
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      hintText: 'Email або телефон',
+                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.7), fontWeight: FontWeight.w400),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                      contentPadding: const EdgeInsets.all(15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -66,23 +75,24 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                   ),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
                 
                 // Пароль поле
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(25),
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
                   ),
                   child: TextFormField(
                     controller: _passwordController,
                     obscureText: true,
-                    style: TextStyle(color: Colors.white),
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
                     decoration: InputDecoration(
                       hintText: 'Пароль',
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.7), fontWeight: FontWeight.w400),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                      contentPadding: const EdgeInsets.all(15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -92,20 +102,32 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                   ),
                 ),
-                SizedBox(height: 30),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Відновлення паролю буде додано пізніше')),
+                      );
+                    },
+                    child: Text(
+                      'Забули пароль?',
+                      style: TextStyle(color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 30),
                 
                 // Кнопка увійти
                 Container(
                   width: double.infinity,
-                  height: 60,
+                  height: 55,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        Color(0xFF4caf50),
-                        Color(0xFF66bb6a),
-                      ],
+                      colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
                     ),
-                    borderRadius: BorderRadius.circular(30),
+                    borderRadius: BorderRadius.circular(25),
                     boxShadow: [
                       BoxShadow(
                         color: Color(0xFF4caf50).withOpacity(0.3),
@@ -119,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+                        borderRadius: BorderRadius.circular(25),
                       ),
                     ),
                     onPressed: () async {
@@ -129,6 +151,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             email: _emailController.text.trim(),
                             password: _passwordController.text.trim(),
                           );
+                          // Зберігаємо FCM токен після входу
+                          try {
+                            final token = await FirebaseMessaging.instance.getToken();
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (token != null && user != null) {
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user.uid)
+                                  .set({
+                                'deviceTokens': FieldValue.arrayUnion([token])
+                              }, SetOptions(merge: true));
+                            }
+                          } catch (_) {}
                           Navigator.pushReplacementNamed(context, '/mode');
                         } on FirebaseAuthException catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -137,52 +172,25 @@ class _LoginScreenState extends State<LoginScreen> {
                         }
                       }
                     },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // FLAP логотип
-                        Container(
-                          padding: EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.sports_soccer,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'FLAP',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 2,
-                                  fontSize: 14,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Text(
-                          'УВІЙТИ',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 2,
-                            fontSize: 18,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
+                    child: const Text(
+                      'УВІЙТИ',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        fontSize: 16,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
-
+                const SizedBox(height: 15),
+                TextButton(
+                  onPressed: () => Navigator.pushNamed(context, '/register'),
+                  child: Text(
+                    "Немає акаунта? Зареєструватися",
+                    style: TextStyle(color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.w600),
+                  ),
+                ),
               ],
             ),
           ),

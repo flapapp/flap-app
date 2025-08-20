@@ -30,8 +30,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          'Профіль',
-          style: TextStyle(color: Colors.white),
+          'ПРОФІЛЬ',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.0,
+          ),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -83,7 +87,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.all(30),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF6a1b9a), Color(0xFF9c27b0)],
+                        colors: [Color(0xFF4caf50), Color(0xFF2e7d32)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -149,9 +153,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         
                         // Місто
                         Text(
-                          city,
+                          city.toUpperCase(),
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 14,
+                            letterSpacing: 0.5,
                             color: Colors.white.withOpacity(0.9),
                           ),
                         ),

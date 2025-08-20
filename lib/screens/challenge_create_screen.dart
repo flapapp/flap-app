@@ -22,7 +22,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   ChallengeAudience _selectedAudience = ChallengeAudience.city;
   String _selectedCity = 'Київ';
   int _selectedEntryFee = 10;
-  int _selectedDuration = 7;
+  int _recruitmentDays = 7;
+  int _submissionDays = 7;
+  int _votingDays = 5;
   bool _isCreating = false;
   File? _selectedVideoFile;
   
@@ -281,38 +283,70 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 
                 const SizedBox(height: 20),
                 
-                // Ставка входу та тривалість
+                // Ставка входу
+                _buildDropdownField(
+                  label: 'Ставка входу *',
+                  value: _selectedEntryFee,
+                  items: _entryFees,
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedEntryFee = value!;
+                    });
+                  },
+                  itemBuilder: (fee) => Text('$fee монет'),
+                  icon: Icons.monetization_on,
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Тривалості етапів
+                _buildSectionTitle(Icons.schedule, 'Тривалості етапів'),
+                const SizedBox(height: 15),
+                
                 Row(
                   children: [
                     Expanded(
                       child: _buildDropdownField(
-                        label: 'Ставка входу *',
-                        value: _selectedEntryFee,
-                        items: _entryFees,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedEntryFee = value!;
-                          });
-                        },
-                        itemBuilder: (fee) => Text('$fee монет'),
-                        icon: Icons.monetization_on,
-                      ),
-                    ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: _buildDropdownField(
-                        label: 'Тривалість *',
-                        value: _selectedDuration,
+                        label: 'Збір учасників *',
+                        value: _recruitmentDays,
                         items: _durations,
                         onChanged: (value) {
                           setState(() {
-                            _selectedDuration = value!;
+                            _recruitmentDays = value!;
                           });
                         },
-                        itemBuilder: (duration) => Text(duration == 1 ? '1 день' : 
-                                                      duration == 3 ? '3 дні' : 
-                                                      duration == 7 ? '1 тиждень' : '2 тижні'),
-                        icon: Icons.schedule,
+                        itemBuilder: (days) => Text('$days дн.'),
+                        icon: Icons.people,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildDropdownField(
+                        label: 'Подання відео *',
+                        value: _submissionDays,
+                        items: _durations,
+                        onChanged: (value) {
+                          setState(() {
+                            _submissionDays = value!;
+                          });
+                        },
+                        itemBuilder: (days) => Text('$days дн.'),
+                        icon: Icons.video_library,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildDropdownField(
+                        label: 'Голосування *',
+                        value: _votingDays,
+                        items: [3, 5, 7],
+                        onChanged: (value) {
+                          setState(() {
+                            _votingDays = value!;
+                          });
+                        },
+                        itemBuilder: (days) => Text('$days дн.'),
+                        icon: Icons.how_to_vote,
                       ),
                     ),
                   ],
@@ -565,11 +599,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       ),
       child: Column(
         children: [
-          _buildStageItem(Icons.people, 'Збір учасників', '${_selectedDuration} днів', Colors.green),
+          _buildStageItem(Icons.people, 'Збір учасників', '$_recruitmentDays днів', Colors.green),
           const Divider(color: Colors.white24, height: 20),
-          _buildStageItem(Icons.video_library, 'Подання відео', '${_selectedDuration} днів', Colors.orange),
+          _buildStageItem(Icons.video_library, 'Подання відео', '$_submissionDays днів', Colors.orange),
           const Divider(color: Colors.white24, height: 20),
-          _buildStageItem(Icons.how_to_vote, 'Голосування', '5 днів', Colors.blue),
+          _buildStageItem(Icons.how_to_vote, 'Голосування', '$_votingDays днів', Colors.blue),
           const Divider(color: Colors.white24, height: 20),
           _buildStageItem(Icons.emoji_events, 'Оголошення переможців', 'Автоматично', Colors.purple),
         ],
@@ -761,12 +795,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       final userName = userData['displayName'] ?? userData['name'] ?? 'Невідомий';
       final userCity = userData['city'] ?? _selectedCity;
 
-      // Розрахунок дат
+      // Розрахунок дат з окремими тривалостями
       final now = DateTime.now();
       final startDate = now;
-      final submissionDeadline = now.add(Duration(days: _selectedDuration));
-      final votingDeadline = submissionDeadline.add(Duration(days: _selectedDuration));
-      final endDate = votingDeadline.add(const Duration(days: 5));
+      final submissionDeadline = now.add(Duration(days: _recruitmentDays));
+      final votingDeadline = submissionDeadline.add(Duration(days: _submissionDays));
+      final endDate = votingDeadline.add(Duration(days: _votingDays));
 
       // Розрахунок призового фонду
       final prizePool = _selectedEntryFee * 20; // Призовий фонд = ставка × 20
@@ -782,7 +816,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         creatorName: userName,
         city: userCity,
         entryFee: _selectedEntryFee,
-        duration: _selectedDuration,
+        duration: _recruitmentDays,
         createdAt: now,
         startDate: startDate,
         submissionDeadline: submissionDeadline,

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
 import 'video_upload_screen.dart';
 import 'challenge_voting_screen.dart';
+import 'video_player_screen.dart';
 
 class ChallengeDetailsScreen extends StatefulWidget {
   final Challenge challenge;
@@ -579,33 +581,70 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '🎬 Відео (${widget.challenge.submissions.length})',
-            style: const TextStyle(
+          const Text(
+            '🎬 Відео',
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 16),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: widget.challenge.submissions.length,
-            itemBuilder: (context, index) {
-              final participantId = widget.challenge.submissions[index];
-              
-              return ListTile(
-                leading: const Icon(Icons.video_library, color: Colors.green),
-                title: Text('Відео від $participantId'),
-                subtitle: Text('Натисніть для перегляду'),
-                trailing: widget.challenge.isVotingOpen
-                    ? ElevatedButton(
-                        onPressed: () => _showVotingDialog(participantId),
-                        child: const Text('Голосувати'),
-                      )
-                    : null,
-                onTap: () {
-                  // TODO: Відкрити відео
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('challenges')
+                .doc(widget.challenge.id)
+                .collection('submissions')
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Text('Помилка: ${snapshot.error}');
+              }
+              final docs = snapshot.data?.docs ?? [];
+              if (docs.isEmpty) {
+                return const Text('Поки що немає відео');
+              }
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const Divider(height: 16),
+                itemBuilder: (context, index) {
+                  final data = docs[index].data();
+                  final author = data['authorName'] ?? docs[index].id;
+                  final videoUrl = data['videoUrl'] as String?;
+                  return ListTile(
+                    leading: const Icon(Icons.play_circle_fill, color: Colors.green),
+                    title: Text(author),
+                    subtitle: Text(
+                      videoUrl == null || videoUrl.isEmpty
+                          ? 'Відео недоступне'
+                          : 'Натисніть, щоб переглянути',
+                    ),
+                    trailing: widget.challenge.isVotingOpen
+                        ? ElevatedButton(
+                            onPressed: () => _showVotingDialog(docs[index].id),
+                            child: const Text('Голосувати'),
+                          )
+                        : null,
+                    onTap: () {
+                      if (videoUrl == null || videoUrl.isEmpty) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => VideoPlayerScreen(
+                            videoUrl: videoUrl,
+                            title: 'Відео учасника',
+                            authorName: author,
+                            videoId: 'challenge_${docs[index].id}',
+                          ),
+                        ),
+                      );
+                    },
+                  );
                 },
               );
             },

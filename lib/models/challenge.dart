@@ -226,7 +226,7 @@ class Challenge {
 
   // Геттери для часу
   bool get canJoin => isRecruiting && currentParticipants < maxParticipants;
-  bool get canSubmit => isSubmissionOpen && participants.contains(creatorId);
+  bool get canSubmit => isSubmissionOpen && participants.isNotEmpty;
   bool get canVote => isVotingOpen;
 
   // Геттери для призів

@@ -33,16 +33,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     label: const Text('Назад', style: TextStyle(color: Colors.white)),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 10),
 
                 const Text(
                   'Реєстрація',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Приєднуйтесь до футбольної спільноти',
                   style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 40),
 
@@ -133,7 +138,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 Container(
                   width: double.infinity,
-                  height: 50,
+                  height: 55,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(colors: [Color(0xFF4caf50), Color(0xFF66bb6a)]),
                     borderRadius: BorderRadius.circular(25),

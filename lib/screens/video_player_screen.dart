@@ -35,6 +35,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   final TextEditingController _commentController = TextEditingController();
   bool _isCommenting = false;
 
+  // Голосування за відео (0.00 - 5.00 з кроком 0.01)
+  double _technical = 2.50;
+  double _creativity = 2.50;
+  double _difficulty = 2.50;
+  double _quality = 2.50;
+  bool _hasVoted = false;
+  bool _isSubmittingVote = false;
+  String? _videoAuthorId;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +63,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         final data = videoDoc.data()!;
         setState(() {
           _likesCount = data['likes'] ?? 0;
+          _videoAuthorId = data['userId'] as String?;
         });
         
         // Перевіряємо чи користувач вже лайкнув
@@ -69,6 +79,24 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           setState(() {
             _isLiked = likeDoc.exists;
           });
+
+          // Перевіряємо, чи користувач вже голосував
+          final voteDoc = await FirebaseFirestore.instance
+              .collection('videos')
+              .doc(widget.videoId)
+              .collection('votes')
+              .doc(currentUser.uid)
+              .get();
+          if (voteDoc.exists) {
+            final v = voteDoc.data() as Map<String, dynamic>;
+            setState(() {
+              _hasVoted = true;
+              _technical = (v['technical'] ?? 0.0).toDouble();
+              _creativity = (v['creativity'] ?? 0.0).toDouble();
+              _difficulty = (v['difficulty'] ?? 0.0).toDouble();
+              _quality = (v['quality'] ?? 0.0).toDouble();
+            });
+          }
         }
       }
       
@@ -76,6 +104,75 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       _loadComments();
     } catch (e) {
       print('Error loading video data: $e');
+    }
+  }
+
+  Future<void> _submitVote() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    if (_hasVoted) return;
+    if (_videoAuthorId != null && _videoAuthorId == currentUser.uid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не можна голосувати за власне відео')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmittingVote = true;
+    });
+
+    final weighted = _technical * 0.4 + _creativity * 0.3 + _difficulty * 0.2 + _quality * 0.1;
+    final videoRef = FirebaseFirestore.instance.collection('videos').doc(widget.videoId);
+    final voteRef = videoRef.collection('votes').doc(currentUser.uid);
+
+    try {
+      await FirebaseFirestore.instance.runTransaction((txn) async {
+        final snap = await txn.get(videoRef);
+        if (!snap.exists) {
+          throw Exception('Відео не знайдено');
+        }
+        final data = snap.data() as Map<String, dynamic>;
+        final currentAvg = (data['rating'] ?? 0.0).toDouble();
+        final currentVotes = (data['totalVotes'] ?? 0).toInt();
+
+        // Запис голосу користувача
+        txn.set(voteRef, {
+          'technical': double.parse(_technical.toStringAsFixed(2)),
+          'creativity': double.parse(_creativity.toStringAsFixed(2)),
+          'difficulty': double.parse(_difficulty.toStringAsFixed(2)),
+          'quality': double.parse(_quality.toStringAsFixed(2)),
+          'total': double.parse(weighted.toStringAsFixed(2)),
+          'userId': currentUser.uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        // Оновлення середнього рейтингу та кількості голосів
+        final newVotes = currentVotes + 1;
+        final newAvg = ((currentAvg * currentVotes) + weighted) / newVotes;
+        txn.update(videoRef, {
+          'totalVotes': newVotes,
+          'rating': double.parse(newAvg.toStringAsFixed(2)),
+        });
+      });
+
+      setState(() {
+        _hasVoted = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Дякуємо за ваш голос!')),
+      );
+    } catch (e) {
+      print('Error submitting vote: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка голосування: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingVote = false;
+        });
+      }
     }
   }
 
@@ -296,6 +393,50 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     super.dispose();
   }
 
+  Widget _buildSliderRow(String label, double value, ValueChanged<double> onChanged, {bool enabled = true}) {
+    final slider = Slider(
+      value: value.clamp(0.0, 5.0),
+      min: 0.0,
+      max: 5.0,
+      divisions: 500, // крок ~0.01
+      label: value.toStringAsFixed(2),
+      onChanged: enabled ? onChanged : null,
+      activeColor: const Color(0xFF4caf50),
+      inactiveColor: Colors.white24,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Text(
+                value.toStringAsFixed(2),
+                style: const TextStyle(color: Colors.white, fontFeatures: []),
+              ),
+            )
+          ],
+        ),
+        SliderTheme(
+          data: const SliderThemeData(thumbShape: RoundSliderThumbShape(enabledThumbRadius: 8)),
+          child: slider,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -463,6 +604,60 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                 ),
                               ),
                             ],
+                          ),
+
+                          const SizedBox(height: 20),
+                          // Блок голосування за відео (4 повзунки, крок 0.01)
+                          Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.how_to_vote, color: Colors.white70, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      _hasVoted ? 'Ваш голос зараховано' : 'Голосування за відео',
+                                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+
+                                _buildSliderRow('Техніка', _technical, (v) => setState(() => _technical = v), enabled: !_hasVoted),
+                                const SizedBox(height: 8),
+                                _buildSliderRow('Креативність', _creativity, (v) => setState(() => _creativity = v), enabled: !_hasVoted),
+                                const SizedBox(height: 8),
+                                _buildSliderRow('Складність', _difficulty, (v) => setState(() => _difficulty = v), enabled: !_hasVoted),
+                                const SizedBox(height: 8),
+                                _buildSliderRow('Якість відео', _quality, (v) => setState(() => _quality = v), enabled: !_hasVoted),
+
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 44,
+                                  child: ElevatedButton(
+                                    onPressed: (!_hasVoted && !_isSubmittingVote) ? _submitVote : null,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF4caf50),
+                                      disabledBackgroundColor: Colors.white24,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    child: Text(
+                                      _hasVoted ? 'Ви вже проголосували' : (_isSubmittingVote ? 'Надсилаємо...' : 'Проголосувати'),
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                           
                           // Comment input

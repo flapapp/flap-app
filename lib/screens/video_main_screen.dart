@@ -48,11 +48,23 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          'Відео',
-          style: TextStyle(color: Colors.white),
+          'ВІДЕО',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.0,
+          ),
         ),
         actions: [
+          // Створити челендж (завжди доступно з відео екрана, як у MVP)
           IconButton(
+            tooltip: 'Створити челендж',
+            icon: const Icon(Icons.emoji_events_outlined, color: Colors.white),
+            onPressed: () => Navigator.pushNamed(context, '/challenge-create'),
+          ),
+          // Завантажити відео
+          IconButton(
+            tooltip: 'Завантажити відео',
             icon: const Icon(Icons.add_circle_outline, color: Colors.white),
             onPressed: () => Navigator.pushNamed(context, '/video-upload'),
           ),
@@ -196,18 +208,19 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: isActive ? Colors.white.withOpacity(0.2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          color: isActive ? Colors.white.withOpacity(0.22) : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
+            color: isActive ? Colors.white : Colors.white.withOpacity(0.35),
             width: 2,
           ),
         ),
         child: Text(
-          title,
+          title.toUpperCase(),
           style: TextStyle(
             color: Colors.white,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+            letterSpacing: 0.5,
           ),
         ),
       ),
@@ -257,16 +270,12 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
 
   Widget _buildContent() {
     switch (_selectedTab) {
-      case 'feed':
-        return _buildVideosList(); // Загальні відео
       case 'challenges':
-        return _buildChallengesList(); // Список челенджів
-      case 'my-videos':
-        return _buildMyVideosList(); // Мої відео
+        return ChallengeListScreen(); // Список челенджів
       case 'trending':
         return _buildTrendingVideos(); // Трендові відео
       default:
-        return _buildVideosList();
+        return _buildVideosList(); // Загальні відео (без челенджів)
     }
   }
 
@@ -356,8 +365,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     
     // Apply filters
     if (_selectedCity.isNotEmpty) {
-      // Note: You'll need to add city field to videos collection
-      // query = query.where('city', isEqualTo: _selectedCity);
+      query = query.where('city', isEqualTo: _selectedCity);
     }
     
     if (_selectedCategory.isNotEmpty) {
@@ -371,10 +379,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     
     // Apply tab filters
     switch (_selectedTab) {
-      case 'challenges':
-        // Note: You'll need to add challenge field to videos collection
-        // query = query.where('isChallenge', isEqualTo: true);
-        break;
       case 'trending':
         query = query.orderBy('views', descending: true);
         break;

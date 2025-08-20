@@ -22,10 +22,10 @@ class _ChallengeVotingScreenState extends State<ChallengeVotingScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   
   final Map<String, double> _criteria = {
-    'technical': 0.0,
-    'creativity': 0.0,
-    'difficulty': 0.0,
-    'quality': 0.0,
+    'technical': 2.5,
+    'creativity': 2.5,
+    'difficulty': 2.5,
+    'quality': 2.5,
   };
   
   bool _isVoting = false;
@@ -259,7 +259,7 @@ class _ChallengeVotingScreenState extends State<ChallengeVotingScreen> {
           Row(
             children: [
               Text(
-                '0',
+                '0.00',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[600],
@@ -282,9 +282,9 @@ class _ChallengeVotingScreenState extends State<ChallengeVotingScreen> {
                   child: Slider(
                     value: _criteria[key]!,
                     min: 0.0,
-                    max: 10.0,
-                    divisions: 10,
-                    label: _criteria[key]!.toStringAsFixed(1),
+                    max: 5.0,
+                    divisions: 500,
+                    label: _criteria[key]!.toStringAsFixed(2),
                     onChanged: (value) {
                       setState(() {
                         _criteria[key] = value;
@@ -294,7 +294,7 @@ class _ChallengeVotingScreenState extends State<ChallengeVotingScreen> {
                 ),
               ),
               Text(
-                '10',
+                '5.00',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[600],
@@ -306,7 +306,7 @@ class _ChallengeVotingScreenState extends State<ChallengeVotingScreen> {
           // Поточна оцінка
           Center(
             child: Text(
-              'Оцінка: ${_criteria[key]!.toStringAsFixed(1)}',
+              'Оцінка: ${_criteria[key]!.toStringAsFixed(2)}',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -395,7 +395,7 @@ class _ChallengeVotingScreenState extends State<ChallengeVotingScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      totalScore.toStringAsFixed(1),
+                      totalScore.toStringAsFixed(2),
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
@@ -403,7 +403,7 @@ class _ChallengeVotingScreenState extends State<ChallengeVotingScreen> {
                       ),
                     ),
                     Text(
-                      'з 10',
+                      'з 5',
                       style: TextStyle(
                         fontSize: 14,
                         color: scoreColor.withOpacity(0.8),
@@ -451,7 +451,7 @@ class _ChallengeVotingScreenState extends State<ChallengeVotingScreen> {
           ),
           Expanded(
             child: LinearProgressIndicator(
-              value: score / 10,
+              value: score / 5,
               backgroundColor: Colors.grey[300],
               valueColor: AlwaysStoppedAnimation<Color>(color),
               minHeight: 8,
@@ -461,7 +461,7 @@ class _ChallengeVotingScreenState extends State<ChallengeVotingScreen> {
           SizedBox(
             width: 60,
             child: Text(
-              '${weightedScore.toStringAsFixed(1)}',
+              '${weightedScore.toStringAsFixed(2)}',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
