@@ -17,6 +17,7 @@ import 'screens/challenge_list_screen.dart';
 import 'screens/challenge_create_screen.dart';
 import 'screens/challenge_details_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'screens/matches_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -77,7 +78,7 @@ class MyApp extends StatelessWidget {
         '/profile-creation': (context) => ProfileCreationScreen(),
         '/profile-edit': (context) => ProfileCreationScreen(isEditing: true),
         '/mode': (context) => ModeSelectionScreen(),
-                    '/video-upload': (context) {
+        '/video-upload': (context) {
               final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
               return VideoUploadScreen(
                 challengeId: args?['challengeId'],
@@ -87,6 +88,7 @@ class MyApp extends StatelessWidget {
         '/video-main': (context) => VideoMainScreen(),
         '/challenge-list': (context) => ChallengeListScreen(),
         '/challenge-create': (context) => ChallengeCreateScreen(),
+        '/matches': (context) => MatchesScreen(), 
         // VideoPlayerScreen не має маршруту, оскільки він викликається з параметрами
       },
     );

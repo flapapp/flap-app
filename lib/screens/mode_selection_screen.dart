@@ -328,9 +328,7 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
 
               // Матчі
               GestureDetector(
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Режим Матчі')),
-                ),
+  onTap: () => Navigator.pushNamed(context, '/matches'),
                 child: Container(
                   width: double.infinity,
                   height: 200,
