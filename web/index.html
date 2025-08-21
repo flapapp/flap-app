@@ -29,8 +29,41 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>flap_app</title>
+  <title>FLAP - Feel Like A Pro</title>
   <link rel="manifest" href="manifest.json">
+  
+  <style>
+    /* Виправлення стилів відеоплеєра */
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0f0f23;
+    }
+    
+    /* Прибираємо жовту стрічку з відеоплеєра */
+    video::-webkit-media-controls-timeline {
+      background-color: #4caf50 !important;
+    }
+    
+    video::-webkit-media-controls-current-time-display,
+    video::-webkit-media-controls-time-remaining-display {
+      color: white !important;
+    }
+    
+    video::-webkit-media-controls-panel {
+      background-color: rgba(0, 0, 0, 0.8) !important;
+    }
+    
+    /* Прибираємо outline та жовті рамки */
+    * {
+      outline: none !important;
+    }
+    
+    input, textarea, select {
+      outline: none !important;
+      -webkit-tap-highlight-color: transparent !important;
+    }
+  </style>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

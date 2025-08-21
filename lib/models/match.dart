@@ -229,17 +229,15 @@ class Match {
         (e) => e.toString().split('.').last == data['status'],
         orElse: () => MatchStatus.open,
       ),
-      teamA: data['teamA'] != null ? Team.fromFirestore(doc) : null,
-      teamB: data['teamB'] != null ? Team.fromFirestore(doc) : null,
+      teamA: null, // TODO: Implement team parsing if needed
+      teamB: null, // TODO: Implement team parsing if needed
       result: data['result'] != null ? MatchResult.values.firstWhere(
         (e) => e.toString().split('.').last == data['result'],
         orElse: () => MatchResult.draw,
       ) : null,
       teamAScore: data['teamAScore'],
       teamBScore: data['teamBScore'],
-      playerRatings: (data['playerRatings'] as List<dynamic>?)
-          ?.map((rating) => PlayerRating.fromFirestore(rating as DocumentSnapshot))
-          .toList() ?? [],
+      playerRatings: [], // TODO: Implement player ratings parsing if needed
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       updatedAt: (data['updatedAt'] as Timestamp).toDate(),
       startedAt: data['startedAt'] != null ? (data['startedAt'] as Timestamp).toDate() : null,

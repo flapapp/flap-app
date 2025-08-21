@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'video_upload_screen.dart';
 import 'video_player_screen.dart';
 import 'challenge_list_screen.dart';
+import '../models/challenge.dart';
 
 class VideoMainScreen extends StatefulWidget {
   @override
@@ -43,17 +44,46 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1e7d32),
+      backgroundColor: const Color(0xFF0f0f23), // Темний фон як у HTML MVP
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF0f0f23).withOpacity(0.95),
         elevation: 0,
-        title: const Text(
-          'ВІДЕО',
+        title: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.video_library, color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'FLAP Video',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
-          ),
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  'FEEL LIKE A PRO',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
         actions: [
           // Створити челендж (завжди доступно з відео екрана, як у MVP)
@@ -123,13 +153,20 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           children: [
             // Tabs
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
               child: Row(
                 children: [
                   _buildTab('Всі', 'all'),
-                  const SizedBox(width: 15),
                   _buildTab('Челенджі', 'challenges'),
-                  const SizedBox(width: 15),
                   _buildTab('Тренди', 'trending'),
                 ],
               ),
@@ -194,33 +231,87 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           ],
         ),
       ),
+      // FAB for quick actions
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Create Challenge FAB
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.elasticOut,
+            child: FloatingActionButton(
+              heroTag: "challenge_fab",
+              onPressed: () {
+                Navigator.pushNamed(context, '/challenge-create');
+              },
+              backgroundColor: const Color(0xFF4caf50),
+              elevation: 8,
+              child: const Icon(Icons.emoji_events, color: Colors.white),
+              tooltip: 'Створити челендж',
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Upload Video FAB
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.bounceOut,
+            child: FloatingActionButton(
+              heroTag: "video_fab",
+              onPressed: () {
+                Navigator.pushNamed(context, '/video-upload');
+              },
+              backgroundColor: const Color(0xFFFF6B35),
+              elevation: 8,
+              child: const Icon(Icons.videocam, color: Colors.white),
+              tooltip: 'Завантажити відео',
+            ),
+          ),
+        ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
   Widget _buildTab(String title, String tab) {
     final isActive = _selectedTab == tab;
-    return GestureDetector(
+    return Expanded(
+      child: GestureDetector(
       onTap: () {
         setState(() {
           _selectedTab = tab;
         });
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isActive ? Colors.white.withOpacity(0.22) : Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isActive ? Colors.white : Colors.white.withOpacity(0.35),
-            width: 2,
-          ),
+            gradient: isActive ? LinearGradient(
+              colors: [
+                const Color(0xFF4caf50),
+                const Color(0xFF66bb6a),
+              ],
+            ) : null,
+            color: isActive ? null : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isActive ? [
+              BoxShadow(
+                color: const Color(0xFF4caf50).withOpacity(0.4),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ] : null,
         ),
         child: Text(
           title.toUpperCase(),
+            textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white,
             fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 12,
             letterSpacing: 0.5,
+            ),
           ),
         ),
       ),
@@ -271,7 +362,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   Widget _buildContent() {
     switch (_selectedTab) {
       case 'challenges':
-        return ChallengeListScreen(); // Список челенджів
+        return _buildChallengesList(); // Вбудований список челенджів
       case 'trending':
         return _buildTrendingVideos(); // Трендові відео
       default:
@@ -353,7 +444,37 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             final video = snapshot.data!.docs[index];
             final data = video.data() as Map<String, dynamic>;
             
-            return _buildVideoCard(data, video.id);
+            return AnimatedContainer(
+              duration: Duration(milliseconds: 300 + (index * 100)),
+              curve: Curves.easeOutBack,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.5, 0.5),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: AlwaysStoppedAnimation(1.0),
+                    curve: Curves.easeOutBack,
+                  ),
+                ),
+                child: FadeTransition(
+                  opacity: Tween<double>(
+                    begin: 0.0,
+                    end: 1.0,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: AlwaysStoppedAnimation(1.0),
+                      curve: Interval(
+                        (index * 0.1).clamp(0.0, 1.0),
+                        1.0,
+                        curve: Curves.easeOut,
+                      ),
+                    ),
+                  ),
+                  child: _buildVideoCard(data, video.id),
+                ),
+              ),
+            );
           },
         );
       },
@@ -396,20 +517,34 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     final rating = (data['rating'] ?? 0.0).toDouble();
     final views = data['views'] ?? 0;
     final likes = data['likes'] ?? 0;
+    final comments = data['comments'] ?? 0;
     final authorName = data['authorName'] ?? 'Невідомий';
     final city = data['city'] ?? 'Невідомо';
     final createdAt = data['createdAt'] as Timestamp?;
+    final isLiked = data['isLikedByCurrentUser'] ?? false;
     
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(15),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.1),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -433,12 +568,19 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             },
             child: Container(
               width: double.infinity,
-              height: 200,
+              height: 280,
               decoration: BoxDecoration(
-                color: Colors.black,
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black87,
+                    Colors.black54,
+                  ],
+                ),
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(15),
-                  topRight: Radius.circular(15),
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
                 ),
               ),
               child: Stack(
@@ -446,25 +588,53 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                   // Video preview or placeholder
                   Center(
                     child: data['videoUrl'] != null && data['videoUrl'].isNotEmpty
-                        ? const Icon(
-                            Icons.play_circle_outline,
-                            color: Colors.white,
-                            size: 64,
+                        ? Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+                              ),
+                              borderRadius: BorderRadius.circular(60),
+                              border: Border.all(color: Colors.white, width: 4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF4caf50).withOpacity(0.4),
+                                  blurRadius: 20,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.play_arrow,
+                              color: Colors.white,
+                              size: 60,
+                            ),
                           )
                         : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(
+                              Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(40),
+                                  border: Border.all(color: Colors.white24, width: 2),
+                                ),
+                                child: const Icon(
                                 Icons.videocam_off,
                                 color: Colors.white54,
-                                size: 48,
+                                  size: 40,
                               ),
-                              const SizedBox(height: 8),
+                              ),
+                              const SizedBox(height: 12),
                               Text(
                                 'Відео недоступне',
                                 style: TextStyle(
-                                  color: Colors.white54,
+                                  color: Colors.white70,
                                   fontSize: 14,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -472,33 +642,57 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                   ),
                   // Category badge
                   Positioned(
-                    top: 15,
-                    left: 15,
+                    top: 12,
+                    left: 12,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4caf50),
+                            const Color(0xFF66bb6a),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF4caf50).withOpacity(0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Text(
                         category,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                   ),
                   // Rating badge
                   Positioned(
-                    top: 15,
-                    right: 15,
+                    top: 12,
+                    right: 12,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.orange,
-                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFFffd700),
+                            const Color(0xFFffa000),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFffd700).withOpacity(0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -509,11 +703,31 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                             rating.toStringAsFixed(1),
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                  ),
+                  // Duration badge (bottom right)
+                  Positioned(
+                    bottom: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${views > 0 ? "${views} переглядів" : "Новинка"}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -532,10 +746,12 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: Colors.white,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 8),
                 
@@ -544,8 +760,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                   Text(
                     description,
                     style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
+                      fontSize: 15,
+                      color: Colors.white.withOpacity(0.8),
                       height: 1.4,
                     ),
                     maxLines: 2,
@@ -585,16 +801,16 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                           Text(
                             authorName,
                             style: const TextStyle(
-                              fontSize: 14,
+                              fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: Colors.black87,
+                              color: Colors.white,
                             ),
                           ),
                           Text(
                             '$city • ${_formatDate(createdAt)}',
                             style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
+                              fontSize: 13,
+                              color: Colors.white.withOpacity(0.7),
                             ),
                           ),
                         ],
@@ -605,41 +821,52 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 
                 const SizedBox(height: 15),
                 
-                // Stats and actions
+                // Interactive Actions Row
                 Row(
                   children: [
-                    // Views
-                    Row(
-                      children: [
-                        const Icon(Icons.visibility, size: 16, color: Colors.black54),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$views',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
+                    // Like button
+                    _buildActionButton(
+                      icon: isLiked ? Icons.favorite : Icons.favorite_border,
+                      label: '$likes',
+                      color: isLiked ? Colors.red : Colors.white70,
+                      onTap: () => _toggleLike(videoId, isLiked),
                     ),
-                    const SizedBox(width: 20),
-                    // Likes
-                    Row(
-                      children: [
-                        const Icon(Icons.thumb_up, size: 16, color: Colors.black54),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$likes',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(width: 8),
+                    // Comment button
+                    _buildActionButton(
+                      icon: Icons.chat_bubble_outline,
+                      label: '$comments',
+                      color: Colors.white70,
+                      onTap: () => _showComments(videoId, title),
+                    ),
+                    const SizedBox(width: 8),
+                    // Share button
+                    _buildActionButton(
+                      icon: Icons.share,
+                      label: 'Поділитися',
+                      color: Colors.white70,
+                      onTap: () => _shareVideo(videoId, title),
                     ),
                     const Spacer(),
-                    // Watch button
-                    ElevatedButton(
+                    // Enhanced Watch button
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4caf50),
+                            const Color(0xFF66bb6a),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(25),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF4caf50).withOpacity(0.4),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                      child: ElevatedButton.icon(
                       onPressed: () {
                         Navigator.push(
                           context,
@@ -654,18 +881,25 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4caf50),
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      ),
-                      child: const Text(
+                        icon: const Icon(
+                          Icons.play_arrow,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        label: const Text(
                         'Дивитися',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
@@ -877,7 +1111,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('challenges')
-          .where('status', isEqualTo: 'recruiting')
+          .orderBy('createdAt', descending: true)
+          .limit(20)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -902,7 +1137,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Поки що немає активних челенджів',
+                  'Поки що немає челенджів',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -911,11 +1146,12 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Створіть перший челендж!',
+                  'Створіть перший челендж або дочекайтеся нових!',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
@@ -941,7 +1177,37 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           itemCount: challenges.length,
           itemBuilder: (context, index) {
             final challenge = challenges[index].data() as Map<String, dynamic>;
-            return _buildChallengeCard(challenge, challenges[index].id);
+            return AnimatedContainer(
+              duration: Duration(milliseconds: 400 + (index * 150)),
+              curve: Curves.elasticOut,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(-0.5, 0.3),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: AlwaysStoppedAnimation(1.0),
+                    curve: Curves.elasticOut,
+                  ),
+                ),
+                child: FadeTransition(
+                  opacity: Tween<double>(
+                    begin: 0.0,
+                    end: 1.0,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: AlwaysStoppedAnimation(1.0),
+                      curve: Interval(
+                        (index * 0.15).clamp(0.0, 1.0),
+                        1.0,
+                        curve: Curves.easeOut,
+                      ),
+                    ),
+                  ),
+                  child: _buildChallengeCard(challenge, challenges[index].id),
+                ),
+              ),
+            );
           },
         );
       },
@@ -950,17 +1216,37 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
 
   // Картка челенджу
   Widget _buildChallengeCard(Map<String, dynamic> challenge, String challengeId) {
-    return Container(
+    final status = challenge['status'] ?? 'recruiting';
+    final currentParticipants = challenge['currentParticipants'] ?? 0;
+    final maxParticipants = challenge['maxParticipants'] ?? 50;
+    final prizePool = (challenge['prizePool'] ?? 0.0).toDouble();
+    final entryFee = challenge['entryFee'] ?? 10;
+    final duration = challenge['duration'] ?? 7;
+    
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(0.1),
-            Colors.white.withOpacity(0.05),
+            const Color(0xFF4caf50).withOpacity(0.1),
+            const Color(0xFF66bb6a).withOpacity(0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF4caf50).withOpacity(0.3),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -969,52 +1255,116 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
               ),
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4caf50).withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                // Title with status badge
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
                   challenge['title'] ?? 'Без назви',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        _getStatusText(status),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Text(
                   challenge['description'] ?? 'Без опису',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
+                    fontSize: 13,
+                    height: 1.3,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 12),
+                // Author and duration info
                 Row(
                   children: [
-                    Icon(Icons.person, color: Colors.white70, size: 16),
-                    const SizedBox(width: 4),
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
                     Text(
-                      'Автор: ${challenge['creatorName'] ?? 'Невідомо'}',
+                      challenge['creatorName'] ?? 'Невідомо',
                       style: TextStyle(
-                        color: Colors.white70,
+                        color: Colors.white.withOpacity(0.9),
                         fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const Spacer(),
-                    Icon(Icons.access_time, color: Colors.white70, size: 16),
-                    const SizedBox(width: 4),
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.access_time,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
                     Text(
-                      '${challenge['duration'] ?? 7} днів',
+                      '$duration днів',
                       style: TextStyle(
-                        color: Colors.white70,
+                        color: Colors.white.withOpacity(0.9),
                         fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -1028,56 +1378,172 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                // Progress bar
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                    ),
+                  ),
+            child: Column(
+              children: [
                 Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildInfoItem(
-                      Icons.people,
-                      '${challenge['currentParticipants'] ?? 0} учасників',
-                    ),
-                    const SizedBox(width: 16),
-                    _buildInfoItem(
-                      Icons.monetization_on,
-                      '${challenge['entryFee'] ?? 0} монет',
-                    ),
-                    const SizedBox(width: 16),
-                    _buildInfoItem(
-                      Icons.emoji_events,
-                      '${(challenge['prizePool'] ?? 0).toInt()} монет',
+                          Text(
+                            'Прогрес: $currentParticipants/$maxParticipants',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '${((currentParticipants / maxParticipants) * 100).toInt()}%',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 12,
+                            ),
                     ),
                   ],
                 ),
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(
+                        value: currentParticipants / maxParticipants,
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF66bb6a),
+                        ),
+                        minHeight: 6,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ],
+                  ),
+                ),
+                
                 const SizedBox(height: 16),
                 
-                // Кнопки дій
+                // Stats grid
                 Row(
                   children: [
                     Expanded(
+                      child: _buildStatCard(
+                        icon: Icons.people,
+                        value: '$currentParticipants',
+                        label: 'Учасники',
+                        color: const Color(0xFF2196F3),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildStatCard(
+                        icon: Icons.attach_money,
+                        value: '$entryFee',
+                        label: 'Вхід',
+                        color: const Color(0xFFFF9800),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildStatCard(
+                        icon: Icons.emoji_events,
+                        value: '${prizePool.toInt()}',
+                        label: 'Приз',
+                        color: const Color(0xFFFFD700),
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Action Buttons Row
+                Row(
+                  children: [
+                    // Переглянути челендж
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF2196F3), Color(0xFF64B5F6)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF2196F3).withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
                       child: ElevatedButton.icon(
-                        onPressed: () => _joinChallenge(challengeId, challenge),
-                        icon: const Icon(Icons.video_library),
-                        label: const Text('Приєднатися'),
+                          onPressed: () => _viewChallengeDetails(challengeId, challenge),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4caf50),
-                          foregroundColor: Colors.white,
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.visibility,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          label: const Text(
+                            'Переглянути',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
+                    // Приєднатися
                     Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _viewChallengeDetails(challengeId, challenge),
-                        icon: const Icon(Icons.visibility),
-                        label: const Text('Деталі'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF4caf50).withOpacity(0.4),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton.icon(
+                          onPressed: () => _joinChallenge(challengeId, challenge),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.video_library,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          label: const Text(
+                            'Участь',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
@@ -1106,6 +1572,73 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildStatCard({
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 18,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'recruiting':
+        return 'Збір';
+      case 'submission':
+        return 'Відео';
+      case 'voting':
+        return 'Голосування';
+      case 'completed':
+        return 'Завершено';
+      default:
+        return 'Активний';
+    }
   }
 
   // Мої відео
@@ -1248,7 +1781,50 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
     
-    // Навігація до завантаження відео для челенджу
+    // Показуємо підтвердження участі
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e7d32),
+        title: Text(
+          'Приєднатися до челенджу',
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Ви приєднуєтеся до челенджу "${challenge['title']}"',
+              style: TextStyle(color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Ставка входу: ${challenge['entryFee'] ?? 0} монет',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              
+              // Спочатку додаємо користувача в учасники
+              try {
+                await FirebaseFirestore.instance
+                    .collection('challenges')
+                    .doc(challengeId)
+                    .update({
+                  'participants': FieldValue.arrayUnion([currentUser.uid]),
+                  'currentParticipants': FieldValue.increment(1),
+                });
+                
+                // Тепер переходимо до завантаження відео
     Navigator.pushNamed(
       context,
       '/video-upload',
@@ -1257,63 +1833,483 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         'challengeTitle': challenge['title'],
         'isChallengeVideo': true,
       },
-    );
-  }
-
-  void _viewChallengeDetails(String challengeId, Map<String, dynamic> challenge) {
-    // Показати детальну інформацію про челендж
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1e7d32),
-        title: Text(
-          challenge['title'] ?? 'Деталі челенджу',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Опис:',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              challenge['description'] ?? 'Без опису',
-              style: TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Призовий фонд: ${challenge['prizePool']?.toInt() ?? 0} монет',
-              style: TextStyle(color: Colors.white),
-            ),
-            Text(
-              'Ставка входу: ${challenge['entryFee'] ?? 0} монет',
-              style: TextStyle(color: Colors.white),
-            ),
-            Text(
-              'Учасників: ${challenge['currentParticipants'] ?? 0}',
-              style: TextStyle(color: Colors.white70),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Закрити'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _joinChallenge(challengeId, challenge);
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Помилка приєднання: $e')),
+                );
+              }
             },
-            child: const Text('Приєднатися'),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4caf50)),
+            child: const Text('Завантажити відео', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
+  }
+
+  void _viewChallengeDetails(String challengeId, Map<String, dynamic> challengeData) {
+    // Створюємо Challenge об'єкт з даних
+    final challenge = Challenge(
+      id: challengeId,
+      title: challengeData['title'] ?? '',
+      description: challengeData['description'] ?? '',
+      type: ChallengeType.values.firstWhere(
+        (e) => e.toString() == 'ChallengeType.${challengeData['type']}',
+        orElse: () => ChallengeType.technical,
+      ),
+      audience: ChallengeAudience.values.firstWhere(
+        (e) => e.toString() == 'ChallengeAudience.${challengeData['audience']}',
+        orElse: () => ChallengeAudience.city,
+      ),
+      creatorId: challengeData['creatorId'] ?? '',
+      creatorName: challengeData['creatorName'] ?? '',
+      city: challengeData['city'] ?? '',
+      entryFee: challengeData['entryFee'] ?? 10,
+      duration: challengeData['duration'] ?? 7,
+      createdAt: (challengeData['createdAt'] as Timestamp).toDate(),
+      startDate: (challengeData['startDate'] as Timestamp).toDate(),
+      submissionDeadline: (challengeData['submissionDeadline'] as Timestamp).toDate(),
+      votingDeadline: (challengeData['votingDeadline'] as Timestamp).toDate(),
+      endDate: (challengeData['endDate'] as Timestamp).toDate(),
+      status: ChallengeStatus.values.firstWhere(
+        (e) => e.toString() == 'ChallengeStatus.${challengeData['status']}',
+        orElse: () => ChallengeStatus.recruiting,
+      ),
+      maxParticipants: challengeData['maxParticipants'] ?? 50,
+      currentParticipants: challengeData['currentParticipants'] ?? 0,
+      prizePool: (challengeData['prizePool'] ?? 0.0).toDouble(),
+      participants: List<String>.from(challengeData['participants'] ?? []),
+      submissions: List<String>.from(challengeData['submissions'] ?? []),
+      votes: Map<String, double>.from(challengeData['votes'] ?? {}),
+      detailedVotes: Map<String, Map<String, double>>.from(challengeData['detailedVotes'] ?? {}),
+      winners: List<String>.from(challengeData['winners'] ?? []),
+      finalScores: Map<String, double>.from(challengeData['finalScores'] ?? {}),
+      isActive: challengeData['isActive'] ?? true,
+      imageUrl: challengeData['imageUrl'],
+      tags: List<String>.from(challengeData['tags'] ?? []),
+    );
+    
+    // Переходимо на екран деталей челенджу
+    Navigator.pushNamed(
+      context,
+      '/challenge-details',
+      arguments: challenge,
+    );
+  }
+
+  // Helper method for action buttons
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Interactive methods
+  void _toggleLike(String videoId, bool isCurrentlyLiked) {
+    if (isCurrentlyLiked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Ви вже голосували за це відео'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    // TODO: Implement Firebase like toggle
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('❤️ Лайк додано'),
+        duration: Duration(seconds: 1),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showComments(String videoId, String videoTitle) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1e7d32), Color(0xFF2e7d32)],
+          ),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(25),
+            topRight: Radius.circular(25),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  const Icon(Icons.chat_bubble, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Коментарі до "$videoTitle"',
+                      style: const TextStyle(
+                color: Colors.white,
+                        fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Comments list
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('videos')
+                    .doc(videoId)
+                    .collection('comments')
+                    .orderBy('createdAt', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    );
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 64,
+                            color: Colors.white.withOpacity(0.5),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Поки що немає коментарів',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Будьте першим, хто залишить коментар!',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.6),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: snapshot.data!.docs.length,
+                    itemBuilder: (context, index) {
+                      final comment = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                      final userId = comment['userId'] ?? '';
+                      final commentText = comment['comment'] ?? '';
+                      final timestamp = comment['createdAt'] as Timestamp?;
+                      
+                      return FutureBuilder<DocumentSnapshot>(
+                        future: FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(userId)
+                            .get(),
+                        builder: (context, userSnapshot) {
+                          String authorName = 'Користувач';
+                          if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                            final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                            final name = userData['name'] ?? '';
+                            final surname = userData['surname'] ?? '';
+                            authorName = '$name $surname'.trim();
+                            if (authorName.isEmpty) {
+                              authorName = userData['authorName'] ?? 'Користувач';
+                            }
+                          }
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.1),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Avatar (кліабельний)
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/player-profile',
+                                      arguments: {
+                                        'playerId': userId,
+                                        'playerName': authorName,
+                                      },
+                                    );
+                                  },
+                                  child: Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+                                      ),
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.3),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        authorName.isNotEmpty ? authorName[0].toUpperCase() : '?',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Comment content
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Author name (кліабельний)
+                                      GestureDetector(
+                                        onTap: () {
+                                          Navigator.pushNamed(
+                                            context,
+                                            '/player-profile',
+                                            arguments: {
+                                              'playerId': userId,
+                                              'playerName': authorName,
+                                            },
+                                          );
+                                        },
+                                        child: Text(
+                                          authorName,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            decoration: TextDecoration.underline,
+                                            decorationColor: Colors.white30,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      // Comment text
+                                      Text(
+                                        commentText,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.9),
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      // Timestamp
+                                      if (timestamp != null)
+                                        Text(
+                                          _formatTimestamp(timestamp),
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(0.5),
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            // Comment input
+            Container(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                        ),
+                      ),
+                      child: TextField(
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          hintText: 'Написати коментар...',
+                          hintStyle: TextStyle(color: Colors.white70),
+                          border: InputBorder.none,
+                        ),
+                        onSubmitted: (text) {
+                          if (text.trim().isNotEmpty) {
+                            _addComment(videoId, text.trim());
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Icon(
+                      Icons.send,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _shareVideo(String videoId, String videoTitle) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('📤 Відео "$videoTitle" поділено!'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF4caf50),
+      ),
+    );
+  }
+
+  String _formatTimestamp(Timestamp timestamp) {
+    final now = DateTime.now();
+    final commentTime = timestamp.toDate();
+    final difference = now.difference(commentTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays} днів тому';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} годин тому';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} хвилин тому';
+    } else {
+      return 'Щойно';
+    }
+  }
+
+  void _addComment(String videoId, String comment) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      // Додати коментар
+      await FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .collection('comments')
+          .add({
+        'userId': currentUser.uid,
+        'comment': comment,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Оновити лічильник коментарів
+      await FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .update({
+        'comments': FieldValue.increment(1),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('💬 Коментар додано!'),
+          duration: Duration(seconds: 1),
+          backgroundColor: Color(0xFF4caf50),
+        ),
+      );
+    } catch (e) {
+      print('Error adding comment: $e');
+    }
   }
 }

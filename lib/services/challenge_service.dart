@@ -80,18 +80,25 @@ class ChallengeService {
       }
 
       // Перевірка ліміту челенджів для користувача
-      final userChallenges = await _challengesCollection
-          .where('creatorId', isEqualTo: currentUser.uid)
-          .get();
+      final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+      final userData = userDoc.data();
+      final maxChallenges = userData?['maxChallengesPerMonth'] ?? 1;
+      final isSubscriptionActive = userData?['subscriptionActive'] ?? false;
       
-      // Фільтруємо на клієнті
-      final recentChallenges = userChallenges.docs.where((doc) {
-        final challenge = Challenge.fromFirestore(doc);
-        return challenge.createdAt.isAfter(DateTime.now().subtract(const Duration(days: 30)));
-      }).toList();
+      if (!isSubscriptionActive) {
+        final userChallenges = await _challengesCollection
+            .where('creatorId', isEqualTo: currentUser.uid)
+            .get();
+        
+        // Фільтруємо на клієнті
+        final recentChallenges = userChallenges.docs.where((doc) {
+          final challenge = Challenge.fromFirestore(doc);
+          return challenge.createdAt.isAfter(DateTime.now().subtract(const Duration(days: 30)));
+        }).toList();
 
-      if (recentChallenges.length >= 1) {
-        throw Exception('Ліміт: 1 челендж на місяць');
+        if (recentChallenges.length >= maxChallenges) {
+          throw Exception('Ліміт: $maxChallenges челендж на місяць. Оформіть підписку для необмежених челенджів!');
+        }
       }
 
       final docRef = await _challengesCollection.add(challenge.toFirestore());

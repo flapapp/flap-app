@@ -41,8 +41,11 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
             _surnameController.text = userData['surname'] ?? '';
             _cityController.text = userData['city'] ?? '';
             _ageController.text = userData['age']?.toString() ?? '';
-            _selectedPosition = userData['position'];
-            _selectedExperience = userData['experience'];
+            // Перевіряємо чи значення є в списках
+            final userPosition = userData['position'];
+            _selectedPosition = _positions.contains(userPosition) ? userPosition : null;
+            final userExperience = userData['experience'];
+            _selectedExperience = _experiences.contains(userExperience) ? userExperience : null;
           });
         }
       }

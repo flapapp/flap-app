@@ -16,8 +16,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/challenge_list_screen.dart';
 import 'screens/challenge_create_screen.dart';
 import 'screens/challenge_details_screen.dart';
+import 'models/challenge.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'screens/matches_screen.dart';
+import 'screens/player_profile_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -88,7 +90,18 @@ class MyApp extends StatelessWidget {
         '/video-main': (context) => VideoMainScreen(),
         '/challenge-list': (context) => ChallengeListScreen(),
         '/challenge-create': (context) => ChallengeCreateScreen(),
-        '/matches': (context) => MatchesScreen(), 
+        '/challenge-details': (context) {
+          final challenge = ModalRoute.of(context)?.settings.arguments as Challenge;
+          return ChallengeDetailsScreen(challenge: challenge);
+        },
+        '/matches': (context) => MatchesScreen(),
+        '/player-profile': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>;
+          return PlayerProfileScreen(
+            playerId: args['playerId'],
+            playerName: args['playerName'],
+          );
+        },
         // VideoPlayerScreen не має маршруту, оскільки він викликається з параметрами
       },
     );

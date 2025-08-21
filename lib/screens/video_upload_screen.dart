@@ -77,7 +77,12 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   }
 
   Future<void> _uploadVideo() async {
-    if (_formKey.currentState!.validate() && _pickedVideo != null) {
+    // Для челенджів не потрібна валідація форми
+    bool isValidForUpload = widget.challengeId != null 
+        ? _pickedVideo != null 
+        : (_formKey.currentState!.validate() && _pickedVideo != null);
+        
+    if (isValidForUpload) {
       setState(() {
         _isUploading = true;
         _uploadProgress = 0.0;
@@ -344,8 +349,10 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                 ),
                 const SizedBox(height: 30),
 
-                // Назва відео
-                Container(
+                // Поля тільки для звичайних відео (не для челенджів)
+                if (widget.challengeId == null) ...[
+                  // Назва відео
+                  Container(
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(15),
@@ -477,6 +484,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                   ),
                 ),
                 const SizedBox(height: 30),
+                ], // Закриваємо блок полів для звичайних відео
 
                 // Прогрес завантаження
                 if (_isUploading) ...[

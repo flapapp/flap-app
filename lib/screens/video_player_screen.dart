@@ -127,6 +127,21 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     final voteRef = videoRef.collection('votes').doc(currentUser.uid);
 
     try {
+      // Спочатку перевірити чи існує документ відео
+      final videoDocCheck = await videoRef.get();
+      if (!videoDocCheck.exists) {
+        setState(() {
+          _isSubmittingVote = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Відео не знайдено!'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       await FirebaseFirestore.instance.runTransaction((txn) async {
         final snap = await txn.get(videoRef);
         if (!snap.exists) {

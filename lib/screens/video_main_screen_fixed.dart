@@ -295,8 +295,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     
     // Apply filters
     if (_selectedCity.isNotEmpty) {
-      // Note: You'll need to add city field to videos collection
-      // query = query.where('city', isEqualTo: _selectedCity);
+      query = query.where('city', isEqualTo: _selectedCity);
     }
     
     if (_selectedCategory.isNotEmpty) {
@@ -311,8 +310,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     // Apply tab filters
     switch (_selectedTab) {
       case 'challenges':
-        // Note: You'll need to add challenge field to videos collection
-        // query = query.where('isChallenge', isEqualTo: true);
+        query = query.where('challengeId', isNotEqualTo: null);
         break;
       case 'trending':
         query = query.orderBy('views', descending: true);

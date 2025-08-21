@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../models/challenge.dart';
@@ -839,6 +840,10 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       final challengeId = await _challengeService.createChallenge(challenge);
       
       if (challengeId != null) {
+        // Завантажуємо відео створювача одразу
+        if (_selectedVideoFile != null) {
+          await _uploadCreatorVideo(challengeId, currentUser.uid, userName);
+        }
         // Показати повідомлення про успіх та запитати про завантаження відео
         showDialog(
           context: context,
@@ -863,40 +868,20 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                   ),
                 ],
               ),
-              content: const Text(
-                'Челендж успішно створено! Тепер ви можете завантажити відео для участі в ньому.',
-                style: TextStyle(
+              content: Text(
+                _selectedVideoFile != null 
+                  ? 'Челендж та ваше відео успішно створені! Тепер інші гравці можуть приєднатися та завантажити свої відео.'
+                  : 'Челендж створено! Ви можете додати відео пізніше в деталях челенджу.',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
                 ),
               ),
               actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context); // Закрити діалог
-                    Navigator.pop(context); // Повернутися назад
-                  },
-                  child: const Text(
-                    'Пізніше',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context); // Закрити діалог
                     Navigator.pop(context); // Повернутися назад
-                    // Відкрити екран завантаження відео для челенджу
-                    Navigator.pushNamed(
-                      context,
-                      '/video-upload',
-                      arguments: {
-                        'challengeId': challengeId,
-                        'challengeTitle': challenge.title,
-                      },
-                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
@@ -906,7 +891,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     ),
                   ),
                   child: const Text(
-                    'Завантажити відео',
+                    'Готово',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -990,6 +975,53 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       setState(() {
         _selectedVideoFile = File(video.path);
       });
+    }
+  }
+
+  Future<void> _uploadCreatorVideo(String challengeId, String userId, String authorName) async {
+    if (_selectedVideoFile == null) return;
+    
+    try {
+      // Завантажуємо відео в Storage
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'creator_video_$timestamp.mp4';
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('videos/$userId/$fileName');
+      
+      final uploadTask = storageRef.putFile(_selectedVideoFile!);
+      final snapshot = await uploadTask;
+      final videoUrl = await snapshot.ref.getDownloadURL();
+      
+      // Зберігаємо відео створювача в submissions
+      await FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(challengeId)
+          .collection('submissions')
+          .doc(userId)
+          .set({
+        'userId': userId,
+        'authorName': authorName,
+        'title': 'Відео створювача',
+        'videoUrl': videoUrl,
+        'createdAt': FieldValue.serverTimestamp(),
+        'averageRating': 0.0,
+        'voteCount': 0,
+        'votes': <String, dynamic>{},
+      });
+      
+      // Додаємо створювача як учасника
+      await FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(challengeId)
+          .update({
+        'participants': FieldValue.arrayUnion([userId]),
+        'submissions': FieldValue.arrayUnion([userId]),
+        'currentParticipants': FieldValue.increment(1),
+      });
+      
+    } catch (e) {
+      print('Error uploading creator video: $e');
     }
   }
 }

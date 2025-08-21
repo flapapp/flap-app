@@ -8,11 +8,11 @@ class MatchService {
   Stream<List<Match>> getAvailableMatches() {
     return _firestore
         .collection('matches')
-        .where('status', isEqualTo: MatchStatus.open.toString())
-        .orderBy('dateTime', descending: false)
+        .orderBy('date', descending: false)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => Match.fromFirestore(doc))
+            .where((match) => match.status == MatchStatus.open)
             .toList());
   }
 
@@ -21,7 +21,7 @@ class MatchService {
     return _firestore
         .collection('matches')
         .where('players', arrayContains: userId)
-        .orderBy('dateTime', descending: true)
+        .orderBy('date', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => Match.fromFirestore(doc))
