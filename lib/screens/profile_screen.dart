@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'profile_creation_screen.dart';
+import 'video_main_screen.dart';
+import '../widgets/rating_display.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
@@ -71,12 +73,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
             }
 
             final userData = snapshot.data!.data()!;
-            final displayName = userData['displayName'] ?? 'Гравець';
+            
+            // Додаємо логування для діагностики
+            print('Profile data: $userData');
+            print('displayName: ${userData['displayName']}');
+            print('email: ${userData['email']}');
+            
+            // Спробуємо різні поля для імені
+            String displayName = userData['displayName'] ??
+                                 userData['authorName'] ??
+                                 (userData['firstName'] != null || userData['lastName'] != null
+                                     ? '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'.trim()
+                                     : null) ??
+                                 userData['name'] ??
+                                 userData['email']?.split('@')[0] ??
+                                 'Гравець';
+            
             final avatarUrl = userData['avatarUrl'] as String?;
+            
+            // Додаємо логування для аватара
+            print('avatarUrl: $avatarUrl');
+            print('avatarUrl is empty: ${avatarUrl?.isEmpty}');
+            print('avatarUrl is null: ${avatarUrl == null}');
             final city = userData['city'] ?? 'Не вказано';
             final position = userData['position'] ?? 'Не вказано';
             final experience = userData['experience'] ?? 'Не вказано';
-                               final age = userData['age']?.toString() ?? 'Не вказано';
+            final age = userData['age']?.toString() ?? 'Не вказано';
 
             return SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -148,6 +170,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: Colors.white,
                           ),
                           textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 10),
+                        
+                        // Рейтинг
+                        RatingDisplay(
+                          userId: _auth.currentUser?.uid ?? '',
+                          size: 32,
+                          showLevel: true,
+                          showNumber: true,
+                          onTap: () {
+                            // TODO: Перехід до деталей рейтингу
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Перехід до деталей рейтингу'),
+                                backgroundColor: Colors.blue,
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 10),
                         
@@ -233,7 +273,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           icon: Icons.video_library,
                           title: 'Мої відео',
                           onTap: () {
-                            Navigator.pushNamed(context, '/video-main');
+                            // Перехід на екран відео у режимі "Мої відео"
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => VideoMainScreen(),
+                                settings: const RouteSettings(arguments: {'myContent': 'videos'}),
+                              ),
+                            );
                           },
                         ),
                         const SizedBox(height: 15),
@@ -242,7 +289,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           icon: Icons.emoji_events,
                           title: 'Мої челенджі',
                           onTap: () {
-                            Navigator.pushNamed(context, '/video-main');
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => VideoMainScreen(),
+                                settings: const RouteSettings(arguments: {'myContent': 'challenges'}),
+                              ),
+                            );
                           },
                         ),
                         const SizedBox(height: 15),

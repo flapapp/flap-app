@@ -50,10 +50,10 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     'Експерт',
   ];
 
-  Future<void> _pickVideo() async {
+  Future<void> _pickVideo({bool fromCamera = false}) async {
     final picker = ImagePicker();
     final XFile? picked = await picker.pickVideo(
-      source: ImageSource.gallery,
+      source: fromCamera ? ImageSource.camera : ImageSource.gallery,
       maxDuration: const Duration(minutes: 5), // Максимум 5 хвилин
     );
 
@@ -138,7 +138,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
          // Отримуємо дані користувача
         final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
         final userData = userDoc.data();
-        final authorName = userData?['displayName'] ?? 'Невідомий';
+        final authorName = userData?['displayName'] ?? userData?['authorName'] ?? userData?['name'] ?? 'Невідомий';
         final city = userData?['city'] ?? 'Невідомо';
 
         if (widget.challengeId == null) {
@@ -162,7 +162,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
             'updatedAt': FieldValue.serverTimestamp(),
           });
         } else {
-          // Це відео для челенджу: записуємо тільки в submissions під челенджем
+          // Це відео для челенджу: записуємо в submissions під челенджем
           final challengeId = widget.challengeId!;
           final submissionRef = FirebaseFirestore.instance
               .collection('challenges')
@@ -172,12 +172,16 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
           await submissionRef.set({
             'userId': uid,
             'authorName': authorName,
-            'title': _titleController.text.trim(),
+            'title': _titleController.text.trim().isNotEmpty 
+                ? _titleController.text.trim() 
+                : 'Відео для челенджу',
             'description': _descriptionController.text.trim(),
             'videoUrl': videoUrl,
+            'isCreatorVideo': false, // Це не відео створювача
             'createdAt': FieldValue.serverTimestamp(),
-            'rating': 0.0,
-            'votes': 0,
+            'averageRating': 0.0,
+            'voteCount': 0,
+            'votes': <String, dynamic>{},
           });
 
           // Позначаємо, що користувач подав відео на челендж
@@ -278,7 +282,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
 
                 // Вибір відео
                 GestureDetector(
-                  onTap: _isUploading ? null : _pickVideo,
+                  onTap: _isUploading ? null : () => _pickVideo(fromCamera: false),
                   child: Container(
                     width: double.infinity,
                     height: 200,
@@ -348,6 +352,35 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                   ),
                 ),
                 const SizedBox(height: 30),
+                // Швидкий вибір джерела: Галерея / Камера
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isUploading ? null : () => _pickVideo(fromCamera: false),
+                        icon: const Icon(Icons.video_library),
+                        label: const Text('Галерея'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white24,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isUploading ? null : () => _pickVideo(fromCamera: true),
+                        icon: const Icon(Icons.videocam),
+                        label: const Text('Камера'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4caf50),
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
 
                 // Поля тільки для звичайних відео (не для челенджів)
                 if (widget.challengeId == null) ...[

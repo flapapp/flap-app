@@ -440,12 +440,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           final now = DateTime.now();
                           final premiumExpiry = now.add(const Duration(days: 14)); // 2 тижні преміум
                           
+                          final fullName =
+                              '${_nameController.text.trim()} ${_surnameController.text.trim()}'.trim();
+
                           await FirebaseFirestore.instance
                               .collection('users')
                               .doc(userCredential.user!.uid)
                               .set({
-                            'authorName': _nameController.text.trim(),
-                            'displayName': _nameController.text.trim(),
+                            'authorName': fullName,
+                            'displayName': fullName,
                             'name': _nameController.text.trim(),
                             'surname': _surnameController.text.trim(),
                             'email': _emailController.text.trim(),
@@ -456,7 +459,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             'experience': _selectedExperience ?? 'Початківець',
                             'avatarUrl': avatarUrl,
                             'createdAt': FieldValue.serverTimestamp(),
-                            'rating': 0.0,
+                            // Default ratings per spec
+                            'rating': 3.0,
+                            'matchRating': 3.0,
+                            'videoRating': 3.0,
+                            'totalMatches': 0,
+                            'totalVideos': 0,
+                            'ratingHistory': [],
+                            'lastRatingUpdate': FieldValue.serverTimestamp(),
                             'coins': 160, // 100 базових + 60 за преміум
                             'matches': 0,
                             'goals': 0,

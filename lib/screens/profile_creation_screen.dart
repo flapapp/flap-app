@@ -422,17 +422,28 @@ if (_pickedImage != null) {
 }
 
 // 2) Збереження профілю
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        final fullName = '${_nameController.text.trim()} ${_surnameController.text.trim()}'.trim();
+        final updateData = {
           'firstName': _nameController.text.trim(),
           'lastName': _surnameController.text.trim(),
-          'authorName': '${_nameController.text.trim()} ${_surnameController.text.trim()}',
+          'authorName': fullName,
+          'displayName': fullName,
           'city': _cityController.text.trim(),
           'age': int.tryParse(_ageController.text.trim()),
           'position': _selectedPosition,
           'experience': _selectedExperience,
-          'avatarUrl': avatarUrl,
           'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        };
+
+        // Не перезаписуємо avatarUrl на null, якщо не вибрано нове фото
+        if (avatarUrl != null && avatarUrl.isNotEmpty) {
+          updateData['avatarUrl'] = avatarUrl;
+        }
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .set(updateData, SetOptions(merge: true));
 
     // 3) Додамо 3-4 друзів автоматично (з існуючих користувачів)
     try {
@@ -459,7 +470,11 @@ if (_pickedImage != null) {
     }
 
     // 4) Перехід
-    Navigator.pushReplacementNamed(context, '/mode');
+    if (widget.isEditing) {
+      Navigator.pop(context); // Повертаємось на попередній екран
+    } else {
+      Navigator.pushReplacementNamed(context, '/mode');
+    }
   }
 },
                         child: Text(

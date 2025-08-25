@@ -23,6 +23,8 @@ import 'screens/player_profile_screen.dart';
 import 'models/match.dart' as app_models;
 import 'screens/match_details_screen.dart';
 import 'screens/create_match_screen.dart';
+import 'screens/ratings_screen.dart';
+import 'screens/match_rating_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -98,6 +100,11 @@ class MyApp extends StatelessWidget {
           return ChallengeDetailsScreen(challenge: challenge);
         },
         '/matches': (context) => MatchesScreen(),
+        '/ratings': (context) => RatingsScreen(),
+        '/match-rating': (context) {
+          final match = ModalRoute.of(context)?.settings.arguments as app_models.Match;
+          return MatchRatingScreen(match: match);
+        },
         '/match-details': (context) {
         final app_models.Match match =
             ModalRoute.of(context)!.settings.arguments as app_models.Match;
@@ -140,25 +147,27 @@ class WelcomeScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Логотип як у MVP
+                  // Відображення лого з assets/logo/
                   Container(
-                    width: 120,
-                    height: 120,
+                    width: 140,
+                    height: 140,
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: Colors.white, width: 4),
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 15,
+                          color: Colors.black.withOpacity(0.25),
+                          blurRadius: 18,
                           offset: const Offset(0, 10),
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.sports_soccer,
-                      size: 60,
-                      color: Color(0xFF1e7d32),
+                    clipBehavior: Clip.antiAlias,
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: Image.asset(
+                        'assets/logo/flap_logo.jpg',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 30),

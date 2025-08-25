@@ -8,6 +8,9 @@ import 'match_details_screen.dart';
 import 'video_main_screen.dart';
 import '../services/match_service.dart';
 import '../services/test_data.dart';
+import 'ratings_screen.dart';
+import '../widgets/rating_display.dart';
+import '../services/rating_service.dart';
 
 class MatchesScreen extends StatefulWidget {
   @override
@@ -278,6 +281,33 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
         ),
         foregroundColor: Colors.white,
         actions: [
+          // Перемикач режимів: Матчі ↔ Відео
+          IconButton(
+            tooltip: 'Перейти до відео',
+            icon: const Icon(Icons.video_library, color: Colors.white),
+            onPressed: () => Navigator.pushNamed(context, '/video-main'),
+          ),
+          // Рейтинг у хедері
+          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(FirebaseAuth.instance.currentUser?.uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              final rating = snapshot.hasData && snapshot.data!.exists
+                  ? (snapshot.data!.data()!['rating'] ?? 3.0).toDouble()
+                  : 3.0;
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Text(
+                    '⭐ ${rating.toStringAsFixed(1)}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: Icon(Icons.data_usage),
             onPressed: () async {
@@ -576,35 +606,32 @@ Widget _buildMyMatchesTab() {
 
   // ВКЛАДКА 4: Рейтинги
   Widget _buildRatingsTab() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.leaderboard,
-            size: 64,
-            color: Colors.white54,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Рейтинги',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Тут будуть рейтинги топ гравців та команд',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 16,
-            ),
-          ),
-        ],
-      ),
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      child: RatingsScreen(),
     );
+  }
+
+  // Метод для розрахунку середнього рейтингу учасників
+  Future<double> _calculateAverageRating(List<String> participantIds) async {
+    try {
+      if (participantIds.isEmpty) return 3.0; // Початковий рейтинг
+      
+      double totalRating = 0.0;
+      int ratedParticipants = 0;
+      
+      for (final participantId in participantIds) {
+        final rating = await RatingService().getUserRating(participantId);
+        totalRating += rating;
+        ratedParticipants++;
+      }
+      
+      return ratedParticipants > 0 ? totalRating / ratedParticipants : 3.0;
+    } catch (e) {
+      print('Error calculating average rating: $e');
+      return 3.0;
+    }
   }
 
   // Метод для створення картки матчу
@@ -720,6 +747,31 @@ Widget _buildMyMatchesTab() {
                           fontWeight: FontWeight.w600
                         ),
                       ),
+                      SizedBox(width: 12),
+                      // Середній рейтинг учасників
+                      if (match.participants.isNotEmpty)
+                        FutureBuilder<double>(
+                          future: _calculateAverageRating(match.participants),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData) {
+                              return Row(
+                                children: [
+                                  const Text('⭐', style: TextStyle(fontSize: 12)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    snapshot.data!.toStringAsFixed(1),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
                     ],
                   ),
                 ),

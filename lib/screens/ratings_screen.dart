@@ -1,0 +1,968 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../services/rating_service.dart';
+import 'player_profile_screen.dart';
+
+class RatingsScreen extends StatefulWidget {
+  @override
+  _RatingsScreenState createState() => _RatingsScreenState();
+}
+
+class _RatingsScreenState extends State<RatingsScreen>
+    with TickerProviderStateMixin {
+  final RatingService _ratingService = RatingService();
+  
+  late TabController _tabController;
+  int _currentTabIndex = 0;
+  
+  final List<String> _tabTitles = [
+    'Загальний рейтинг',
+    'За містом',
+    'За позицією',
+    'Моя статистика'
+  ];
+  
+  // Фільтри
+  String _selectedCity = 'Всі міста';
+  String _selectedPosition = 'Всі позиції';
+  
+  final List<String> _cityOptions = [
+    'Всі міста',
+    'Київ',
+    'Харків',
+    'Одеса',
+    'Дніпро',
+    'Львів',
+    'Запоріжжя',
+  ];
+  
+  final List<String> _positionOptions = [
+    'Всі позиції',
+    'Воротар',
+    'Захисник',
+    'Півзахисник',
+    'Нападник',
+  ];
+  
+  // Дані
+  List<Map<String, dynamic>> _topPlayers = [];
+  List<Map<String, dynamic>> _cityPlayers = [];
+  List<Map<String, dynamic>> _positionPlayers = [];
+  Map<String, dynamic> _myStats = {};
+  
+  bool _isLoading = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(
+      length: _tabTitles.length,
+      vsync: this,
+    );
+    
+    _loadData();
+  }
+  
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+  
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      // Завантажуємо топ гравців
+      _topPlayers = await _ratingService.getTopPlayers(limit: 50);
+      
+      // Завантажуємо гравців за містом
+      if (_selectedCity != 'Всі міста') {
+        _cityPlayers = await _ratingService.getTopPlayers(
+          limit: 50,
+          city: _selectedCity,
+        );
+      }
+      
+      // Завантажуємо гравців за позицією
+      if (_selectedPosition != 'Всі позиції') {
+        _positionPlayers = await _ratingService.getTopPlayers(
+          limit: 50,
+          position: _selectedPosition,
+        );
+      }
+      
+      // Завантажуємо мою статистику
+      await _loadMyStats();
+      
+    } catch (e) {
+      print('Error loading ratings data: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка завантаження даних: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+  
+  Future<void> _loadMyStats() async {
+    // TODO: Отримати ID поточного користувача
+    // final currentUser = FirebaseAuth.instance.currentUser;
+    // if (currentUser != null) {
+    //   _myStats = await _ratingService.getUserRatingStats(currentUser.uid);
+    // }
+    
+    // Тимчасові дані для демонстрації
+    _myStats = {
+      'currentRating': 4.2,
+      'matchRating': 4.3,
+      'videoRating': 3.9,
+      'totalMatches': 45,
+      'totalVideos': 12,
+      'ratingHistory': [
+        {'overallRating': 4.1, 'timestamp': DateTime.now().subtract(Duration(days: 7))},
+        {'overallRating': 4.2, 'timestamp': DateTime.now()},
+      ],
+    };
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0f0f23),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0f0f23).withOpacity(0.95),
+        elevation: 0,
+        title: Row(
+          children: [
+            // Логотип FLAP
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Text(
+                  'F',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Рейтинги',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  'Топ гравців FLAP',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _loadData,
+            tooltip: 'Оновити',
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Tabs
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
+              ),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFD700), Color(0xFFFFA000)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white70,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w400),
+              onTap: (index) {
+                setState(() {
+                  _currentTabIndex = index;
+                });
+              },
+              tabs: _tabTitles.map((title) => Tab(text: title)).toList(),
+            ),
+          ),
+          
+          // Content
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOverallRatingsTab(),
+                _buildCityRatingsTab(),
+                _buildPositionRatingsTab(),
+                _buildMyStatsTab(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Загальний рейтинг
+  Widget _buildOverallRatingsTab() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: Colors.white));
+    }
+    
+    return ListView.builder(
+      padding: const EdgeInsets.all(15),
+      itemCount: _topPlayers.length,
+      itemBuilder: (context, index) {
+        final player = _topPlayers[index];
+        final rating = player['rating'] as double;
+        final level = _ratingService.getPlayerLevel(rating);
+        final levelColor = Color(_ratingService.getPlayerLevelColor(rating));
+        
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withOpacity(0.1),
+                Colors.white.withOpacity(0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(16),
+            leading: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [levelColor, levelColor.withOpacity(0.7)],
+                ),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: Center(
+                child: Text(
+                  '${index + 1}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            title: Row(
+              children: [
+                Text(
+                  player['name'] ?? 'Невідомий',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: levelColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: levelColor, width: 1),
+                  ),
+                  child: Text(
+                    level,
+                    style: TextStyle(
+                      color: levelColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Text(
+                  '${player['position'] ?? 'Невідомо'} • ${player['city'] ?? 'Невідомо'}',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${player['totalMatches'] ?? 0} матчів зіграно',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('⭐', style: TextStyle(fontSize: 16)),
+                    const SizedBox(width: 4),
+                    Text(
+                      rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                        color: Color(0xFFFFD700),
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  '${index + 1} місце',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PlayerProfileScreen(
+                    playerId: player['id'],
+                    playerName: player['name'] ?? 'Невідомий',
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+  
+  // Рейтинг за містом
+  Widget _buildCityRatingsTab() {
+    return Column(
+      children: [
+        // Фільтр міста
+        Container(
+          margin: const EdgeInsets.all(15),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '🏙️ Оберіть місто',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _selectedCity,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.1),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: const Color(0xFFFFD700)),
+                  ),
+                ),
+                dropdownColor: const Color(0xFF1a1a2e),
+                style: const TextStyle(color: Colors.white),
+                items: _cityOptions.map((city) {
+                  return DropdownMenuItem(
+                    value: city,
+                    child: Text(city),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCity = value ?? 'Всі міста';
+                  });
+                  if (value != null && value != 'Всі міста') {
+                    _loadCityPlayers(value);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        
+        // Список гравців
+        Expanded(
+          child: _selectedCity == 'Всі міста'
+              ? Center(
+                  child: Text(
+                    'Оберіть місто для перегляду рейтингу',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 16,
+                    ),
+                  ),
+                )
+              : _buildPlayersList(_cityPlayers),
+        ),
+      ],
+    );
+  }
+  
+  // Рейтинг за позицією
+  Widget _buildPositionRatingsTab() {
+    return Column(
+      children: [
+        // Фільтр позиції
+        Container(
+          margin: const EdgeInsets.all(15),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '⚽ Оберіть позицію',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _selectedPosition,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.1),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: const Color(0xFFFFD700)),
+                  ),
+                ),
+                dropdownColor: const Color(0xFF1a1a2e),
+                style: const TextStyle(color: Colors.white),
+                items: _positionOptions.map((position) {
+                  return DropdownMenuItem(
+                    value: position,
+                    child: Text(position),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedPosition = value ?? 'Всі позиції';
+                  });
+                  if (value != null && value != 'Всі позиції') {
+                    _loadPositionPlayers(value);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        
+        // Список гравців
+        Expanded(
+          child: _selectedPosition == 'Всі позиції'
+              ? Center(
+                  child: Text(
+                    'Оберіть позицію для перегляду рейтингу',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 16,
+                    ),
+                  ),
+                )
+              : _buildPlayersList(_positionPlayers),
+        ),
+      ],
+    );
+  }
+  
+  // Моя статистика
+  Widget _buildMyStatsTab() {
+    if (_myStats.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
+    }
+    
+    final currentRating = _myStats['currentRating'] as double;
+    final matchRating = _myStats['matchRating'] as double;
+    final videoRating = _myStats['videoRating'] as double;
+    final totalMatches = _myStats['totalMatches'] as int;
+    final totalVideos = _myStats['totalVideos'] as int;
+    
+    final level = _ratingService.getPlayerLevel(currentRating);
+    final levelColor = Color(_ratingService.getPlayerLevelColor(currentRating));
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(15),
+      child: Column(
+        children: [
+          // Основний рейтинг
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  levelColor.withOpacity(0.2),
+                  levelColor.withOpacity(0.1),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: levelColor.withOpacity(0.3),
+                width: 2,
+              ),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  'Ваш рейтинг',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('⭐', style: TextStyle(fontSize: 48)),
+                    const SizedBox(width: 16),
+                    Text(
+                      currentRating.toStringAsFixed(1),
+                      style: TextStyle(
+                        color: levelColor,
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: levelColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: levelColor, width: 1),
+                  ),
+                  child: Text(
+                    level,
+                    style: TextStyle(
+                      color: levelColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Детальна статистика
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Матчі',
+                  '${matchRating.toStringAsFixed(1)} ⭐',
+                  '70% ваги',
+                  Icons.sports_soccer,
+                  const Color(0xFF4CAF50),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Відео',
+                  '${videoRating.toStringAsFixed(1)} ⭐',
+                  '30% ваги',
+                  Icons.videocam,
+                  const Color(0xFFFF9800),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Кількість матчів та відео
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Зіграно матчів',
+                  '$totalMatches',
+                  'Загалом',
+                  Icons.emoji_events,
+                  const Color(0xFFFFD700),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Завантажено відео',
+                  '$totalVideos',
+                  'Загалом',
+                  Icons.video_library,
+                  const Color(0xFF9C27B0),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Графік прогресу (заглушка)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '📈 Прогрес рейтингу',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: Container(
+                    width: 200,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Графік буде додано\nв наступному оновленні',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 12,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Картка статистики
+  Widget _buildStatCard(String title, String value, String subtitle, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 32),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            subtitle,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 10,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Список гравців
+  Widget _buildPlayersList(List<Map<String, dynamic>> players) {
+    if (players.isEmpty) {
+      return Center(
+        child: Text(
+          'Гравців не знайдено',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.7),
+            fontSize: 16,
+          ),
+        ),
+      );
+    }
+    
+    return ListView.builder(
+      padding: const EdgeInsets.all(15),
+      itemCount: players.length,
+      itemBuilder: (context, index) {
+        final player = players[index];
+        final rating = player['rating'] as double;
+        final level = _ratingService.getPlayerLevel(rating);
+        final levelColor = Color(_ratingService.getPlayerLevelColor(rating));
+        
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withOpacity(0.1),
+                Colors.white.withOpacity(0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(16),
+            leading: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [levelColor, levelColor.withOpacity(0.7)],
+                ),
+                borderRadius: BorderRadius.circular(25),
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: Center(
+                child: Text(
+                  '${index + 1}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            title: Row(
+              children: [
+                Text(
+                  player['name'] ?? 'Невідомий',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: levelColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: levelColor, width: 1),
+                  ),
+                  child: Text(
+                    level,
+                    style: TextStyle(
+                      color: levelColor,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            subtitle: Text(
+              '${player['position'] ?? 'Невідомо'} • ${player['city'] ?? 'Невідомо'}',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 11,
+              ),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('⭐', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 4),
+                Text(
+                  rating.toStringAsFixed(1),
+                  style: const TextStyle(
+                    color: Color(0xFFFFD700),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PlayerProfileScreen(
+                    playerId: player['id'],
+                    playerName: player['name'] ?? 'Невідомий',
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+  
+  // Завантаження гравців за містом
+  Future<void> _loadCityPlayers(String city) async {
+    try {
+      final players = await _ratingService.getTopPlayers(
+        limit: 50,
+        city: city,
+      );
+      setState(() {
+        _cityPlayers = players;
+      });
+    } catch (e) {
+      print('Error loading city players: $e');
+    }
+  }
+  
+  // Завантаження гравців за позицією
+  Future<void> _loadPositionPlayers(String position) async {
+    try {
+      final players = await _ratingService.getTopPlayers(
+        limit: 50,
+        position: position,
+      );
+      setState(() {
+        _positionPlayers = players;
+      });
+    } catch (e) {
+      print('Error loading position players: $e');
+    }
+  }
+}

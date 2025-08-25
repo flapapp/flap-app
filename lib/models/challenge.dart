@@ -107,7 +107,7 @@ class Challenge {
       votingDeadline: (data['votingDeadline'] as Timestamp).toDate(),
       endDate: (data['endDate'] as Timestamp).toDate(),
       status: ChallengeStatus.values.firstWhere(
-        (e) => e.toString() == 'ChallengeStatus.${data['status']}',
+        (e) => e.toString().split('.').last == data['status'],
         orElse: () => ChallengeStatus.recruiting,
       ),
       maxParticipants: data['maxParticipants'] ?? 50,

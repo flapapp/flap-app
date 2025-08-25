@@ -58,12 +58,32 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   }
 
   void _updateGreeting() {
-    final idx = DateTime.now().millisecondsSinceEpoch % _greetings.length;
-    final g = _greetings[idx];
-    setState(() {
-      _currentGreeting = g['greeting'] ?? '';
-      _currentRatingText = g['rating'] ?? '';
-      _currentInstruction = g['instruction'] ?? '';
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      final idx = DateTime.now().millisecondsSinceEpoch % _greetings.length;
+      final g = _greetings[idx];
+      setState(() {
+        _currentGreeting = g['greeting'] ?? '';
+        _currentRatingText = g['rating'] ?? '';
+        _currentInstruction = g['instruction'] ?? '';
+      });
+      return;
+    }
+
+    FirebaseFirestore.instance.collection('users').doc(uid).get().then((doc) {
+      final idx = DateTime.now().millisecondsSinceEpoch % _greetings.length;
+      final g = _greetings[idx];
+      final data = doc.data();
+      final name = data != null
+          ? (data['displayName'] ?? data['authorName'] ?? data['name'] ?? 'Гравець')
+          : 'Гравець';
+      final rating = data != null ? (data['rating'] ?? 3.0).toDouble() : 3.0;
+      final matches = data != null ? (data['matches'] ?? 0) : 0;
+      setState(() {
+        _currentGreeting = g['greeting']?.replaceAll('Олександр', name) ?? 'Вітаємо, $name!';
+        _currentRatingText = 'Ваш рейтинг: ${rating.toStringAsFixed(1)} • $matches матчів зіграно';
+        _currentInstruction = g['instruction'] ?? 'Оберіть режим роботи для початку гри';
+      });
     });
   }
 
@@ -113,9 +133,37 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.person, color: Colors.white),
-            onPressed: () => Navigator.pushNamed(context, '/profile'),
+          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: _userStream,
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data!.exists) {
+                final data = snapshot.data!.data();
+                final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+                final rating = (data?['rating'] ?? 3.0).toDouble();
+                return Row(
+                  children: [
+                    Text(
+                      '⭐ ${rating.toStringAsFixed(1)}',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.swap_horiz, color: Colors.white),
+                      tooltip: 'Відео ↔ Матчі',
+                      onPressed: () => Navigator.pushNamed(context, '/matches'),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.person, color: Colors.white),
+                      onPressed: () => Navigator.pushNamed(context, '/profile'),
+                      tooltip: 'Профіль',
+                    ),
+                  ],
+                );
+              }
+              return IconButton(
+                icon: const Icon(Icons.person, color: Colors.white),
+                onPressed: () => Navigator.pushNamed(context, '/profile'),
+              );
+            },
           ),
         ],
       ),

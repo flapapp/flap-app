@@ -146,18 +146,40 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _pickVideo,
-                          icon: const Icon(Icons.upload_file),
-                          label: const Text('Обрати відео'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4caf50),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () => _pickVideo(fromCamera: false),
+                                icon: const Icon(Icons.video_library),
+                                label: const Text('Галерея'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF4caf50),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () => _pickVideo(fromCamera: true),
+                                icon: const Icon(Icons.videocam),
+                                label: const Text('Камера'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white24,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ] else ...[
                         Row(
@@ -823,7 +845,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         submissionDeadline: submissionDeadline,
         votingDeadline: votingDeadline,
         endDate: endDate,
-        status: ChallengeStatus.recruiting,
+        status: ChallengeStatus.submission,
         maxParticipants: 100, // Максимум учасників
         currentParticipants: 0,
         prizePool: prizePool.toDouble(),
@@ -840,7 +862,16 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       final challengeId = await _challengeService.createChallenge(challenge);
       
       if (challengeId != null) {
-        // Завантажуємо відео створювача одразу
+        // Додаємо створювача як учасника (статус вже правильний)
+        await FirebaseFirestore.instance
+            .collection('challenges')
+            .doc(challengeId)
+            .update({
+          'participants': FieldValue.arrayUnion([currentUser.uid]),
+          'currentParticipants': FieldValue.increment(1),
+        });
+
+        // Потім завантажуємо відео створювача
         if (_selectedVideoFile != null) {
           await _uploadCreatorVideo(challengeId, currentUser.uid, userName);
         }
@@ -967,9 +998,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     return tags;
   }
 
-  Future<void> _pickVideo() async {
+  Future<void> _pickVideo({bool fromCamera = false}) async {
     final ImagePicker picker = ImagePicker();
-    final XFile? video = await picker.pickVideo(source: ImageSource.gallery);
+    final XFile? video = await picker.pickVideo(source: fromCamera ? ImageSource.camera : ImageSource.gallery);
     
     if (video != null) {
       setState(() {
@@ -993,7 +1024,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       final snapshot = await uploadTask;
       final videoUrl = await snapshot.ref.getDownloadURL();
       
-      // Зберігаємо відео створювача в submissions
+      // Зберігаємо відео створювача в submissions і помічаємо як головне
       await FirebaseFirestore.instance
           .collection('challenges')
           .doc(challengeId)
@@ -1004,20 +1035,19 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         'authorName': authorName,
         'title': 'Відео створювача',
         'videoUrl': videoUrl,
+        'isCreatorVideo': true,
         'createdAt': FieldValue.serverTimestamp(),
         'averageRating': 0.0,
         'voteCount': 0,
         'votes': <String, dynamic>{},
       });
       
-      // Додаємо створювача як учасника
+      // Додаємо до списку submissions (учасником вже є)
       await FirebaseFirestore.instance
           .collection('challenges')
           .doc(challengeId)
           .update({
-        'participants': FieldValue.arrayUnion([userId]),
         'submissions': FieldValue.arrayUnion([userId]),
-        'currentParticipants': FieldValue.increment(1),
       });
       
     } catch (e) {

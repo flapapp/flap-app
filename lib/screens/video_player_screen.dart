@@ -3,12 +3,17 @@ import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/rating_service.dart';
+import '../services/notification_service.dart';
+import '../widgets/rating_display.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
   final String title;
   final String authorName;
   final String videoId;
+  final String? challengeId; // якщо це відео з челенджу
+  final String? submissionUserId; // автор submission для голосування
 
   const VideoPlayerScreen({
     Key? key,
@@ -16,6 +21,8 @@ class VideoPlayerScreen extends StatefulWidget {
     required this.title,
     required this.authorName,
     required this.videoId,
+    this.challengeId,
+    this.submissionUserId,
   }) : super(key: key);
 
   @override
@@ -43,6 +50,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _hasVoted = false;
   bool _isSubmittingVote = false;
   String? _videoAuthorId;
+  bool get _isChallengeSubmission => widget.challengeId != null && widget.submissionUserId != null;
 
   @override
   void initState() {
@@ -53,61 +61,63 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Future<void> _loadVideoData() async {
     try {
-      // Завантажуємо дані про лайки
-      final videoDoc = await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(widget.videoId)
-          .get();
-      
-      if (videoDoc.exists) {
-        final data = videoDoc.data()!;
+      if (_isChallengeSubmission) {
+        // Для submission з челенджу — автор відомий
         setState(() {
-          _likesCount = data['likes'] ?? 0;
-          _videoAuthorId = data['userId'] as String?;
+          _videoAuthorId = widget.submissionUserId;
         });
-        
-        // Перевіряємо чи користувач вже лайкнув
-        final currentUser = FirebaseAuth.instance.currentUser;
-        if (currentUser != null) {
-          final likeDoc = await FirebaseFirestore.instance
-              .collection('videos')
-              .doc(widget.videoId)
-              .collection('likes')
-              .doc(currentUser.uid)
-              .get();
-          
+      } else {
+        // Завантажуємо дані про лайки/автора з колекції videos
+        final videoDoc = await FirebaseFirestore.instance
+            .collection('videos')
+            .doc(widget.videoId)
+            .get();
+        if (videoDoc.exists) {
+          final data = videoDoc.data()!;
           setState(() {
-            _isLiked = likeDoc.exists;
+            _likesCount = data['likes'] ?? 0;
+            _videoAuthorId = data['userId'] as String?;
           });
+          final currentUser = FirebaseAuth.instance.currentUser;
+          if (currentUser != null) {
+            final likeDoc = await FirebaseFirestore.instance
+                .collection('videos')
+                .doc(widget.videoId)
+                .collection('likes')
+                .doc(currentUser.uid)
+                .get();
+            setState(() { _isLiked = likeDoc.exists; });
 
-          // Перевіряємо, чи користувач вже голосував
-          final voteDoc = await FirebaseFirestore.instance
-              .collection('videos')
-              .doc(widget.videoId)
-              .collection('votes')
-              .doc(currentUser.uid)
-              .get();
-          if (voteDoc.exists) {
-            final v = voteDoc.data() as Map<String, dynamic>;
-            setState(() {
-              _hasVoted = true;
-              _technical = (v['technical'] ?? 0.0).toDouble();
-              _creativity = (v['creativity'] ?? 0.0).toDouble();
-              _difficulty = (v['difficulty'] ?? 0.0).toDouble();
-              _quality = (v['quality'] ?? 0.0).toDouble();
-            });
+            final voteDoc = await FirebaseFirestore.instance
+                .collection('videos')
+                .doc(widget.videoId)
+                .collection('votes')
+                .doc(currentUser.uid)
+                .get();
+            if (voteDoc.exists) {
+              final v = voteDoc.data() as Map<String, dynamic>;
+              setState(() {
+                _hasVoted = true;
+                _technical = (v['technical'] ?? 0.0).toDouble();
+                _creativity = (v['creativity'] ?? 0.0).toDouble();
+                _difficulty = (v['difficulty'] ?? 0.0).toDouble();
+                _quality = (v['quality'] ?? 0.0).toDouble();
+              });
+            }
           }
         }
+        // Коментарі актуальні лише для загальних відео
+        _loadComments();
       }
-      
-      // Завантажуємо коментарі
-      _loadComments();
     } catch (e) {
       print('Error loading video data: $e');
     }
   }
 
   Future<void> _submitVote() async {
+    if (_isChallengeSubmission) {
+      return _submitChallengeVote();
+    }
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
     if (_hasVoted) return;
@@ -122,65 +132,49 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       _isSubmittingVote = true;
     });
 
-    final weighted = _technical * 0.4 + _creativity * 0.3 + _difficulty * 0.2 + _quality * 0.1;
-    final videoRef = FirebaseFirestore.instance.collection('videos').doc(widget.videoId);
-    final voteRef = videoRef.collection('votes').doc(currentUser.uid);
-
     try {
-      // Спочатку перевірити чи існує документ відео
-      final videoDocCheck = await videoRef.get();
-      if (!videoDocCheck.exists) {
+      // Використовуємо RatingService для голосування
+      final criteria = {
+        'technical': _technical,
+        'creativity': _creativity,
+        'difficulty': _difficulty,
+        'quality': _quality,
+      };
+
+      final success = await RatingService().rateVideo(
+        videoId: widget.videoId,
+        ratedBy: currentUser.uid,
+        criteria: criteria,
+      );
+
+      if (success) {
         setState(() {
-          _isSubmittingVote = false;
+          _hasVoted = true;
         });
+        
+        // Показуємо сповіщення про успішне голосування
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('❌ Відео не знайдено!'),
+            content: Text('✅ Дякуємо за ваш голос! +1 монета'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Ніяких додаткових сповіщень для того, хто голосує
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Помилка голосування'),
             backgroundColor: Colors.red,
           ),
         );
-        return;
       }
-
-      await FirebaseFirestore.instance.runTransaction((txn) async {
-        final snap = await txn.get(videoRef);
-        if (!snap.exists) {
-          throw Exception('Відео не знайдено');
-        }
-        final data = snap.data() as Map<String, dynamic>;
-        final currentAvg = (data['rating'] ?? 0.0).toDouble();
-        final currentVotes = (data['totalVotes'] ?? 0).toInt();
-
-        // Запис голосу користувача
-        txn.set(voteRef, {
-          'technical': double.parse(_technical.toStringAsFixed(2)),
-          'creativity': double.parse(_creativity.toStringAsFixed(2)),
-          'difficulty': double.parse(_difficulty.toStringAsFixed(2)),
-          'quality': double.parse(_quality.toStringAsFixed(2)),
-          'total': double.parse(weighted.toStringAsFixed(2)),
-          'userId': currentUser.uid,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        // Оновлення середнього рейтингу та кількості голосів
-        final newVotes = currentVotes + 1;
-        final newAvg = ((currentAvg * currentVotes) + weighted) / newVotes;
-        txn.update(videoRef, {
-          'totalVotes': newVotes,
-          'rating': double.parse(newAvg.toStringAsFixed(2)),
-        });
-      });
-
-      setState(() {
-        _hasVoted = true;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Дякуємо за ваш голос!')),
-      );
     } catch (e) {
       print('Error submitting vote: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка голосування: $e')),
+        SnackBar(
+          content: Text('Помилка голосування: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) {
@@ -188,6 +182,87 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           _isSubmittingVote = false;
         });
       }
+    }
+  }
+
+  Future<void> _submitChallengeVote() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || !_isChallengeSubmission) return;
+    if (_hasVoted) return;
+    if (widget.submissionUserId == currentUser.uid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не можна голосувати за власне відео')),
+      );
+      return;
+    }
+
+    setState(() { _isSubmittingVote = true; });
+    try {
+      // Зважений рейтинг як у відео
+      final weighted = (_technical * 0.4) + (_creativity * 0.3) + (_difficulty * 0.2) + (_quality * 0.1);
+      final challengeId = widget.challengeId!;
+      final targetUserId = widget.submissionUserId!;
+
+      // Уникнути дублю голосів
+      final voteDoc = await FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(challengeId)
+          .collection('votes')
+          .doc('${currentUser.uid}_$targetUserId')
+          .get();
+      if (voteDoc.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('❌ Ви вже голосували за це відео!'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(challengeId)
+          .collection('votes')
+          .doc('${currentUser.uid}_$targetUserId')
+          .set({
+        'voterId': currentUser.uid,
+        'targetUserId': targetUserId,
+        'rating': weighted,
+        'criteria': {
+          'technical': _technical,
+          'creativity': _creativity,
+          'difficulty': _difficulty,
+          'quality': _quality,
+        },
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      // Оновити агрегат у submissions
+      final submissionQuery = await FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(challengeId)
+          .collection('submissions')
+          .where('userId', isEqualTo: targetUserId)
+          .limit(1)
+          .get();
+      if (submissionQuery.docs.isNotEmpty) {
+        final doc = submissionQuery.docs.first;
+        final data = doc.data();
+        final currentRating = (data['rating'] ?? 0.0).toDouble();
+        final currentVotes = (data['voteCount'] ?? 0).toInt();
+        final newVoteCount = currentVotes + 1;
+        final newRating = ((currentRating * currentVotes) + weighted) / newVoteCount;
+        await doc.reference.update({'rating': newRating, 'voteCount': newVoteCount});
+      }
+
+      setState(() { _hasVoted = true; });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('✅ Голос збережено (${weighted.toStringAsFixed(1)} ⭐)')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка голосування: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() { _isSubmittingVote = false; });
     }
   }
 
@@ -337,6 +412,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   Future<void> _addComment() async {
     if (_commentController.text.trim().isEmpty) return;
     
+    // Перевірка чи videoId не порожній
+    if (widget.videoId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Помилка: ID відео не знайдено'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
@@ -365,7 +451,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       
       // Очищаємо поле та перезавантажуємо коментарі
       _commentController.clear();
-      _loadComments();
+      await _loadComments();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Коментар додано!'),
+            backgroundColor: Color(0xFF4caf50),
+          ),
+        );
+      }
       
       // Оновлюємо кількість коментарів
       await FirebaseFirestore.instance
@@ -454,6 +549,42 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          ),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.white, size: 64),
+              const SizedBox(height: 16),
+              Text(
+                'Помилка завантаження відео',
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -466,314 +597,398 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         title: Text(
           widget.title,
           style: const TextStyle(color: Colors.white),
+          overflow: TextOverflow.ellipsis,
         ),
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            )
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: Colors.white,
-                        size: 64,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Помилка завантаження відео',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _error!,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+      body: _chewieController != null
+          ? SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Video player with fixed aspect ratio
+                  AspectRatio(
+                    aspectRatio: _videoPlayerController.value.isInitialized
+                        ? _videoPlayerController.value.aspectRatio
+                        : 16 / 9,
+                    child: Chewie(controller: _chewieController!),
                   ),
-                )
-              : Column(
-                  children: [
-                    // Video player
-                    Expanded(
-                      child: Chewie(controller: _chewieController!),
-                    ),
-                    
-                    // Video info
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Title and author
-                          Text(
-                            widget.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
+                  
+                  // Content below video
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Title and author
+                        Text(
+                          widget.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Автор: ${widget.authorName}',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 16,
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Text(
+                              'Автор: ${widget.authorName}',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 20),
-                          
-                          // Actions row (like, comment, share)
-                          Row(
-                            children: [
-                              // Like button
-                              GestureDetector(
-                                onTap: _toggleLike,
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      _isLiked ? Icons.favorite : Icons.favorite_border,
-                                      color: _isLiked ? Colors.red : Colors.white70,
-                                      size: 24,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '$_likesCount',
-                                      style: TextStyle(
-                                        color: _isLiked ? Colors.red : Colors.white70,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 30),
-                              
-                              // Comment button
-                              GestureDetector(
+                            const SizedBox(width: 12),
+                            if (_videoAuthorId != null)
+                              CompactRatingDisplay(
+                                userId: _videoAuthorId!,
+                                size: 16,
                                 onTap: () {
-                                  setState(() {
-                                    _isCommenting = !_isCommenting;
-                                  });
-                                },
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.comment_outlined,
-                                      color: Colors.white70,
-                                      size: 24,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '${_comments.length}',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 30),
-                              
-                              // Share button
-                              GestureDetector(
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Функція поширення')),
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/player-profile',
+                                    arguments: {
+                                      'playerId': _videoAuthorId!,
+                                      'playerName': widget.authorName,
+                                    },
                                   );
                                 },
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.share_outlined,
-                                      color: Colors.white70,
-                                      size: 24,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Поділитися',
-                                      style: TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 20),
-                          // Блок голосування за відео (4 повзунки, крок 0.01)
-                          Container(
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.06),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.white24),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Action buttons
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 8,
+                          children: [
+                            _buildActionChip(
+                              icon: _isLiked ? Icons.favorite : Icons.favorite_border,
+                              label: '$_likesCount',
+                              color: _isLiked ? Colors.red : Colors.white70,
+                              onTap: _toggleLike,
                             ),
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.how_to_vote, color: Colors.white70, size: 20),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      _hasVoted ? 'Ваш голос зараховано' : 'Голосування за відео',
-                                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-
-                                _buildSliderRow('Техніка', _technical, (v) => setState(() => _technical = v), enabled: !_hasVoted),
-                                const SizedBox(height: 8),
-                                _buildSliderRow('Креативність', _creativity, (v) => setState(() => _creativity = v), enabled: !_hasVoted),
-                                const SizedBox(height: 8),
-                                _buildSliderRow('Складність', _difficulty, (v) => setState(() => _difficulty = v), enabled: !_hasVoted),
-                                const SizedBox(height: 8),
-                                _buildSliderRow('Якість відео', _quality, (v) => setState(() => _quality = v), enabled: !_hasVoted),
-
-                                const SizedBox(height: 12),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 44,
-                                  child: ElevatedButton(
-                                    onPressed: (!_hasVoted && !_isSubmittingVote) ? _submitVote : null,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF4caf50),
-                                      disabledBackgroundColor: Colors.white24,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    child: Text(
-                                      _hasVoted ? 'Ви вже проголосували' : (_isSubmittingVote ? 'Надсилаємо...' : 'Проголосувати'),
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            _buildActionChip(
+                              icon: Icons.comment_outlined,
+                              label: '${_comments.length}',
+                              color: Colors.white70,
+                              onTap: () => _showCommentsBottomSheet(),
                             ),
-                          ),
-                          
-                          // Comment input
-                          if (_isCommenting) ...[
-                            const SizedBox(height: 20),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _commentController,
-                                    style: const TextStyle(color: Colors.white),
-                                    decoration: InputDecoration(
-                                      hintText: 'Додати коментар...',
-                                      hintStyle: TextStyle(color: Colors.white54),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(25),
-                                        borderSide: BorderSide(color: Colors.white54),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(25),
-                                        borderSide: BorderSide(color: Colors.white54),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(25),
-                                        borderSide: BorderSide(color: Colors.white),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                IconButton(
-                                  onPressed: _addComment,
-                                  icon: const Icon(Icons.send, color: Colors.white),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: const Color(0xFF4caf50),
-                                    shape: const CircleBorder(),
-                                  ),
-                                ),
-                              ],
+                            _buildActionChip(
+                              icon: Icons.how_to_vote,
+                              label: _hasVoted ? 'Voted' : 'Vote',
+                              color: _hasVoted ? Colors.green : Colors.white70,
+                              onTap: () => _showVotingBottomSheet(),
+                            ),
+                            _buildActionChip(
+                              icon: Icons.share_outlined,
+                              label: 'Share',
+                              color: Colors.white70,
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Функція поширення')),
+                                );
+                              },
                             ),
                           ],
-                          
-                          // Comments list
-                          if (_comments.isNotEmpty) ...[
-                            const SizedBox(height: 20),
-                            const Text(
-                              'Коментарі',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            ...(_comments.map((comment) => Container(
-                              margin: const EdgeInsets.only(bottom: 15),
-                              padding: const EdgeInsets.all(15),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+    );
+  }
+
+  Widget _buildActionChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCommentsBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1a1a2e),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 16),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white54,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            // Title
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Icon(Icons.comment_outlined, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Коментарі',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Comment input
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _commentController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Додати коментар...',
+                        hintStyle: const TextStyle(color: Colors.white54),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.1),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(25),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () {
+                      _addComment();
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.send, color: Colors.white),
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFF4caf50),
+                      shape: const CircleBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Comments list
+            Expanded(
+              child: _comments.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Поки що немає коментарів',
+                        style: TextStyle(color: Colors.white54, fontSize: 16),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _comments.length,
+                      itemBuilder: (context, index) {
+                        final comment = _comments[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        comment['authorName'],
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      Text(
-                                        _formatCommentDate(comment['createdAt']),
-                                        style: TextStyle(
-                                          color: Colors.white54,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
                                   Text(
-                                    comment['text'],
+                                    comment['authorName'],
                                     style: const TextStyle(
-                                      color: Colors.white70,
+                                      color: Colors.white,
                                       fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    _formatCommentDate(comment['createdAt']),
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 12,
                                     ),
                                   ),
                                 ],
                               ),
-                            )).toList()),
-                          ],
-                        ],
+                              const SizedBox(height: 6),
+                              Text(
+                                comment['text'],
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showVotingBottomSheet() {
+    if (_hasVoted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ви вже проголосували за це відео')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1a1a2e),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white54,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                
+                // Title with yellow stripe
+                Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.how_to_vote, color: Colors.white, size: 24),
+                        const SizedBox(width: 12),
+                        Text(
+                          _isChallengeSubmission ? 'Голосування за челендж' : 'Оцініть відео',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFC107),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 24),
+                
+                // Rating sliders
+                _buildSliderRow('Техніка', _technical, (v) => setModalState(() => _technical = v)),
+                const SizedBox(height: 16),
+                _buildSliderRow('Креативність', _creativity, (v) => setModalState(() => _creativity = v)),
+                const SizedBox(height: 16),
+                _buildSliderRow('Складність', _difficulty, (v) => setModalState(() => _difficulty = v)),
+                const SizedBox(height: 16),
+                _buildSliderRow('Якість відео', _quality, (v) => setModalState(() => _quality = v)),
+                const SizedBox(height: 24),
+                
+                // Submit button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _isSubmittingVote ? null : () {
+                      _submitVote();
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4caf50),
+                      disabledBackgroundColor: Colors.white24,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(
+                      _isSubmittingVote ? 'Надсилаємо...' : 'Проголосувати',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

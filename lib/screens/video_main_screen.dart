@@ -5,6 +5,7 @@ import 'video_upload_screen.dart';
 import 'video_player_screen.dart';
 import 'challenge_list_screen.dart';
 import '../models/challenge.dart';
+import '../widgets/rating_display.dart';
 
 class VideoMainScreen extends StatefulWidget {
   @override
@@ -16,6 +17,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   String _selectedCategory = '';
   String _selectedRating = '';
   String _selectedTab = 'all'; // all, challenges, trending
+  bool _showOnlyMyVideos = false;
+  bool _showOnlyMyChallenges = false;
 
   final List<String> _cities = [
     'Всі міста',
@@ -33,6 +36,11 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     'Тактика',
     'Командна гра',
     'Фрістайл',
+    'Дриблінг',
+    'Удари',
+    'Передачі',
+    'Воротарі',
+    'Комбінації',
   ];
 
   final List<String> _ratings = [
@@ -43,6 +51,13 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Читаємо навігаційні аргументи (напр. з профілю)
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && (args['myContent'] == 'videos' || args['myContent'] == 'challenges')) {
+      _showOnlyMyVideos = args['myContent'] == 'videos';
+      _showOnlyMyChallenges = args['myContent'] == 'challenges';
+      _selectedTab = _showOnlyMyChallenges ? 'challenges' : 'all';
+    }
     return Scaffold(
       backgroundColor: const Color(0xFF0f0f23), // Темний фон як у HTML MVP
       appBar: AppBar(
@@ -86,65 +101,16 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           ],
         ),
         actions: [
-          // Створити челендж (завжди доступно з відео екрана, як у MVP)
-          IconButton(
-            tooltip: 'Створити челендж',
-            icon: const Icon(Icons.emoji_events_outlined, color: Colors.white),
-            onPressed: () => Navigator.pushNamed(context, '/challenge-create'),
-          ),
           // Завантажити відео
           IconButton(
             tooltip: 'Завантажити відео',
             icon: const Icon(Icons.add_circle_outline, color: Colors.white),
             onPressed: () => Navigator.pushNamed(context, '/video-upload'),
           ),
-          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(FirebaseAuth.instance.currentUser?.uid)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasData && snapshot.data!.exists) {
-                final userData = snapshot.data!.data()!;
-                final avatarUrl = userData['avatarUrl'] as String?;
-                
-                return GestureDetector(
-                  onTap: () => _showProfile(context),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: avatarUrl != null && avatarUrl.isNotEmpty
-                          ? Image.network(
-                              avatarUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Icons.person,
-                                size: 24,
-                                color: Color(0xFF1e7d32),
-                              ),
-                            )
-                          : const Icon(
-                              Icons.person,
-                              size: 24,
-                              color: Color(0xFF1e7d32),
-                            ),
-                    ),
-                  ),
-                );
-              }
-              
-              return IconButton(
-                icon: const Icon(Icons.person, color: Colors.white),
-                onPressed: () => _showProfile(context),
-              );
-            },
+          // Профіль
+          IconButton(
+            icon: const Icon(Icons.person, color: Colors.white),
+            onPressed: () => _showProfile(context),
           ),
         ],
       ),
@@ -178,6 +144,31 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 child: Column(
                   children: [
+                    // Швидкі категорії (як у HTML MVP)
+                    SizedBox(
+                      height: 36,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          ...['Дриблінг','Удари','Передачі','Фрістайл','Воротарі','Комбінації']
+                              .map((c) => Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: ChoiceChip(
+                                      selected: _selectedCategory == c,
+                                      onSelected: (selected) {
+                                        setState(() {
+                                          _selectedCategory = selected ? c : '';
+                                        });
+                                      },
+                                      label: Text(c),
+                                      selectedColor: const Color(0xFF4caf50),
+                                      labelStyle: TextStyle(color: _selectedCategory == c ? Colors.white : Colors.black87),
+                                    ),
+                                  )),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     // City and Category filters
                     Row(
                       children: [
@@ -437,11 +428,37 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           );
         }
 
+        // Клієнтська фільтрація (щоб не вимагати композитні індекси)
+        final docs = snapshot.data!.docs.where((d) {
+          final data = d.data() as Map<String, dynamic>;
+          
+          // Фільтр рейтингу
+          if (_selectedRating.isNotEmpty) {
+            final minRating = double.parse(_selectedRating.replaceAll('+', ''));
+            final r = (data['rating'] ?? 0).toDouble();
+            if (r < minRating) return false;
+          }
+          
+          // Фільтр категорії
+          if (_selectedCategory.isNotEmpty) {
+            final category = data['category'] ?? '';
+            if (category != _selectedCategory) return false;
+          }
+          
+          // Фільтр міста
+          if (_selectedCity.isNotEmpty) {
+            final city = data['city'] ?? '';
+            if (city != _selectedCity) return false;
+          }
+          
+          return true;
+        }).toList();
+
         return ListView.builder(
           padding: const EdgeInsets.all(20),
-          itemCount: snapshot.data!.docs.length,
+          itemCount: docs.length,
           itemBuilder: (context, index) {
-            final video = snapshot.data!.docs[index];
+            final video = docs[index];
             final data = video.data() as Map<String, dynamic>;
             
             return AnimatedContainer(
@@ -484,19 +501,14 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   Stream<QuerySnapshot> _getVideosStream() {
     Query query = FirebaseFirestore.instance.collection('videos');
     
-    // Apply filters
-    if (_selectedCity.isNotEmpty) {
-      query = query.where('city', isEqualTo: _selectedCity);
+    // Apply only basic filters that don't conflict with orderBy
+    if (_showOnlyMyVideos) {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) query = query.where('userId', isEqualTo: uid);
     }
     
-    if (_selectedCategory.isNotEmpty) {
-      query = query.where('category', isEqualTo: _selectedCategory);
-    }
-    
-    if (_selectedRating.isNotEmpty) {
-      final minRating = double.parse(_selectedRating.replaceAll('+', ''));
-      query = query.where('rating', isGreaterThanOrEqualTo: minRating);
-    }
+    // Remove city and category filters from Firestore query to avoid composite index issues
+    // These will be applied on the client side in _buildVideosList()
     
     // Apply tab filters
     switch (_selectedTab) {
@@ -519,6 +531,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     final likes = data['likes'] ?? 0;
     final comments = data['comments'] ?? 0;
     final authorName = data['authorName'] ?? 'Невідомий';
+    final authorId = data['userId'] as String?;
     final city = data['city'] ?? 'Невідомо';
     final createdAt = data['createdAt'] as Timestamp?;
     final isLiked = data['isLikedByCurrentUser'] ?? false;
@@ -773,23 +786,39 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 // Author info
                 Row(
                   children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFff9800), Color(0xFFf57c00)],
-                        ),
+                    GestureDetector(
+                      onTap: () {
+                        if (authorId != null) {
+                          Navigator.pushNamed(
+                            context,
+                            '/player-profile',
+                            arguments: {'playerId': authorId, 'playerName': authorName},
+                          );
+                        }
+                      },
+                      child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Center(
-                        child: Text(
-                          authorName.isNotEmpty ? authorName[0].toUpperCase() : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                          future: authorId != null
+                              ? FirebaseFirestore.instance.collection('users').doc(authorId).get()
+                              : null,
+                          builder: (context, s) {
+                            final url = s.hasData ? (s.data!.data()?['avatarUrl'] as String?) : null;
+                            if (url != null && url.isNotEmpty) {
+                              return Image.network(url, width: 32, height: 32, fit: BoxFit.cover);
+                            }
+                            return Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFff9800), Color(0xFFf57c00)],
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Icon(Icons.person, color: Colors.white, size: 18),
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -813,6 +842,15 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                               color: Colors.white.withOpacity(0.7),
                             ),
                           ),
+                          if (authorId != null) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CompactRatingDisplay(userId: authorId, size: 16),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -821,9 +859,16 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 
                 const SizedBox(height: 15),
                 
-                // Interactive Actions Row
-                Row(
+                // Interactive Actions Row (responsive)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  alignment: WrapAlignment.spaceBetween,
                   children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                     // Like button
                     _buildActionButton(
                       icon: isLiked ? Icons.favorite : Icons.favorite_border,
@@ -831,7 +876,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       color: isLiked ? Colors.red : Colors.white70,
                       onTap: () => _toggleLike(videoId, isLiked),
                     ),
-                    const SizedBox(width: 8),
+                        const SizedBox(width: 8),
                     // Comment button
                     _buildActionButton(
                       icon: Icons.chat_bubble_outline,
@@ -839,7 +884,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       color: Colors.white70,
                       onTap: () => _showComments(videoId, title),
                     ),
-                    const SizedBox(width: 8),
+                        const SizedBox(width: 8),
                     // Share button
                     _buildActionButton(
                       icon: Icons.share,
@@ -847,7 +892,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       color: Colors.white70,
                       onTap: () => _shareVideo(videoId, title),
                     ),
-                    const Spacer(),
+                      ],
+                    ),
                     // Enhanced Watch button
                     Container(
                       decoration: BoxDecoration(
@@ -1109,11 +1155,19 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   // Список челенджів
   Widget _buildChallengesList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('challenges')
-          .orderBy('createdAt', descending: true)
-          .limit(20)
-          .snapshots(),
+      stream: (() {
+        Query q = FirebaseFirestore.instance
+            .collection('challenges')
+            .orderBy('createdAt', descending: true)
+            .limit(20);
+        if (_showOnlyMyChallenges) {
+          final uid = FirebaseAuth.instance.currentUser?.uid;
+          if (uid != null) {
+            q = q.where('creatorId', isEqualTo: uid);
+          }
+        }
+        return q.snapshots();
+      })(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Помилка: ${snapshot.error}'));
@@ -1937,26 +1991,33 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   }
 
   // Interactive methods
-  void _toggleLike(String videoId, bool isCurrentlyLiked) {
-    if (isCurrentlyLiked) {
+  Future<void> _toggleLike(String videoId, bool isCurrentlyLiked) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final likeRef = FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .collection('likes')
+          .doc(uid);
+      if (isCurrentlyLiked) {
+        await likeRef.delete();
+        await FirebaseFirestore.instance
+            .collection('videos')
+            .doc(videoId)
+            .update({'likes': FieldValue.increment(-1)});
+      } else {
+        await likeRef.set({'userId': uid, 'createdAt': FieldValue.serverTimestamp()});
+        await FirebaseFirestore.instance
+            .collection('videos')
+            .doc(videoId)
+            .update({'likes': FieldValue.increment(1)});
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('❌ Ви вже голосували за це відео'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Colors.orange,
-        ),
+        SnackBar(content: Text('Помилка лайку: $e'), backgroundColor: Colors.red),
       );
-      return;
     }
-    
-    // TODO: Implement Firebase like toggle
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('❤️ Лайк додано'),
-        duration: Duration(seconds: 1),
-        backgroundColor: Colors.red,
-      ),
-    );
   }
 
   void _showComments(String videoId, String videoTitle) {
@@ -2281,6 +2342,18 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
+    // Перевірка чи videoId не порожній
+    if (videoId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Помилка: ID відео не знайдено'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     try {
       // Додати коментар
       await FirebaseFirestore.instance
@@ -2310,6 +2383,13 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
       );
     } catch (e) {
       print('Error adding comment: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Помилка додавання коментаря: $e'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 }

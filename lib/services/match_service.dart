@@ -20,11 +20,11 @@ class MatchService {
   Stream<List<Match>> getUserMatches(String userId) {
     return _firestore
         .collection('matches')
-        .where('participants', arrayContains: userId)
         .orderBy('date', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => Match.fromFirestore(doc))
+            .where((match) => match.participants.contains(userId))
             .toList());
   }
 

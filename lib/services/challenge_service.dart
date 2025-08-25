@@ -414,7 +414,7 @@ class ChallengeService {
   }
 
   // Додати відео до челенджу
-  Future<bool> addVideoToChallenge(String challengeId, String videoId) async {
+  Future<bool> addVideoToChallenge(String challengeId, String userId) async {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
@@ -430,14 +430,19 @@ class ChallengeService {
 
       final challenge = Challenge.fromFirestore(challengeDoc);
       
-      // Перевірка, чи користувач є учасником
-      if (!challenge.participants.contains(currentUser.uid)) {
-        throw Exception('Ви не є учасником цього челенджу');
+      // Додаємо користувача як учасника, якщо він ще не є учасником
+      if (!challenge.participants.contains(userId)) {
+        await challengeRef.update({
+          'participants': FieldValue.arrayUnion([userId]),
+          'currentParticipants': FieldValue.increment(1),
+        });
       }
 
-      // Перевірка, чи відкрито подання відео
-      if (!challenge.isSubmissionOpen) {
-        throw Exception('Подання відео закрито');
+      // Перевірка, чи челендж активний
+      final data = challengeDoc.data() as Map<String, dynamic>?;
+      final isActive = data?['isActive'] as bool? ?? true;
+      if (!isActive) {
+        throw Exception('Челендж неактивний. Не можна додавати відео.');
       }
 
       // Додаємо відео до челенджу

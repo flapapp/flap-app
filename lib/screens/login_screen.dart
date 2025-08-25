@@ -13,6 +13,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -144,43 +145,71 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(25),
                       ),
                     ),
-                    onPressed: () async {
-                      if (_formKey.currentState!.validate()) {
-                        try {
-                          await FirebaseAuth.instance.signInWithEmailAndPassword(
-                            email: _emailController.text.trim(),
-                            password: _passwordController.text.trim(),
-                          );
-                          // Зберігаємо FCM токен після входу
-                          try {
-                            final token = await FirebaseMessaging.instance.getToken();
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (token != null && user != null) {
-                              await FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(user.uid)
-                                  .set({
-                                'deviceTokens': FieldValue.arrayUnion([token])
-                              }, SetOptions(merge: true));
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            if (_formKey.currentState!.validate()) {
+                              setState(() => _isLoading = true);
+                              try {
+                                await FirebaseAuth.instance.signInWithEmailAndPassword(
+                                  email: _emailController.text.trim(),
+                                  password: _passwordController.text.trim(),
+                                );
+                                try {
+                                  final token = await FirebaseMessaging.instance.getToken();
+                                  final user = FirebaseAuth.instance.currentUser;
+                                  if (token != null && user != null) {
+                                    await FirebaseFirestore.instance
+                                        .collection('users')
+                                        .doc(user.uid)
+                                        .set({
+                                      'deviceTokens': FieldValue.arrayUnion([token])
+                                    }, SetOptions(merge: true));
+                                  }
+                                } catch (e) {}
+                                if (!mounted) return;
+                                Navigator.pushReplacementNamed(context, '/mode');
+                              } on FirebaseAuthException catch (e) {
+                                final code = e.code;
+                                String message;
+                                switch (code) {
+                                  case 'invalid-credential':
+                                  case 'wrong-password':
+                                  case 'user-not-found':
+                                    message = 'Невірний email або пароль';
+                                    break;
+                                  case 'too-many-requests':
+                                    message = 'Забагато спроб. Спробуйте пізніше';
+                                    break;
+                                  default:
+                                    message = e.message ?? 'Помилка входу';
+                                }
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(message)),
+                                );
+                              } finally {
+                                if (mounted) setState(() => _isLoading = false);
+                              }
                             }
-                          } catch (_) {}
-                          Navigator.pushReplacementNamed(context, '/mode');
-                        } on FirebaseAuthException catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(e.message ?? 'Помилка входу')),
-                          );
-                        }
-                      }
-                    },
-                    child: const Text(
-                      'УВІЙТИ',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                        fontSize: 16,
-                        color: Colors.white,
-                      ),
-                    ),
+                          },
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'УВІЙТИ',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                              fontSize: 16,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 15),
