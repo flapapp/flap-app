@@ -20,7 +20,7 @@ class MatchService {
   Stream<List<Match>> getUserMatches(String userId) {
     return _firestore
         .collection('matches')
-        .where('players', arrayContains: userId)
+        .where('participants', arrayContains: userId)
         .orderBy('date', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -34,9 +34,41 @@ class MatchService {
   }
 
   // Приєднатися до матчу
-  Future<void> joinMatch(String matchId, String userId) async {
-    await _firestore.collection('matches').doc(matchId).update({
-      'players': FieldValue.arrayUnion([userId]),
+  Future<bool> joinMatch(String matchId, String userId) async {
+  try {
+    final docRef = _firestore.collection('matches').doc(matchId);
+    
+    // Отримати поточний матч
+    final doc = await docRef.get();
+    if (!doc.exists) return false;
+    
+    final match = Match.fromFirestore(doc);
+    
+    // Перевірити чи користувач вже учасник
+    if (match.participants.contains(userId)) {
+      return false; // Вже учасник
+    }
+    
+    // Перевірити чи є місця
+    if (match.participants.length >= match.maxPlayers) {
+      return false; // Матч заповнений
+    }
+    
+    // Додати користувача та оновити лічильник
+    await docRef.update({
+      'participants': FieldValue.arrayUnion([userId]),
+      'currentPlayers': FieldValue.increment(1),
     });
+    
+    // Якщо матч заповнений, змінити статус
+    if (match.participants.length + 1 >= match.maxPlayers) {
+      await docRef.update({'status': 'full'});
+    }
+    
+    return true;
+  } catch (e) {
+    print('Error joining match: $e');
+    return false;
   }
+}
 }

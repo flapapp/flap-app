@@ -1,0 +1,414 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../models/match.dart';
+import '../services/match_service.dart';
+
+class CreateMatchScreen extends StatefulWidget {
+  @override
+  _CreateMatchScreenState createState() => _CreateMatchScreenState();
+}
+
+class _CreateMatchScreenState extends State<CreateMatchScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _locationController = TextEditingController();
+  
+  DateTime _selectedDate = DateTime.now().add(Duration(days: 1));
+  TimeOfDay _selectedTime = TimeOfDay.now();
+  String _selectedCity = 'Київ';
+  String _selectedLevel = 'Середній';
+  int _selectedPlayers = 10;
+  double _cost = 0.0;
+  bool _autoBalance = true;
+  bool _isPrivate = false;
+  
+  final List<String> _cities = ['Київ', 'Харків', 'Одеса', 'Дніпро', 'Львів'];
+  final List<String> _levels = ['Початковий', 'Середній', 'Високий', 'Професійний'];
+  final List<int> _playerOptions = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1a1a2e),
+      appBar: AppBar(
+        title: Text('Створити матч', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white,
+        iconTheme: IconThemeData(color: Colors.white),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: EdgeInsets.all(20),
+          children: [
+            // Назва матчу
+            TextFormField(
+              controller: _titleController,
+              decoration: InputDecoration(
+                labelText: 'Назва матчу *',
+                labelStyle: TextStyle(color: Colors.white70),
+                border: OutlineInputBorder(),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white30),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Color(0xFF4caf50)),
+                ),
+              ),
+              style: TextStyle(color: Colors.white),
+              validator: (value) {
+                if (value?.isEmpty ?? true) return 'Введіть назву матчу';
+                return null;
+              },
+            ),
+            SizedBox(height: 20),
+            
+            // Опис
+            TextFormField(
+              controller: _descriptionController,
+              decoration: InputDecoration(
+                labelText: 'Опис матчу',
+                labelStyle: TextStyle(color: Colors.white70),
+                border: OutlineInputBorder(),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white30),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Color(0xFF4caf50)),
+                ),
+              ),
+              style: TextStyle(color: Colors.white),
+              maxLines: 3,
+            ),
+            SizedBox(height: 20),
+            
+            // Дата та час
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: _selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(Duration(days: 365)),
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: ColorScheme.dark(
+                                primary: Color(0xFF4caf50),
+                                surface: Color(0xFF1a1a2e),
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (date != null) {
+                        setState(() => _selectedDate = date);
+                      }
+                    },
+                    child: Container(
+                      padding: EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white30),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Дата *', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          Text(
+                            '${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}',
+                            style: TextStyle(color: Colors.white, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 15),
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: _selectedTime,
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: ColorScheme.dark(
+                                primary: Color(0xFF4caf50),
+                                surface: Color(0xFF1a1a2e),
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (time != null) {
+                        setState(() => _selectedTime = time);
+                      }
+                    },
+                    child: Container(
+                      padding: EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white30),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Час *', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          Text(
+                            '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
+                            style: TextStyle(color: Colors.white, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+            
+            // Локація
+            TextFormField(
+              controller: _locationController,
+              decoration: InputDecoration(
+                labelText: 'Локація *',
+                labelStyle: TextStyle(color: Colors.white70),
+                border: OutlineInputBorder(),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white30),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Color(0xFF4caf50)),
+                ),
+              ),
+              style: TextStyle(color: Colors.white),
+              validator: (value) {
+                if (value?.isEmpty ?? true) return 'Введіть локацію';
+                return null;
+              },
+            ),
+            SizedBox(height: 20),
+            
+            // Місто та рівень
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedCity,
+                    decoration: InputDecoration(
+                      labelText: 'Місто *',
+                      labelStyle: TextStyle(color: Colors.white70),
+                      border: OutlineInputBorder(),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white30),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Color(0xFF4caf50)),
+                      ),
+                    ),
+                    style: TextStyle(color: Colors.white),
+                    dropdownColor: Color(0xFF1a1a2e),
+                    items: _cities.map((city) => 
+                      DropdownMenuItem(value: city, child: Text(city))
+                    ).toList(),
+                    onChanged: (value) {
+                      setState(() => _selectedCity = value!);
+                    },
+                  ),
+                ),
+                SizedBox(width: 15),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedLevel,
+                    decoration: InputDecoration(
+                      labelText: 'Рівень *',
+                      labelStyle: TextStyle(color: Colors.white70),
+                      border: OutlineInputBorder(),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white30),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Color(0xFF4caf50)),
+                      ),
+                    ),
+                    style: TextStyle(color: Colors.white),
+                    dropdownColor: Color(0xFF1a1a2e),
+                    items: _levels.map((level) => 
+                      DropdownMenuItem(value: level, child: Text(level))
+                    ).toList(),
+                    onChanged: (value) {
+                      setState(() => _selectedLevel = value!);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+            
+            // Кількість гравців та вартість
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    value: _selectedPlayers,
+                    decoration: InputDecoration(
+                      labelText: 'Гравці *',
+                      labelStyle: TextStyle(color: Colors.white70),
+                      border: OutlineInputBorder(),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white30),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Color(0xFF4caf50)),
+                      ),
+                    ),
+                    style: TextStyle(color: Colors.white),
+                    dropdownColor: Color(0xFF1a1a2e),
+                    items: _playerOptions.map((players) => 
+                      DropdownMenuItem(
+                        value: players, 
+                        child: Text('$players гравців')
+                      )
+                    ).toList(),
+                    onChanged: (value) {
+                      setState(() => _selectedPlayers = value!);
+                    },
+                  ),
+                ),
+                SizedBox(width: 15),
+                Expanded(
+                  child: TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Вартість (грн)',
+                      labelStyle: TextStyle(color: Colors.white70),
+                      border: OutlineInputBorder(),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white30),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Color(0xFF4caf50)),
+                      ),
+                    ),
+                    style: TextStyle(color: Colors.white),
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      setState(() => _cost = double.tryParse(value) ?? 0.0);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+            
+            // Налаштування
+            Row(
+              children: [
+                Expanded(
+                  child: CheckboxListTile(
+                    title: Text('Автобаланс команд', style: TextStyle(color: Colors.white)),
+                    value: _autoBalance,
+                    onChanged: (value) {
+                      setState(() => _autoBalance = value!);
+                    },
+                    activeColor: Color(0xFF4caf50),
+                    checkColor: Colors.white,
+                  ),
+                ),
+                Expanded(
+                  child: CheckboxListTile(
+                    title: Text('Приватний матч', style: TextStyle(color: Colors.white)),
+                    value: _isPrivate,
+                    onChanged: (value) {
+                      setState(() => _isPrivate = value!);
+                    },
+                    activeColor: Color(0xFF4caf50),
+                    checkColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+            
+            // Кнопка створення
+            ElevatedButton(
+              onPressed: _createMatch,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF4caf50),
+                padding: EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                'Створити матч',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createMatch() async {
+    if (!_formKey.currentState!.validate()) return;
+    
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return;
+      
+      final match = Match(
+        id: '', // Firestore згенерує ID
+        title: _titleController.text,
+        description: _descriptionController.text,
+        organizerId: currentUser.uid,
+        organizerName: currentUser.displayName ?? 'Невідомий',
+        date: _selectedDate,
+        time: '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
+        location: _locationController.text,
+        city: _selectedCity,
+        currentPlayers: 1, // Тільки організатор
+        maxPlayers: _selectedPlayers,
+        participants: [currentUser.uid],
+        level: _getMatchLevel(_selectedLevel),
+        cost: _cost,
+        autoBalance: _autoBalance,
+        isPrivate: _isPrivate,
+        status: MatchStatus.open,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      
+      await MatchService().createMatch(match);
+      
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Матч створено успішно!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка створення: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  MatchLevel _getMatchLevel(String level) {
+    switch (level) {
+      case 'Початковий': return MatchLevel.beginner;
+      case 'Середній': return MatchLevel.intermediate;
+      case 'Високий': return MatchLevel.advanced;
+      case 'Професійний': return MatchLevel.professional;
+      default: return MatchLevel.intermediate;
+    }
+  }
+}
