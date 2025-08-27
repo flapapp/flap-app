@@ -167,10 +167,10 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
+    body: SafeArea(
+    child: SingleChildScrollView(
+    padding: const EdgeInsets.all(20),
+    child: Column(
             children: [
               // Header
               Container(
