@@ -318,14 +318,11 @@ class RatingService {
 
       // Відправка сповіщення про зміну рейтингу
       if (reason != null && source != null && sourceType != null) {
-        await NotificationService.saveRatingNotification(
-          userId: userId,
-          oldRating: oldRating,
-          newRating: overallRating,
-          reason: reason,
-          source: source,
-          sourceType: sourceType,
-          sourceId: sourceId,
+        final notificationService = NotificationService();
+        await notificationService.sendCoinsEarnedNotification(
+          toUserId: userId,
+          amount: 0, // Це не про монети, але використовуємо наявний метод
+          reason: 'Рейтинг оновлено: $reason',
         );
       }
 

@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/challenge.dart';
+import 'notification_service.dart';
 
 class ChallengeService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final NotificationService _notificationService = NotificationService();
 
   // Колекція челенджів
   CollectionReference get _challengesCollection => 
@@ -102,7 +104,12 @@ class ChallengeService {
       }
 
       final docRef = await _challengesCollection.add(challenge.toFirestore());
-      return docRef.id;
+      final challengeId = docRef.id;
+
+      // Відправити нотифікації залежно від аудиторії
+      await _sendChallengeInvitations(challengeId, challenge);
+
+      return challengeId;
     } catch (e) {
       print('Error creating challenge: $e');
       rethrow;
@@ -454,6 +461,78 @@ class ChallengeService {
     } catch (e) {
       print('Error adding video to challenge: $e');
       rethrow;
+    }
+  }
+
+  // Відправити запрошення на челендж
+  Future<void> _sendChallengeInvitations(String challengeId, Challenge challenge) async {
+    try {
+      List<String> targetUserIds = [];
+
+      switch (challenge.audience) {
+        case ChallengeAudience.friends:
+          // Отримати друзів створювача
+          final friendsSnapshot = await _firestore
+              .collection('users')
+              .doc(challenge.creatorId)
+              .collection('friends')
+              .get();
+          targetUserIds = friendsSnapshot.docs.map((doc) => doc.id).toList();
+          break;
+
+        case ChallengeAudience.city:
+          // Отримати користувачів з того ж міста
+          final cityUsersSnapshot = await _firestore
+              .collection('users')
+              .where('city', isEqualTo: challenge.city)
+              .limit(50) // Обмежуємо кількість
+              .get();
+          targetUserIds = cityUsersSnapshot.docs
+              .map((doc) => doc.id)
+              .where((id) => id != challenge.creatorId) // Виключаємо створювача
+              .toList();
+          break;
+
+        case ChallengeAudience.country:
+          // Отримати користувачів з України (або країни створювача)
+          final countryUsersSnapshot = await _firestore
+              .collection('users')
+              .where('country', isEqualTo: 'Україна')
+              .limit(100) // Обмежуємо кількість
+              .get();
+          targetUserIds = countryUsersSnapshot.docs
+              .map((doc) => doc.id)
+              .where((id) => id != challenge.creatorId) // Виключаємо створювача
+              .toList();
+          break;
+
+        case ChallengeAudience.world:
+          // Отримати випадкових користувачів зі всього світу
+          final worldUsersSnapshot = await _firestore
+              .collection('users')
+              .limit(200) // Обмежуємо кількість
+              .get();
+          targetUserIds = worldUsersSnapshot.docs
+              .map((doc) => doc.id)
+              .where((id) => id != challenge.creatorId) // Виключаємо створювача
+              .toList();
+          break;
+      }
+
+      // Відправити нотифікації
+      if (targetUserIds.isNotEmpty) {
+        await _notificationService.sendBulkChallengeInvitations(
+          userIds: targetUserIds,
+          challengeId: challengeId,
+          challengeTitle: challenge.title,
+          creatorName: challenge.creatorName,
+          challengeType: challenge.type.toString().split('.').last,
+        );
+        print('Sent ${targetUserIds.length} challenge invitations for ${challenge.title}');
+      }
+    } catch (e) {
+      print('Error sending challenge invitations: $e');
+      // Не кидаємо помилку, щоб не зупинити створення челенджу
     }
   }
 }

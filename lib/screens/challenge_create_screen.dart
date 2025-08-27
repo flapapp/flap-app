@@ -837,6 +837,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         audience: _selectedAudience,
         creatorId: currentUser.uid,
         creatorName: userName,
+        creatorVideoUrl: null, // Буде оновлено після завантаження відео
         city: userCity,
         entryFee: _selectedEntryFee,
         duration: _recruitmentDays,
@@ -1042,12 +1043,13 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         'votes': <String, dynamic>{},
       });
       
-      // Додаємо до списку submissions (учасником вже є)
+      // Додаємо до списку submissions і оновлюємо creatorVideoUrl
       await FirebaseFirestore.instance
           .collection('challenges')
           .doc(challengeId)
           .update({
         'submissions': FieldValue.arrayUnion([userId]),
+        'creatorVideoUrl': videoUrl, // Додаємо URL відео творця
       });
       
     } catch (e) {

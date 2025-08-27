@@ -8,7 +8,7 @@ import 'screens/mode_selection_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/video_upload_screen.dart';
-import 'screens/video_main_screen.dart';
+import 'screens/main_screen.dart';
 import 'screens/video_player_screen.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -25,6 +25,11 @@ import 'screens/match_details_screen.dart';
 import 'screens/create_match_screen.dart';
 import 'screens/ratings_screen.dart';
 import 'screens/match_rating_screen.dart';
+import 'screens/notifications_screen.dart';
+import 'screens/admin_screen.dart';
+import 'screens/friends_screen.dart';
+import 'services/subscription_service.dart';
+import 'services/notification_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -36,6 +41,28 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize NotificationService
+  try {
+    await NotificationService().initialize();
+  } catch (e) {
+    print('Failed to initialize NotificationService: $e');
+  }
+
+  // Grant Champions trial silently (per user)
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await SubscriptionService().grantChampionsTrialIfMissing();
+    } else {
+      FirebaseAuth.instance.authStateChanges().listen((u) async {
+        if (u != null) {
+          await SubscriptionService().grantChampionsTrialIfMissing();
+        }
+      });
+    }
+  } catch (_) {}
+
   if (!kIsWeb) {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
     await _initMessaging();
@@ -85,6 +112,7 @@ class MyApp extends StatelessWidget {
         '/profile-creation': (context) => ProfileCreationScreen(),
         '/profile-edit': (context) => ProfileCreationScreen(isEditing: true),
         '/mode': (context) => ModeSelectionScreen(),
+        '/friends': (context) => FriendsScreen(),
         '/video-upload': (context) {
               final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
               return VideoUploadScreen(
@@ -92,7 +120,7 @@ class MyApp extends StatelessWidget {
                 challengeTitle: args?['challengeTitle'],
               );
             },
-        '/video-main': (context) => VideoMainScreen(),
+        '/video-main': (context) => MainScreen(),
         '/challenge-list': (context) => ChallengeListScreen(),
         '/challenge-create': (context) => ChallengeCreateScreen(),
         '/challenge-details': (context) {
@@ -112,12 +140,14 @@ class MyApp extends StatelessWidget {
       },
         '/create-match': (context) => CreateMatchScreen(),
         '/player-profile': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>;
+          final args = (ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?) ?? {};
           return PlayerProfileScreen(
-            playerId: args['playerId'],
-            playerName: args['playerName'],
+            playerId: args['playerId'] ?? args['userId'],
+            playerName: args['playerName'] ?? '',
           );
         },
+        '/notifications': (context) => NotificationsScreen(),
+        '/admin': (context) => AdminScreen(),
         
         // VideoPlayerScreen не має маршруту, оскільки він викликається з параметрами
       },
@@ -141,9 +171,10 @@ class WelcomeScreen extends StatelessWidget {
         ),
         child: SafeArea(
           child: Center(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(40),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Логотип як у MVP

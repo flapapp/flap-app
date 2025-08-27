@@ -27,6 +27,7 @@ class Challenge {
   final ChallengeAudience audience;
   final String creatorId;
   final String creatorName;
+  final String? creatorVideoUrl; // URL відео творця челенджу
   final String city;
   final int entryFee;
   final int duration;
@@ -57,6 +58,7 @@ class Challenge {
     required this.audience,
     required this.creatorId,
     required this.creatorName,
+    this.creatorVideoUrl,
     required this.city,
     required this.entryFee,
     required this.duration,
@@ -98,6 +100,7 @@ class Challenge {
       ),
       creatorId: data['creatorId'] ?? '',
       creatorName: data['creatorName'] ?? '',
+      creatorVideoUrl: data['creatorVideoUrl'],
       city: data['city'] ?? '',
       entryFee: data['entryFee'] ?? 10,
       duration: data['duration'] ?? 7,
@@ -134,6 +137,7 @@ class Challenge {
       'audience': audience.toString().split('.').last,
       'creatorId': creatorId,
       'creatorName': creatorName,
+      'creatorVideoUrl': creatorVideoUrl,
       'city': city,
       'entryFee': entryFee,
       'duration': duration,
@@ -166,6 +170,7 @@ class Challenge {
     ChallengeType? type,
     String? creatorId,
     String? creatorName,
+    String? creatorVideoUrl,
     String? city,
     DateTime? createdAt,
     DateTime? startDate,
@@ -194,6 +199,7 @@ class Challenge {
       audience: audience ?? this.audience,
       creatorId: creatorId ?? this.creatorId,
       creatorName: creatorName ?? this.creatorName,
+      creatorVideoUrl: creatorVideoUrl ?? this.creatorVideoUrl,
       city: city ?? this.city,
       entryFee: entryFee ?? this.entryFee,
       duration: duration ?? this.duration,

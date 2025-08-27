@@ -1,0 +1,27 @@
+{
+  "name": "flap-app",
+  "version": "1.0.0",
+  "description": "A new Flutter project.",
+  "main": "delete_all_challenges.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flapapp/flap-app.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/flapapp/flap-app/issues"
+  },
+  "homepage": "https://github.com/flapapp/flap-app#readme",
+  "dependencies": {
+    "firebase-admin": "^13.4.0"
+  }
+}

@@ -6,6 +6,7 @@ import 'video_player_screen.dart';
 import 'challenge_list_screen.dart';
 import '../models/challenge.dart';
 import '../widgets/rating_display.dart';
+import '../services/notification_service.dart';
 
 class VideoMainScreen extends StatefulWidget {
   @override
@@ -13,6 +14,7 @@ class VideoMainScreen extends StatefulWidget {
 }
 
 class _VideoMainScreenState extends State<VideoMainScreen> {
+  final NotificationService _notificationService = NotificationService();
   String _selectedCity = '';
   String _selectedCategory = '';
   String _selectedRating = '';
@@ -101,16 +103,80 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           ],
         ),
         actions: [
-          // Завантажити відео
-          IconButton(
-            tooltip: 'Завантажити відео',
-            icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-            onPressed: () => Navigator.pushNamed(context, '/video-upload'),
+          // User chips: coins and rating
+          _buildUserChips(),
+          // Notifications
+          StreamBuilder<int>(
+            stream: _notificationService.getUnreadCount(),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+              return Stack(
+                children: [
+                  IconButton(
+                    tooltip: 'Сповіщення',
+                    icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                    onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
-          // Профіль
-          IconButton(
-            icon: const Icon(Icons.person, color: Colors.white),
-            onPressed: () => _showProfile(context),
+          // Profile button with avatar
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(FirebaseAuth.instance.currentUser?.uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || !snapshot.data!.exists) {
+                return IconButton(
+                  icon: const Icon(Icons.person, color: Colors.white),
+                  onPressed: () => _showProfile(context),
+                );
+              }
+
+              final userData = snapshot.data!.data() as Map<String, dynamic>;
+              final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
+              final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? 'User';
+
+              return IconButton(
+                onPressed: () => _showProfile(context),
+                icon: CircleAvatar(
+                  radius: 16,
+                  backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                  backgroundColor: const Color(0xFF4caf50),
+                  child: avatarUrl.isEmpty ? Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                  ) : null,
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -2391,5 +2457,82 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         ),
       );
     }
+  }
+
+  // User chips with coins and rating
+  Widget _buildUserChips() {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseAuth.instance.currentUser?.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const SizedBox.shrink();
+        }
+
+        final userData = snapshot.data!.data() as Map<String, dynamic>;
+        final coins = userData['coins'] ?? 0;
+        final rating = (userData['rating'] ?? 0.0).toDouble();
+
+        return Padding(
+          padding: const EdgeInsets.only(right: 8.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Coins chip
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFffc107).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFffc107), width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.monetization_on, color: Color(0xFFffc107), size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      coins.toString(),
+                      style: const TextStyle(
+                        color: Color(0xFFffc107),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Rating chip
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4caf50).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF4caf50), width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                        color: Color(0xFF4caf50),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }

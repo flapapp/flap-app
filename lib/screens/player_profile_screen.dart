@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/friends_service.dart';
 
 class PlayerProfileScreen extends StatefulWidget {
   final String playerId;
@@ -20,6 +21,8 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   Map<String, dynamic>? playerData;
   List<Map<String, dynamic>> playerVideos = [];
   bool isLoading = true;
+  final FriendsService _friendsService = FriendsService();
+  bool _isSendingRequest = false;
 
   @override
   void initState() {
@@ -39,11 +42,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         playerData = userDoc.data();
       }
 
-      // Завантажити відео гравця
+      // Завантажити відео гравця (simplified query to avoid index issues)
       final videosQuery = await FirebaseFirestore.instance
           .collection('videos')
           .where('userId', isEqualTo: widget.playerId)
-          .orderBy('createdAt', descending: true)
           .limit(10)
           .get();
 
@@ -52,6 +54,14 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         data['id'] = doc.id;
         return data;
       }).toList();
+      
+      // Sort on client side to avoid index requirement
+      playerVideos.sort((a, b) {
+        final aTime = a['createdAt'] as Timestamp?;
+        final bTime = b['createdAt'] as Timestamp?;
+        if (aTime == null || bTime == null) return 0;
+        return bTime.compareTo(aTime);
+      });
 
       setState(() {
         isLoading = false;
@@ -60,6 +70,60 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       print('Error loading player data: $e');
       setState(() {
         isLoading = false;
+      });
+    }
+  }
+
+  Future<bool> _areFriends() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return false;
+
+    try {
+      return await _friendsService.areUsersFriends(currentUser.uid, widget.playerId);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> _hasPendingRequest() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return false;
+
+    try {
+      // Check outgoing requests
+      final outgoingRequests = await _friendsService.getOutgoingFriendRequests().first;
+      return outgoingRequests.any((request) => request.toUserId == widget.playerId);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> _sendFriendRequest() async {
+    try {
+      setState(() {
+        _isSendingRequest = true;
+      });
+
+      await _friendsService.sendFriendRequest(widget.playerId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Запрошення надіслано!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() {});
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Помилка: $e')),
+        );
+      }
+    } finally {
+      setState(() {
+        _isSendingRequest = false;
       });
     }
   }
@@ -133,349 +197,113 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     final avatarUrl = playerData!['avatarUrl'] as String?;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF4caf50),
-      body: Center(
-        child: Container(
-          width: 350,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF4caf50), Color(0xFF388e3c)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 20,
-                spreadRadius: 5,
-              ),
-            ],
-          ),
+      backgroundColor: const Color(0xFF0f0f23),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(widget.playerName ?? 'Профіль гравця', style: const TextStyle(color: Colors.white)),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Кнопка закриття
-              Align(
-                alignment: Alignment.topRight,
-                child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.close,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              
               // Аватар
               Container(
-                width: 80,
-                height: 80,
+              width: 96,
+              height: 96,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(40),
-                  border: Border.all(color: Colors.white, width: 3),
+                borderRadius: BorderRadius.circular(48),
+                border: Border.all(color: Colors.white24, width: 2),
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(40),
+                borderRadius: BorderRadius.circular(48),
                   child: avatarUrl != null && avatarUrl.isNotEmpty
-                      ? Image.network(
-                          avatarUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return _buildDefaultAvatar(displayName);
-                          },
-                        )
+                    ? Image.network(avatarUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildDefaultAvatar(displayName))
                       : _buildDefaultAvatar(displayName),
                 ),
               ),
-              const SizedBox(height: 16),
-              
-              // Ім'я
-              Text(
-                displayName.isNotEmpty ? displayName : 'Гравець',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              
-              // Позиція
+            const SizedBox(height: 12),
+            Text(displayName.isNotEmpty ? displayName : 'Гравець', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
               if (position.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '⚽ $position',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 8),
-              
-              // Місто
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+                child: Text('⚽ $position', style: const TextStyle(color: Colors.white)),
+              ),
+            const SizedBox(height: 12),
               if (city.isNotEmpty)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.location_on, color: Colors.white, size: 16),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.location_on, color: Colors.white70, size: 16),
                     const SizedBox(width: 4),
-                    Text(
-                      city,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: 24),
-              
-              // Загальний рейтинг
+                Text(city, style: const TextStyle(color: Colors.white70)),
+              ]),
+            const SizedBox(height: 20),
+            // Рейтинг
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF37474f),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      rating.toStringAsFixed(1),
-                      style: const TextStyle(
-                        color: Color(0xFF4caf50),
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Text(
-                      'Загальний рейтинг',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Статистика
-              Row(
-                children: [
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
+              child: Column(children: [
+                Text(rating.toStringAsFixed(1), style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
+                const Text('Загальний рейтинг', style: TextStyle(color: Colors.white70)),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: _statBox(value: matches.toString(), label: 'Матчі зіграно')),
+              const SizedBox(width: 10),
+              Expanded(child: _statBox(value: averageRating.toStringAsFixed(1), label: 'Середня оцінка')),
+            ]),
+            const SizedBox(height: 20),
+            // Кнопки
+            FutureBuilder<Map<String, bool>>(
+              future: Future.wait([_areFriends(), _hasPendingRequest()]).then((results) {
+                return {'isFriend': results[0], 'hasPendingRequest': results[1]};
+              }),
+              builder: (context, snapshot) {
+                final data = snapshot.data ?? {'isFriend': false, 'hasPendingRequest': false};
+                final isFriend = data['isFriend']!;
+                final hasPendingRequest = data['hasPendingRequest']!;
+
+                return Row(children: [
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF37474f),
-                        borderRadius: BorderRadius.circular(12),
+                    child: ElevatedButton.icon(
+                      onPressed: isFriend || hasPendingRequest || _isSendingRequest
+                          ? null
+                          : () => _sendFriendRequest(),
+                      icon: Icon(isFriend ? Icons.people : hasPendingRequest ? Icons.schedule : Icons.person_add),
+                      label: Text(
+                        isFriend ? 'Друзі' :
+                        hasPendingRequest ? 'Запрошення надіслано' :
+                        _isSendingRequest ? 'Надсилання...' : 'Додати в друзі'
                       ),
-                      child: Column(
-                        children: [
-                          Text(
-                            matches.toString(),
-                            style: const TextStyle(
-                              color: Color(0xFF4caf50),
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const Text(
-                            'Матчі зіграно',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF37474f),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            averageRating.toStringAsFixed(1),
-                            style: const TextStyle(
-                              color: Color(0xFF4caf50),
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const Text(
-                            'Середня оцінка',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              
-              // Останні матчі
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF37474f),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      '🏆 Останні матчі',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Генеруємо 5 останніх результатів
-                        ...List.generate(5, (index) {
-                          // Симулюємо результати на основі статистики
-                          String result = 'W';
-                          Color color = const Color(0xFF4caf50);
-                          
-                          if (index == 1 || index == 3) {
-                            result = 'L';
-                            color = const Color(0xFFf44336);
-                          } else if (index == 2) {
-                            result = 'D';
-                            color = const Color(0xFFffc107);
-                          }
-                          
-                          return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Center(
-                              child: Text(
-                                result,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Кнопки дій
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: const Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.person_add, color: Colors.white, size: 16),
-                            SizedBox(width: 4),
-                            Text(
-                              'Додати в друзі',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isFriend ? Colors.grey.withOpacity(0.3) :
+                                       hasPendingRequest ? Colors.orange.withOpacity(0.3) :
+                                       const Color(0xFF4caf50),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: const Icon(Icons.videocam, color: Colors.white, size: 16),
+                  ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.12), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+                    child: const Icon(Icons.videocam, size: 16),
                   ),
-                ],
+                ]);
+              },
               ),
               const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.emoji_events, color: Colors.white, size: 16),
-                      SizedBox(width: 4),
-                      Text(
-                        'Запросити на челендж',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(18)),
+              child: const Center(child: Text('Запросити на челендж', style: TextStyle(color: Colors.white))),
+            ),
+          ],
         ),
       ),
     );
@@ -501,5 +329,17 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     );
   }
 
-
+  Widget _statBox({required String value, required String label}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        children: [
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12), textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
 }
