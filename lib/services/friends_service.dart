@@ -61,10 +61,10 @@ class FriendsService {
         id: '', // Will be set by Firestore
         fromUserId: currentUser.uid,
         fromUserName: fromUserData['displayName'] ?? fromUserData['name'] ?? fromUserData['email']?.split('@')[0] ?? 'Користувач',
-        fromUserAvatar: fromUserData['avatar'] ?? '',
+        fromUserAvatar: fromUserData['avatarUrl'] ?? fromUserData['avatar'] ?? '',
         toUserId: toUserId,
         toUserName: toUserData['displayName'] ?? toUserData['name'] ?? toUserData['email']?.split('@')[0] ?? 'Користувач',
-        toUserAvatar: toUserData['avatar'] ?? '',
+        toUserAvatar: toUserData['avatarUrl'] ?? toUserData['avatar'] ?? '',
         status: FriendRequestStatus.pending,
         createdAt: DateTime.now(),
         message: message,
@@ -356,31 +356,56 @@ class FriendsService {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return [];
 
-      if (query.trim().isEmpty) return [];
+      if (query.trim().length < 2) return [];
 
       final queryLower = query.toLowerCase().trim();
       
-      // Get all users and filter on client side for better search
-      final querySnapshot = await _usersCollection.limit(100).get();
+      print('Starting user search for: "$queryLower"');
+      
+      // Get all users and filter on client side for better search  
+      final querySnapshot = await _usersCollection.limit(200).get();
+      print('Total users in database: ${querySnapshot.docs.length}');
 
       final users = <Map<String, dynamic>>[];
       
       for (final doc in querySnapshot.docs) {
         if (doc.id != currentUser.uid) { // Exclude current user
           final userData = doc.data() as Map<String, dynamic>;
-          final name = (userData['name'] ?? '').toString().toLowerCase();
-          final displayName = (userData['displayName'] ?? '').toString().toLowerCase();
+          final name = (userData['name'] ?? userData['displayName'] ?? '').toString().toLowerCase();
+          final displayName = (userData['displayName'] ?? userData['name'] ?? '').toString().toLowerCase();
           final email = (userData['email'] ?? '').toString().toLowerCase();
+          final firstName = (userData['firstName'] ?? '').toString().toLowerCase();
+          final lastName = (userData['lastName'] ?? '').toString().toLowerCase();
           
-          // Search in name, displayName, and email
-          if (name.contains(queryLower) || 
-              displayName.contains(queryLower) || 
-              email.contains(queryLower)) {
+          print('Checking user ${doc.id}: name="$name", displayName="$displayName", email="$email", firstName="$firstName", lastName="$lastName"');
+          
+          // Search in multiple fields - prioritize startsWith
+          final searchFields = [name, displayName, email, firstName, lastName, '$firstName $lastName'];
+          bool isMatch = false;
+          
+          for (final field in searchFields) {
+            if (field.isNotEmpty && (field.startsWith(queryLower) || field.contains(queryLower))) {
+              isMatch = true;
+              break;
+            }
+          }
+          
+          if (isMatch) {
             userData['id'] = doc.id;
+            // Ensure we have display fields
+            if (userData['displayName'] == null && userData['name'] != null) {
+              userData['displayName'] = userData['name'];
+            }
+            if (userData['name'] == null && userData['displayName'] != null) {
+              userData['name'] = userData['displayName'];
+            }
             users.add(userData);
+            print('✅ Found matching user: ${userData['name']} / ${userData['displayName']} (${userData['email']})');
           }
         }
       }
+
+      print('Total users found: ${users.length}');
 
       // Sort by relevance (exact matches first, then partial matches)
       users.sort((a, b) {

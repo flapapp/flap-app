@@ -151,6 +151,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
           title: Text(
             widget.playerName ?? 'Профіль гравця',
             style: const TextStyle(color: Colors.white),
@@ -168,6 +172,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
           title: const Text(
             'Профіль не знайдено',
             style: TextStyle(color: Colors.white),
@@ -201,6 +209,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(widget.playerName ?? 'Профіль гравця', style: const TextStyle(color: Colors.white)),
       ),
       body: SingleChildScrollView(

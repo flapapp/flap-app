@@ -6,88 +6,332 @@ class SubscriptionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  CollectionReference get _subs => _firestore.collection('subscriptions');
-  CollectionReference get _subscriptionsCollection => _firestore.collection('subscriptions');
+  // Collection references
+  CollectionReference get _subscriptionsCollection => 
+      _firestore.collection('subscriptions');
+  
+  CollectionReference get _usersCollection => 
+      _firestore.collection('users');
 
-  Future<Subscription?> getCurrent() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return null;
-    
-    // Simple query without orderBy to avoid composite index
-    final docs = await _subs.where('userId', isEqualTo: uid).get();
-    if (docs.docs.isEmpty) return null;
-    
-    // Sort on client side and return the most recent
-    final subscriptions = docs.docs.map((doc) => Subscription.fromFirestore(doc)).toList();
-    subscriptions.sort((a, b) => b.endAt.compareTo(a.endAt));
-    
-    return subscriptions.first;
-  }
-
-  Future<void> grantChampionsTrialIfMissing() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    final existing = await getCurrent();
-    if (existing != null && existing.isActive) return;
-
-    final now = DateTime.now();
-    final trial = Subscription(
-      userId: uid,
-      plan: SubscriptionPlan.champions,
-      startAt: now,
-      endAt: now.add(const Duration(days: 30)),
-    );
-
-    // Save subscription doc and user perks
-    final batch = _firestore.batch();
-    final docRef = _subs.doc();
-    batch.set(docRef, trial.toFirestore());
-    batch.update(_firestore.collection('users').doc(uid), {
-      'subscriptionActive': true,
-      'subscriptionPlan': 'champions',
-      'maxChallengesPerMonth': 9999,
-      'perks': {
-        'unlimitedChallenges': true,
-        'priorityBadges': true,
-      },
-    });
-    await batch.commit();
-  }
-
-  // Get active subscription (simplified query to avoid index issues)
-  Future<Subscription?> getActiveSubscription() async {
+  // Get user's current subscription
+  Future<Subscription?> getUserSubscription(String userId) async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) return null;
-
-      // Simple query without composite index - just get all user subscriptions
-      final snapshot = await _firestore
-          .collection('subscriptions')
-          .where('userId', isEqualTo: currentUser.uid)
+      final subscriptionDoc = await _subscriptionsCollection
+          .where('userId', isEqualTo: userId)
+          .where('isActive', isEqualTo: true)
+          .limit(1)
           .get();
 
-      if (snapshot.docs.isEmpty) return null;
+      if (subscriptionDoc.docs.isEmpty) {
+        // Create default free subscription
+        return await _createFreeSubscription(userId);
+      }
 
-      // Filter and find active subscription on client side
-      for (final doc in snapshot.docs) {
-        try {
-          final data = doc.data();
-          final endAt = (data['endAt'] as Timestamp).toDate();
-          if (endAt.isAfter(DateTime.now())) {
-            return Subscription.fromFirestore(doc);
+      return Subscription.fromFirestore(subscriptionDoc.docs.first);
+    } catch (e) {
+      print('Error getting user subscription: $e');
+      return await _createFreeSubscription(userId);
+    }
+  }
+
+  // Get user subscription stream
+  Stream<Subscription?> getUserSubscriptionStream(String userId) {
+    return _subscriptionsCollection
+        .where('userId', isEqualTo: userId)
+        .where('isActive', isEqualTo: true)
+        .limit(1)
+        .snapshots()
+        .map((snapshot) {
+          if (snapshot.docs.isEmpty) {
+            return null;
           }
-        } catch (e) {
-          print('Error parsing subscription ${doc.id}: $e');
-          continue;
+          return Subscription.fromFirestore(snapshot.docs.first);
+        });
+  }
+
+  // Check if user has active subscription
+  Future<bool> hasActiveSubscription([String? userId]) async {
+    userId ??= _auth.currentUser?.uid;
+    if (userId == null) return false;
+
+    final subscription = await getUserSubscription(userId);
+    return subscription != null && 
+           subscription.isActive && 
+           subscription.type != SubscriptionType.free;
+  }
+
+  // Get subscription type
+  Future<SubscriptionType> getSubscriptionType([String? userId]) async {
+    userId ??= _auth.currentUser?.uid;
+    if (userId == null) return SubscriptionType.free;
+
+    final subscription = await getUserSubscription(userId);
+    return subscription?.type ?? SubscriptionType.free;
+  }
+
+  // Create free subscription for new users
+  Future<Subscription> _createFreeSubscription(String userId) async {
+    final now = DateTime.now();
+    final subscription = Subscription(
+      id: '',
+      userId: userId,
+      type: SubscriptionType.free,
+      status: SubscriptionStatus.active,
+      startDate: now,
+      endDate: now.add(const Duration(days: 365 * 10)), // 10 years
+      price: 0,
+      isActive: true,
+      features: {},
+    );
+
+    final docRef = await _subscriptionsCollection.add(subscription.toFirestore());
+    return subscription.copyWith(id: docRef.id);
+  }
+
+  // Start Champions League trial
+  Future<Subscription?> startChampionsTrialSubscription() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('Користувач не авторизований');
+      }
+
+      // Check if user already had trial
+      final existingSubscriptions = await _subscriptionsCollection
+          .where('userId', isEqualTo: currentUser.uid)
+          .where('type', isEqualTo: 'champions')
+          .get();
+
+      for (final doc in existingSubscriptions.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data['trialEndDate'] != null) {
+          throw Exception('Ви вже використали пробний період');
         }
       }
 
-      return null;
+      // Deactivate current subscription
+      await _deactivateCurrentSubscription(currentUser.uid);
+
+      // Create trial subscription
+      final now = DateTime.now();
+      final trialEndDate = now.add(const Duration(days: 30)); // 30 days trial
+      
+      final subscription = Subscription(
+        id: '',
+        userId: currentUser.uid,
+        type: SubscriptionType.champions,
+        status: SubscriptionStatus.trial,
+        startDate: now,
+        endDate: trialEndDate,
+        price: 0,
+        isActive: true,
+        trialEndDate: trialEndDate,
+        features: {},
+      );
+
+      final docRef = await _subscriptionsCollection.add(subscription.toFirestore());
+      final newSubscription = subscription.copyWith(id: docRef.id);
+
+      // Award trial coins
+      await _awardMonthlyCoins(currentUser.uid, SubscriptionType.champions);
+
+      return newSubscription;
     } catch (e) {
-      print('Error getting active subscription: $e');
-      return null;
+      print('Error starting trial subscription: $e');
+      rethrow;
     }
   }
+
+  // Purchase subscription (mock implementation)
+  Future<Subscription?> purchaseSubscription(SubscriptionType type) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('Користувач не авторизований');
+      }
+
+      // Deactivate current subscription
+      await _deactivateCurrentSubscription(currentUser.uid);
+
+      // Create new subscription
+      final now = DateTime.now();
+      final endDate = now.add(const Duration(days: 30)); // 30 days
+      
+      final subscription = Subscription(
+        id: '',
+        userId: currentUser.uid,
+        type: type,
+        status: SubscriptionStatus.active,
+        startDate: now,
+        endDate: endDate,
+        price: type == SubscriptionType.europa ? 49 : 89,
+        isActive: true,
+        autoRenew: true,
+        features: {},
+      );
+
+      final docRef = await _subscriptionsCollection.add(subscription.toFirestore());
+      final newSubscription = subscription.copyWith(id: docRef.id);
+
+      // Award monthly coins
+      await _awardMonthlyCoins(currentUser.uid, type);
+
+      return newSubscription;
+    } catch (e) {
+      print('Error purchasing subscription: $e');
+      rethrow;
+    }
+  }
+
+  // Deactivate current subscription
+  Future<void> _deactivateCurrentSubscription(String userId) async {
+    final activeSubscriptions = await _subscriptionsCollection
+        .where('userId', isEqualTo: userId)
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    for (final doc in activeSubscriptions.docs) {
+      await doc.reference.update({'isActive': false});
+    }
+  }
+
+  // Award monthly coins based on subscription type
+  Future<void> _awardMonthlyCoins(String userId, SubscriptionType type) async {
+    int coinsToAward = 0;
+    
+    switch (type) {
+      case SubscriptionType.europa:
+        coinsToAward = 30;
+        break;
+      case SubscriptionType.champions:
+        coinsToAward = 60;
+        break;
+      default:
+        return;
+    }
+
+    if (coinsToAward > 0) {
+      await _usersCollection.doc(userId).update({
+        'coins': FieldValue.increment(coinsToAward),
+      });
+
+      // Record transaction
+      await _firestore.collection('transactions').add({
+        'userId': userId,
+        'type': 'subscription_bonus',
+        'amount': coinsToAward,
+        'subscriptionType': type.toString().split('.').last,
+        'timestamp': FieldValue.serverTimestamp(),
+        'description': 'Місячний бонус за підписку',
+      });
+    }
+  }
+
+  // Cancel subscription
+  Future<void> cancelSubscription() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('Користувач не авторизований');
+      }
+
+      final subscription = await getUserSubscription(currentUser.uid);
+      if (subscription == null || subscription.type == SubscriptionType.free) {
+        throw Exception('У вас немає активної підписки');
+      }
+
+      // Update subscription status
+      await _subscriptionsCollection.doc(subscription.id).update({
+        'status': 'cancelled',
+        'autoRenew': false,
+      });
+
+      // Create free subscription
+      await _createFreeSubscription(currentUser.uid);
+    } catch (e) {
+      print('Error cancelling subscription: $e');
+      rethrow;
+    }
+  }
+
+  // Check if feature is available for user
+  Future<bool> hasFeature(String feature, [String? userId]) async {
+    userId ??= _auth.currentUser?.uid;
+    if (userId == null) return false;
+
+    final subscription = await getUserSubscription(userId);
+    return subscription?.hasFeature(feature) ?? false;
+  }
+
+  // Get challenge limit for user
+  Future<int> getChallengeLimit([String? userId]) async {
+    userId ??= _auth.currentUser?.uid;
+    if (userId == null) return 1;
+
+    final subscription = await getUserSubscription(userId);
+    switch (subscription?.type ?? SubscriptionType.free) {
+      case SubscriptionType.champions:
+        return -1; // Unlimited
+      case SubscriptionType.europa:
+        return 5;
+      default:
+        return 1;
+    }
+  }
+
+  // Check if user can create more challenges this month
+  Future<bool> canCreateChallenge([String? userId]) async {
+    userId ??= _auth.currentUser?.uid;
+    if (userId == null) return false;
+
+    final limit = await getChallengeLimit(userId);
+    if (limit == -1) return true; // Unlimited
+
+    // Count challenges created this month
+    final now = DateTime.now();
+    final monthStart = DateTime(now.year, now.month, 1);
+    
+    final challengesCount = await _firestore.collection('challenges')
+        .where('creatorId', isEqualTo: userId)
+        .where('createdAt', isGreaterThan: Timestamp.fromDate(monthStart))
+        .count()
+        .get();
+
+    return challengesCount.count! < limit;
+  }
+
+  // Get subscription benefits text
+  String getSubscriptionBenefits(SubscriptionType type) {
+    switch (type) {
+      case SubscriptionType.europa:
+        return 'Europa League: Розширені можливості, 5 челенджів/місяць, +30 монет';
+      case SubscriptionType.champions:
+        return 'Champions League: Преміум досвід, необмежені челенджі, +60 монет';
+      default:
+        return 'Безкоштовна: Базовий функціонал, 1 челендж/місяць';
+    }
+  }
+
+  // LEGACY METHODS FOR COMPATIBILITY
+  Future<Subscription?> getCurrent() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return null;
+    return getUserSubscription(userId);
+  }
+
+  Future<void> grantChampionsTrialIfMissing() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+    
+    final subscription = await getUserSubscription(userId);
+    if (subscription != null && subscription.type != SubscriptionType.free) return;
+    
+    await startChampionsTrialSubscription();
+  }
+
+  Future<Subscription?> getActiveSubscription() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return null;
+    return getUserSubscription(userId);
+  }
 }
-
-

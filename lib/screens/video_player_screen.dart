@@ -674,12 +674,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                               color: Colors.white70,
                               onTap: () => _showCommentsBottomSheet(),
                             ),
-                            _buildActionChip(
-                              icon: Icons.how_to_vote,
-                              label: _hasVoted ? 'Voted' : 'Vote',
-                              color: _hasVoted ? Colors.green : Colors.white70,
-                              onTap: () => _showVotingBottomSheet(),
-                            ),
+                            // Кнопка Vote тільки для відео в секції "Відео", НЕ для челенджів
+                            if (!_isChallengeSubmission)
+                              _buildActionChip(
+                                icon: Icons.how_to_vote,
+                                label: _hasVoted ? 'Voted' : 'Vote',
+                                color: _hasVoted ? Colors.green : Colors.white70,
+                                onTap: () => _showVotingBottomSheet(),
+                              ),
                             _buildActionChip(
                               icon: Icons.share_outlined,
                               label: 'Share',

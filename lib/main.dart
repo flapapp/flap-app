@@ -30,6 +30,7 @@ import 'screens/admin_screen.dart';
 import 'screens/friends_screen.dart';
 import 'services/subscription_service.dart';
 import 'services/notification_service.dart';
+import 'services/badge_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -47,6 +48,13 @@ Future<void> main() async {
     await NotificationService().initialize();
   } catch (e) {
     print('Failed to initialize NotificationService: $e');
+  }
+
+  // Initialize default badges
+  try {
+    await BadgeService().initializeDefaultBadges();
+  } catch (e) {
+    print('Failed to initialize badges: $e');
   }
 
   // Grant Champions trial silently (per user)

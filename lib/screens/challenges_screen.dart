@@ -6,6 +6,7 @@ import '../services/challenge_service.dart';
 import 'challenge_create_screen.dart';
 import 'challenge_details_screen.dart';
 import 'video_player_screen.dart';
+import 'challenge_video_player_screen.dart';
 
 class ChallengesScreen extends StatefulWidget {
   @override
@@ -115,11 +116,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       case 'completed':
         query = query.where('status', isEqualTo: 'completed');
         break;
-      default: // all
-        query = query.where('isActive', isEqualTo: true);
+      default: // all - показуємо всі челенджі без фільтру isActive
+        // Видаляю фільтр isActive щоб показувати всі
+        break;
     }
 
-    return query.orderBy('createdAt', descending: true).snapshots();
+    return query.orderBy('createdAt', descending: true).limit(50).snapshots();
   }
 
   Widget _buildEmptyState() {
@@ -166,8 +168,15 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     final participants = (challengeData['participants'] as List?)?.length ?? 0;
     final submissions = (challengeData['submissions'] as List?)?.length ?? 0;
     final entryFee = challengeData['entryFee'] ?? 10;
+    final actualPrizePool = participants * entryFee; // Реальний призовий фонд
     final status = challengeData['status'] ?? 'recruiting';
     final endDate = challengeData['endDate'] as Timestamp?;
+    
+    print('Challenge $challengeId: creatorVideoUrl = "$creatorVideoUrl"');
+    print('Challenge $challengeId: title = "$title"');
+    print('Challenge $challengeId: creatorName = "$creatorName"');
+    print('Challenge $challengeId: participants = $participants');
+    print('Challenge $challengeId: submissions = $submissions');
     
     final daysLeft = endDate != null 
         ? endDate.toDate().difference(DateTime.now()).inDays.clamp(0, 999)
@@ -176,52 +185,40 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-        ),
+        color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF4caf50).withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+          // Header з інформацією про челендж
+          Container(
+            padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+        ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+                      child: Text(
                         title,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Автор: $creatorName',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
                   ),
                 ),
                 Container(
@@ -234,76 +231,98 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                     _getStatusText(status),
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
+                          fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
               ],
             ),
-            
-            if (description.isNotEmpty) ...[
-              const SizedBox(height: 8),
+                const SizedBox(height: 6),
               Text(
                 description,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
-                maxLines: 2,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 13,
+                  ),
+                  maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-            ],
-            
-            const SizedBox(height: 16),
-
-            // Creator video section (half of the card)
+              const SizedBox(height: 8),
+              Text(
+                  'Автор: $creatorName',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Статистика
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.people, color: Colors.white, size: 12),
+                        const SizedBox(width: 4),
+                        Text('$participants відео', style: const TextStyle(color: Colors.white, fontSize: 11)),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time, color: Colors.white, size: 12),
+                        const SizedBox(width: 4),
+                        Text('$daysLeft днів', style: const TextStyle(color: Colors.white, fontSize: 11)),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Icon(Icons.emoji_events, color: Colors.amber, size: 12),
+                        const SizedBox(width: 4),
+                        Text('$actualPrizePool банк', style: const TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          
+          // Контентна частина
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Верхня половина: відео творця челенджу (займає половину картки)
             GestureDetector(
-              onTap: () => _playCreatorVideo(creatorVideoUrl, title, creatorName),
+                  onTap: () => _playCreatorVideo(creatorVideoUrl, title, creatorName, challengeId),
               child: Container(
-                height: 160,
+                    height: 120,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
+                      color: Colors.black87,
                   borderRadius: BorderRadius.circular(12),
-                  image: thumbnailUrl != null && thumbnailUrl.toString().isNotEmpty
-                      ? DecorationImage(
-                          image: NetworkImage(thumbnailUrl),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
                 ),
                 child: Stack(
                   children: [
-                    if (thumbnailUrl == null || thumbnailUrl.toString().isEmpty)
-                      Container(
+                                                // Показуємо thumbnail або заглушку
+                        _buildCreatorVideoThumbnail(challengeData),
+                        
+                        // Play button overlay
+                        Center(
+                          child: Container(
+                            width: 50,
+                            height: 50,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.black.withOpacity(0.7),
-                              Colors.black.withOpacity(0.3),
-                            ],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ),
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.play_circle_outline,
+                              color: Colors.black.withOpacity(0.6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.play_arrow,
                             color: Colors.white,
-                            size: 48,
+                              size: 28,
                           ),
-                        ),
-                      ),
-                    
-                    // Play button overlay
-                    if (creatorVideoUrl.isNotEmpty)
-                      const Center(
-                        child: Icon(
-                          Icons.play_circle_filled,
-                          color: Colors.white,
-                          size: 48,
                         ),
                       ),
                     
@@ -313,7 +332,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       left: 8,
                       right: 8,
                       child: Container(
-                        padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.7),
                           borderRadius: BorderRadius.circular(8),
@@ -333,15 +352,15 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               ),
             ),
             
-            const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-            // Submissions gallery (horizontal slider)
+                // Нижня половина: слайдер з відео учасників
             if (submissions > 0) ...[
               const Text(
                 'Відео учасників:',
                 style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
+                      color: Colors.white70,
+                      fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -353,135 +372,198 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       .collection('challenges')
                       .doc(challengeId)
                       .collection('submissions')
-                      .limit(5)
+                          .where('isCreatorVideo', isEqualTo: false)
+                          .limit(8)
                       .snapshots(),
                   builder: (context, submissionSnapshot) {
                     if (!submissionSnapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
+                          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
                     }
                     
                     final submissionDocs = submissionSnapshot.data!.docs;
+                        
+                        if (submissionDocs.isEmpty) {
+                          return Container(
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white.withOpacity(0.1)),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                'Поки немає відео учасників',
+                                style: TextStyle(color: Colors.white54, fontSize: 12),
+                              ),
+                            ),
+                          );
+                        }
+                        
                     return ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      itemCount: submissionDocs.length,
+                          itemCount: submissionDocs.length + (submissionDocs.length < submissions ? 1 : 0), // +1 для показу кількості
                       itemBuilder: (context, index) {
+                            if (index < submissionDocs.length) {
                         final submissionData = submissionDocs[index].data() as Map<String, dynamic>;
-                        return Container(
-                          width: 60,
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(8),
+                              final authorName = submissionData['authorName'] ?? 'Учасник';
+                              final submissionUserId = submissionData['userId'] ?? '';
+                              final videoUrl = submissionData['videoUrl'] ?? '';
+                              final submissionId = submissionDocs[index].id;
+                              
+                        return GestureDetector(
+                          onTap: () => _playParticipantVideo(
+                            videoUrl: videoUrl,
+                            title: submissionData['title'] ?? 'Відео учасника',
+                            authorName: authorName,
+                            challengeId: challengeId,
+                            submissionId: submissionId,
                           ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.play_arrow,
-                              color: Colors.white,
-                              size: 24,
-                            ),
-                          ),
+                          child: Container(
+                            width: 60,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                                  ),
+                                  child: FutureBuilder<DocumentSnapshot>(
+                                    future: FirebaseFirestore.instance
+                                        .collection('users')
+                                        .doc(submissionUserId)
+                                        .get(),
+                                    builder: (context, userSnapshot) {
+                                      final userData = userSnapshot.hasData 
+                                          ? userSnapshot.data!.data() as Map<String, dynamic>? ?? {}
+                                          : <String, dynamic>{};
+                                      final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
+                                      
+                                      return Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          // Аватарка або іконка
+                                          Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: BoxDecoration(
+                                              borderRadius: BorderRadius.circular(16),
+                                              border: Border.all(color: Colors.white.withOpacity(0.3)),
+                                            ),
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(16),
+                                              child: avatarUrl.isNotEmpty
+                                                  ? Image.network(
+                                                      avatarUrl,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (context, error, stackTrace) =>
+                                                          _buildMiniAvatar(authorName),
+                                                    )
+                                                  : _buildMiniAvatar(authorName),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            authorName.length > 8 
+                                              ? '${authorName.substring(0, 8)}...' 
+                                              : authorName,
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                        );
+                            } else {
+                              // Показуємо кількість якщо є більше відео
+                              final remainingCount = submissions - submissionDocs.length;
+                              return Container(
+                                width: 60,
+                                margin: const EdgeInsets.only(right: 8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF4caf50).withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFF4caf50)),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '+$remainingCount',
+                                    style: const TextStyle(
+                                      color: Color(0xFF4caf50),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+                          },
                         );
                       },
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Stats row
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: () => _showParticipants(challengeData),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.people, color: Colors.white, size: 16),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$participants учасників',
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Row(
-                  children: [
-                    const Icon(Icons.videocam, color: Colors.white, size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$submissions відео',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                ] else ...[
+                  Container(
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
                     ),
-                  ],
-                ),
-                const SizedBox(width: 16),
-                Row(
-                  children: [
-                    const Icon(Icons.access_time, color: Colors.white, size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$daysLeft днів',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    child: const Center(
+                      child: Text(
+                        'Поки немає відео учасників',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
                     ),
-                  ],
-                ),
-                const SizedBox(width: 16),
-                Row(
-                  children: [
-                    const Icon(Icons.monetization_on, color: Colors.white, size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$entryFee монет',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 16),
+                  ),
+                ],
+                
+                const SizedBox(height: 12),
 
-            // Action buttons
+                // Кнопки дій
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
+                      child: ElevatedButton(
                     onPressed: () => _joinChallenge(challengeId),
-                    icon: const Icon(Icons.upload, size: 18),
-                    label: const Text('Прийняти участь'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                          backgroundColor: const Color(0xFF4caf50),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
+                        child: const Text('Прийняти участь', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
-                const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                 Expanded(
-                  child: ElevatedButton.icon(
+                      child: ElevatedButton(
                     onPressed: () => _viewChallengeDetails(challengeId, challengeData),
-                    icon: const Icon(Icons.visibility, size: 18),
-                    label: Text('Переглянути ($submissions)'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white.withOpacity(0.2),
+                          backgroundColor: Colors.white.withOpacity(0.1),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
-                        side: const BorderSide(color: Colors.white, width: 1),
                       ),
                     ),
+                        child: Text('📹 Переглянути ($submissions)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],
             ),
           ],
         ),
+            ),
+          ],
       ),
     );
   }
@@ -501,38 +583,156 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     }
   }
 
-  void _playCreatorVideo(String videoUrl, String title, String creatorName) {
+  void _playCreatorVideo(String videoUrl, String title, String creatorName, String challengeId) {
+    print('Playing creator video: $videoUrl');
     if (videoUrl.isNotEmpty) {
+      // Відкриваємо відео творця з голосуванням (як учасника челенджу)
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => VideoPlayerScreen(
+          builder: (context) => ChallengeVideoPlayerScreen(
             videoUrl: videoUrl,
-            title: title,
+            title: 'Відео творця: $title',
             authorName: creatorName,
-            videoId: '',
+            challengeId: challengeId,
+            submissionId: 'creator', // Спеціальний ID для відео творця
           ),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Відео творця ще завантажується...'),
+        SnackBar(
+          content: Text('Відео творця не завантажено. URL: "$videoUrl"'),
           backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 3),
         ),
       );
     }
   }
 
-  void _joinChallenge(String challengeId) {
+  void _joinChallenge(String challengeId) async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return;
+
+      // Отримуємо дані челенджу для показу вартості
+      final challengeDoc = await FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(challengeId)
+          .get();
+      
+      if (!challengeDoc.exists) {
+        throw Exception('Челендж не знайдено');
+      }
+      
+      final challengeData = challengeDoc.data() as Map<String, dynamic>;
+      final entryFee = challengeData['entryFee'] ?? 10;
+      final challengeTitle = challengeData['title'] ?? 'Челендж';
+
+      // Показуємо діалог підтвердження оплати
+      final shouldJoin = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1a1a2e),
+            title: Row(
+              children: [
+                const Icon(Icons.monetization_on, color: Colors.amber, size: 24),
+                const SizedBox(width: 8),
+                const Text(
+                  'Підтвердження участі',
+                  style: TextStyle(color: Colors.white, fontSize: 18),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Челендж: $challengeTitle',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Вартість участі: $entryFee монет',
+                  style: TextStyle(
+                    color: Colors.amber,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Після оплати ви зможете завантажити своє відео та взяти участь у голосуванні.',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text(
+                  'Скасувати',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4caf50),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('Оплатити $entryFee монет'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (shouldJoin == true) {
+        // Приєднуємося до челенджу (платимо вступну плату)
+        await _challengeService.joinChallenge(challengeId);
+        
+        // Показуємо повідомлення про успіх
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('✅ Ви приєдналися до челенджу! Списано $entryFee монет.'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF4caf50),
+          ),
+        );
+        
+        // Потім переходимо на завантаження відео
     Navigator.pushNamed(
       context,
       '/video-upload',
       arguments: {
         'challengeId': challengeId,
-        'challengeTitle': 'Челендж',
-      },
-    );
+            'challengeTitle': challengeTitle,
+          },
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _viewChallengeDetails(String challengeId, Map<String, dynamic> challengeData) {
@@ -782,6 +982,161 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCreatorVideoThumbnail(Map<String, dynamic> challengeData) {
+    final creatorVideoUrl = challengeData['creatorVideoUrl'] ?? '';
+    final creatorThumbnailUrl = challengeData['creatorThumbnailUrl'] ?? '';
+    final title = challengeData['title'] ?? 'Челендж';
+    final creatorName = challengeData['creatorName'] ?? 'Невідомий';
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: creatorThumbnailUrl.isNotEmpty
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Реальний thumbnail
+                  Image.network(
+                    creatorThumbnailUrl,
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return _buildVideoPlaceholder(title, creatorName, creatorVideoUrl.isNotEmpty);
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return _buildVideoPlaceholder(title, creatorName, creatorVideoUrl.isNotEmpty);
+                    },
+                  ),
+                  // Темний оверлей для кращої видимості
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.4),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : _buildVideoPlaceholder(title, creatorName, creatorVideoUrl.isNotEmpty),
+      ),
+    );
+  }
+
+  Widget _buildVideoPlaceholder(String title, String creatorName, bool hasVideo) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          colors: hasVideo 
+            ? [
+                const Color(0xFF2196F3).withOpacity(0.8),
+                const Color(0xFF03A9F4).withOpacity(0.6),
+              ]
+            : [
+                const Color(0xFF4caf50).withOpacity(0.8),
+                const Color(0xFF8bc34a).withOpacity(0.6),
+              ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              hasVideo ? Icons.videocam : Icons.videocam_off,
+              color: Colors.white,
+              size: 48,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hasVideo ? 'Відео готове!' : 'Відео не завантажено',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (hasVideo) ...[
+              const SizedBox(height: 4),
+              const Text(
+                'Натисніть для перегляду',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _playParticipantVideo({
+    required String videoUrl,
+    required String title,
+    required String authorName,
+    required String challengeId,
+    required String submissionId,
+  }) {
+    if (videoUrl.isNotEmpty) {
+      // Відкриваємо відео учасника з голосуванням (1 повзунок)
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChallengeVideoPlayerScreen(
+            videoUrl: videoUrl,
+            title: title,
+            authorName: authorName,
+            challengeId: challengeId,
+            submissionId: submissionId,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Відео учасника не завантажено'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  Widget _buildMiniAvatar(String name) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: const Color(0xFF4caf50),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Center(
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : 'U',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }

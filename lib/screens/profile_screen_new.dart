@@ -3,8 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/badge.dart' as app_badge;
 import '../services/badge_service.dart';
+import 'badges_store_screen.dart';
 import '../services/friends_service.dart';
 import 'friends_screen.dart';
+import 'subscription_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
@@ -538,6 +540,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             () => _openStats(),
           ),
           _buildActionItem(
+            '👑 Підписки',
+            'Керувати підпискою та планами',
+            Icons.workspace_premium,
+            () => _openSubscriptions(),
+          ),
+          _buildActionItem(
             '⚙️ Налаштування',
             'Налаштування профілю',
             Icons.settings,
@@ -682,10 +690,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _openBadgesStore() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Магазин бейджів (буде реалізовано)')),
+  void _openSubscriptions() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubscriptionScreen(),
+      ),
     );
+  }
+
+  void _openBadgesStore() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BadgesStoreScreen(),
+      ),
+    ).then((_) {
+      // Оновлюємо дані після повернення з магазину
+      setState(() {});
+    });
   }
 
   void _showSettings() {

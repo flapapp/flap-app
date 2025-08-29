@@ -5,6 +5,7 @@ import '../models/challenge.dart';
 import '../services/challenge_service.dart';
 import 'video_upload_screen.dart';
 import 'video_player_screen.dart';
+import 'challenge_video_player_screen.dart';
 
 class ChallengeDetailsScreen extends StatefulWidget {
   final Challenge challenge;
@@ -274,67 +275,84 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                   final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
                   final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? 'Користувач';
                   
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                        backgroundColor: const Color(0xFF4caf50),
-                        child: avatarUrl.isEmpty ? Text(
-                          userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                        ) : null,
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    title,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                if (isCreatorVideo)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF4caf50),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Text(
-                                      'АВТОР',
-                                      style: TextStyle(
+                  return GestureDetector(
+                    onTap: () {
+                      // Переходимо в challenge video player
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChallengeVideoPlayerScreen(
+                            videoUrl: videoUrl,
+                            title: title,
+                            authorName: userName,
+                            challengeId: widget.challenge.id,
+                            submissionId: videoId,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                          backgroundColor: const Color(0xFF4caf50),
+                          child: avatarUrl.isEmpty ? Text(
+                            userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                          ) : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      title,
+                                      style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (isCreatorVideo)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF4caf50),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Text(
+                                        'АВТОР',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                              ],
-                            ),
-                            Text(
-                              userName,
-                              style: const TextStyle(
-                                color: Color(0xFF66bb6a),
-                                fontSize: 11,
+                                ],
                               ),
-                            ),
-                          ],
+                              Text(
+                                userName,
+                                style: const TextStyle(
+                                  color: Color(0xFF66bb6a),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   );
                 },
               ),
@@ -816,6 +834,29 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return;
 
+    // Перевіряємо чи користувач не голосує за себе
+    final submissionDoc = await FirebaseFirestore.instance
+        .collection('challenges')
+        .doc(widget.challenge.id)
+        .collection('submissions')
+        .doc(videoId)
+        .get();
+        
+    if (submissionDoc.exists) {
+      final submissionData = submissionDoc.data() as Map<String, dynamic>;
+      final submissionUserId = submissionData['userId'];
+      
+      if (submissionUserId == currentUser.uid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Не можна голосувати за себе!'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
     try {
       // Save vote to challenge votes subcollection
       await FirebaseFirestore.instance
@@ -878,16 +919,16 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       return;
     }
 
+    // Використовуємо ChallengeVideoPlayerScreen для відео в челенджах
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => VideoPlayerScreen(
+        builder: (context) => ChallengeVideoPlayerScreen(
           videoUrl: videoUrl,
           title: title,
-          authorName: 'Автор відео', // Додаємо обов'язковий параметр
-          videoId: videoId,
+          authorName: 'Автор відео',
           challengeId: widget.challenge.id,
-          submissionUserId: userId,
+          submissionId: videoId,
         ),
       ),
     );

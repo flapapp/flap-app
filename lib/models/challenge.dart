@@ -231,7 +231,7 @@ class Challenge {
   bool get isCompleted => status == ChallengeStatus.completed;
 
   // Геттери для часу
-  bool get canJoin => isRecruiting && currentParticipants < maxParticipants;
+  bool get canJoin => (isRecruiting || isSubmissionOpen) && currentParticipants < maxParticipants;
   bool get canSubmit => isSubmissionOpen && participants.isNotEmpty;
   bool get canVote => isVotingOpen;
 

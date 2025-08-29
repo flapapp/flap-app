@@ -142,14 +142,48 @@ class ChallengeService {
         throw Exception('Ви вже учасник цього челенджу');
       }
 
-      // Додати учасника
-      await challengeRef.update({
-        'participants': FieldValue.arrayUnion([currentUser.uid]),
-        'currentParticipants': FieldValue.increment(1),
-      });
+      // Перевірити чи достатньо монет
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+      
+      if (!userDoc.exists) {
+        throw Exception('Дані користувача не знайдено');
+      }
 
-      // Нарахувати монети за участь (ставка входу)
-      await _addCoinsToUser(currentUser.uid, challenge.entryFee);
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final userCoins = userData['coins'] ?? 0;
+
+      if (userCoins < challenge.entryFee) {
+        throw Exception('Недостатньо монет! Потрібно: ${challenge.entryFee}, у вас: $userCoins');
+      }
+
+      // Виконати транзакцію
+      await _firestore.runTransaction((transaction) async {
+        // Додати учасника
+        transaction.update(challengeRef, {
+          'participants': FieldValue.arrayUnion([currentUser.uid]),
+          'currentParticipants': FieldValue.increment(1),
+          'prizePool': FieldValue.increment(challenge.entryFee), // Додаємо до банку
+        });
+
+        // Віднімаємо монети за участь
+        transaction.update(_firestore.collection('users').doc(currentUser.uid), {
+          'coins': FieldValue.increment(-challenge.entryFee),
+        });
+
+        // Записуємо транзакцію в історію
+        transaction.set(_firestore.collection('transactions').doc(), {
+          'userId': currentUser.uid,
+          'type': 'challenge_entry_fee',
+          'amount': -challenge.entryFee,
+          'challengeId': challengeId,
+          'challengeTitle': challenge.title,
+          'timestamp': FieldValue.serverTimestamp(),
+          'description': 'Вступна плата за челендж: ${challenge.title}',
+        });
+      });
 
       return true;
     } catch (e) {
@@ -246,6 +280,16 @@ class ChallengeService {
 
       // Нарахувати монети за голос (+1 монета)
       await _addCoinsToUser(currentUser.uid, 1);
+      
+      // Записати транзакцію за голосування
+      await _firestore.collection('transactions').add({
+        'userId': currentUser.uid,
+        'type': 'voting_reward',
+        'amount': 1,
+        'challengeId': challengeId,
+        'timestamp': FieldValue.serverTimestamp(),
+        'description': 'Нагорода за голосування в челенджі',
+      });
 
       return true;
     } catch (e) {
@@ -310,15 +354,45 @@ class ChallengeService {
         winners.add(sortedParticipants[2].key); // 3-є місце
       }
 
-      // Нарахування призів
+      // Нарахування призів з записом транзакцій
       if (winners.isNotEmpty) {
-        await _addCoinsToUser(winners[0], challenge.firstPlacePrize.toInt()); // 1-е місце
+        final firstPrize = challenge.firstPlacePrize.toInt();
+        await _addCoinsToUser(winners[0], firstPrize);
+        await _firestore.collection('transactions').add({
+          'userId': winners[0],
+          'type': 'challenge_win',
+          'amount': firstPrize,
+          'challengeId': challengeId,
+          'challengeTitle': challenge.title,
+          'timestamp': FieldValue.serverTimestamp(),
+          'description': 'Перемога в челенджі: ${challenge.title} (1-е місце)',
+        });
       }
       if (winners.length > 1) {
-        await _addCoinsToUser(winners[1], challenge.secondPlacePrize.toInt()); // 2-е місце
+        final secondPrize = challenge.secondPlacePrize.toInt();
+        await _addCoinsToUser(winners[1], secondPrize);
+        await _firestore.collection('transactions').add({
+          'userId': winners[1],
+          'type': 'challenge_second',
+          'amount': secondPrize,
+          'challengeId': challengeId,
+          'challengeTitle': challenge.title,
+          'timestamp': FieldValue.serverTimestamp(),
+          'description': 'Друге місце в челенджі: ${challenge.title}',
+        });
       }
       if (winners.length > 2) {
-        await _addCoinsToUser(winners[2], challenge.thirdPlacePrize.toInt()); // 3-є місце
+        final thirdPrize = challenge.thirdPlacePrize.toInt();
+        await _addCoinsToUser(winners[2], thirdPrize);
+        await _firestore.collection('transactions').add({
+          'userId': winners[2],
+          'type': 'challenge_third',
+          'amount': thirdPrize,
+          'challengeId': challengeId,
+          'challengeTitle': challenge.title,
+          'timestamp': FieldValue.serverTimestamp(),
+          'description': 'Третє місце в челенджі: ${challenge.title}',
+        });
       }
 
       // Оновлення статусу челенджу

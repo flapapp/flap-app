@@ -42,6 +42,8 @@ dependencies:
   http: ^1.1.0
   video_player: ^2.8.1
   chewie: ^1.7.4
+  video_thumbnail: ^0.5.3
+  path_provider: ^2.1.1
 
 dev_dependencies:
   flutter_test:

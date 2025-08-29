@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/friend_request.dart';
 import '../services/friends_service.dart';
 
@@ -601,6 +602,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   }
 
   void _showAddFriendDialog() {
+    // Створюємо тестових користувачів якщо їх немає
+    _ensureTestUsers();
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -631,20 +635,33 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               onChanged: (value) {
                 if (value.length >= 2) {
                   _searchUsers(value);
+                } else if (value.isEmpty) {
+                  setState(() {
+                    _searchResults.clear();
+                  });
+                }
+              },
+              onSubmitted: (value) {
+                if (value.length >= 2) {
+                  _searchUsers(value);
                 }
               },
             ),
             const SizedBox(height: 16),
+            // Debug info
+            Text(
+              'Debug: ${_searchResults.length} результатів, пошук: $_isSearching',
+              style: const TextStyle(color: Colors.orange, fontSize: 10),
+            ),
+            const SizedBox(height: 8),
             if (_isSearching)
               const CircularProgressIndicator(color: Color(0xFF4caf50))
             else if (_searchResults.isNotEmpty)
               Container(
                 height: 200,
-                child: ListView.builder(
-                  itemCount: _searchResults.length,
-                  itemBuilder: (context, index) {
-                    final user = _searchResults[index];
-                    return ListTile(
+                width: double.maxFinite,
+                child: ListView(
+                  children: _searchResults.map((user) => ListTile(
                       leading: Container(
                         width: 40,
                         height: 40,
@@ -652,17 +669,26 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                           color: const Color(0xFF4caf50),
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: user['avatar'] != null && user['avatar'].isNotEmpty
-                            ? ClipRRect(
+                        child: () {
+                          final avatarUrl = user['avatarUrl'] ?? user['avatar'] ?? '';
+                          final userName = user['displayName'] ?? user['name'] ?? user['email']?.split('@')[0] ?? 'U';
+                          
+                          if (avatarUrl.isNotEmpty) {
+                            return ClipRRect(
                                 borderRadius: BorderRadius.circular(20),
                                 child: Image.network(
-                                  user['avatar'],
+                                avatarUrl,
+                                width: 40,
+                                height: 40,
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) =>
-                                      _buildAvatarPlaceholder(user['name'] ?? ''),
-                                ),
-                              )
-                            : _buildAvatarPlaceholder(user['name'] ?? ''),
+                                    _buildAvatarPlaceholder(userName),
+                              ),
+                            );
+                          } else {
+                            return _buildAvatarPlaceholder(userName);
+                          }
+                        }(),
                       ),
                       title: Text(
                         user['name'] ?? 'Невідомий',
@@ -676,8 +702,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                         icon: const Icon(Icons.person_add, color: Color(0xFF4caf50)),
                         onPressed: () => _sendFriendRequest(user['id']),
                       ),
-                    );
-                  },
+                    )).toList(),
                 ),
               ),
           ],
@@ -693,22 +718,93 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   }
 
   void _searchUsers(String query) async {
+    if (query.trim().length < 2) {
+      setState(() {
+        _searchResults.clear();
+      });
+      return;
+    }
+    
     setState(() {
       _isSearching = true;
+      _searchResults.clear();
     });
 
     try {
-      final results = await _friendsService.searchUsers(query);
-      setState(() {
-        _searchResults = results;
-        _isSearching = false;
-      });
+      print('🔍 Starting search for: "$query"');
+      
+      // Спочатку перевіримо чи є користувачі взагалі
+      final allUsers = await FirebaseFirestore.instance
+          .collection('users')
+          .limit(5)
+          .get();
+      
+      print('📊 Total users in database: ${allUsers.docs.length}');
+      
+      if (allUsers.docs.isEmpty) {
+        print('❌ No users found in database!');
+        setState(() {
+          _isSearching = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ В базі даних немає користувачів для пошуку'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+      
+      // Показуємо перших кілька користувачів для діагностики
+      for (var doc in allUsers.docs.take(3)) {
+        final data = doc.data();
+        print('👤 User sample: ${doc.id} -> name: "${data['name']}", displayName: "${data['displayName']}", email: "${data['email']}"');
+      }
+      
+      final results = await _friendsService.searchUsers(query.trim());
+      print('✅ Search completed. Results: ${results.length}');
+      
+      if (results.isNotEmpty) {
+        print('🎯 First result: ${results.first['name']} / ${results.first['displayName']} / ${results.first['email']}');
+      } else {
+        print('⚠️ No matching users found for query: "$query"');
+      }
+      
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _isSearching = false;
+        });
+        
+        print('🔄 UI Updated with ${results.length} search results');
+        
+        // Показуємо повідомлення якщо нічого не знайдено
+        if (results.isEmpty && query.length >= 2) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('🔍 Користувачів з іменем "$query" не знайдено'),
+              backgroundColor: Colors.blue,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        } else if (results.isNotEmpty) {
+          print('✅ Found ${results.length} users, should be visible in dialog');
+        }
+      }
+      
     } catch (e) {
+      print('❌ Search error: $e');
       setState(() {
         _isSearching = false;
+        _searchResults.clear();
       });
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка пошуку: $e')),
+        SnackBar(
+          content: Text('❌ Помилка пошуку: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -824,6 +920,97 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Помилка: $e')),
       );
+    }
+  }
+
+  Future<void> _ensureTestUsers() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return;
+
+      // Перевіряємо чи є інші користувачі крім поточного
+      final existingUsers = await FirebaseFirestore.instance
+          .collection('users')
+          .limit(5)
+          .get();
+
+      final otherUsers = existingUsers.docs
+          .where((doc) => doc.id != currentUser.uid)
+          .toList();
+
+      if (otherUsers.length < 3) {
+        // Створюємо тестових користувачів
+        final batch = FirebaseFirestore.instance.batch();
+        
+        final testUsers = [
+          {
+            'name': 'Leo',
+            'displayName': 'Leo Messi',
+            'firstName': 'Leo',
+            'lastName': 'Messi',
+            'email': 'leo.messi@example.com',
+            'city': 'Київ',
+            'country': 'Україна',
+            'position': 'Нападник',
+            'rating': 4.8,
+            'coins': 250,
+            'avatarUrl': '',
+            'createdAt': FieldValue.serverTimestamp(),
+          },
+          {
+            'name': 'Vinnie Jr',
+            'displayName': 'Vinnie Jr',
+            'firstName': 'Vinnie',
+            'lastName': 'Jr',
+            'email': 'vinnie.jr@example.com',
+            'city': 'Львів',
+            'country': 'Україна',
+            'position': 'Півзахисник',
+            'rating': 4.2,
+            'coins': 180,
+            'avatarUrl': '',
+            'createdAt': FieldValue.serverTimestamp(),
+          },
+          {
+            'name': 'Cristiano',
+            'displayName': 'Cristiano Ronaldo',
+            'firstName': 'Cristiano',
+            'lastName': 'Ronaldo',
+            'email': 'cristiano@example.com',
+            'city': 'Одеса',
+            'country': 'Україна',
+            'position': 'Нападник',
+            'rating': 4.9,
+            'coins': 320,
+            'avatarUrl': '',
+            'createdAt': FieldValue.serverTimestamp(),
+          },
+          {
+            'name': 'Neymar',
+            'displayName': 'Neymar Jr',
+            'firstName': 'Neymar',
+            'lastName': 'Jr',
+            'email': 'neymar@example.com',
+            'city': 'Харків',
+            'country': 'Україна',
+            'position': 'Вінгер',
+            'rating': 4.3,
+            'coins': 200,
+            'avatarUrl': '',
+            'createdAt': FieldValue.serverTimestamp(),
+          },
+        ];
+
+        for (final userData in testUsers) {
+          final docRef = FirebaseFirestore.instance.collection('users').doc();
+          batch.set(docRef, userData);
+        }
+
+        await batch.commit();
+        print('✅ Test users created for friend search');
+      }
+    } catch (e) {
+      print('❌ Error creating test users: $e');
     }
   }
 }

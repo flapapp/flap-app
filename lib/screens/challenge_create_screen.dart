@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -6,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
+import '../services/thumbnail_service.dart';
 
 class ChallengeCreateScreen extends StatefulWidget {
   @override
@@ -27,7 +29,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   int _submissionDays = 7;
   int _votingDays = 5;
   bool _isCreating = false;
-  File? _selectedVideoFile;
+  XFile? _selectedVideoFile;
   
   final ChallengeService _challengeService = ChallengeService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -874,7 +876,47 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
         // Потім завантажуємо відео створювача
         if (_selectedVideoFile != null) {
-          await _uploadCreatorVideo(challengeId, currentUser.uid, userName);
+          print('Starting creator video upload for challenge: $challengeId');
+          try {
+            final creatorVideoUrl = await _uploadCreatorVideo(challengeId, currentUser.uid, userName);
+            if (creatorVideoUrl != null && creatorVideoUrl.isNotEmpty) {
+              print('Creator video upload completed successfully with URL: $creatorVideoUrl');
+              
+              // Оновлюємо челендж з URL відео творця
+              await FirebaseFirestore.instance
+                  .collection('challenges')
+                  .doc(challengeId)
+                  .update({
+                'creatorVideoUrl': creatorVideoUrl,
+              });
+              print('Updated challenge $challengeId with creatorVideoUrl: $creatorVideoUrl');
+              
+            } else {
+              print('WARNING: Creator video upload returned null/empty URL');
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('⚠️ Відео створювача не завантажено!'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
+          } catch (e) {
+            print('ERROR: Creator video upload failed: $e');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('❌ Помилка завантаження відео: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        } else {
+          print('WARNING: No video file selected for creator!');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚠️ Відео створювача обов\'язкове!'),
+              backgroundColor: Colors.orange,
+            ),
+          );
         }
         // Показати повідомлення про успіх та запитати про завантаження відео
         showDialog(
@@ -1000,20 +1042,52 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   }
 
   Future<void> _pickVideo({bool fromCamera = false}) async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? video = await picker.pickVideo(source: fromCamera ? ImageSource.camera : ImageSource.gallery);
-    
-    if (video != null) {
-      setState(() {
-        _selectedVideoFile = File(video.path);
-      });
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? video = await picker.pickVideo(
+        source: fromCamera ? ImageSource.camera : ImageSource.gallery,
+        maxDuration: const Duration(minutes: 5),
+      );
+      
+      if (video != null) {
+        setState(() {
+          _selectedVideoFile = video;
+        });
+      }
+    } catch (e) {
+      print('Error picking video: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Помилка вибору відео: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
-  Future<void> _uploadCreatorVideo(String challengeId, String userId, String authorName) async {
-    if (_selectedVideoFile == null) return;
+  Future<String?> _uploadCreatorVideo(String challengeId, String userId, String authorName) async {
+    if (_selectedVideoFile == null) {
+      print('ERROR: _selectedVideoFile is null in _uploadCreatorVideo');
+      return null;
+    }
     
     try {
+      print('Uploading creator video for challenge: $challengeId');
+      
+      if (kIsWeb) {
+        print('Running on web platform');
+        print('Video file name: ${_selectedVideoFile!.name}');
+      } else {
+        print('Video file path: ${_selectedVideoFile!.path}');
+        // На мобільних платформах перевіряємо чи файл існує
+        try {
+          final file = File(_selectedVideoFile!.path);
+          print('Video file exists: ${await file.exists()}');
+        } catch (e) {
+          print('Error checking file existence: $e');
+        }
+      }
+      
       // Завантажуємо відео в Storage
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'creator_video_$timestamp.mp4';
@@ -1021,39 +1095,129 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           .ref()
           .child('videos/$userId/$fileName');
       
-      final uploadTask = storageRef.putFile(_selectedVideoFile!);
-      final snapshot = await uploadTask;
-      final videoUrl = await snapshot.ref.getDownloadURL();
+      print('Storage path: videos/$userId/$fileName');
+      
+      // Завантажуємо відео
+      UploadTask uploadTask;
+      
+      try {
+        if (kIsWeb) {
+          // На веб-платформі використовуємо putData
+          print('Reading video file as bytes on web...');
+          final bytes = await _selectedVideoFile!.readAsBytes();
+          print('Video file size: ${bytes.length} bytes');
+          uploadTask = storageRef.putData(bytes);
+        } else {
+          // На мобільних платформах використовуємо putFile
+          final file = File(_selectedVideoFile!.path);
+          print('Video file size: ${await file.length()} bytes');
+          uploadTask = storageRef.putFile(file);
+        }
+      } catch (e) {
+        print('ERROR reading video file: $e');
+        throw Exception('Помилка читання відео файлу: $e');
+      }
+      
+      print('Upload started...');
+      
+      String videoUrl;
+      try {
+        final snapshot = await uploadTask;
+        print('Upload completed. Bytes transferred: ${snapshot.bytesTransferred}');
+        
+        videoUrl = await snapshot.ref.getDownloadURL();
+        print('Video URL obtained: $videoUrl');
+      } catch (e) {
+        print('ERROR during upload or getting URL: $e');
+        throw Exception('Помилка завантаження або отримання URL: $e');
+      }
       
       // Зберігаємо відео створювача в submissions і помічаємо як головне
-      await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .collection('submissions')
-          .doc(userId)
-          .set({
-        'userId': userId,
-        'authorName': authorName,
-        'title': 'Відео створювача',
-        'videoUrl': videoUrl,
-        'isCreatorVideo': true,
-        'createdAt': FieldValue.serverTimestamp(),
-        'averageRating': 0.0,
-        'voteCount': 0,
-        'votes': <String, dynamic>{},
-      });
+      print('Saving creator video to submissions collection...');
+      try {
+        await FirebaseFirestore.instance
+            .collection('challenges')
+            .doc(challengeId)
+            .collection('submissions')
+            .doc(userId)
+            .set({
+          'userId': userId,
+          'authorName': authorName,
+          'title': 'Відео створювача',
+          'videoUrl': videoUrl,
+          'isCreatorVideo': true,
+          'createdAt': FieldValue.serverTimestamp(),
+          'averageRating': 0.0,
+          'voteCount': 0,
+          'votes': <String, dynamic>{},
+        });
+        print('Creator video saved to submissions collection');
+      } catch (e) {
+        print('ERROR saving to submissions collection: $e');
+        throw Exception('Помилка збереження в submissions: $e');
+      }
       
-      // Додаємо до списку submissions і оновлюємо creatorVideoUrl
-      await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .update({
-        'submissions': FieldValue.arrayUnion([userId]),
-        'creatorVideoUrl': videoUrl, // Додаємо URL відео творця
-      });
+      // Додаємо до списку submissions
+      print('Updating challenge document with submissions...');
+      try {
+        await FirebaseFirestore.instance
+            .collection('challenges')
+            .doc(challengeId)
+            .update({
+          'submissions': FieldValue.arrayUnion([userId]),
+        });
+        print('Challenge document updated successfully');
+      } catch (e) {
+        print('ERROR updating challenge document: $e');
+        throw Exception('Помилка оновлення челенджу: $e');
+      }
+      
+      print('Successfully uploaded creator video: $videoUrl');
+      
+      // Генеруємо thumbnail для відео творця в фоновому режимі
+      _generateCreatorThumbnailInBackground(challengeId, videoUrl, userId);
+      
+      return videoUrl; // Повертаємо URL відео
       
     } catch (e) {
       print('Error uploading creator video: $e');
+      
+      // Показуємо помилку користувачу
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Помилка завантаження відео: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      
+      return null; // Помилка завантаження
     }
+  }
+
+  void _generateCreatorThumbnailInBackground(String challengeId, String videoUrl, String userId) {
+    // Генеруємо thumbnail в фоновому режимі
+    Future.delayed(const Duration(seconds: 3), () async {
+      try {
+        print('🎬 Starting creator thumbnail generation for challenge: $challengeId');
+        
+        final thumbnailService = ThumbnailService();
+        final thumbnailUrl = await thumbnailService.generateChallengeThumbnail(
+          videoUrl: videoUrl,
+          challengeId: challengeId,
+          userId: userId,
+        );
+
+        if (thumbnailUrl != null) {
+          print('✅ Creator thumbnail generated successfully: $thumbnailUrl');
+        } else {
+          print('⚠️ Creator thumbnail generation failed, but video upload was successful');
+        }
+      } catch (e) {
+        print('❌ Background creator thumbnail generation error: $e');
+        // Не показуємо помилку користувачу, оскільки челендж вже створено
+      }
+    });
   }
 }

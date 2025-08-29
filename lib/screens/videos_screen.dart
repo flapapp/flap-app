@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:video_player/video_player.dart';
 import 'video_upload_screen.dart';
 import 'video_player_screen.dart';
 import '../widgets/rating_display.dart';
@@ -111,11 +113,11 @@ class _VideosScreenState extends State<VideosScreen> {
                 const SizedBox(height: 12),
 
                 // Dropdown filters
-                Row(
-                  children: [
-                    Expanded(child: _buildDropdown('Місто', _selectedCity, _cities, (value) => setState(() => _selectedCity = value))),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildDropdown('Рейтинг', _selectedRating, _ratings, (value) => setState(() => _selectedRating = value))),
+                                  Row(
+                    children: [
+                    Expanded(flex: 1, child: _buildDropdown('🏙️', _selectedCity, _cities, (value) => setState(() => _selectedCity = value))),
+                    const SizedBox(width: 8),
+                    Expanded(flex: 1, child: _buildDropdown('⭐', _selectedRating, _ratings, (value) => setState(() => _selectedRating = value))),
                   ],
                 ),
               ],
@@ -183,7 +185,8 @@ class _VideosScreenState extends State<VideosScreen> {
 
   Widget _buildDropdown(String label, String value, List<String> items, ValueChanged<String> onChanged) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
@@ -268,6 +271,333 @@ class _VideosScreenState extends State<VideosScreen> {
     );
   }
 
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '${minutes.toString().padLeft(1, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  String _formatTimestamp(Timestamp timestamp) {
+    final now = DateTime.now();
+    final videoTime = timestamp.toDate();
+    final difference = now.difference(videoTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays} днів тому';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} годин тому';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} хвилин тому';
+    } else {
+      return 'Щойно';
+    }
+  }
+
+  void _playVideo(String videoUrl, String title, String videoId, String userId) {
+    if (videoUrl.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VideoPlayerScreen(
+            videoUrl: videoUrl,
+            title: title,
+            authorName: '', // Will be loaded in VideoPlayerScreen
+            videoId: videoId,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _likeVideo(String videoId) {
+    // Implement like functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('❤️ Відео вподобано!'),
+        duration: Duration(seconds: 1),
+        backgroundColor: Color(0xFF4caf50),
+      ),
+    );
+  }
+
+  void _shareVideo(String videoId, String title) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('📤 Відео "$title" поділено!'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF4caf50),
+      ),
+    );
+  }
+
+  void _showComments(String videoId, String title) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0f0f23),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    const Icon(Icons.comment, color: Colors.blue, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Коментарі до "$title"',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.white24, height: 1),
+              
+              // Comments list
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('videos')
+                      .doc(videoId)
+                      .collection('comments')
+                      .orderBy('createdAt', descending: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
+                    }
+                    
+                    final comments = snapshot.data!.docs;
+                    
+                    if (comments.isEmpty) {
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.comment_outlined, size: 64, color: Colors.white54),
+                            SizedBox(height: 16),
+                            Text(
+                              'Поки немає коментарів',
+                              style: TextStyle(color: Colors.white70, fontSize: 16),
+                            ),
+                            Text(
+                              'Будьте першим!',
+                              style: TextStyle(color: Colors.white54, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: comments.length,
+                      itemBuilder: (context, index) {
+                        final commentData = comments[index].data() as Map<String, dynamic>;
+                        return _buildCommentItem(commentData);
+                      },
+                    );
+                  },
+                ),
+              ),
+              
+              // Add comment
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Додати коментар...',
+                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: const BorderSide(color: Color(0xFF4caf50)),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF4caf50),
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        onPressed: () => _addComment(videoId),
+                        icon: const Icon(Icons.send, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCommentItem(Map<String, dynamic> commentData) {
+    final authorName = commentData['authorName'] ?? 'Користувач';
+    final text = commentData['text'] ?? '';
+    final createdAt = commentData['createdAt'] as Timestamp?;
+    final timeAgo = createdAt != null ? _formatTimeAgo(createdAt.toDate()) : '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: const Color(0xFF4caf50),
+                child: Text(
+                  authorName.isNotEmpty ? authorName[0].toUpperCase() : 'U',
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      authorName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (timeAgo.isNotEmpty)
+                      Text(
+                        timeAgo,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} хв тому';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} год тому';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} дн тому';
+    } else {
+      return '${(difference.inDays / 7).floor()} тиж тому';
+    }
+  }
+
+  void _addComment(String videoId) {
+    // TODO: Implement add comment
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Додавання коментарів буде додано незабаром!')),
+    );
+  }
+
+  // Градієнти для різних категорій відео
+  List<Color> _getVideoGradient(String category) {
+    switch (category.toLowerCase()) {
+      case 'удари':
+      case 'голи':
+        return [const Color(0xFFff6b6b), const Color(0xFFee5a24)]; // Червоний
+      case 'дриблінг':
+      case 'техніка':
+        return [const Color(0xFF4834d4), const Color(0xFF686de0)]; // Фіолетовий
+      case 'передачі':
+        return [const Color(0xFF00d2d3), const Color(0xFF54a0ff)]; // Блакитний
+      case 'захист':
+        return [const Color(0xFF5f27cd), const Color(0xFF341f97)]; // Темно-фіолетовий
+      case 'воротар':
+        return [const Color(0xFFff9ff3), const Color(0xFFf368e0)]; // Рожевий
+      default:
+        return [const Color(0xFF4caf50), const Color(0xFF8bc34a)]; // Зелений за замовчуванням
+    }
+  }
+
+  // Іконки для категорій
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'удари':
+      case 'голи':
+        return Icons.sports_soccer;
+      case 'дриблінг':
+      case 'техніка':
+        return Icons.directions_run;
+      case 'передачі':
+        return Icons.compare_arrows;
+      case 'захист':
+        return Icons.shield;
+      case 'воротар':
+        return Icons.sports;
+      default:
+        return Icons.video_library;
+    }
+  }
+
   Widget _buildVideoCard(Map<String, dynamic> videoData) {
     final videoId = videoData['id'];
     final title = videoData['title'] ?? 'Без назви';
@@ -275,12 +605,20 @@ class _VideosScreenState extends State<VideosScreen> {
     final videoUrl = videoData['videoUrl'] ?? '';
     final thumbnailUrl = videoData['thumbnailUrl'];
     final likes = videoData['likes'] ?? 0;
-    final comments = videoData['comments'] ?? 0;
     final rating = (videoData['rating'] ?? 0.0).toDouble();
     final createdAt = videoData['createdAt'] as Timestamp?;
     final category = videoData['category'] ?? '';
 
-    return Container(
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .collection('comments')
+          .snapshots(),
+      builder: (context, commentSnapshot) {
+        final commentsCount = commentSnapshot.hasData ? commentSnapshot.data!.docs.length : 0;
+
+        return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
@@ -299,33 +637,57 @@ class _VideosScreenState extends State<VideosScreen> {
               decoration: BoxDecoration(
                 color: Colors.black87,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                image: thumbnailUrl != null && thumbnailUrl.toString().isNotEmpty
-                    ? DecorationImage(
-                        image: NetworkImage(thumbnailUrl),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
               ),
               child: Stack(
                 children: [
-                  if (thumbnailUrl == null || thumbnailUrl.toString().isEmpty)
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF4caf50), Color(0xFF8bc34a)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.video_library,
-                          color: Colors.white54,
-                          size: 60,
-                        ),
+                  // Реалістичне превью відео
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                      gradient: LinearGradient(
+                        colors: _getVideoGradient(category),
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
                     ),
+                    child: thumbnailUrl != null && thumbnailUrl.toString().isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                // На веб показуємо перший кадр відео
+                                kIsWeb && thumbnailUrl == videoUrl
+                                    ? _buildWebVideoPreview(videoUrl)
+                                    : Image.network(
+                                        thumbnailUrl,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return _buildVideoPlaceholder(category, title);
+                                        },
+                                        errorBuilder: (context, error, stackTrace) => _buildVideoPlaceholder(category, title),
+                                      ),
+                                // Темний оверлей для кращої видимості play кнопки
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.black.withOpacity(0.3),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : _buildVideoPlaceholder(category, title),
+                  ),
                   
                   // Play button
                   const Center(
@@ -509,16 +871,19 @@ class _VideosScreenState extends State<VideosScreen> {
                     ),
                     const SizedBox(width: 16),
                     
-                    // Comments
-                    Row(
-                      children: [
-                        const Icon(Icons.comment, color: Colors.blue, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          comments.toString(),
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
+                    // Comments - клікабельні з реальною кількістю
+                    GestureDetector(
+                      onTap: () => _showComments(videoId, title),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.comment, color: Colors.blue, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            commentsCount.toString(),
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
                     ),
                     
                     const Spacer(),
@@ -544,64 +909,123 @@ class _VideosScreenState extends State<VideosScreen> {
         ],
       ),
     );
+      },
+    );
   }
 
-  String _formatDuration(int seconds) {
-    final minutes = seconds ~/ 60;
-    final remainingSeconds = seconds % 60;
-    return '${minutes.toString().padLeft(1, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
-  }
-
-  String _formatTimestamp(Timestamp timestamp) {
-    final now = DateTime.now();
-    final videoTime = timestamp.toDate();
-    final difference = now.difference(videoTime);
-
-    if (difference.inDays > 0) {
-      return '${difference.inDays} днів тому';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours} годин тому';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} хвилин тому';
-    } else {
-      return 'Щойно';
-    }
-  }
-
-  void _playVideo(String videoUrl, String title, String videoId, String userId) {
-    if (videoUrl.isNotEmpty) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => VideoPlayerScreen(
-            videoUrl: videoUrl,
-            title: title,
-            authorName: '', // Will be loaded in VideoPlayerScreen
-            videoId: videoId,
+  Widget _buildVideoPlaceholder(String category, String title) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Велика іконка категорії
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(40),
+              border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+            ),
+            child: Icon(
+              _getCategoryIcon(category),
+              color: Colors.white70,
+              size: 40,
+            ),
           ),
-        ),
-      );
-    }
-  }
-
-  void _likeVideo(String videoId) {
-    // Implement like functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('❤️ Відео вподобано!'),
-        duration: Duration(seconds: 1),
-        backgroundColor: Color(0xFF4caf50),
+          const SizedBox(height: 12),
+          
+          // Назва відео як заголовок
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 8),
+          
+          // Індикатор відео
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.videocam, color: Colors.white70, size: 12),
+                const SizedBox(width: 4),
+                Text(
+                  category.isEmpty ? 'Відео' : category,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  void _shareVideo(String videoId, String title) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('📤 Відео "$title" поділено!'),
-        duration: const Duration(seconds: 2),
-        backgroundColor: const Color(0xFF4caf50),
-      ),
+  Widget _buildWebVideoPreview(String videoUrl) {
+    return FutureBuilder<VideoPlayerController>(
+      future: _createVideoController(videoUrl),
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data!.value.isInitialized) {
+          final controller = snapshot.data!;
+          return AspectRatio(
+            aspectRatio: controller.value.aspectRatio,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                VideoPlayer(controller),
+                // Темний оверлей
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.3),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        return Container(
+          color: Colors.black54,
+          child: const Center(
+            child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+          ),
+        );
+      },
     );
+  }
+
+  Future<VideoPlayerController> _createVideoController(String videoUrl) async {
+    final controller = VideoPlayerController.network(videoUrl);
+    await controller.initialize();
+    await controller.seekTo(const Duration(seconds: 1)); // Перший кадр
+    await controller.pause(); // Зупиняємо відео
+    return controller;
   }
 }

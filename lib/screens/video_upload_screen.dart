@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io';
 import '../services/challenge_service.dart';
+import '../services/thumbnail_service.dart';
 
 class VideoUploadScreen extends StatefulWidget {
   final String? challengeId;
@@ -74,161 +75,6 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Відео додано!')),
     );
-  }
-
-  Future<void> _uploadVideo() async {
-    // Для челенджів не потрібна валідація форми
-    bool isValidForUpload = widget.challengeId != null 
-        ? _pickedVideo != null 
-        : (_formKey.currentState!.validate() && _pickedVideo != null);
-        
-    if (isValidForUpload) {
-      setState(() {
-        _isUploading = true;
-        _uploadProgress = 0.0;
-      });
-
-      try {
-        final uid = FirebaseAuth.instance.currentUser?.uid;
-        if (uid == null) {
-          throw Exception('Користувач не авторизований');
-        }
-
-        // Створюємо унікальну назву файлу
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final fileName = 'video_$timestamp.mp4';
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('videos/$uid/$fileName');
-
-        String? videoUrl;
-        
-        if (kIsWeb) {
-          final bytes = await _pickedVideo!.readAsBytes();
-          final uploadTask = storageRef.putData(
-            bytes,
-            SettableMetadata(contentType: 'video/mp4'),
-          );
-          
-          uploadTask.snapshotEvents.listen((snapshot) {
-            setState(() {
-              _uploadProgress = snapshot.bytesTransferred / snapshot.totalBytes;
-            });
-          });
-          
-          final snap = await uploadTask;
-          videoUrl = await snap.ref.getDownloadURL();
-        } else {
-          final file = File(_pickedVideo!.path);
-          final uploadTask = storageRef.putFile(
-            file,
-            SettableMetadata(contentType: 'video/mp4'),
-          );
-          
-          uploadTask.snapshotEvents.listen((snapshot) {
-            setState(() {
-              _uploadProgress = snapshot.bytesTransferred / snapshot.totalBytes;
-            });
-          });
-          
-          final snap = await uploadTask;
-          videoUrl = await snap.ref.getDownloadURL();
-        }
-
-         // Отримуємо дані користувача
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-        final userData = userDoc.data();
-        final authorName = userData?['displayName'] ?? userData?['authorName'] ?? userData?['name'] ?? 'Невідомий';
-        final city = userData?['city'] ?? 'Невідомо';
-
-        if (widget.challengeId == null) {
-          // Зберігаємо метадані звичайного відео в колекції videos
-          await FirebaseFirestore.instance.collection('videos').add({
-            'userId': uid,
-            'authorName': authorName,
-            'city': city,
-            'title': _titleController.text.trim(),
-            'description': _descriptionController.text.trim(),
-            'category': _selectedCategory,
-            'difficulty': _selectedDifficulty,
-            'videoUrl': videoUrl,
-            'thumbnailUrl': null, // Пізніше додамо
-            'duration': 0, // Пізніше додамо
-            'views': 0,
-            'likes': 0,
-            'dislikes': 0,
-            'rating': 0.0,
-            'createdAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-        } else {
-          // Це відео для челенджу: записуємо в submissions під челенджем
-          final challengeId = widget.challengeId!;
-          final submissionRef = FirebaseFirestore.instance
-              .collection('challenges')
-              .doc(challengeId)
-              .collection('submissions')
-              .doc(uid);
-          await submissionRef.set({
-            'userId': uid,
-            'authorName': authorName,
-            'title': _titleController.text.trim().isNotEmpty 
-                ? _titleController.text.trim() 
-                : 'Відео для челенджу',
-            'description': _descriptionController.text.trim(),
-            'videoUrl': videoUrl,
-            'isCreatorVideo': false, // Це не відео створювача
-            'createdAt': FieldValue.serverTimestamp(),
-            'averageRating': 0.0,
-            'voteCount': 0,
-            'votes': <String, dynamic>{},
-          });
-
-          // Позначаємо, що користувач подав відео на челендж
-          try {
-            final challengeService = ChallengeService();
-            await challengeService.addVideoToChallenge(challengeId, uid);
-          } catch (e) {
-            print('Error updating challenge submission: $e');
-          }
-        }
-
-        // Очищаємо форму
-        _titleController.clear();
-        _descriptionController.clear();
-        setState(() {
-          _selectedCategory = null;
-          _selectedDifficulty = null;
-          _pickedVideo = null;
-          _videoFile = null;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.challengeId != null 
-                ? 'Відео успішно завантажено для челенджу!'
-                : 'Відео успішно завантажено!'
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Повертаємося назад
-        Navigator.pop(context);
-
-      } catch (e) {
-        print('Error uploading video: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Помилка завантаження: $e')),
-        );
-      } finally {
-        setState(() {
-          _isUploading = false;
-          _uploadProgress = 0.0;
-        });
-      }
-    }
   }
 
   @override
@@ -580,5 +426,181 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _uploadVideo() async {
+    if (!_formKey.currentState!.validate() || _pickedVideo == null) {
+      return;
+    }
+
+    setState(() {
+      _isUploading = true;
+      _uploadProgress = 0.0;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Користувач не авторизований');
+      }
+
+      // Генеруємо унікальні імена файлів
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'video_${user.uid}_$timestamp.mp4';
+      
+      // Створюємо посилання на Storage
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('videos/${user.uid}/$fileName');
+
+      print('🎬 Starting video upload: $fileName');
+
+      // Завантажуємо відео
+      UploadTask uploadTask;
+      if (kIsWeb) {
+        // Веб-платформа
+        final bytes = await _pickedVideo!.readAsBytes();
+        uploadTask = storageRef.putData(bytes);
+      } else {
+        // Мобільні платформи
+        final file = File(_pickedVideo!.path);
+        uploadTask = storageRef.putFile(file);
+      }
+
+      // Відстежуємо прогрес
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        setState(() {
+          _uploadProgress = snapshot.bytesTransferred / snapshot.totalBytes;
+        });
+      });
+
+      // Чекаємо завершення завантаження
+      final snapshot = await uploadTask;
+      final videoUrl = await snapshot.ref.getDownloadURL();
+      
+      print('✅ Video uploaded successfully: $videoUrl');
+
+      // Створюємо документ відео в Firestore
+      final videoDoc = await FirebaseFirestore.instance
+          .collection('videos')
+          .add({
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'category': _selectedCategory,
+        'difficulty': _selectedDifficulty,
+        'videoUrl': videoUrl,
+        'userId': user.uid,
+        'authorName': user.displayName ?? user.email?.split('@')[0] ?? 'Користувач',
+        'createdAt': FieldValue.serverTimestamp(),
+        'likes': 0,
+        'rating': 0.0,
+        'views': 0,
+        'thumbnailUrl': null, // Буде оновлено після генерації
+        'thumbnailGenerated': false,
+      });
+
+      print('✅ Video document created: ${videoDoc.id}');
+
+      // Якщо це відео для челенджу
+      if (widget.challengeId != null) {
+        await _submitVideoToChallenge(videoDoc.id, videoUrl);
+      }
+
+      // Генеруємо thumbnail в фоновому режимі
+      _generateThumbnailInBackground(videoDoc.id, videoUrl, user.uid);
+
+      // Показуємо успішне повідомлення
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Відео успішно завантажено!'),
+            backgroundColor: Color(0xFF4caf50),
+          ),
+        );
+
+        // Повертаємося на попередній екран
+        Navigator.pop(context);
+      }
+
+    } catch (e) {
+      print('❌ Error uploading video: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Помилка завантаження: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _uploadProgress = 0.0;
+        });
+      }
+    }
+  }
+
+  Future<void> _submitVideoToChallenge(String videoId, String videoUrl) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser!;
+      final challengeService = ChallengeService();
+      
+      // Додаємо відео до челенджу
+      await challengeService.addVideoToChallenge(widget.challengeId!, user.uid);
+      
+      // Створюємо submission документ
+      await FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(widget.challengeId!)
+          .collection('submissions')
+          .doc(user.uid)
+          .set({
+        'userId': user.uid,
+        'videoId': videoId,
+        'videoUrl': videoUrl,
+        'title': _titleController.text.trim(),
+        'authorName': user.displayName ?? user.email?.split('@')[0] ?? 'Користувач',
+        'createdAt': FieldValue.serverTimestamp(),
+        'averageRating': 0.0,
+        'voteCount': 0,
+        'votes': <String, dynamic>{},
+        'thumbnailUrl': null, // Буде оновлено після генерації
+        'isCreatorVideo': false,
+      });
+
+      print('✅ Video submitted to challenge: ${widget.challengeId}');
+      
+    } catch (e) {
+      print('❌ Error submitting to challenge: $e');
+      throw e;
+    }
+  }
+
+  void _generateThumbnailInBackground(String videoId, String videoUrl, String userId) {
+    // Генеруємо thumbnail в фоновому режимі, не блокуючи UI
+    Future.delayed(const Duration(seconds: 2), () async {
+      try {
+        print('🎬 Starting background thumbnail generation for: $videoId');
+        
+        final thumbnailService = ThumbnailService();
+        final thumbnailUrl = await thumbnailService.generateAndUploadThumbnail(
+          videoUrl: videoUrl,
+          videoId: videoId,
+          userId: userId,
+        );
+
+        if (thumbnailUrl != null) {
+          print('✅ Thumbnail generated successfully: $thumbnailUrl');
+        } else {
+          print('⚠️ Thumbnail generation failed, but video upload was successful');
+        }
+      } catch (e) {
+        print('❌ Background thumbnail generation error: $e');
+        // Не показуємо помилку користувачу, оскільки відео вже завантажено
+      }
+    });
   }
 }

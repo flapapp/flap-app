@@ -184,7 +184,7 @@ class Friend {
     return Friend(
       userId: userData['id'] ?? '',
       name: userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? 'Користувач',
-      avatar: userData['avatar'] ?? '',
+      avatar: userData['avatarUrl'] ?? userData['avatar'] ?? '', // Спочатку перевіряємо avatarUrl, потім avatar
       rating: (userData['rating'] ?? 0.0).toDouble(),
       city: userData['city'] ?? 'Невідоме місто',
       position: userData['position'] ?? 'player',
