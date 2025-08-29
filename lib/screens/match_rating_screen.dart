@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_service.dart';
 import '../models/match.dart';
 
@@ -46,12 +47,16 @@ class _MatchRatingScreenState extends State<MatchRatingScreen> {
   
   void _initializeRatings() {
     // Ініціалізуємо оцінки для всіх гравців
+    // Використовуємо participants як fallback, якщо teamA/teamB не існують
     final allPlayers = [
       ...widget.match.teamA?.playerIds ?? [],
       ...widget.match.teamB?.playerIds ?? [],
     ];
     
-    for (final playerId in allPlayers) {
+    // Якщо команди не існують, використовуємо всіх учасників матчу
+    final playersToRate = allPlayers.isNotEmpty ? allPlayers : widget.match.participants;
+    
+    for (final playerId in playersToRate) {
       _playerRatings[playerId] = {};
       for (final criterion in _criteria) {
         _playerRatings[playerId]![criterion] = 2.5; // Середня оцінка за замовчуванням
@@ -376,7 +381,7 @@ class _MatchRatingScreenState extends State<MatchRatingScreen> {
         final success = await _ratingService.ratePlayerAfterMatch(
           matchId: widget.match.id,
           playerId: playerId,
-          ratedBy: 'current_user_id', // TODO: Отримати ID поточного користувача
+          ratedBy: FirebaseAuth.instance.currentUser!.uid,
           criteria: ratings,
         );
         

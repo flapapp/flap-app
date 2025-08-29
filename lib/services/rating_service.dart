@@ -382,8 +382,10 @@ class RatingService {
             .get();
 
         for (final voteDoc in votesQuery.docs) {
-          final data = voteDoc.data();
-          ratings.add((data['rating'] ?? 0.0).toDouble());
+          final data = voteDoc.data() as Map<String, dynamic>?;
+          if (data != null) {
+            ratings.add((data['rating'] ?? 0.0).toDouble());
+          }
         }
       }
 
@@ -526,4 +528,19 @@ class RatingService {
 
   // Отримати початковий рейтинг
   double getDefaultRating() => _defaultRating;
+    // Отримати рейтинг матчу
+  Stream<double> getMatchRating(String matchId) {
+    return FirebaseFirestore.instance
+        .collection('matches')
+        .doc(matchId)
+        .snapshots()
+        .map((doc) {
+      if (doc.exists) {
+        final data = doc.data()!;
+        // Тут можна додати логіку розрахунку рейтингу матчу
+        return 0.0; // Тимчасово повертаємо 0.0
+      }
+      return 0.0;
+    });
+  }
 }

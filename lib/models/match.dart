@@ -357,11 +357,39 @@ class Match {
   bool get isFinished => status == MatchStatus.finished;
   bool get isCancelled => status == MatchStatus.cancelled;
   
-  bool get hasTeams => teamA != null && teamB != null;
-  bool get hasResult => result != null && teamAScore != null && teamBScore != null;
+  // Перевірка ролі користувача
+  bool isOrganizer(String userId) => organizerId == userId;
+  bool isParticipant(String userId) => participants.contains(userId);
+  bool hasPendingApplication(String userId) => pendingApplications.contains(userId);
+  bool wasRejected(String userId) => rejectedApplications.contains(userId);
+  bool canJoin(String userId) => status == MatchStatus.open && 
+                              !participants.contains(userId) && 
+                              !pendingApplications.contains(userId) &&
+                              !rejectedApplications.contains(userId) &&
+                              currentPlayers < maxPlayers;
   
+  // Перевірка чи є команди
+  bool get hasTeams => teamA != null && teamB != null;
+  
+  // Статус для конкретного користувача
+  String getUserStatus(String userId) {
+    if (organizerId == userId) return 'organizer';
+    if (participants.contains(userId)) return 'participant';
+    if (pendingApplications.contains(userId)) return 'pending';
+    if (rejectedApplications.contains(userId)) return 'rejected';
+    return 'none';
+  }
+
+  // Кількість вільних місць
   int get availableSpots => maxPlayers - currentPlayers;
+  
+  // Відсоток заповнення
   double get fillPercentage => (currentPlayers / maxPlayers) * 100;
+  
+  // Перевірка чи може користувач оцінювати
+  bool canRate(String userId) => 
+      participants.contains(userId) && 
+      !playerRatings.any((rating) => rating.ratedBy == userId);
   
   String get levelText {
     switch (level) {
@@ -393,27 +421,8 @@ class Match {
   
   String get costText => cost > 0 ? '${cost.toInt()} грн' : 'Безкоштовно';
   
-  // Перевірка чи користувач учасник
-  bool isParticipant(String userId) => participants.contains(userId);
-  
-  // Перевірка чи користувач організатор
-  bool isOrganizer(String userId) => organizerId == userId;
-  
-  // Перевірка чи можна приєднатися
-  bool canJoin(String userId) => 
-      isOpen && 
-      !isParticipant(userId) && 
-      !isOrganizer(userId) && 
-      availableSpots > 0;
-  
   // Перевірка чи можна керувати
   bool canManage(String userId) => isOrganizer(userId);
-  
-  // Перевірка чи можна оцінювати
-  bool canRate(String userId) => 
-      isFinished && 
-      isParticipant(userId) && 
-      !playerRatings.any((rating) => rating.ratedBy == userId);
 }
 
 // Утиліти для роботи з матчами
@@ -462,4 +471,3 @@ class MatchUtils {
            match.teamB!.playerIds.isNotEmpty;
   }
 }
-

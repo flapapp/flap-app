@@ -83,7 +83,7 @@ class ChallengeService {
 
       // Перевірка ліміту челенджів для користувача
       final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
-      final userData = userDoc.data();
+      final userData = userDoc.data() as Map<String, dynamic>?;
       final maxChallenges = userData?['maxChallengesPerMonth'] ?? 1;
       final isSubscriptionActive = userData?['subscriptionActive'] ?? false;
       

@@ -1362,7 +1362,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     );
   }
 
-  // Картка челенджу
+
+    // Картка челенджу
   Widget _buildChallengeCard(Map<String, dynamic> challenge, String challengeId) {
     final submissionsCount = (challenge['submissions'] as List?)?.length ?? 0;
     final entryFee = challenge['entryFee'] ?? 10;
@@ -1464,21 +1465,19 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(width: 16),
-                
+                const Spacer(),
                 // Days left
                 Row(
                   children: [
-                    const Icon(Icons.access_time, color: Colors.white, size: 16),
+                    const Icon(Icons.schedule, color: Colors.white, size: 16),
                     const SizedBox(width: 4),
                     Text(
-                      '$daysLeft дні',
+                      '$daysLeft дн.',
                       style: const TextStyle(color: Colors.white, fontSize: 12),
                     ),
                   ],
                 ),
-                const SizedBox(width: 16),
-                
+                const Spacer(),
                 // Entry fee
                 Row(
                   children: [
@@ -1494,7 +1493,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Action buttons
+            // Buttons row
             Row(
               children: [
                 Expanded(
@@ -1533,209 +1532,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Progress bar
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                    ),
-                  ),
-            child: Column(
-              children: [
-                Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                          Text(
-                            'Прогрес: $currentParticipants/$maxParticipants',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            '${((currentParticipants / maxParticipants) * 100).toInt()}%',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 12,
-                            ),
-                    ),
-                  ],
-                ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: currentParticipants / maxParticipants,
-                        backgroundColor: Colors.white.withOpacity(0.2),
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFF66bb6a),
-                        ),
-                        minHeight: 6,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Stats grid
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatCard(
-                        icon: Icons.people,
-                        value: '$currentParticipants',
-                        label: 'Учасники',
-                        color: const Color(0xFF2196F3),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildStatCard(
-                        icon: Icons.attach_money,
-                        value: '$entryFee',
-                        label: 'Вхід',
-                        color: const Color(0xFFFF9800),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildStatCard(
-                        icon: Icons.emoji_events,
-                        value: '${prizePool.toInt()}',
-                        label: 'Приз',
-                        color: const Color(0xFFFFD700),
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 12),
-                // Thumbnails slider (submissions)
-                SizedBox(
-                  height: 90,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemBuilder: (c, i) {
-                      return Container(
-                        width: 140,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withOpacity(0.12)),
-                        ),
-                        child: const Center(child: Icon(Icons.play_arrow, color: Colors.white70)),
-                      );
-                    },
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemCount: 5,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Action Buttons Row
-                Row(
-                  children: [
-                    // Переглянути челендж
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF2196F3), Color(0xFF64B5F6)],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF2196F3).withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                      child: ElevatedButton.icon(
-                          onPressed: () => _viewChallengeDetails(challengeId, challenge),
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: const Icon(
-                            Icons.visibility,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          label: const Text(
-                            'Переглянути',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Приєднатися
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF4caf50).withOpacity(0.4),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: ElevatedButton.icon(
-                          onPressed: () => _joinChallenge(challengeId, challenge),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: const Icon(
-                            Icons.video_library,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          label: const Text(
-                            'Участь',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -2030,7 +1826,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     );
   }
 
-  void _viewChallengeDetails(String challengeId, Map<String, dynamic> challengeData) {
+    void _viewChallengeDetails(String challengeId, Map<String, dynamic> challengeData) {
     // Створюємо Challenge об'єкт з даних
     final challenge = Challenge(
       id: challengeId,
@@ -2834,55 +2630,4 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     );
   }
 
-  // View challenge details
-  void _viewChallengeDetails(String challengeId, Map<String, dynamic> challengeData) {
-    final challenge = Challenge(
-      id: challengeId,
-      title: challengeData['title'] ?? '',
-      description: challengeData['description'] ?? '',
-      creatorId: challengeData['creatorId'] ?? '',
-      creatorName: challengeData['creatorName'] ?? '',
-      creatorVideoUrl: challengeData['creatorVideoUrl'] ?? '',
-      thumbnailUrl: challengeData['thumbnailUrl'],
-      city: challengeData['city'] ?? '',
-      country: challengeData['country'] ?? 'Україна',
-      type: ChallengeType.values.firstWhere(
-        (e) => e.toString().split('.').last == challengeData['type'],
-        orElse: () => ChallengeType.technical,
-      ),
-      audience: ChallengeAudience.values.firstWhere(
-        (e) => e.toString().split('.').last == challengeData['audience'],
-        orElse: () => ChallengeAudience.city,
-      ),
-      status: ChallengeStatus.values.firstWhere(
-        (e) => e.toString().split('.').last == challengeData['status'],
-        orElse: () => ChallengeStatus.recruiting,
-      ),
-      entryFee: challengeData['entryFee'] ?? 10,
-      prizePool: (challengeData['prizePool'] ?? 0.0).toDouble(),
-      maxParticipants: challengeData['maxParticipants'] ?? 50,
-      currentParticipants: challengeData['currentParticipants'] ?? 0,
-      submissions: List<String>.from(challengeData['submissions'] ?? []),
-      createdAt: challengeData['createdAt'] != null 
-          ? (challengeData['createdAt'] as Timestamp).toDate()
-          : DateTime.now(),
-      recruitmentEndDate: challengeData['recruitmentEndDate'] != null
-          ? (challengeData['recruitmentEndDate'] as Timestamp).toDate()
-          : DateTime.now().add(const Duration(days: 7)),
-      submissionEndDate: challengeData['submissionEndDate'] != null
-          ? (challengeData['submissionEndDate'] as Timestamp).toDate()
-          : DateTime.now().add(const Duration(days: 14)),
-      votingEndDate: challengeData['votingEndDate'] != null
-          ? (challengeData['votingEndDate'] as Timestamp).toDate()
-          : DateTime.now().add(const Duration(days: 19)),
-      tags: List<String>.from(challengeData['tags'] ?? []),
-    );
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChallengeSubmissionsScreen(challenge: challenge),
-      ),
-    );
-  }
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/badge.dart';
+import '../models/badge.dart' as app_badge;
 import '../services/badge_service.dart';
 import '../services/friends_service.dart';
 import 'friends_screen.dart';
@@ -17,7 +17,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final FriendsService _friendsService = FriendsService();
   
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
-  List<Badge> _userBadges = [];
+  List<app_badge.Badge> _userBadges = [];
   int _friendsCount = 0;
 
   @override
