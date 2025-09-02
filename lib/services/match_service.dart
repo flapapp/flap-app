@@ -8,23 +8,23 @@ class MatchService {
   Stream<List<Match>> getAvailableMatches() {
     return _firestore
         .collection('matches')
+        .where('status', isEqualTo: 'open')
         .orderBy('date', descending: false)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => Match.fromFirestore(doc))
-            .where((match) => match.status == MatchStatus.open)
             .toList());
   }
 
-  // Отримати матчі користувача (де він учасник)
+    // Отримати матчі користувача (де він учасник)
   Stream<List<Match>> getUserMatches(String userId) {
     return _firestore
         .collection('matches')
+        .where('participants', arrayContains: userId)
         .orderBy('date', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => Match.fromFirestore(doc))
-            .where((match) => match.participants.contains(userId))
             .toList());
   }
 
@@ -119,23 +119,6 @@ class MatchService {
     }
   }
 
-  // Розпочати матч (для організатора)
-  Future<void> startMatch(String matchId) async {
-    await _firestore.collection('matches').doc(matchId).update({
-      'status': 'inProgress',
-      'startedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  }
-
-  // Завершити матч (для організатора)
-  Future<void> finishMatch(String matchId) async {
-    await _firestore.collection('matches').doc(matchId).update({
-      'status': 'finished',
-      'finishedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  }
     // Подати заявку на участь у матчі
   Future<bool> applyForMatch(String matchId, String userId) async {
     try {
@@ -174,7 +157,7 @@ class MatchService {
     }
   }
 
-  // Прийняти заявку користувача
+    // Прийняти заявку користувача
   Future<bool> acceptApplication(String matchId, String userId) async {
     try {
       final docRef = _firestore.collection('matches').doc(matchId);
@@ -222,7 +205,8 @@ class MatchService {
     }
   }
 
-  // Відхилити заявку користувача
+
+    // Відхилити заявку користувача
   Future<bool> rejectApplication(String matchId, String userId) async {
     try {
       final docRef = _firestore.collection('matches').doc(matchId);
@@ -257,7 +241,7 @@ class MatchService {
     }
   }
 
-  // Отримати заявки на матч
+    // Отримати заявки на матч
   Stream<List<String>> getMatchApplications(String matchId) {
     return _firestore
         .collection('matches')
@@ -268,5 +252,199 @@ class MatchService {
       final data = doc.data() as Map<String, dynamic>;
       return List<String>.from(data['pendingApplications'] ?? []);
     });
+  }
+      // Автоматичне формування команд
+  Future<bool> autoBalanceTeams(String matchId) async {
+    try {
+      final docRef = _firestore.collection('matches').doc(matchId);
+
+      // Попереднє читання поза транзакцією (менше часу блокування)
+      final initialSnap = await docRef.get();
+      if (!initialSnap.exists) throw Exception('Match not found');
+
+      final initialMatch = Match.fromFirestore(initialSnap);
+
+      // Перевірки до транзакції
+      if (initialMatch.participants.length < 4) {
+        throw Exception('Недостатньо гравців для формування команд (мінімум 4)');
+      }
+      if (initialMatch.hasTeams) {
+        throw Exception('Команди вже сформовані');
+      }
+
+      // Отримуємо рейтинги гравців ПОЗА транзакцією (паралельно, див. _getPlayerRatings)
+      final playerRatings = await _getPlayerRatings(initialMatch.participants);
+
+      return await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(docRef);
+        if (!snap.exists) throw Exception('Match not found');
+
+        final match = Match.fromFirestore(snap);
+
+        // Повторні перевірки всередині транзакції
+        if (match.participants.length < 4) {
+          throw Exception('Недостатньо гравців для формування команд (мінімум 4)');
+        }
+        if (match.hasTeams) {
+          throw Exception('Команди вже сформовані');
+        }
+
+        // Сортуємо гравців за рейтингом (від найвищого до найнижчого)
+        final sortedPlayers = match.participants.toList()
+          ..sort((a, b) => (playerRatings[b] ?? 0.0).compareTo(playerRatings[a] ?? 0.0));
+
+        // Розподіляємо гравців "змійкою"
+        final teamAPlayers = <String>[];
+        final teamBPlayers = <String>[];
+        for (int i = 0; i < sortedPlayers.length; i++) {
+          (i % 2 == 0 ? teamAPlayers : teamBPlayers).add(sortedPlayers[i]);
+        }
+
+        // Створюємо команди
+        final teamA = Team(
+          name: 'Команда A',
+          playerIds: teamAPlayers,
+          averageRating: _calculateTeamAverageRating(teamAPlayers, playerRatings),
+        );
+        final teamB = Team(
+          name: 'Команда B',
+          playerIds: teamBPlayers,
+          averageRating: _calculateTeamAverageRating(teamBPlayers, playerRatings),
+        );
+
+        // Оновлюємо матч
+        tx.update(docRef, {
+          'teamA': teamA.toFirestore(),
+          'teamB': teamB.toFirestore(),
+          'status': 'full',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        return true;
+      });
+    } catch (e) {
+      print('Error auto-balancing teams: $e');
+      return false;
+    }
+  }
+  
+    // Отримання рейтингів гравців
+  Future<Map<String, double>> _getPlayerRatings(List<String> playerIds) async {
+    final List<Future<MapEntry<String, double>>> futures =
+        playerIds.map((String playerId) async {
+      try {
+        final userDoc = await _firestore.collection('users').doc(playerId).get();
+        if (userDoc.exists) {
+          final Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+          final double rating = (userData['rating'] is num)
+              ? (userData['rating'] as num).toDouble()
+              : 0.0;
+          return MapEntry<String, double>(playerId, rating);
+        }
+      } catch (_) {}
+      return MapEntry<String, double>(playerId, 0.0);
+    }).toList();
+
+    final List<MapEntry<String, double>> entries = await Future.wait(futures);
+    return Map<String, double>.fromEntries(entries);
+  }
+  
+  // Розрахунок середнього рейтингу команди
+  double _calculateTeamAverageRating(List<String> playerIds, Map<String, double> ratings) {
+    if (playerIds.isEmpty) return 0.0;
+    
+    double totalRating = 0.0;
+    int ratedPlayers = 0;
+    
+    for (String playerId in playerIds) {
+      if (ratings.containsKey(playerId)) {
+        totalRating += ratings[playerId]!;
+        ratedPlayers++;
+      }
+    }
+    
+    return ratedPlayers > 0 ? totalRating / ratedPlayers : 0.0;
+  }
+    // Почати матч
+  Future<bool> startMatch(String matchId) async {
+    try {
+      final docRef = _firestore.collection('matches').doc(matchId);
+      
+      return await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(docRef);
+        if (!snap.exists) throw Exception('Match not found');
+        
+        final match = Match.fromFirestore(snap);
+        
+        // Перевіряємо чи можна почати матч
+        if (!match.hasTeams) {
+          throw Exception('Спочатку потрібно сформувати команди');
+        }
+        
+        if (match.isInProgress) {
+          throw Exception('Матч вже почався');
+        }
+        
+        // Оновлюємо статус матчу
+        tx.update(docRef, {
+          'status': 'inProgress',
+          'startedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        return true;
+      });
+    } catch (e) {
+      print('Error starting match: $e');
+      return false;
+    }
+  }
+  
+  // Завершити матч
+  Future<bool> finishMatch(String matchId, MatchResult result, int teamAScore, int teamBScore) async {
+    try {
+      final docRef = _firestore.collection('matches').doc(matchId);
+      
+      return await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(docRef);
+        if (!snap.exists) throw Exception('Match not found');
+        
+        final match = Match.fromFirestore(snap);
+        
+        if (!match.isInProgress) {
+          throw Exception('Матч не почався або вже завершений');
+        }
+        
+        // Оновлюємо матч
+        tx.update(docRef, {
+          'status': 'finished',
+          'result': result.toString().split('.').last,
+          'teamAScore': teamAScore,
+          'teamBScore': teamBScore,
+          'finishedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        return true;
+      });
+    } catch (e) {
+      print('Error finishing match: $e');
+      return false;
+    }
+  }
+  
+    // Отримати матчі для оцінювання
+  Stream<List<Match>> getMatchesForRating(String userId) {
+    return _firestore
+        .collection('matches')
+        .where('status', isEqualTo: 'finished')
+        .where('participants', arrayContains: userId)
+        .orderBy('finishedAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Match.fromFirestore(doc))
+            // Клієнтська перевірка: ще не оцінював цей користувач
+            .where((match) => !match.playerRatings.any((r) => r.ratedBy == userId))
+            .toList());
   }
 }

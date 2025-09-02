@@ -40,15 +40,15 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             _buildHeaderSection(),
             SizedBox(height: 20),
             
-                        // Основна інформація
+            // Основна інформація
             _buildInfoSection(),
             SizedBox(height: 20),
 
-                        // Учасники
+            // Учасники
             _buildParticipantsSection(),
             SizedBox(height: 20),
             
-                        // Кнопки дій
+            // Кнопки дій
             _buildActionButtons(),
           ],
         ),
@@ -94,7 +94,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         ],
       ),
     );
-    }
+  }
 
   Widget _buildInfoSection() {
     return Container(
@@ -126,7 +126,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         ],
       ),
     );
-    }
+  }
 
   Widget _buildParticipantsSection() {
     return Container(
@@ -202,140 +202,141 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         ],
       ),
     );
-    }
-
-  Widget _buildActionButtons() {
-  final currentUser = FirebaseAuth.instance.currentUser;
-  if (currentUser == null) return SizedBox.shrink();
-
-  final isOrganizer = widget.match.organizerId == currentUser.uid;
-  final isParticipant = widget.match.participants.contains(currentUser.uid);
-  final isFull = widget.match.currentPlayers >= widget.match.maxPlayers;
-
-  // 1. ОРГАНІЗАТОР МАТЧУ
-  if (isOrganizer) {
-    return Column(
-      children: [
-  if (widget.match.status == MatchStatus.open || widget.match.status == MatchStatus.full)
-    ElevatedButton(
-      onPressed: _startMatch,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF4caf50),
-        padding: const EdgeInsets.symmetric(vertical: 15),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      child: const Text('Почати матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-    ),
-  if (widget.match.status == MatchStatus.inProgress) ...[
-    ElevatedButton(
-      onPressed: _finishMatch,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.purple,
-        padding: const EdgeInsets.symmetric(vertical: 15),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      child: const Text('Завершити матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-    ),
-    const SizedBox(height: 12),
-  ],
-  ElevatedButton(
-    onPressed: _editMatch,
-    style: ElevatedButton.styleFrom(
-      backgroundColor: const Color(0xFF4caf50),
-      padding: const EdgeInsets.symmetric(vertical: 15),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    ),
-    child: const Text('Редагувати матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-  ),
-  const SizedBox(height: 12),
-  ElevatedButton(
-    onPressed: _cancelMatch,
-    style: ElevatedButton.styleFrom(
-      backgroundColor: Colors.red,
-      padding: const EdgeInsets.symmetric(vertical: 15),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    ),
-    child: const Text('Скасувати матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-  ),
-],
-    );
   }
 
-  // 2. УЧАСНИК МАТЧУ (НЕ ОРГАНІЗАТОР)
-  if (isParticipant) {
+  Widget _buildActionButtons() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return SizedBox.shrink();
+
+    final isOrganizer = widget.match.organizerId == currentUser.uid;
+    final isParticipant = widget.match.participants.contains(currentUser.uid);
+    final isFull = widget.match.currentPlayers >= widget.match.maxPlayers;
+
+    // 1. ОРГАНІЗАТОР МАТЧУ
+    if (isOrganizer) {
+      return Column(
+        children: [
+          if (widget.match.status == MatchStatus.open || widget.match.status == MatchStatus.full)
+            ElevatedButton(
+              onPressed: _startMatch,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4caf50),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Почати матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+          if (widget.match.status == MatchStatus.inProgress) ...[
+            ElevatedButton(
+              onPressed: _finishMatch,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Завершити матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(height: 12),
+          ],
+          ElevatedButton(
+            onPressed: _editMatch,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4caf50),
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Редагувати матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: _cancelMatch,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Скасувати матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      );
+    }
+
+    // 2. УЧАСНИК МАТЧУ (НЕ ОРГАНІЗАТОР)
+    if (isParticipant) {
+      return ElevatedButton(
+        onPressed: _isLeaving ? null : _leaveMatch,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.orange,
+          padding: EdgeInsets.symmetric(vertical: 15),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: _isLeaving
+            ? CircularProgressIndicator(color: Colors.white)
+            : Text(
+                'Покинути матч',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+      );
+    }
+
+    // 2.5. ЗАВЕРШЕНИЙ МАТЧ — Оцінювання
+    if (widget.match.status == MatchStatus.finished && isParticipant) {
+      return ElevatedButton(
+        onPressed: () {
+          Navigator.pushNamed(context, '/match_rating', arguments: widget.match);
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF4caf50),
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: const Text(
+          '⭐ Оцінити гравців',
+          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      );
+    }
+
+    if (isFull) {
+      return Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.red.withOpacity(0.3)),
+        ),
+        child: Text(
+          'Матч заповнений',
+          style: TextStyle(
+            color: Colors.red,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    // 4. ГЛЯДАЧ (МОЖЕ ПРИЄДНАТИСЯ)
     return ElevatedButton(
-      onPressed: _isLeaving ? null : _leaveMatch,
+      onPressed: _isJoining ? null : _joinMatch,
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.orange,
+        backgroundColor: Color(0xFF4caf50),
         padding: EdgeInsets.symmetric(vertical: 15),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
       ),
-      child: _isLeaving
+      child: _isJoining
           ? CircularProgressIndicator(color: Colors.white)
           : Text(
-              'Покинути матч',
+              'Приєднатися до матчу',
               style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
             ),
     );
   }
-
-  // 2.5. ЗАВЕРШЕНИЙ МАТЧ — Оцінювання
-if (widget.match.status == MatchStatus.finished && isParticipant) {
-  return ElevatedButton(
-    onPressed: () {
-      Navigator.pushNamed(context, '/match-rating', arguments: widget.match);
-    },
-    style: ElevatedButton.styleFrom(
-      backgroundColor: const Color(0xFF4caf50),
-      padding: const EdgeInsets.symmetric(vertical: 15),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    ),
-    child: const Text(
-      'Оцінити гравців',
-      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-    ),
-  );
-}
-  if (isFull) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.withOpacity(0.3)),
-      ),
-      child: Text(
-        'Матч заповнений',
-        style: TextStyle(
-          color: Colors.red,
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-
-  // 4. ГЛЯДАЧ (МОЖЕ ПРИЄДНАТИСЯ)
-  return ElevatedButton(
-    onPressed: _isJoining ? null : _joinMatch,
-    style: ElevatedButton.styleFrom(
-      backgroundColor: Color(0xFF4caf50),
-      padding: EdgeInsets.symmetric(vertical: 15),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-    ),
-    child: _isJoining
-        ? CircularProgressIndicator(color: Colors.white)
-        : Text(
-            'Приєднатися до матчу',
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-  );
-}
 
   // TODO: Додати методи для дій
   void _editMatch() {
@@ -349,33 +350,144 @@ if (widget.match.status == MatchStatus.finished && isParticipant) {
       SnackBar(content: Text('Скасування матчу буде додано пізніше')),
     );
   }
-Future<void> _startMatch() async {
-  try {
-    await _matchService.startMatch(widget.match.id);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Матч розпочато')),
-    );
-    Navigator.pop(context);
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Помилка старту: $e'), backgroundColor: Colors.red),
-    );
-  }
-}
 
-Future<void> _finishMatch() async {
-  try {
-    await _matchService.finishMatch(widget.match.id);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Матч завершено')),
-    );
-    Navigator.pop(context);
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Помилка завершення: $e'), backgroundColor: Colors.red),
+  Future<void> _startMatch() async {
+    try {
+      await _matchService.startMatch(widget.match.id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Матч розпочато')),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка старту: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _finishMatch() async {
+    try {
+      // Показуємо діалог для введення рахунку
+      final result = await _showFinishMatchDialog();
+      if (result != null) {
+        final success = await _matchService.finishMatch(
+          widget.match.id,
+          result['result'],
+          result['teamAScore'],
+          result['teamBScore'],
+        );
+        
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Матч завершено! Тепер гравці можуть оцінювати один одного.')),
+          );
+          Navigator.pop(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Помилка завершення матчу'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка завершення: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  // Додати метод для діалогу завершення матчу
+  Future<Map<String, dynamic>?> _showFinishMatchDialog() async {
+    int teamAScore = 0;
+    int teamBScore = 0;
+    
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFF1a1a2e),
+          title: Text(
+            'Завершити матч',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Введіть фінальний рахунок:',
+                style: TextStyle(color: Colors.white70),
+              ),
+              SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        labelText: 'Команда А',
+                        labelStyle: TextStyle(color: Colors.white70),
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(color: Colors.white),
+                      onChanged: (value) => teamAScore = int.tryParse(value) ?? 0,
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Text(
+                    ':',
+                    style: TextStyle(color: Colors.white, fontSize: 24),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        labelText: 'Команда B',
+                        labelStyle: TextStyle(color: Colors.white70),
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(color: Colors.white),
+                      onChanged: (value) => teamBScore = int.tryParse(value) ?? 0,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Скасувати', style: TextStyle(color: Colors.white70)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context, {
+                  'result': _determineMatchResult(teamAScore, teamBScore),
+                  'teamAScore': teamAScore,
+                  'teamBScore': teamBScore,
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFf44336),
+              ),
+              child: Text('Завершити'),
+            ),
+          ],
+        );
+      },
     );
   }
-}
+
+  // Допоміжний метод для визначення результату
+  MatchResult _determineMatchResult(int teamAScore, int teamBScore) {
+    if (teamAScore > teamBScore) {
+      return MatchResult.teamAWins;
+    } else if (teamBScore > teamAScore) {
+      return MatchResult.teamBWins;
+    } else {
+      return MatchResult.draw;
+    }
+  }
+
   void _joinMatch() async {
     setState(() => _isJoining = true);
     
@@ -411,31 +523,31 @@ Future<void> _finishMatch() async {
   }
 
   void _leaveMatch() async {
-  setState(() => _isLeaving = true);
+    setState(() => _isLeaving = true);
 
-  try {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return;
 
-    final success = await _matchService.leaveMatch(widget.match.id, currentUser.uid);
-    if (success) {
+      final success = await _matchService.leaveMatch(widget.match.id, currentUser.uid);
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ви покинули матч')),
+        );
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не вдалося покинути матч'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ви покинули матч')),
+        SnackBar(content: Text('Помилка: $e'), backgroundColor: Colors.red),
       );
-      Navigator.pop(context);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не вдалося покинути матч'), backgroundColor: Colors.red),
-      );
+    } finally {
+      setState(() => _isLeaving = false);
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Помилка: $e'), backgroundColor: Colors.red),
-    );
-  } finally {
-    setState(() => _isLeaving = false);
   }
-}
 
   Widget _buildParticipantCard(String name, String role, bool isOrganizer) {
     return Container(

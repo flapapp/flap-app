@@ -40,10 +40,25 @@ class _MatchRatingScreenState extends State<MatchRatingScreen> {
   bool _isSubmitting = false;
   
   @override
-  void initState() {
-    super.initState();
-    _initializeRatings();
+void initState() {
+  super.initState();
+  
+  // Перевіряємо, чи можна оцінювати цей матч
+  if (widget.match.status != MatchStatus.finished) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Цей матч ще не завершено'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      Navigator.pop(context);
+    });
+    return;
   }
+  
+  _initializeRatings();
+}
   
   void _initializeRatings() {
     // Ініціалізуємо оцінки для всіх гравців

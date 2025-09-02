@@ -229,15 +229,45 @@ class Match {
         (e) => e.toString().split('.').last == data['status'],
         orElse: () => MatchStatus.open,
       ),
-      teamA: null, // TODO: Implement team parsing if needed
-      teamB: null, // TODO: Implement team parsing if needed
+      teamA: data['teamA'] != null ? Team(
+  name: (data['teamA']['name'] ?? '') as String,
+  playerIds: List<String>.from(data['teamA']['playerIds'] ?? const []),
+  averageRating: ((data['teamA']['averageRating'] ?? 0.0) as num).toDouble(),
+  playerRatings: Map<String, double>.from(
+    (data['teamA']['playerRatings'] ?? const <String, num>{})
+      .map((k, v) => MapEntry(k, (v as num).toDouble())),
+  ),
+) : null,
+teamB: data['teamB'] != null ? Team(
+  name: (data['teamB']['name'] ?? '') as String,
+  playerIds: List<String>.from(data['teamB']['playerIds'] ?? const []),
+  averageRating: ((data['teamB']['averageRating'] ?? 0.0) as num).toDouble(),
+  playerRatings: Map<String, double>.from(
+    (data['teamB']['playerRatings'] ?? const <String, num>{})
+      .map((k, v) => MapEntry(k, (v as num).toDouble())),
+  ),
+) : null,
       result: data['result'] != null ? MatchResult.values.firstWhere(
         (e) => e.toString().split('.').last == data['result'],
         orElse: () => MatchResult.draw,
       ) : null,
       teamAScore: data['teamAScore'],
       teamBScore: data['teamBScore'],
-      playerRatings: [], // TODO: Implement player ratings parsing if needed
+      playerRatings: ((data['playerRatings'] as List?) ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map((item) => PlayerRating(
+                playerId: item['playerId'] ?? '',
+                ratedBy: item['ratedBy'] ?? '',
+                rating: ((item['rating'] ?? 0.0) as num).toDouble(),
+                ratedAt: (item['ratedAt'] is Timestamp)
+                    ? (item['ratedAt'] as Timestamp).toDate()
+                    : DateTime.fromMillisecondsSinceEpoch(0),
+                criteria: Map<String, double>.from(
+                  (item['criteria'] ?? const <String, num>{})
+                      .map((k, v) => MapEntry(k, (v as num).toDouble())),
+                ),
+              ))
+          .toList(),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       updatedAt: (data['updatedAt'] as Timestamp).toDate(),
       startedAt: data['startedAt'] != null ? (data['startedAt'] as Timestamp).toDate() : null,
@@ -381,10 +411,15 @@ class Match {
   }
 
   // Кількість вільних місць
-  int get availableSpots => maxPlayers - currentPlayers;
-  
-  // Відсоток заповнення
-  double get fillPercentage => (currentPlayers / maxPlayers) * 100;
+int get availableSpots => maxPlayers - currentPlayers;
+
+// Відсоток заповнення
+double get fillPercentage {
+  if (maxPlayers <= 0) return 0.0;
+  return (currentPlayers / maxPlayers) * 100;
+}
+
+// Перевірка чи може користувач оцінювати
   
   // Перевірка чи може користувач оцінювати
   bool canRate(String userId) => 

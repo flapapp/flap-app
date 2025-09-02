@@ -31,6 +31,8 @@ import 'screens/friends_screen.dart';
 import 'services/subscription_service.dart';
 import 'services/notification_service.dart';
 import 'services/badge_service.dart';
+import 'screens/match_management_screen.dart';
+
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -137,15 +139,19 @@ class MyApp extends StatelessWidget {
         },
         '/matches': (context) => MatchesScreen(),
         '/ratings': (context) => RatingsScreen(),
-        '/match-rating': (context) {
-          final match = ModalRoute.of(context)?.settings.arguments as app_models.Match;
-          return MatchRatingScreen(match: match);
-        },
+        '/match_rating': (context) {
+  final match = ModalRoute.of(context)?.settings.arguments as app_models.Match;
+  return MatchRatingScreen(match: match);
+},
         '/match-details': (context) {
         final app_models.Match match =
             ModalRoute.of(context)!.settings.arguments as app_models.Match;
         return MatchDetailsScreen(match: match);
       },
+        '/match_management': (context) {
+  final match = ModalRoute.of(context)!.settings.arguments as app_models.Match;
+  return MatchManagementScreen(match: match);
+},
         '/create-match': (context) => CreateMatchScreen(),
         '/player-profile': (context) {
           final args = (ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?) ?? {};

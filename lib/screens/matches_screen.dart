@@ -12,7 +12,7 @@ import 'ratings_screen.dart';
 import '../widgets/rating_display.dart';
 import '../services/rating_service.dart';
 import 'match_management_screen.dart';
-import '../services/rating_service.dart';
+
 
 class MatchesScreen extends StatefulWidget {
   @override
@@ -68,6 +68,21 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
 
   // TabController для керування вкладками
   late TabController _tabController;
+    bool _isLeaving = false;
+
+  Future<bool?> _confirm(String title, String message) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Скасувати')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Підтвердити')),
+        ],
+      ),
+    );
+  }
 
   final MatchService _matchService = MatchService();
   final RatingService _ratingService = RatingService();
@@ -700,395 +715,371 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
 
   // Метод для створення картки матчу
     Widget _buildMatchCard(Match match) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
+  final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  if (currentUserId == null) return SizedBox.shrink();
+
+  return Container(
+    margin: EdgeInsets.only(bottom: 16),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.white.withOpacity(0.1),
+          Colors.white.withOpacity(0.05),
+        ],
       ),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: Colors.white.withOpacity(0.1),
+        width: 1,
+      ),
+    ),
+    child: Padding(
+      padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Заголовок та опис
-          Text(
-            match.title,
-            style: GoogleFonts.poppins(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            match.description,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
-          ),
-          SizedBox(height: 16),
-
-          // Інформація про матч
+          // Заголовок та статус
           Row(
             children: [
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.location_on, size: 16, color: Colors.white70),
-                    SizedBox(width: 8),
-                    Text(
-                      match.city,
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ],
+              Expanded(
+                child: Text(
+                  match.title,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-              SizedBox(width: 12),
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.schedule, size: 16, color: Colors.white70),
-                    SizedBox(width: 8),
-                    Text(
-                      '${match.date.day}.${match.date.month}.${match.date.year}',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: 12),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.access_time, size: 16, color: Colors.white70),
-                    SizedBox(width: 8),
-                    Text(
-                      match.time,
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          SizedBox(height: 12),
-
-          // Рівень та рейтинг
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _getLevelColor(match.level).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _getLevelColor(match.level)),
+                  color: _getStatusColor(match.status),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  _getLevelText(match.level),
+                  _getStatusText(match.status),
                   style: TextStyle(
-                    color: _getLevelColor(match.level),
+                    color: Colors.white,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              SizedBox(width: 12),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.star, size: 16, color: Colors.white70),
-                    SizedBox(width: 8),
-                    StreamBuilder<double>(
-                      stream: _ratingService.getMatchRating(match.id),
-                      builder: (context, snapshot) {
-                        if (snapshot.hasData) {
-                          return Text(
-                            snapshot.data!.toStringAsFixed(1),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-                  ],
-                ),
+            ],
+          ),
+          
+          SizedBox(height: 12),
+          
+          // Інформація про матч
+          Row(
+            children: [
+              Icon(Icons.location_on, color: Colors.white70, size: 16),
+              SizedBox(width: 8),
+              Text(
+                match.city,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
-              SizedBox(width: 12),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.sports_soccer, size: 16, color: Colors.white70),
-                    SizedBox(width: 8),
-                    Text(
-                      '${match.maxPlayers - match.currentPlayers} місць',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ],
-                ),
+              SizedBox(width: 16),
+              Icon(Icons.calendar_today, color: Colors.white70, size: 16),
+              SizedBox(width: 8),
+              Text(
+                '${match.date.day}.${match.date.month}.${match.date.year}',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
           ),
-
-          const SizedBox(height: 8),
-
-          // Аватарки учасників (ініціали)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.only(top: 4, bottom: 4),
-            child: Row(
-              children: match.participants.take(10).map((id) {
-                final label = id.isNotEmpty ? id.substring(0, 2).toUpperCase() : '?';
-                return Container(
-                  margin: const EdgeInsets.only(right: 6),
-                  child: CircleAvatar(
-                    radius: 12,
-                    backgroundColor: Colors.white.withOpacity(0.15),
-                    child: Text(
-                      label,
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                );
-              }).toList(),
+          
+          SizedBox(height: 8),
+          
+          Row(
+            children: [
+              Icon(Icons.access_time, color: Colors.white70, size: 16),
+              SizedBox(width: 8),
+              Text(
+                match.time,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              SizedBox(width: 16),
+              Icon(Icons.people, color: Colors.white70, size: 16),
+              SizedBox(width: 8),
+              Text(
+                '${match.currentPlayers}/${match.maxPlayers}',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
+          
+          SizedBox(height: 12),
+          
+          // Рівень складності
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: _getLevelColor(match.level).withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _getLevelColor(match.level),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              _getLevelText(match.level),
+              style: TextStyle(
+                color: _getLevelColor(match.level),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-
-          SizedBox(height: 20),
-
+          
+          SizedBox(height: 16),
+          
           // Кнопки дій
           Row(
             children: [
+              // Кнопка залежно від статусу користувача
+                            // Кнопка залежно від статусу користувача
               Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Builder(
-                    builder: (context) {
-                      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-                      if (currentUserId == null) return SizedBox.shrink();
-                      
-                      // Визначаємо статус користувача
-                      final userStatus = match.getUserStatus(currentUserId);
-                      
-                      Widget buttonWidget;
-                      VoidCallback? onPressed;
-                      
-                      switch (userStatus) {
-                        case 'organizer':
-                          buttonWidget = Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.settings, color: Colors.white, size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                'Управління',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          );
-                          onPressed = () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => MatchManagementScreen(match: match),
-                              ),
-                            );
-                          };
-                          break;
-                          
-                        case 'participant':
-                          buttonWidget = Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.check_circle, color: Colors.white, size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                'Учасник',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          );
-                          onPressed = null; // Кнопка неактивна
-                          break;
-                          
-                        case 'pending':
-                          buttonWidget = Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.hourglass_empty, color: Colors.white, size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                'Заявка подана',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          );
-                          onPressed = null; // Кнопка неактивна
-                          break;
-                          
-                        case 'rejected':
-                          buttonWidget = Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.cancel, color: Colors.white, size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                'Відхилено',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          );
-                          onPressed = null; // Кнопка неактивна
-                          break;
-                          
-                        default: // 'none' - може подати заявку
-                          if (match.status == MatchStatus.open && match.currentPlayers < match.maxPlayers) {
-                            buttonWidget = Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add, color: Colors.white, size: 18),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Подати заявку',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            );
-                            onPressed = () => _applyForMatch(match.id);
-                          } else {
-                            buttonWidget = Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.block, color: Colors.white, size: 18),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Недоступно',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            );
-                            onPressed = null;
-                          }
-                          break;
-                      }
-                      
-                      return ElevatedButton(
-                        onPressed: onPressed,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          elevation: 0,
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          disabledForegroundColor: Colors.white70,
-                          disabledBackgroundColor: Colors.transparent,
-                        ),
-                        child: buttonWidget,
-                      );
-                    },
-                  ),
-                ),
+                child: _buildActionButton(match, currentUserId!),
               ),
+              
               SizedBox(width: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.2)),
-                ),
+              
+              // Кнопка деталей
+              Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/match-details', arguments: match);
+                    Navigator.pushNamed(
+                      context,
+                      '/match-details',
+                      arguments: match,
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(color: Colors.white24),
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.white70, size: 18),
-                      SizedBox(width: 8),
-                      Text(
-                        'Деталі',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    'Деталі',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
+          
+          // Кнопка оцінювання для завершених матчів
+          if (match.status == MatchStatus.finished && match.isParticipant(currentUserId)) ...[
+            SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/match_rating',
+                    arguments: match,
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF4caf50),
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  '⭐ Оцінити гравців',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
-    );
+    ),
+  );
+}
+
+Widget _buildActionButton(Match match, String currentUserId) {
+  final userStatus = _convertUserStatus(match.getUserStatus(currentUserId));
+  
+  switch (userStatus) {
+    case 'Подати заявку':
+      return ElevatedButton(
+        onPressed: () => _applyForMatch(match.id),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFF4caf50),
+          padding: EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: Text(
+          'Подати заявку',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      );
+      
+    case 'Заявка подана':
+      return ElevatedButton(
+        onPressed: null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.orange.withOpacity(0.3),
+          padding: EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: Text(
+          'Заявка подана',
+          style: TextStyle(
+            color: Colors.orange,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      );
+      
+    case 'Учасник':
+      return ElevatedButton(
+        onPressed: () {
+          Navigator.pushNamed(
+            context,
+            '/match-details',
+            arguments: match,
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFF2196f3),
+          padding: EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: Text(
+          'Учасник',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      );
+      
+    case 'Управління':
+      return ElevatedButton(
+        onPressed: () {
+          Navigator.pushNamed(
+            context,
+            '/match_management',
+            arguments: match,
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFF9c27b0),
+          padding: EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: Text(
+          'Управління',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      );
+      
+    case 'Відхилено':
+      return ElevatedButton(
+        onPressed: null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red.withOpacity(0.3),
+          padding: EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: Text(
+          'Відхилено',
+          style: TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      );
+      
+    case 'Недоступно':
+      return ElevatedButton(
+        onPressed: null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.grey.withOpacity(0.3),
+          padding: EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: Text(
+          'Недоступно',
+          style: TextStyle(
+            color: Colors.grey,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      );
+      
+    default:
+      // Додати логування для діагностики
+      print('Unknown user status: $userStatus for match: ${match.id}');
+      print('Current user: $currentUserId');
+      print('Match participants: ${match.participants}');
+      print('Match organizer: ${match.organizerId}');
+      print('Match status: ${match.status}');
+      
+      return ElevatedButton(
+        onPressed: () => _applyForMatch(match.id),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFF4caf50),
+          padding: EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: Text(
+          'Подати заявку',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      );
   }
+}
 
   Stream<List<Match>> _getFilteredMatches() {
     return _matchService.getAvailableMatches().map((matches) {
@@ -1262,74 +1253,170 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   }
 
   // Картка матчу для "Мої матчі"
-  Widget _buildMyMatchCard(Match match) {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    final isOrganizer = currentUser?.uid == match.organizerId;
-    final role = isOrganizer ? 'Організатор' : 'Учасник';
+// version_0.1/lib/screens/matches_screen.dart
 
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.02),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Заголовок та статус
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      match.title,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+Widget _buildMyMatchCard(Match match) {
+  final currentUser = FirebaseAuth.instance.currentUser;
+  final isOrganizer = currentUser?.uid == match.organizerId;
+  final role = isOrganizer ? 'Організатор' : 'Учасник';
+
+  return Container(
+    margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+    padding: EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.02),
+      borderRadius: BorderRadius.circular(15),
+      border: Border.all(color: Colors.white.withOpacity(0.1)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Заголовок та статус + бейдж заявок
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    match.title,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_today, color: Colors.white70, size: 16),
+                      SizedBox(width: 4),
+                      Text(
+                        '${match.date.day}.${match.date.month} о ${match.time}',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                      SizedBox(width: 15),
+                      Icon(Icons.location_on, color: Colors.white70, size: 16),
+                      SizedBox(width: 4),
+                      Text(
+                        match.location,
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                      SizedBox(width: 15),
+                      Icon(Icons.star, color: Color(0xFFFFD700), size: 16),
+                      SizedBox(width: 4),
+                      Text(
+                        role,
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: _getStatusColor(match.status),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _getStatusText(match.status),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (match.pendingApplications.isNotEmpty) ...[
+                    SizedBox(width: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${match.pendingApplications.length}',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_today, color: Colors.white70, size: 16),
-                        SizedBox(width: 4),
-                        Text(
-                          '${match.date.day}.${match.date.month} о ${match.time}',
-                          style: TextStyle(color: Colors.white70, fontSize: 14),
-                        ),
-                        SizedBox(width: 15),
-                        Icon(Icons.location_on, color: Colors.white70, size: 16),
-                        SizedBox(width: 4),
-                        Text(
-                          match.location,
-                          style: TextStyle(color: Colors.white70, fontSize: 14),
-                        ),
-                        SizedBox(width: 15),
-                        Icon(Icons.star, color: Color(0xFFFFD700), size: 16),
-                        SizedBox(width: 4),
-                        Text(
-                          role,
-                          style: TextStyle(color: Colors.white70, fontSize: 14),
-                        ),
-                      ],
-                    ),
                   ],
-                ),
+                ],
               ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(match.status),
-                  borderRadius: BorderRadius.circular(20),
+            ),
+          ],
+        ),
+
+        SizedBox(height: 16),
+
+        // Кількість гравців
+        Row(
+          children: [
+            Icon(Icons.people, color: Colors.white70, size: 16),
+            SizedBox(width: 4),
+            Text(
+              '${match.currentPlayers}/${match.maxPlayers}',
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 8),
+
+        // Аватарки учасників (ініціали)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(top: 4, bottom: 4),
+          child: Row(
+            children: match.participants.take(10).map((id) {
+              final label = id.isNotEmpty ? id.substring(0, 2).toUpperCase() : '?';
+              return Container(
+                margin: const EdgeInsets.only(right: 6),
+                child: CircleAvatar(
+                  radius: 12,
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                  child: Text(
+                    label,
+                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+
+        SizedBox(height: 16),
+
+        // Кнопки дій
+        Row(
+          children: [
+            if (isOrganizer)
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/match_management',
+                    arguments: match,
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF4caf50),
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: Text(
-                  _getStatusText(match.status),
+                  'Управління',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -1337,99 +1424,164 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
                   ),
                 ),
               ),
-            ],
-          ),
-          SizedBox(height: 16),
-
-          // Кількість гравців
-          Row(
-            children: [
-              Icon(Icons.people, color: Colors.white70, size: 16),
-              SizedBox(width: 4),
-              Text(
-                '${match.currentPlayers}/${match.maxPlayers}',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          // Аватарки учасників (ініціали)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.only(top: 4, bottom: 4),
-            child: Row(
-              children: match.participants.take(10).map((id) {
-                final label = id.isNotEmpty ? id.substring(0, 2).toUpperCase() : '?';
-                return Container(
-                  margin: const EdgeInsets.only(right: 6),
-                  child: CircleAvatar(
-                    radius: 12,
-                    backgroundColor: Colors.white.withOpacity(0.15),
-                    child: Text(
-                      label,
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
-                    ),
-                  ),
+            if (isOrganizer) SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushNamed(
+                  context,
+                  '/match-details',
+                  arguments: match,
                 );
-              }).toList(),
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.1),
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                'Деталі',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-          ),
+          ],
+        ),
 
-          SizedBox(height: 16),
-
-          // Кнопки дій
+        // Кнопка "Вийти з матчу" (учасник, не організатор, відкритий матч)
+        if (!isOrganizer &&
+            match.status == MatchStatus.open &&
+            currentUser != null &&
+            match.participants.contains(currentUser.uid)) ...[
+          const SizedBox(height: 8),
           Row(
             children: [
-              if (isOrganizer)
-                ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Управління матчем буде додано пізніше')),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF4caf50),
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    'Управління',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              if (isOrganizer) SizedBox(width: 8),
               ElevatedButton(
-                onPressed: () => Navigator.pushNamed(context, '/match-details', arguments: match),
+                onPressed: _isLeaving
+                    ? null
+                    : () async {
+                        final sure = await _confirm('Вийти з матчу?', 'Ви впевнені, що хочете вийти?');
+                        if (sure != true) return;
+                        setState(() => _isLeaving = true);
+                        await _onLeaveMatch(match);
+                        setState(() => _isLeaving = false);
+                      },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withOpacity(0.1),
+                  backgroundColor: Colors.redAccent,
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 child: Text(
-                  'Деталі',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  _isLeaving ? 'Вихід…' : 'Вийти з матчу',
+                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ),
             ],
           ),
         ],
-      ),
-    );
+
+        // Швидкі дії для організатора
+        if (isOrganizer) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (!match.hasTeams &&
+                  match.participants.length >= 4 &&
+                  match.status != MatchStatus.finished)
+                ElevatedButton(
+                  onPressed: () async {
+                    final sure = await _confirm('Сформувати команди?', 'Буде виконано автобаланс за рейтингом.');
+                    if (sure != true) return;
+                    await _onAutoBalance(match);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF66bb6a),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text(
+                    'Автобаланс',
+                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              if (!match.hasTeams && match.participants.length >= 4)
+                const SizedBox(width: 8),
+              if (match.hasTeams &&
+                  match.status != MatchStatus.inProgress &&
+                  match.status != MatchStatus.finished)
+                ElevatedButton(
+                  onPressed: () async {
+                    final sure = await _confirm('Почати матч?', 'Після початку рахунок стане доступним і дії зміняться.');
+                    if (sure != true) return;
+                    await _onStartMatch(match);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2196f3),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text(
+                    'Почати матч',
+                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              if (match.status != MatchStatus.inProgress && match.hasTeams)
+                const SizedBox(width: 8),
+              if (match.status == MatchStatus.inProgress)
+                ElevatedButton(
+                  onPressed: () async {
+                    final sure = await _confirm('Завершити матч?', 'Потрібно ввести рахунок команд.');
+                    if (sure != true) return;
+                    await _onFinishMatch(match);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF9800),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text(
+                    'Завершити',
+                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+            ],
+          ),
+        ],
+
+        // Інфо для неорганізаторів
+        if (!isOrganizer) ...[
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline, color: Colors.white54, size: 16),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Лише організатор може формувати команди, розпочати або завершити матч.',
+                  style: TextStyle(color: Colors.white60, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    ),
+  );
+}
+  Future<void> _onStartMatchPrep(Match match) async {
+    final ok = await _matchService.startMatch(match.id);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Матч розпочато' : 'Не вдалося розпочати матч'),
+      backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
+    ));
+    if (ok) setState(() {});
   }
+
 
   // Метод для подачі заявки на матч
   Future<void> _applyForMatch(String matchId) async {
@@ -1468,6 +1620,96 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
       );
     }
   }
+  // Вихід з матчу
+Future<void> _onLeaveMatch(Match match) async {
+  try {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Потрібно увійти в систему'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final ok = await _matchService.leaveMatch(match.id, currentUser.uid);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Ви вийшли з матчу' : 'Не вдалося вийти з матчу'),
+      backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
+    ));
+    if (ok) setState(() {});
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Помилка: $e'), backgroundColor: Colors.red),
+    );
+  }
+}
+    // Дії організатора
+  Future<void> _onAutoBalance(Match match) async {
+    final ok = await _matchService.autoBalanceTeams(match.id);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Команди сформовано' : 'Не вдалося сформувати команди'),
+      backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
+    ));
+    if (ok) setState(() {});
+  }
+
+  Future<void> _onStartMatch(Match match) async {
+    final ok = await _matchService.startMatch(match.id);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Матч розпочато' : 'Не вдалося розпочати матч'),
+      backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
+    ));
+    if (ok) setState(() {});
+  }
+
+  Future<void> _onFinishMatch(Match match) async {
+    final scores = await _showFinishDialog();
+    if (scores == null) return;
+
+    final int a = scores['teamAScore']!;
+    final int b = scores['teamBScore']!;
+    final MatchResult result = (a > b) ? MatchResult.teamAWins : (b > a) ? MatchResult.teamBWins : MatchResult.draw;
+
+    final ok = await _matchService.finishMatch(match.id, result, a, b);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Матч завершено' : 'Не вдалося завершити матч'),
+      backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
+    ));
+    if (ok) setState(() {});
+  }
+
+  Future<Map<String, int>?> _showFinishDialog() async {
+    final aCtrl = TextEditingController();
+    final bCtrl = TextEditingController();
+    return showDialog<Map<String, int>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Завершити матч'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: aCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Голи команди A')),
+            TextField(controller: bCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Голи команди B')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Скасувати')),
+          ElevatedButton(
+            onPressed: () {
+              final int? a = int.tryParse(aCtrl.text);
+              final int? b = int.tryParse(bCtrl.text);
+              if (a == null || b == null || a < 0 || b < 0) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введіть коректні рахунки'), backgroundColor: Colors.red));
+                return;
+              }
+              Navigator.pop(ctx, {'teamAScore': a, 'teamBScore': b});
+            },
+            child: const Text('Підтвердити'),
+          ),
+        ],
+      ),
+    );
+  }
     // Метод для отримання кольору рівня
   Color _getLevelColor(MatchLevel level) {
     switch (level) {
@@ -1482,5 +1724,21 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
       default:
         return Colors.grey;
     }
-  } 
+  }
+  String _convertUserStatus(String status) {
+  switch (status) {
+    case 'organizer':
+      return 'Управління';
+    case 'participant':
+      return 'Учасник';
+    case 'pending':
+      return 'Заявка подана';
+    case 'rejected':
+      return 'Відхилено';
+    case 'none':
+      return 'Подати заявку';
+    default:
+      return 'Подати заявку';
+  }
+} 
 }
