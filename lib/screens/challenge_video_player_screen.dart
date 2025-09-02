@@ -3,6 +3,8 @@ import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/rating_tracking_service.dart';
+import '../services/rating_service.dart';
 
 class ChallengeVideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
@@ -29,23 +31,26 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   ChewieController? _chewieController;
   bool _isLoading = true;
   String? _error;
+  final RatingTrackingService _ratingService = RatingTrackingService();
   
   // Голосування за відео в челенджі (0.00 - 5.00 з кроком 0.01) - ОДНИМ повзунком
   double _rating = 2.50;
   double _tempRating = 2.50; // Тимчасове значення для плавності
   bool _hasVoted = false;
   bool _isVoting = false;
+  final ValueNotifier<double> _tempRatingNotifier = ValueNotifier<double>(2.50);
 
   @override
   void initState() {
     super.initState();
     _initializeVideo();
     _checkIfVoted();
+    _tempRatingNotifier.value = _tempRating;
   }
 
   Future<void> _initializeVideo() async {
     try {
-      _videoPlayerController = VideoPlayerController.network(widget.videoUrl);
+      _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
       await _videoPlayerController.initialize();
       
       _chewieController = ChewieController(
@@ -126,6 +131,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   void dispose() {
     _chewieController?.dispose();
     _videoPlayerController.dispose();
+    _tempRatingNotifier.dispose();
     super.dispose();
   }
 
@@ -211,7 +217,8 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
           // Voting Section - ОДНИМ повзунком для челенджів
           Expanded(
             flex: 2,
-            child: Container(
+            child: SingleChildScrollView(
+              child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: const Color(0xFF0f0f23),
@@ -286,54 +293,54 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(color: const Color(0xFF4caf50)),
                               ),
-                              child: Text(
-                                _tempRating.toStringAsFixed(2),
-                                style: const TextStyle(
-                                  color: Color(0xFF4caf50),
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                              child: ValueListenableBuilder<double>(
+                                valueListenable: _tempRatingNotifier,
+                                builder: (context, value, _) => Text(
+                                  value.toStringAsFixed(2),
+                                  style: const TextStyle(
+                                    color: Color(0xFF4caf50),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ),
                           ],
                         ),
-                        
                         const SizedBox(height: 16),
-                        
-                        SliderTheme(
-                          data: SliderTheme.of(context).copyWith(
-                            activeTrackColor: const Color(0xFF4caf50),
-                            inactiveTrackColor: const Color(0xFF4caf50).withOpacity(0.3),
-                            thumbColor: const Color(0xFF4caf50),
-                            overlayColor: const Color(0xFF4caf50).withOpacity(0.2),
-                            valueIndicatorColor: const Color(0xFF4caf50),
-                            valueIndicatorTextStyle: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                        RepaintBoundary(
+                          child: ValueListenableBuilder<double>(
+                            valueListenable: _tempRatingNotifier,
+                            builder: (context, tempValue, _) => SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                activeTrackColor: const Color(0xFF4caf50),
+                                inactiveTrackColor: const Color(0xFF4caf50).withOpacity(0.3),
+                                thumbColor: const Color(0xFF4caf50),
+                                overlayColor: const Color(0xFF4caf50).withOpacity(0.2),
+                                valueIndicatorColor: const Color(0xFF4caf50),
+                                valueIndicatorTextStyle: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              child: Slider(
+                                value: tempValue,
+                                min: 0.0,
+                                max: 5.0,
+                                label: tempValue.toStringAsFixed(2),
+                                onChanged: _hasVoted ? null : (value) {
+                                  _tempRatingNotifier.value = value;
+                                },
+                                onChangeEnd: _hasVoted ? null : (value) {
+                                  final roundedValue = (value * 100).round() / 100;
+                                  _tempRating = roundedValue;
+                                  _tempRatingNotifier.value = roundedValue;
+                                },
+                              ),
                             ),
                           ),
-                          child: Slider(
-                            value: _tempRating,
-                            min: 0.0,
-                            max: 5.0,
-                            // Видаляю divisions для плавності
-                            label: _tempRating.toStringAsFixed(2),
-                            onChanged: _hasVoted ? null : (value) {
-                              // Оновлюємо тільки тимчасове значення для максимальної плавності
-                              _tempRating = value;
-                            },
-                            onChangeEnd: _hasVoted ? null : (value) {
-                              // Зберігаємо остаточне значення з округленням до 0.01
-                              final roundedValue = (value * 100).round() / 100;
-                              setState(() {
-                                _rating = roundedValue;
-                                _tempRating = roundedValue;
-                              });
-                            },
-                          ),
                         ),
-                        
                         // Rating scale
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -364,9 +371,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                             ],
                           ),
                         ),
-                        
                         const SizedBox(height: 16),
-                        
                         // Vote Button
                         SizedBox(
                           width: double.infinity,
@@ -405,9 +410,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                       ],
                     ),
                   ),
-                  
                   const SizedBox(height: 16),
-                  
                   // Help text
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -433,6 +436,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                   ),
                 ],
               ),
+              ),
             ),
           ),
         ],
@@ -453,7 +457,10 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         throw Exception('Користувач не авторизований');
       }
 
-      // Перевіряємо чи користувач не голосує за себе
+      // Перевіряємо чи користувач не голосує за себе та зберігаємо videoId
+      String? submissionVideoId;
+      String? submissionAuthorId;
+
       final submissionDoc = await FirebaseFirestore.instance
           .collection('challenges')
           .doc(widget.challengeId)
@@ -464,14 +471,18 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       if (submissionDoc.exists) {
         final submissionData = submissionDoc.data() as Map<String, dynamic>;
         final submissionUserId = submissionData['userId'];
+        submissionVideoId = submissionData['videoId'] as String?;
+        submissionAuthorId = submissionUserId as String?;
         
         if (submissionUserId == currentUser.uid) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('❌ Не можна голосувати за себе!'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('❌ Не можна голосувати за себе!'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
           setState(() => _isVoting = false);
           return;
         }
@@ -515,44 +526,79 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         });
       });
 
+      // Also mirror vote under the original video to include in aggregated rating
+      if (submissionVideoId != null && submissionVideoId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('videos')
+            .doc(submissionVideoId)
+            .collection('votes')
+            .doc(currentUser.uid)
+            .set({
+          'ratedBy': currentUser.uid,
+          'rating': _rating,
+          'ratedAt': FieldValue.serverTimestamp(),
+          'source': 'challenge',
+          'challengeId': widget.challengeId,
+          'submissionId': widget.submissionId,
+        });
+      }
+
       // Award coins for voting
       await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).update({
         'coins': FieldValue.increment(1), // +1 coin for voting
       });
 
-      // Record transaction
+      // Record transaction with unified type 'voting_reward'
       await FirebaseFirestore.instance.collection('transactions').add({
         'userId': currentUser.uid,
-        'type': 'challenge_vote',
+        'type': 'voting_reward',
         'amount': 1,
         'challengeId': widget.challengeId,
         'submissionId': widget.submissionId,
         'timestamp': FieldValue.serverTimestamp(),
-        'description': 'Голосування в челенджі',
+        'description': 'Нагорода за голосування в челенджі',
       });
+
+      // Recompute overall rating for the submission author and record history
+      if (submissionAuthorId != null && submissionAuthorId.isNotEmpty) {
+        try {
+          // Recompute aggregated rating (matches + videos)
+          await RatingService().recomputeOverallRating(
+            submissionAuthorId,
+            reason: 'challenge_vote',
+            source: FirebaseAuth.instance.currentUser?.displayName ?? '',
+            sourceType: 'challenge',
+            sourceId: widget.challengeId,
+          );
+        } catch (_) {}
+      }
 
       setState(() {
         _hasVoted = true;
         _isVoting = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ Ваша оцінка ${_rating.toStringAsFixed(2)} збережена! +1 монета'),
-          backgroundColor: const Color(0xFF4caf50),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Ваша оцінка ${_rating.toStringAsFixed(2)} збережена! +1 монета'),
+            backgroundColor: const Color(0xFF4caf50),
+          ),
+        );
+      }
     } catch (e) {
       setState(() {
         _isVoting = false;
       });
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Помилка збереження оцінки: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Помилка збереження оцінки: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/notification.dart';
 import '../services/notification_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/challenge.dart';
 
 class NotificationsScreen extends StatefulWidget {
   @override
@@ -383,14 +385,60 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _handleNotificationTap(AppNotification notification) async {
-    // Mark as read if not already
     if (!notification.isRead) {
       await _notificationService.markAsRead(notification.id);
     }
 
-    // Navigate based on action URL
-    if (notification.actionUrl != null) {
-      _navigateToAction(notification.actionUrl!);
+    if (notification.actionUrl != null && notification.actionUrl!.isNotEmpty) {
+      final action = notification.actionUrl!;
+      if (action.startsWith('/challenge-details/')) {
+        final challengeId = action.split('/').last;
+        await _openChallengeById(challengeId);
+        return;
+      }
+      _navigateToAction(action);
+      return;
+    }
+
+    // Fallback by type if actionUrl відсутній у старих записах
+    switch (notification.type) {
+      case NotificationType.challengeInvitation:
+      case NotificationType.challengeUpdate:
+      case NotificationType.challengeResult:
+        final challengeId = notification.data['challengeId'] as String?;
+        if (challengeId != null && challengeId.isNotEmpty) {
+          await _openChallengeById(challengeId);
+          return;
+        }
+        break;
+      case NotificationType.friendRequest:
+      case NotificationType.friendAccepted:
+        _navigateToAction('/friends');
+        return;
+      default:
+        _navigateToAction('/video-main');
+        return;
+    }
+  }
+
+  Future<void> _openChallengeById(String challengeId) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('challenges').doc(challengeId).get();
+      if (!doc.exists) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Челендж не знайдено')),
+        );
+        return;
+      }
+      final challenge = Challenge.fromFirestore(doc);
+      if (!mounted) return;
+      Navigator.pushNamed(context, '/challenge-details', arguments: challenge);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка відкриття челенджу: $e')),
+      );
     }
   }
 

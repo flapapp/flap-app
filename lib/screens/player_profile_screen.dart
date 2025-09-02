@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:video_player/video_player.dart';
 import '../services/friends_service.dart';
+import 'video_player_screen.dart';
+import '../services/notification_service.dart';
 
 class PlayerProfileScreen extends StatefulWidget {
   final String playerId;
@@ -23,6 +27,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   bool isLoading = true;
   final FriendsService _friendsService = FriendsService();
   bool _isSendingRequest = false;
+  final NotificationService _notificationService = NotificationService();
 
   @override
   void initState() {
@@ -301,20 +306,73 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () => _showInviteToChallengeDialog(),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.12), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
-                    child: const Icon(Icons.videocam, size: 16),
+                    child: const Icon(Icons.emoji_events, size: 16),
                   ),
                 ]);
               },
               ),
               const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                height: 36,
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(18)),
-              child: const Center(child: Text('Запросити на челендж', style: TextStyle(color: Colors.white))),
-            ),
+              // Відео гравця
+              if (playerVideos.isNotEmpty) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: const Text('Відео', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 110,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: playerVideos.length,
+                    itemBuilder: (context, index) {
+                      final v = playerVideos[index];
+                      final thumb = (v['thumbnailUrl'] ?? '') as String;
+                      final vUrl = (v['videoUrl'] ?? '') as String;
+                      final title = (v['title'] ?? 'Відео') as String;
+                      return GestureDetector(
+                        onTap: () {
+                          if (vUrl.isEmpty) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => VideoPlayerScreen(
+                                videoUrl: vUrl,
+                                title: title,
+                                authorName: displayName.isNotEmpty ? displayName : 'Гравець',
+                                videoId: (v['id'] ?? '') as String,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 160,
+                          margin: const EdgeInsets.only(right: 10),
+                          decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white24)),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: thumb.isNotEmpty
+                                ? (kIsWeb && thumb == vUrl
+                                    ? _buildWebVideoPreview(vUrl)
+                                    : Image.network(thumb, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _videoThumbFallback(title)))
+                                : (kIsWeb && vUrl.isNotEmpty
+                                    ? _buildWebVideoPreview(vUrl)
+                                    : _videoThumbFallback(title)),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
+                  child: const Text('Поки що немає відео', style: TextStyle(color: Colors.white54)),
+                ),
+              ],
           ],
         ),
       ),
@@ -353,5 +411,137 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         ],
       ),
     );
+  }
+
+  Widget _videoThumbFallback(String title) {
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWebVideoPreview(String videoUrl) {
+    return FutureBuilder<VideoPlayerController>(
+      future: _createVideoController(videoUrl),
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data!.value.isInitialized) {
+          final controller = snapshot.data!;
+          return AspectRatio(
+            aspectRatio: controller.value.aspectRatio,
+            child: VideoPlayer(controller),
+          );
+        }
+        return Container(
+          color: Colors.black54,
+          child: const Center(
+            child: CircularProgressIndicator(color: Color(0xFF4caf50), strokeWidth: 2),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<VideoPlayerController> _createVideoController(String videoUrl) async {
+    final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+    await controller.initialize();
+    await controller.seekTo(const Duration(seconds: 1));
+    await controller.pause();
+    return controller;
+  }
+
+  Future<void> _showInviteToChallengeDialog() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('challenges')
+          .where('creatorId', isEqualTo: currentUser.uid)
+          .limit(50)
+          .get();
+
+      final all = snap.docs.map((d) {
+        final data = d.data() as Map<String, dynamic>;
+        data['id'] = d.id;
+        return data;
+      }).where((c) {
+        final participants = List<String>.from(c['participants'] ?? []);
+        return !participants.contains(widget.playerId);
+      }).toList();
+
+      if (all.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Немає доступних ваших челенджів для запрошення.')),
+        );
+        return;
+      }
+
+      int selectedIndex = -1;
+      await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setStateDialog) => AlertDialog(
+              backgroundColor: const Color(0xFF1a1a2e),
+              title: const Text('Запросити до челенджу', style: TextStyle(color: Colors.white)),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: all.length,
+                  itemBuilder: (context, index) {
+                    final c = all[index];
+                    return RadioListTile<int>(
+                      value: index,
+                      groupValue: selectedIndex,
+                      onChanged: (v) => setStateDialog(() => selectedIndex = v ?? -1),
+                      title: Text(c['title'] ?? 'Челендж', style: const TextStyle(color: Colors.white)),
+                      subtitle: Text('Учасників: ${(c['participants'] as List?)?.length ?? 0}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+                ),
+                ElevatedButton(
+                  onPressed: selectedIndex < 0 ? null : () async {
+                    final selected = all[selectedIndex];
+                    final ok = await _notificationService.sendChallengeInvitation(
+                      toUserId: widget.playerId,
+                      challengeId: selected['id'] as String,
+                      challengeTitle: (selected['title'] ?? 'Челендж') as String,
+                      creatorName: (playerData?['displayName'] ?? 'Користувач') as String,
+                      challengeType: (selected['type'] ?? 'technical') as String,
+                    );
+                    if (!mounted) return;
+                    Navigator.pop(context, true);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(ok ? '✅ Запрошення надіслано' : '❌ Не вдалося надіслати')),
+                    );
+                  },
+                  child: const Text('Запросити'),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка: $e')),
+      );
+    }
   }
 }

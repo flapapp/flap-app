@@ -265,11 +265,19 @@ class NotificationService {
     required String voterName,
     required double rating,
   }) async {
-    final notification = AppNotification.videoVote(
+    final notification = AppNotification(
+      id: '',
       userId: toUserId,
-      videoTitle: videoTitle,
-      voterName: voterName,
-      rating: rating,
+      type: NotificationType.videoVote,
+      title: 'Оцінка вашого відео',
+      message: 'За ваше відео проголосував $voterName — ${rating.toStringAsFixed(2)}',
+      data: {
+        'videoTitle': videoTitle,
+        'voterName': voterName,
+        'rating': rating,
+      },
+      isRead: false,
+      createdAt: DateTime.now(),
     );
     return await sendNotification(notification);
   }

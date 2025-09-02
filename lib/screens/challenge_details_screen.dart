@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:video_player/video_player.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
@@ -21,6 +23,8 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   bool _isJoining = false;
   bool _isSubmitting = false;
+
+  final Map<String, ValueNotifier<double>> _voteNotifiers = {};
 
   @override
   Widget build(BuildContext context) {
@@ -240,6 +244,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     final isCreatorVideo = data['isCreatorVideo'] ?? false;
     final rating = (data['averageRating'] ?? 0.0).toDouble();
     final likesCount = data['voteCount'] ?? 0;
+    final thumb = (data['thumbnailUrl'] ?? '') as String;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -385,7 +390,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           const SizedBox(height: 8),
 
           // Voting section - exactly like MVP
-          _buildVotingSection(videoId, videoUrl, title, userId),
+          _buildVotingSection(videoId, videoUrl, title, userId, thumbnailUrl: thumb),
           const SizedBox(height: 8),
 
           // Action buttons
@@ -457,8 +462,6 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       }),
     );
   }
-
-  Map<String, double> _currentVotes = {}; // Додаємо змінну стану
 
   // Показати список учасників
   void _showParticipants() {
@@ -642,7 +645,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  Widget _buildVotingSection(String videoId, String videoUrl, String title, String userId) {
+  Widget _buildVotingSection(String videoId, String videoUrl, String title, String userId, {String? thumbnailUrl}) {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('challenges')
@@ -652,13 +655,13 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           .snapshots(),
       builder: (context, voteSnapshot) {
         final hasVoted = voteSnapshot.hasData && voteSnapshot.data!.exists;
-        double currentVote = _currentVotes[videoId] ?? 0.0;
+        double currentVote = (_voteNotifiers[videoId]?.value) ?? 0.0;
         
-        if (hasVoted && _currentVotes[videoId] == null) {
+        if (hasVoted && _voteNotifiers[videoId] == null) {
           final voteData = voteSnapshot.data!.data() as Map<String, dynamic>? ?? {};
           currentVote = (voteData['rating'] ?? 0.0).toDouble();
-          _currentVotes[videoId] = currentVote;
         }
+        _voteNotifiers.putIfAbsent(videoId, () => ValueNotifier<double>(currentVote));
 
         return Container(
           padding: const EdgeInsets.all(12),
@@ -669,31 +672,24 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           ),
           child: Column(
             children: [
-              // Video preview
-              FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
-                builder: (context, userSnapshot) {
-                  final userData = userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
-                  final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? 'Користувач';
-                  
-                  return GestureDetector(
-                    onTap: () {
-                      if (videoUrl.isNotEmpty) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => VideoPlayerScreen(
-                              videoUrl: videoUrl,
-                              title: title,
-                              authorName: userName,
-                              videoId: videoId,
-                              challengeId: widget.challenge.id,
-                              submissionUserId: FirebaseAuth.instance.currentUser?.uid,
-                            ),
-                          ),
-                        );
-                      }
-                    },
+              // Video preview with thumbnail
+              GestureDetector(
+                onTap: () {
+                  if (videoUrl.isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChallengeVideoPlayerScreen(
+                          videoUrl: videoUrl,
+                          title: title,
+                          authorName: 'Автор відео',
+                          challengeId: widget.challenge.id,
+                          submissionId: videoId,
+                        ),
+                      ),
+                    );
+                  }
+                },
                 child: Container(
                   height: 120,
                   width: double.infinity,
@@ -705,27 +701,20 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                   ),
                   child: Stack(
                     children: [
-                      // Placeholder for video thumbnail
-                      Container(
-                        width: double.infinity,
-                        height: double.infinity,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF4caf50), Color(0xFF8bc34a)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.video_library,
-                            color: Colors.white54,
-                            size: 40,
-                          ),
-                        ),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: kIsWeb
+                            ? _WebVideoPreview(url: videoUrl, placeholder: _previewPlaceholder(title))
+                            : ((thumbnailUrl != null && thumbnailUrl.isNotEmpty)
+                                ? Image.network(
+                                    thumbnailUrl,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stack) => _previewPlaceholder(title),
+                                  )
+                                : _previewPlaceholder(title)),
                       ),
-                      // Play button
                       Center(
                         child: Container(
                           width: 50,
@@ -741,34 +730,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                           ),
                         ),
                       ),
-                      // Video info overlay
-                      Positioned(
-                        bottom: 8,
-                        left: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.7),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
-                  );
-                },
               ),
               Row(
                 children: [
@@ -781,35 +745,43 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     ),
                   ),
                   Expanded(
-                    child: Slider(
-                      value: currentVote,
-                      min: 0.0,
-                      max: 5.0,
-                      divisions: 500, // Збільшуємо точність
-                      activeColor: const Color(0xFF4caf50),
-                      inactiveColor: Colors.white.withOpacity(0.2),
-                      onChanged: hasVoted ? null : (value) {
-                        setState(() {
-                          _currentVotes[videoId] = value;
-                        });
-                      },
+                    child: ValueListenableBuilder<double>(
+                      valueListenable: _voteNotifiers[videoId]!,
+                      builder: (context, value, _) => Slider(
+                        value: value,
+                        min: 0.0,
+                        max: 5.0,
+                        // без divisions для плавності
+                        activeColor: const Color(0xFF4caf50),
+                        inactiveColor: Colors.white.withOpacity(0.2),
+                        onChanged: hasVoted ? null : (v) {
+                          _voteNotifiers[videoId]!.value = v;
+                        },
+                        onChangeEnd: hasVoted ? null : (v) {
+                          final rounded = (v * 100).round() / 100;
+                          _voteNotifiers[videoId]!.value = rounded;
+                        },
+                      ),
                     ),
                   ),
                   Container(
                     width: 40,
-                    child: Text(
-                      currentVote.toStringAsFixed(2), // Показуємо 2 знаки після коми
-                      style: const TextStyle(
-                        color: Color(0xFF66bb6a),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
+                    child: ValueListenableBuilder<double>(
+                      valueListenable: _voteNotifiers[videoId]!,
+                      builder: (context, v, _) => Text(
+                        v.toStringAsFixed(2),
+                        style: const TextStyle(
+                          color: Color(0xFF66bb6a),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: hasVoted ? null : () => _submitVote(videoId, currentVote),
+                    onPressed: hasVoted ? null : () => _submitVote(videoId, _voteNotifiers[videoId]!.value),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: hasVoted ? Colors.grey : const Color(0xFF4caf50),
                       foregroundColor: Colors.white,
@@ -827,6 +799,26 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _previewPlaceholder(String title) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF4caf50), Color(0xFF8bc34a)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          title,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
     );
   }
 
@@ -1002,6 +994,70 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WebVideoPreview extends StatefulWidget {
+  final String url;
+  final Widget placeholder;
+  const _WebVideoPreview({required this.url, required this.placeholder});
+
+  @override
+  State<_WebVideoPreview> createState() => _WebVideoPreviewState();
+}
+
+class _WebVideoPreviewState extends State<_WebVideoPreview> {
+  VideoPlayerController? _controller;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      if (widget.url.isEmpty) return;
+      final c = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      await c.initialize();
+      await c.seekTo(const Duration(milliseconds: 700));
+      await c.pause();
+      if (!mounted) {
+        await c.dispose();
+        return;
+      }
+      setState(() {
+        _controller = c;
+        _ready = true;
+      });
+    } catch (_) {
+      setState(() {
+        _ready = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready || _controller == null) {
+      return widget.placeholder;
+    }
+    return FittedBox(
+      fit: BoxFit.cover,
+      clipBehavior: Clip.hardEdge,
+      child: SizedBox(
+        width: _controller!.value.size.width,
+        height: _controller!.value.size.height,
+        child: VideoPlayer(_controller!),
       ),
     );
   }

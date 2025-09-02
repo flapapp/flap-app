@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+// Removed dart:io to support web build
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
 import '../services/thumbnail_service.dart';
@@ -400,7 +400,24 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: _isCreating ? null : _createChallenge,
+                    onPressed: _isCreating ? null : () async {
+                      // Confirm fee charge
+                      final ok = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          backgroundColor: const Color(0xFF1e7d32),
+                          title: const Text('Підтвердження', style: TextStyle(color: Colors.white)),
+                          content: Text('Буде списано ${_selectedEntryFee} монет за створення челенджу. Продовжити?', style: const TextStyle(color: Colors.white70)),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Скасувати', style: TextStyle(color: Colors.white70))),
+                            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Підтвердити')),
+                          ],
+                        ),
+                      );
+                      if (ok == true) {
+                        await _createChallenge();
+                      }
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFF9800),
                       shape: RoundedRectangleBorder(
@@ -1074,19 +1091,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     try {
       print('Uploading creator video for challenge: $challengeId');
       
-      if (kIsWeb) {
-        print('Running on web platform');
-        print('Video file name: ${_selectedVideoFile!.name}');
-      } else {
-        print('Video file path: ${_selectedVideoFile!.path}');
-        // На мобільних платформах перевіряємо чи файл існує
-        try {
-          final file = File(_selectedVideoFile!.path);
-          print('Video file exists: ${await file.exists()}');
-        } catch (e) {
-          print('Error checking file existence: $e');
-        }
-      }
+      print('Picked file name: ${_selectedVideoFile!.name}');
       
       // Завантажуємо відео в Storage
       final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -1099,20 +1104,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       
       // Завантажуємо відео
       UploadTask uploadTask;
-      
       try {
-        if (kIsWeb) {
-          // На веб-платформі використовуємо putData
-          print('Reading video file as bytes on web...');
-          final bytes = await _selectedVideoFile!.readAsBytes();
-          print('Video file size: ${bytes.length} bytes');
-          uploadTask = storageRef.putData(bytes);
-        } else {
-          // На мобільних платформах використовуємо putFile
-          final file = File(_selectedVideoFile!.path);
-          print('Video file size: ${await file.length()} bytes');
-          uploadTask = storageRef.putFile(file);
-        }
+        // Універсальний підхід: читаємо байти і виконуємо putData (працює і на web, і на mobile)
+        print('Reading video file as bytes...');
+        final bytes = await _selectedVideoFile!.readAsBytes();
+        print('Video file size: ${bytes.length} bytes');
+        uploadTask = storageRef.putData(bytes);
       } catch (e) {
         print('ERROR reading video file: $e');
         throw Exception('Помилка читання відео файлу: $e');

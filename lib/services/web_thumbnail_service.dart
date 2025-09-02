@@ -24,7 +24,7 @@ class WebThumbnailService {
       print('🌐 Starting web thumbnail generation for: $videoId');
 
       // Створюємо VideoPlayerController
-      final controller = VideoPlayerController.network(videoUrl);
+      final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
       
       await controller.initialize();
       
@@ -58,23 +58,19 @@ class WebThumbnailService {
     required String videoUrl,
   }) async {
     try {
-      // Для веб-платформи використовуємо спеціальний URL який вказує на відео
-      // Це дозволить браузеру показувати перший кадр автоматично
-      final placeholderUrl = 'web_placeholder_$videoId';
-      
-      // Оновлюємо документ з placeholder URL
+      // Для веб: використовуємо саме відео як прев'ю, щоб браузер відобразив перший кадр
       await _firestore
           .collection('videos')
           .doc(videoId)
           .update({
-        'thumbnailUrl': videoUrl, // Використовуємо сам відео URL як thumbnail
+        'thumbnailUrl': videoUrl,
         'thumbnailGenerated': true,
         'thumbnailType': 'web_video_preview',
         'thumbnailUpdatedAt': FieldValue.serverTimestamp(),
       });
 
       print('✅ Web placeholder created for: $videoId');
-      return videoUrl; // Повертаємо URL відео як thumbnail
+      return videoUrl;
     } catch (e) {
       print('❌ Error creating web placeholder: $e');
       return null;

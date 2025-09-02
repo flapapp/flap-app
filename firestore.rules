@@ -10,6 +10,10 @@ service cloud.firestore {
       return isSignedIn() && data.organizerId == request.auth.uid;
     }
 
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
     match /matches/{matchId} {
       allow read: if true;
 
@@ -38,7 +42,115 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == uid;
+      // During development allow any signed-in user to update user fields
+      allow update: if isSignedIn();
+      allow create, delete: if isOwner(uid);
+      
+      // Allow reads to user subcollections (friends, etc.) for signed-in users
+      match /{document=**} {
+        allow read: if isSignedIn();
+      }
+    }
+
+    // Videos: anyone can read, only owner can create/update/delete
+    match /videos/{videoId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // Allow owner to update/delete. Also allow safe counter updates by any signed-in user
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['likes','commentsCount','views'])
+      );
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      // Comments under video
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+      }
+
+      // Likes under video: voter writes their own like doc
+      match /likes/{likeUserId} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if isSignedIn() && likeUserId == request.auth.uid;
+      }
+
+      // Votes under video: voter writes their own vote doc
+      match /votes/{voteUserId} {
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn() && voteUserId == request.auth.uid;
+      }
+    }
+
+    // Challenges and nested collections
+    match /challenges/{challengeId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      // Allow updates during development for signed-in users (participants, votes, etc.)
+      allow update: if isSignedIn();
+
+      // Submissions within a challenge
+      match /submissions/{submissionId} {
+        allow read: if true;
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+        // Allow rating/thumbnail updates by signed-in users (client computes averages)
+        allow update: if isSignedIn();
+      }
+
+      // Votes within a challenge
+      match /votes/{voteId} {
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn();
+      }
+    }
+
+    // Transactions: user can read own and create own
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Rating history: user can read own; any signed-in user can create (votes affect authors)
+    match /rating_history/{docId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn();
+    }
+
+    // Friend requests: participants may read/update; only requester can create
+    match /friend_requests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.fromUserId == request.auth.uid ||
+        resource.data.toUserId == request.auth.uid
+      );
+      allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid && request.resource.data.toUserId != request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.toUserId == request.auth.uid ||
+        resource.data.fromUserId == request.auth.uid
+      );
+    }
+
+    // Notifications and queue
+    match /notifications/{id} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /pushNotifications/{id} {
+      allow create: if isSignedIn();
+      allow read: if false; // queue-only
+    }
+
+    // Badges: public read; writes by signed-in (for store/admin and initialization)
+    match /badges/{badgeId} {
+      allow read: if true;
+      allow create, update: if isSignedIn();
+    }
+
+    // Subscriptions: relaxed for dev (read/create/update by signed-in)
+    match /subscriptions/{subscriptionId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
     }
   }
 }

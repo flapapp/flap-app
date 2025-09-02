@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io';
 import '../services/challenge_service.dart';
 import '../services/thumbnail_service.dart';
 
@@ -30,7 +29,6 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   
   String? _selectedCategory;
   String? _selectedDifficulty;
-  File? _videoFile;
   XFile? _pickedVideo;
   bool _isUploading = false;
   double _uploadProgress = 0.0;
@@ -59,22 +57,23 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     );
 
     if (picked == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Вибір відео скасовано')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Вибір відео скасовано')),
+        );
+      }
       return;
     }
 
     setState(() {
       _pickedVideo = picked;
-      if (!kIsWeb) {
-        _videoFile = File(picked.path);
-      }
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Відео додано!')),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Відео додано!')),
+      );
+    }
   }
 
   @override
@@ -150,9 +149,9 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                                 size: 50,
                               ),
                               const SizedBox(height: 10),
-                              Text(
+                              const Text(
                                 'Відео вибрано!',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -455,22 +454,15 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
 
       print('🎬 Starting video upload: $fileName');
 
-      // Завантажуємо відео
-      UploadTask uploadTask;
-      if (kIsWeb) {
-        // Веб-платформа
-        final bytes = await _pickedVideo!.readAsBytes();
-        uploadTask = storageRef.putData(bytes);
-      } else {
-        // Мобільні платформи
-        final file = File(_pickedVideo!.path);
-        uploadTask = storageRef.putFile(file);
-      }
+      // Завантажуємо відео (на всіх платформах через байти для веб-сумісності)
+      final bytes = await _pickedVideo!.readAsBytes();
+      final uploadTask = storageRef.putData(bytes);
 
       // Відстежуємо прогрес
       uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        if (!mounted) return;
         setState(() {
-          _uploadProgress = snapshot.bytesTransferred / snapshot.totalBytes;
+          _uploadProgress = snapshot.totalBytes == 0 ? 0 : snapshot.bytesTransferred / snapshot.totalBytes;
         });
       });
 
@@ -480,22 +472,23 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       
       print('✅ Video uploaded successfully: $videoUrl');
 
-      // Створюємо документ відео в Firestore
+      // Створюємо документ відео в Firestore (узгоджено з правилами: обов'язково userId == auth.uid)
       final videoDoc = await FirebaseFirestore.instance
           .collection('videos')
           .add({
+        'userId': user.uid,
+        'authorId': user.uid,
+        'authorName': user.displayName ?? user.email?.split('@')[0] ?? 'Користувач',
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
         'category': _selectedCategory,
         'difficulty': _selectedDifficulty,
         'videoUrl': videoUrl,
-        'userId': user.uid,
-        'authorName': user.displayName ?? user.email?.split('@')[0] ?? 'Користувач',
         'createdAt': FieldValue.serverTimestamp(),
         'likes': 0,
         'rating': 0.0,
         'views': 0,
-        'thumbnailUrl': null, // Буде оновлено після генерації
+        'thumbnailUrl': null,
         'thumbnailGenerated': false,
       });
 

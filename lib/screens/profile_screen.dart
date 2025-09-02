@@ -6,7 +6,9 @@ import '../services/badge_service.dart';
 import '../services/friends_service.dart';
 import 'badges_store_screen.dart';
 import 'friends_screen.dart';
+import 'profile_screen_sparkline.dart';
 import 'subscription_screen.dart';
+import 'video_player_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
@@ -21,6 +23,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
   List<app_badge.Badge> _userBadges = [];
   int _friendsCount = 0;
+  List<Map<String, dynamic>> _ratingHistory7 = [];
+  List<Map<String, dynamic>> _ratingHistory30 = [];
+  List<Map<String, dynamic>> _topVideos = [];
 
   @override
   void initState() {
@@ -30,10 +35,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _userStream = FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
       _loadUserBadges();
       _loadFriendsCount();
+      _loadRatingDynamics(uid);
+      _loadTopVideos(uid);
     }
   }
 
-  void _loadUserBadges() async {
+  Future<void> _loadUserBadges() async {
     final uid = _auth.currentUser?.uid;
     if (uid != null) {
       final badges = await _badgeService.getUserBadgeObjects(uid);
@@ -51,6 +58,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _friendsCount = friends.length;
       });
     }
+  }
+
+  Future<void> _loadRatingDynamics(String uid) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final data = doc.data() as Map<String, dynamic>? ?? {};
+      final history = List<Map<String, dynamic>>.from(data['ratingHistory'] ?? []);
+      final now = DateTime.now();
+      _ratingHistory7 = history.where((h) {
+        final ts = h['timestamp'];
+        final dt = ts is Timestamp ? ts.toDate() : null;
+        return dt != null && dt.isAfter(now.subtract(const Duration(days: 7)));
+      }).toList()
+      ..sort((a, b) {
+        final at = a['timestamp'];
+        final bt = b['timestamp'];
+        if (at is Timestamp && bt is Timestamp) return at.compareTo(bt);
+        return 0;
+      });
+      _ratingHistory30 = history.where((h) {
+        final ts = h['timestamp'];
+        final dt = ts is Timestamp ? ts.toDate() : null;
+        return dt != null && dt.isAfter(now.subtract(const Duration(days: 30)));
+      }).toList()
+      ..sort((a, b) {
+        final at = a['timestamp'];
+        final bt = b['timestamp'];
+        if (at is Timestamp && bt is Timestamp) return at.compareTo(bt);
+        return 0;
+      });
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
+
+  Future<void> _loadTopVideos(String uid) async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('videos')
+          .where('userId', isEqualTo: uid)
+          .limit(50)
+          .get();
+      final vids = snap.docs.map((d) {
+        final m = d.data() as Map<String, dynamic>;
+        m['id'] = d.id;
+        return m;
+      }).toList();
+      vids.sort((a, b) {
+        final av = (a['views'] ?? 0) as int;
+        final bv = (b['views'] ?? 0) as int;
+        return bv.compareTo(av);
+      });
+      _topVideos = vids.take(5).toList();
+      if (mounted) setState(() {});
+    } catch (_) {}
   }
 
   @override
@@ -133,6 +194,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 _buildStatsCards(userData),
                 _buildBadgesSection(),
+                _buildRatingDynamicsSection(),
+                _buildTopVideosSection(),
                 _buildActionsMenu(),
                 const SizedBox(height: 20),
               ],
@@ -519,6 +582,188 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildRatingDynamicsSection() {
+    if (_ratingHistory7.isEmpty && _ratingHistory30.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: const Text('Поки що немає історії змін рейтингу', style: TextStyle(color: Colors.white70)),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Динаміка рейтингу', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          _buildSparklineCard('Останні 7 днів', _ratingHistory7),
+          const SizedBox(height: 8),
+          _buildSparklineCard('Останні 30 днів', _ratingHistory30),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSparklineCard(String title, List<Map<String, dynamic>> history) {
+    final points = history.map<double>((h) => (h['overallRating'] ?? 0.0 as double).toDouble()).toList();
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+              if (points.isNotEmpty)
+                Text(points.last.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 40,
+            child: CustomPaint(
+              painter: SparklinePainter(points),
+              size: const Size(double.infinity, 40),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopVideosSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Топ відео за переглядами', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          if (_topVideos.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: const Text('Поки що немає відео', style: TextStyle(color: Colors.white70)),
+            )
+          else
+            SizedBox(
+              height: 110,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _topVideos.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final v = _topVideos[index];
+                  final thumb = (v['thumbnailUrl'] ?? '') as String;
+                  final title = (v['title'] ?? 'Відео') as String;
+                  final views = (v['views'] ?? 0).toString();
+                  return SizedBox(
+                    width: 160,
+                    child: GestureDetector(
+                      onTap: () {
+                        final videoUrl = (v['videoUrl'] ?? '') as String;
+                        if (videoUrl.isEmpty) return;
+                        final authorNameArg = (v['authorName'] ?? 'Невідомий') as String;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => VideoPlayerScreen(
+                              videoUrl: videoUrl,
+                              title: title,
+                              authorName: authorNameArg,
+                              videoId: v['id'] as String,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white.withOpacity(0.1)),
+                        ),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: thumb.isNotEmpty
+                                  ? Image.network(
+                                      thumb,
+                                      width: 160,
+                                      height: 110,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => _videoThumbFallback(title),
+                                    )
+                                  : _videoThumbFallback(title),
+                            ),
+                            Positioned(
+                              left: 6,
+                              bottom: 6,
+                              right: 6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.6),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.visibility, color: Colors.white70, size: 14),
+                                    const SizedBox(width: 4),
+                                    Text(views, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _videoThumbFallback(String title) {
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  
+
   Widget _buildActionsMenu() {
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -694,9 +939,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _openStats() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Статистика (буде реалізовано)')),
-    );
+    Navigator.pushNamed(context, '/stats');
   }
 
   void _openSubscriptions() {
@@ -714,9 +957,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       MaterialPageRoute(
         builder: (context) => BadgesStoreScreen(),
       ),
-    ).then((_) {
-      // Оновлюємо дані після повернення з магазину
-      setState(() {});
+    ).then((_) async {
+      await _loadUserBadges();
     });
   }
 

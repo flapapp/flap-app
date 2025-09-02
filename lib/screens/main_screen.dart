@@ -397,7 +397,6 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   stream: FirebaseFirestore.instance
                       .collection('transactions')
                       .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
-                      .orderBy('timestamp', descending: true)
                       .limit(50)
                       .snapshots(),
                   builder: (context, snapshot) {
@@ -405,9 +404,19 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       return const Center(child: CircularProgressIndicator(color: Color(0xFFffc107)));
                     }
                     
-                    final transactions = snapshot.data!.docs;
+                    final txDocs = snapshot.data!.docs.toList();
+                    txDocs.sort((a, b) {
+                      final ad = a.data() as Map<String, dynamic>;
+                      final bd = b.data() as Map<String, dynamic>;
+                      final at = ad['timestamp'] as Timestamp?;
+                      final bt = bd['timestamp'] as Timestamp?;
+                      if (at == null && bt == null) return 0;
+                      if (at == null) return 1;
+                      if (bt == null) return -1;
+                      return bt.compareTo(at);
+                    });
                     
-                    if (transactions.isEmpty) {
+                    if (txDocs.isEmpty) {
                       return const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -425,9 +434,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     
                     return ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: transactions.length,
+                      itemCount: txDocs.length,
                       itemBuilder: (context, index) {
-                        final transaction = transactions[index].data() as Map<String, dynamic>;
+                        final transaction = txDocs[index].data() as Map<String, dynamic>;
                         final amount = transaction['amount'] ?? 0;
                         final type = transaction['type'] ?? '';
                         final description = transaction['description'] ?? '';
@@ -600,7 +609,6 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   stream: FirebaseFirestore.instance
                       .collection('rating_history')
                       .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
-                      .orderBy('timestamp', descending: true)
                       .limit(50)
                       .snapshots(),
                   builder: (context, snapshot) {
@@ -608,9 +616,19 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
                     }
                     
-                    final ratingChanges = snapshot.data!.docs;
+                    final docs = snapshot.data!.docs.toList();
+                    docs.sort((a, b) {
+                      final ad = a.data() as Map<String, dynamic>;
+                      final bd = b.data() as Map<String, dynamic>;
+                      final at = ad['timestamp'] as Timestamp?;
+                      final bt = bd['timestamp'] as Timestamp?;
+                      if (at == null && bt == null) return 0;
+                      if (at == null) return 1;
+                      if (bt == null) return -1;
+                      return bt.compareTo(at);
+                    });
                     
-                    if (ratingChanges.isEmpty) {
+                    if (docs.isEmpty) {
                       return const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -634,9 +652,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     
                     return ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: ratingChanges.length,
+                      itemCount: docs.length,
                       itemBuilder: (context, index) {
-                        final change = ratingChanges[index].data() as Map<String, dynamic>;
+                        final change = docs[index].data() as Map<String, dynamic>;
                         final ratingChange = (change['change'] ?? 0.0).toDouble();
                         final newRating = (change['newRating'] ?? 0.0).toDouble();
                         final oldRating = (change['oldRating'] ?? 0.0).toDouble();
@@ -768,8 +786,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     switch (reason) {
       case 'challenge_vote':
         return voterName.isNotEmpty 
-            ? '$voterName проголосував за ваше відео в "$challengeTitle"'
-            : 'Отримано голос за відео в "$challengeTitle"';
+            ? 'За ваше відео проголосував $voterName у "$challengeTitle". Рейтинг оновлено.'
+            : 'За ваше відео отримано голос у "$challengeTitle". Рейтинг оновлено.';
       case 'challenge_win':
         return 'Перемога в челенджі "$challengeTitle"';
       case 'challenge_second':

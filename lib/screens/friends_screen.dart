@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/friend_request.dart';
 import '../services/friends_service.dart';
+import 'dart:async';
 
 class FriendsScreen extends StatefulWidget {
   @override
@@ -23,6 +24,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
 
+  StreamSubscription<List<FriendRequest>>? _incomingSub;
+  StreamSubscription<List<FriendRequest>>? _outgoingSub;
+
   @override
   void initState() {
     super.initState();
@@ -35,6 +39,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
     final currentUser = _auth.currentUser;
     if (currentUser != null) {
       final friends = await _friendsService.getUserFriends(currentUser.uid);
+      if (!mounted) return;
       setState(() {
         _friends = friends;
         _loadingFriends = false;
@@ -43,15 +48,15 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   }
 
   void _listenToRequests() {
-    // Listen to incoming requests
-    _friendsService.getIncomingFriendRequests().listen((requests) {
+    _incomingSub = _friendsService.getIncomingFriendRequests().listen((requests) {
+      if (!mounted) return;
       setState(() {
         _incomingRequests = requests;
       });
     });
 
-    // Listen to outgoing requests
-    _friendsService.getOutgoingFriendRequests().listen((requests) {
+    _outgoingSub = _friendsService.getOutgoingFriendRequests().listen((requests) {
+      if (!mounted) return;
       setState(() {
         _outgoingRequests = requests;
       });
@@ -60,6 +65,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
   @override
   void dispose() {
+    _incomingSub?.cancel();
+    _outgoingSub?.cancel();
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -607,128 +614,161 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
     
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1a1a2e),
-        title: const Text(
-          'Додати друга',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _searchController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Введіть ім\'я користувача',
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF4caf50)),
-                ),
-              ),
-              onChanged: (value) {
-                if (value.length >= 2) {
-                  _searchUsers(value);
-                } else if (value.isEmpty) {
-                  setState(() {
-                    _searchResults.clear();
-                  });
-                }
-              },
-              onSubmitted: (value) {
-                if (value.length >= 2) {
-                  _searchUsers(value);
-                }
-              },
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: const Color(0xFF1a1a2e),
+          title: const Text(
+            'Додати друга',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.7,
+              minHeight: 200,
             ),
-            const SizedBox(height: 16),
-            // Debug info
-            Text(
-              'Debug: ${_searchResults.length} результатів, пошук: $_isSearching',
-              style: const TextStyle(color: Colors.orange, fontSize: 10),
-            ),
-            const SizedBox(height: 8),
-            if (_isSearching)
-              const CircularProgressIndicator(color: Color(0xFF4caf50))
-            else if (_searchResults.isNotEmpty)
-              Container(
-                height: 200,
-                width: double.maxFinite,
-                child: ListView(
-                  children: _searchResults.map((user) => ListTile(
-                      leading: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4caf50),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: () {
-                          final avatarUrl = user['avatarUrl'] ?? user['avatar'] ?? '';
-                          final userName = user['displayName'] ?? user['name'] ?? user['email']?.split('@')[0] ?? 'U';
-                          
-                          if (avatarUrl.isNotEmpty) {
-                            return ClipRRect(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _searchController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Введіть ім\'я користувача',
+                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    ),
+                    focusedBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFF4caf50)),
+                    ),
+                  ),
+                  onChanged: (value) async {
+                    if (value.length >= 2) {
+                      setState(() { _isSearching = true; });
+                      final results = await _friendsService.searchUsers(value);
+                      setState(() {
+                        _searchResults = results;
+                        _isSearching = false;
+                      });
+                    } else if (value.isEmpty) {
+                      setState(() {
+                        _searchResults.clear();
+                        _isSearching = false;
+                      });
+                    } else {
+                      setState(() {
+                        _isSearching = true;
+                        _searchResults.clear();
+                      });
+                    }
+                  },
+                  onSubmitted: (value) async {
+                    if (value.length >= 2) {
+                      setState(() { _isSearching = true; });
+                      final results = await _friendsService.searchUsers(value);
+                      setState(() {
+                        _searchResults = results;
+                        _isSearching = false;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Debug: ${_searchResults.length} результатів, пошук: $_isSearching',
+                  style: const TextStyle(color: Colors.orange, fontSize: 10),
+                ),
+                const SizedBox(height: 8),
+                if (_isSearching)
+                  const CircularProgressIndicator(color: Color(0xFF4caf50))
+                else if (_searchResults.isNotEmpty)
+                  Expanded(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _searchResults.length,
+                      itemBuilder: (context, index) {
+                        final user = _searchResults[index];
+                        final avatarUrl = user['avatarUrl'] ?? user['avatar'] ?? '';
+                        final userName = user['displayName'] ?? user['name'] ?? user['email']?.split('@')[0] ?? 'U';
+                        return ListTile(
+                          leading: GestureDetector(
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/player-profile',
+                                arguments: {
+                                  'playerId': user['id'],
+                                  'playerName': userName,
+                                },
+                              );
+                            },
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4caf50),
                                 borderRadius: BorderRadius.circular(20),
-                                child: Image.network(
-                                avatarUrl,
-                                width: 40,
-                                height: 40,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                    _buildAvatarPlaceholder(userName),
                               ),
-                            );
-                          } else {
-                            return _buildAvatarPlaceholder(userName);
-                          }
-                        }(),
-                      ),
-                      title: Text(
-                        user['name'] ?? 'Невідомий',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      subtitle: Text(
-                        '📍 ${user['city'] ?? 'Невідоме місто'}',
-                        style: TextStyle(color: Colors.white.withOpacity(0.7)),
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.person_add, color: Color(0xFF4caf50)),
-                        onPressed: () => _sendFriendRequest(user['id']),
-                      ),
-                    )).toList(),
-                ),
-              ),
+                              child: avatarUrl.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: Image.network(
+                                        avatarUrl,
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => _buildAvatarPlaceholder(userName),
+                                      ),
+                                    )
+                                  : _buildAvatarPlaceholder(userName),
+                            ),
+                          ),
+                          title: GestureDetector(
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/player-profile',
+                                arguments: {
+                                  'playerId': user['id'],
+                                  'playerName': userName,
+                                },
+                              );
+                            },
+                            child: Text(user['name'] ?? 'Невідомий', style: const TextStyle(color: Colors.white)),
+                          ),
+                          subtitle: Text('📍 ${user['city'] ?? 'Невідоме місто'}', style: TextStyle(color: Colors.white.withOpacity(0.7))),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.person_add, color: Color(0xFF4caf50)),
+                            onPressed: () => _sendFriendRequest(user['id']),
+                          ),
+                        );
+                      },
+                    ),
+                  )
+                else if (!_isSearching && _searchController.text.length >= 2)
+                  const Text('Користувачів не знайдено', style: TextStyle(color: Colors.white70)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
-          ),
-        ],
       ),
     );
   }
 
-  void _searchUsers(String query) async {
+  Future<List<Map<String, dynamic>>> _searchUsers(String query) async {
     if (query.trim().length < 2) {
-      setState(() {
-        _searchResults.clear();
-      });
-      return;
+      return [];
     }
-    
-    setState(() {
-      _isSearching = true;
-      _searchResults.clear();
-    });
 
     try {
       print('🔍 Starting search for: "$query"');
@@ -743,17 +783,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       
       if (allUsers.docs.isEmpty) {
         print('❌ No users found in database!');
-        setState(() {
-          _isSearching = false;
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ В базі даних немає користувачів для пошуку'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
+        return [];
       }
       
       // Показуємо перших кілька користувачів для діагностики
@@ -770,42 +800,10 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       } else {
         print('⚠️ No matching users found for query: "$query"');
       }
-      
-      if (mounted) {
-        setState(() {
-          _searchResults = results;
-          _isSearching = false;
-        });
-        
-        print('🔄 UI Updated with ${results.length} search results');
-        
-        // Показуємо повідомлення якщо нічого не знайдено
-        if (results.isEmpty && query.length >= 2) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('🔍 Користувачів з іменем "$query" не знайдено'),
-              backgroundColor: Colors.blue,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        } else if (results.isNotEmpty) {
-          print('✅ Found ${results.length} users, should be visible in dialog');
-        }
-      }
-      
+      return results;
     } catch (e) {
       print('❌ Search error: $e');
-      setState(() {
-        _isSearching = false;
-        _searchResults.clear();
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Помилка пошуку: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      return [];
     }
   }
 

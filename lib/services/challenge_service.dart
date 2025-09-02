@@ -91,20 +91,44 @@ class ChallengeService {
         final userChallenges = await _challengesCollection
             .where('creatorId', isEqualTo: currentUser.uid)
             .get();
-        
-        // Фільтруємо на клієнті
         final recentChallenges = userChallenges.docs.where((doc) {
-          final challenge = Challenge.fromFirestore(doc);
-          return challenge.createdAt.isAfter(DateTime.now().subtract(const Duration(days: 30)));
+          final c = Challenge.fromFirestore(doc);
+          return c.createdAt.isAfter(DateTime.now().subtract(const Duration(days: 30)));
         }).toList();
-
         if (recentChallenges.length >= maxChallenges) {
           throw Exception('Ліміт: $maxChallenges челендж на місяць. Оформіть підписку для необмежених челенджів!');
         }
       }
 
-      final docRef = await _challengesCollection.add(challenge.toFirestore());
+      // Списуємо вступну плату з творця і формуємо стартовий банк
+      final entryFee = challenge.entryFee;
+      await _firestore.runTransaction((tx) async {
+        final userRef = _firestore.collection('users').doc(currentUser.uid);
+        final userSnap = await tx.get(userRef);
+        final coins = (userSnap.data()?['coins'] ?? 0) as int;
+        if (coins < entryFee) {
+          throw Exception('Недостатньо монет для створення челенджу');
+        }
+        tx.update(userRef, {'coins': FieldValue.increment(-entryFee)});
+      });
+
+      // Створюємо челендж зі стартовим prizePool = entryFee (внесок творця)
+      final docRef = await _challengesCollection.add({
+        ...challenge.toFirestore(),
+        'prizePool': entryFee.toDouble(),
+      });
       final challengeId = docRef.id;
+
+      // Записуємо транзакцію списання для творця
+      await _firestore.collection('transactions').add({
+        'userId': currentUser.uid,
+        'type': 'challenge_create_fee',
+        'amount': -entryFee,
+        'challengeId': challengeId,
+        'challengeTitle': challenge.title,
+        'timestamp': FieldValue.serverTimestamp(),
+        'description': 'Плата за створення челенджу: ${challenge.title}',
+      });
 
       // Відправити нотифікації залежно від аудиторії
       await _sendChallengeInvitations(challengeId, challenge);

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:video_player/video_player.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
@@ -16,6 +18,7 @@ class ChallengesScreen extends StatefulWidget {
 class _ChallengesScreenState extends State<ChallengesScreen> {
   final ChallengeService _challengeService = ChallengeService();
   String _selectedFilter = 'all'; // all, active, my, completed
+  String _selectedSort = 'Нові'; // Нові, Рейтинг, Перегляди
   
   @override
   Widget build(BuildContext context) {
@@ -37,6 +40,27 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                   _buildFilterChip('Мої', 'my'),
                   const SizedBox(width: 8),
                   _buildFilterChip('Завершені', 'completed'),
+                  const SizedBox(width: 12),
+                  Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    ),
+                    child: DropdownButton<String>(
+                      value: _selectedSort,
+                      underline: const SizedBox(),
+                      dropdownColor: const Color(0xFF0f0f23),
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      icon: const Icon(Icons.sort, color: Colors.white70),
+                      items: ['Нові', 'Рейтинг', 'Перегляди']
+                          .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _selectedSort = v ?? 'Нові'),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -57,13 +81,51 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                   return _buildEmptyState();
                 }
 
-                final challenges = snapshot.data!.docs;
+                final all = snapshot.data!.docs;
+                final currentUser = FirebaseAuth.instance.currentUser;
+                final filtered = all.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  switch (_selectedFilter) {
+                    case 'active':
+                      final status = (data['status'] ?? '').toString();
+                      return status == 'recruiting' || status == 'submission' || status == 'voting';
+                    case 'my':
+                      if (currentUser == null) return false;
+                      return (data['creatorId'] ?? '') == currentUser.uid;
+                    case 'completed':
+                      return (data['status'] ?? '') == 'completed';
+                    default:
+                      return true;
+                  }
+                }).toList()
+                ..sort((a, b) {
+                  final ad = a.data() as Map<String, dynamic>;
+                  final bd = b.data() as Map<String, dynamic>;
+                  switch (_selectedSort) {
+                    case 'Рейтинг':
+                      final ar = (ad['averageRating'] ?? 0.0) as num; // якщо є агрегований рейтинг
+                      final br = (bd['averageRating'] ?? 0.0) as num;
+                      return br.compareTo(ar);
+                    case 'Перегляди':
+                      final av = (ad['views'] ?? 0) as num;
+                      final bv = (bd['views'] ?? 0) as num;
+                      return bv.compareTo(av);
+                    case 'Нові':
+                    default:
+                      final at = ad['createdAt'];
+                      final bt = bd['createdAt'];
+                      if (at is Timestamp && bt is Timestamp) {
+                        return bt.compareTo(at);
+                      }
+                      return 0;
+                  }
+                });
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: challenges.length,
+                  itemCount: filtered.length,
                   itemBuilder: (context, index) {
-                    final challengeData = challenges[index].data() as Map<String, dynamic>;
-                    challengeData['id'] = challenges[index].id;
+                    final challengeData = filtered[index].data() as Map<String, dynamic>;
+                    challengeData['id'] = filtered[index].id;
                     return _buildChallengeCard(challengeData);
                   },
                 );
@@ -101,27 +163,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
   }
 
   Stream<QuerySnapshot> _getChallengesStream() {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    Query query = FirebaseFirestore.instance.collection('challenges');
-
-    switch (_selectedFilter) {
-      case 'active':
-        query = query.where('status', whereIn: ['recruiting', 'submission', 'voting']);
-        break;
-      case 'my':
-        if (currentUser != null) {
-          query = query.where('creatorId', isEqualTo: currentUser.uid);
-        }
-        break;
-      case 'completed':
-        query = query.where('status', isEqualTo: 'completed');
-        break;
-      default: // all - показуємо всі челенджі без фільтру isActive
-        // Видаляю фільтр isActive щоб показувати всі
-        break;
-    }
-
-    return query.orderBy('createdAt', descending: true).limit(50).snapshots();
+    // Базовий потік усіх челенджів, далі фільтр на клієнті для стабільності
+    return FirebaseFirestore.instance
+        .collection('challenges')
+        .orderBy('createdAt', descending: true)
+        .limit(50)
+        .snapshots();
   }
 
   Widget _buildEmptyState() {
@@ -164,13 +211,15 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     final description = challengeData['description'] ?? '';
     final creatorName = challengeData['creatorName'] ?? 'Невідомий';
     final creatorVideoUrl = challengeData['creatorVideoUrl'] ?? '';
-    final thumbnailUrl = challengeData['thumbnailUrl'];
+    final thumbnailUrl = challengeData['creatorThumbnailUrl'] ?? challengeData['thumbnailUrl'];
     final participants = (challengeData['participants'] as List?)?.length ?? 0;
     final submissions = (challengeData['submissions'] as List?)?.length ?? 0;
     final entryFee = challengeData['entryFee'] ?? 10;
     final actualPrizePool = participants * entryFee; // Реальний призовий фонд
     final status = challengeData['status'] ?? 'recruiting';
     final endDate = challengeData['endDate'] as Timestamp?;
+    final votingDeadline = challengeData['votingDeadline'] as Timestamp?;
+    final creatorId = challengeData['creatorId'] ?? '';
     
     print('Challenge $challengeId: creatorVideoUrl = "$creatorVideoUrl"');
     print('Challenge $challengeId: title = "$title"');
@@ -178,8 +227,10 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     print('Challenge $challengeId: participants = $participants');
     print('Challenge $challengeId: submissions = $submissions');
     
-    final daysLeft = endDate != null 
-        ? endDate.toDate().difference(DateTime.now()).inDays.clamp(0, 999)
+    final now = DateTime.now();
+    final targetDate = (votingDeadline ?? endDate)?.toDate();
+    final daysLeft = targetDate != null
+        ? targetDate.difference(now).inDays.clamp(0, 999)
         : 0;
 
     return Container(
@@ -440,24 +491,36 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                       return Column(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
-                                          // Аватарка або іконка
-                                          Container(
-                                            width: 32,
-                                            height: 32,
-                                            decoration: BoxDecoration(
-                                              borderRadius: BorderRadius.circular(16),
-                                              border: Border.all(color: Colors.white.withOpacity(0.3)),
-                                            ),
-                                            child: ClipRRect(
-                                              borderRadius: BorderRadius.circular(16),
-                                              child: avatarUrl.isNotEmpty
-                                                  ? Image.network(
-                                                      avatarUrl,
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder: (context, error, stackTrace) =>
-                                                          _buildMiniAvatar(authorName),
-                                                    )
-                                                  : _buildMiniAvatar(authorName),
+                                          // Avatar clickable to profile
+                                          GestureDetector(
+                                            onTap: () {
+                                              Navigator.pushNamed(
+                                                context,
+                                                '/player-profile',
+                                                arguments: {
+                                                  'playerId': submissionUserId,
+                                                  'playerName': authorName,
+                                                },
+                                              );
+                                            },
+                                            child: Container(
+                                              width: 32,
+                                              height: 32,
+                                              decoration: BoxDecoration(
+                                                borderRadius: BorderRadius.circular(16),
+                                                border: Border.all(color: Colors.white.withOpacity(0.3)),
+                                              ),
+                                              child: ClipRRect(
+                                                borderRadius: BorderRadius.circular(16),
+                                                child: avatarUrl.isNotEmpty
+                                                    ? Image.network(
+                                                        avatarUrl,
+                                                        fit: BoxFit.cover,
+                                                        errorBuilder: (context, error, stackTrace) =>
+                                                            _buildMiniAvatar(authorName),
+                                                      )
+                                                    : _buildMiniAvatar(authorName),
+                                              ),
                                             ),
                                           ),
                                           const SizedBox(height: 4),
@@ -529,35 +592,52 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
             Row(
               children: [
                 Expanded(
-                      child: ElevatedButton(
+                  child: ElevatedButton(
                     onPressed: () => _joinChallenge(challengeId),
                     style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4caf50),
+                      backgroundColor: const Color(0xFF4caf50),
                       foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                        child: const Text('Прийняти участь', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    child: const Text('Прийняти участь', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
-                    const SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
-                      child: ElevatedButton(
+                  child: ElevatedButton(
                     onPressed: () => _viewChallengeDetails(challengeId, challengeData),
                     style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.1),
+                      backgroundColor: Colors.white.withOpacity(0.1),
                       foregroundColor: Colors.white,
-                          side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                      side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                        child: Text('📹 Переглянути ($submissions)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    child: Text('📹 Переглянути ($submissions)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
+                if (FirebaseAuth.instance.currentUser?.uid == creatorId && status == 'voting') ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _finishChallenge(challengeId),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text('Завершити', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
               ],
             ),
           ],
@@ -991,46 +1071,35 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     final title = challengeData['title'] ?? 'Челендж';
     final creatorName = challengeData['creatorName'] ?? 'Невідомий';
 
+    final effectiveThumb = (creatorThumbnailUrl.isNotEmpty) ? creatorThumbnailUrl : creatorVideoUrl;
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: creatorThumbnailUrl.isNotEmpty
-            ? Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Реальний thumbnail
-                  Image.network(
-                    creatorThumbnailUrl,
+        child: kIsWeb
+            ? (creatorVideoUrl.isNotEmpty
+                ? Image.network(
+                    creatorVideoUrl,
                     width: double.infinity,
                     height: double.infinity,
                     fit: BoxFit.cover,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return _buildVideoPlaceholder(title, creatorName, creatorVideoUrl.isNotEmpty);
-                    },
+                    errorBuilder: (context, error, stackTrace) => _buildVideoPlaceholder(title, creatorName, true),
+                  )
+                : _buildVideoPlaceholder(title, creatorName, false))
+            : (effectiveThumb.isNotEmpty
+                ? Image.network(
+                    effectiveThumb,
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return _buildVideoPlaceholder(title, creatorName, creatorVideoUrl.isNotEmpty);
                     },
-                  ),
-                  // Темний оверлей для кращої видимості
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.4),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            : _buildVideoPlaceholder(title, creatorName, creatorVideoUrl.isNotEmpty),
+                  )
+                : _buildVideoPlaceholder(title, creatorName, creatorVideoUrl.isNotEmpty)),
       ),
     );
   }
@@ -1088,6 +1157,8 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     );
   }
 
+//
+
   void _playParticipantVideo({
     required String videoUrl,
     required String title,
@@ -1139,4 +1210,73 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       ),
     );
   }
+
+  Future<void> _finishChallenge(String challengeId) async {
+    try {
+      final ok = await ChallengeService().completeChallenge(challengeId);
+      if (!ok) return;
+
+      // Reload winners and show
+      final doc = await FirebaseFirestore.instance.collection('challenges').doc(challengeId).get();
+      final data = doc.data() as Map<String, dynamic>? ?? {};
+      final winners = List<String>.from(data['winners'] ?? []);
+
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: const Color(0xFF0f0f23),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (context) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('🏆 Переможці', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                ...List.generate(winners.length, (i) => _winnerTile(winners[i], place: i + 1)),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Готово'),
+                )
+              ],
+            ),
+          );
+        },
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Челендж завершено. Нараховано призи переможцям.')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Помилка завершення: $e')),
+      );
+    }
+  }
+
+  Widget _winnerTile(String userId, {required int place}) {
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+      builder: (context, snap) {
+        final ud = snap.data?.data() as Map<String, dynamic>? ?? {};
+        final name = ud['displayName'] ?? ud['name'] ?? ud['email']?.split('@')[0] ?? 'Користувач';
+        final avatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
+        final medal = place == 1 ? '🥇' : place == 2 ? '🥈' : '🥉';
+        return ListTile(
+          onTap: () => Navigator.pushNamed(context, '/player-profile', arguments: {'playerId': userId, 'playerName': name}),
+          leading: CircleAvatar(
+            backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+            backgroundColor: const Color(0xFF4caf50),
+            child: avatar.isEmpty ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'U', style: const TextStyle(color: Colors.white)) : null,
+          ),
+          title: Text('$medal $name', style: const TextStyle(color: Colors.white)),
+          subtitle: Text('Місце: $place', style: TextStyle(color: Colors.white.withOpacity(0.7))),
+        );
+      },
+    );
+  }
 }
+

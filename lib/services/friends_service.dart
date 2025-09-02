@@ -225,6 +225,7 @@ class FriendsService {
       return true;
     } catch (e) {
       print('Error responding to friend request: $e');
+      // Hint for rules misconfig: ensure rules allow users/{uid} updates to friends & coins and transactions create
       rethrow;
     }
   }
@@ -435,15 +436,29 @@ class FriendsService {
   // Get friendship date
   Future<DateTime> _getFriendshipDate(String userId1, String userId2) async {
     try {
-      final request = await _friendRequestsCollection
-          .where('fromUserId', whereIn: [userId1, userId2])
-          .where('toUserId', whereIn: [userId1, userId2])
+      // Try from userId1 -> userId2
+      final req1 = await _friendRequestsCollection
+          .where('fromUserId', isEqualTo: userId1)
+          .where('toUserId', isEqualTo: userId2)
           .where('status', isEqualTo: 'accepted')
           .limit(1)
           .get();
 
-      if (request.docs.isNotEmpty) {
-        final friendRequest = FriendRequest.fromFirestore(request.docs.first);
+      if (req1.docs.isNotEmpty) {
+        final friendRequest = FriendRequest.fromFirestore(req1.docs.first);
+        return friendRequest.respondedAt ?? friendRequest.createdAt;
+      }
+
+      // Try reverse userId2 -> userId1
+      final req2 = await _friendRequestsCollection
+          .where('fromUserId', isEqualTo: userId2)
+          .where('toUserId', isEqualTo: userId1)
+          .where('status', isEqualTo: 'accepted')
+          .limit(1)
+          .get();
+
+      if (req2.docs.isNotEmpty) {
+        final friendRequest = FriendRequest.fromFirestore(req2.docs.first);
         return friendRequest.respondedAt ?? friendRequest.createdAt;
       }
 

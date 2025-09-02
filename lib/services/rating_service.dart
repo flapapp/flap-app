@@ -543,4 +543,21 @@ class RatingService {
       return 0.0;
     });
   }
+
+  // Публічний метод для перерахунку загального рейтингу (використовується з челенджів)
+  Future<void> recomputeOverallRating(
+    String userId, {
+    String? reason,
+    String? source,
+    String? sourceType,
+    String? sourceId,
+  }) async {
+    await _updatePlayerRating(
+      userId,
+      reason: reason,
+      source: source,
+      sourceType: sourceType,
+      sourceId: sourceId,
+    );
+  }
 }

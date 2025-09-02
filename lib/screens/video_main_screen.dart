@@ -979,7 +979,14 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       ],
                     ),
                       child: ElevatedButton.icon(
-                      onPressed: () {
+                      onPressed: () async {
+                        // increment views best-effort before opening
+                        try {
+                          await FirebaseFirestore.instance
+                              .collection('videos')
+                              .doc(videoId)
+                              .update({'views': FieldValue.increment(1)});
+                        } catch (_) {}
                         Navigator.push(
                           context,
                           MaterialPageRoute(

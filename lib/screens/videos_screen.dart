@@ -18,6 +18,7 @@ class _VideosScreenState extends State<VideosScreen> {
   String _selectedRating = '';
   String _selectedTab = 'all'; // all, trending, my
   bool _showOnlyMyVideos = false;
+  String _selectedSort = 'Нові'; // Нові, Рейтинг, Перегляди
 
   final List<String> _cities = [
     'Всі міста',
@@ -112,12 +113,37 @@ class _VideosScreenState extends State<VideosScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Dropdown filters
-                                  Row(
-                    children: [
+                // Dropdown filters + sort
+                Row(
+                  children: [
                     Expanded(flex: 1, child: _buildDropdown('🏙️', _selectedCity, _cities, (value) => setState(() => _selectedCity = value))),
                     const SizedBox(width: 8),
                     Expanded(flex: 1, child: _buildDropdown('⭐', _selectedRating, _ratings, (value) => setState(() => _selectedRating = value))),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 1,
+                      child: Container(
+                        height: 36,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white.withOpacity(0.3)),
+                        ),
+                        child: DropdownButton<String>(
+                          value: _selectedSort,
+                          isExpanded: true,
+                          underline: const SizedBox(),
+                          dropdownColor: const Color(0xFF1a1a2e),
+                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                          icon: const Icon(Icons.sort, color: Colors.white70),
+                          items: ['Нові', 'Рейтинг', 'Перегляди']
+                              .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                              .toList(),
+                          onChanged: (v) => setState(() => _selectedSort = v ?? 'Нові'),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -139,13 +165,61 @@ class _VideosScreenState extends State<VideosScreen> {
                   return _buildEmptyState();
                 }
 
-                final videos = snapshot.data!.docs;
+                final currentUser = FirebaseAuth.instance.currentUser;
+                final allDocs = snapshot.data!.docs;
+
+                // Клієнтська фільтрація для стабільності без індексів
+                var docs = allDocs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  if (_selectedTab == 'my' && currentUser != null) {
+                    if ((data['userId'] ?? '') != currentUser.uid) return false;
+                  }
+                  if (_selectedCity.isNotEmpty && _selectedCity != 'Всі міста') {
+                    if ((data['city'] ?? '') != _selectedCity) return false;
+                  }
+                  return true;
+                }).toList();
+
+                // Сортування
+                docs.sort((a, b) {
+                  final ad = a.data() as Map<String, dynamic>;
+                  final bd = b.data() as Map<String, dynamic>;
+                  switch (_selectedSort) {
+                    case 'Рейтинг':
+                      final ar = (ad['rating'] ?? 0.0) as num;
+                      final br = (bd['rating'] ?? 0.0) as num;
+                      return br.compareTo(ar);
+                    case 'Перегляди':
+                      final av = (ad['views'] ?? 0) as num;
+                      final bv = (bd['views'] ?? 0) as num;
+                      return bv.compareTo(av);
+                    case 'Нові':
+                    default:
+                      final at = ad['createdAt'];
+                      final bt = bd['createdAt'];
+                      if (at is Timestamp && bt is Timestamp) {
+                        return bt.compareTo(at);
+                      }
+                      return 0;
+                  }
+                });
+
+                if (_selectedTab == 'trending') {
+                  docs.sort((a, b) {
+                    final ad = a.data() as Map<String, dynamic>;
+                    final bd = b.data() as Map<String, dynamic>;
+                    final alikes = (ad['likes'] ?? 0) as int;
+                    final blikes = (bd['likes'] ?? 0) as int;
+                    return blikes.compareTo(alikes);
+                  });
+                }
+
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: videos.length,
+                  itemCount: docs.length,
                   itemBuilder: (context, index) {
-                    final videoData = videos[index].data() as Map<String, dynamic>;
-                    videoData['id'] = videos[index].id;
+                    final videoData = docs[index].data() as Map<String, dynamic>;
+                    videoData['id'] = docs[index].id;
                     return _buildVideoCard(videoData);
                   },
                 );
@@ -215,26 +289,11 @@ class _VideosScreenState extends State<VideosScreen> {
   }
 
   Stream<QuerySnapshot> _getVideosStream() {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    Query query = FirebaseFirestore.instance.collection('videos');
-
-    // Apply filters
-    if (_selectedTab == 'my' && currentUser != null) {
-      query = query.where('userId', isEqualTo: currentUser.uid);
-    }
-
-    if (_selectedCity.isNotEmpty && _selectedCity != 'Всі міста') {
-      query = query.where('city', isEqualTo: _selectedCity);
-    }
-
-    // Sort by creation date or trending
-    if (_selectedTab == 'trending') {
-      query = query.orderBy('likes', descending: true);
-    } else {
-      query = query.orderBy('createdAt', descending: true);
-    }
-
-    return query.limit(20).snapshots();
+    // Щоб уникнути вимог до складених індексів, беремо останні відео без складних where/ordering
+    return FirebaseFirestore.instance
+        .collection('videos')
+        .limit(50)
+        .snapshots();
   }
 
   Widget _buildEmptyState() {
@@ -293,8 +352,16 @@ class _VideosScreenState extends State<VideosScreen> {
     }
   }
 
-  void _playVideo(String videoUrl, String title, String videoId, String userId) {
+  Future<void> _playVideo(String videoUrl, String title, String videoId, String userId) async {
     if (videoUrl.isNotEmpty) {
+      // Increment views before navigation (best-effort)
+      try {
+        await FirebaseFirestore.instance
+            .collection('videos')
+            .doc(videoId)
+            .update({'views': FieldValue.increment(1)});
+      } catch (_) {}
+
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -1022,7 +1089,7 @@ class _VideosScreenState extends State<VideosScreen> {
   }
 
   Future<VideoPlayerController> _createVideoController(String videoUrl) async {
-    final controller = VideoPlayerController.network(videoUrl);
+    final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
     await controller.initialize();
     await controller.seekTo(const Duration(seconds: 1)); // Перший кадр
     await controller.pause(); // Зупиняємо відео
