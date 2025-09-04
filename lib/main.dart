@@ -32,7 +32,6 @@ import 'services/subscription_service.dart';
 import 'services/notification_service.dart';
 import 'services/badge_service.dart';
 import 'screens/match_management_screen.dart';
-import 'screens/stats_screen.dart';
 
 
 @pragma('vm:entry-point')
@@ -112,7 +111,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'FLAP',
       theme: baseTheme.copyWith(
-        textTheme: GoogleFonts.notoSansTextTheme(baseTheme.textTheme),
+        textTheme: GoogleFonts.poppinsTextTheme(baseTheme.textTheme),
       ),
       initialRoute: '/',
       routes: {
@@ -149,9 +148,9 @@ class MyApp extends StatelessWidget {
             ModalRoute.of(context)!.settings.arguments as app_models.Match;
         return MatchDetailsScreen(match: match);
       },
-        '/match_management': (context) {
+                '/match_management': (context) {
   final match = ModalRoute.of(context)!.settings.arguments as app_models.Match;
-  return MatchManagementScreen(match: match);
+  return MatchManagementScreen(match: match, initialTabIndex: 1);
 },
         '/create-match': (context) => CreateMatchScreen(),
         '/player-profile': (context) {
@@ -163,7 +162,6 @@ class MyApp extends StatelessWidget {
         },
         '/notifications': (context) => NotificationsScreen(),
         '/admin': (context) => AdminScreen(),
-        '/stats': (context) => const StatsScreen(),
         
         // VideoPlayerScreen не має маршруту, оскільки він викликається з параметрами
       },
@@ -332,4 +330,4 @@ class WelcomeScreen extends StatelessWidget {
       ),
     );
   }
-}
+}  

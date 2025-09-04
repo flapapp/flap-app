@@ -362,9 +362,57 @@ class MatchService {
         ratedPlayers++;
       }
     }
-    
-    return ratedPlayers > 0 ? totalRating / ratedPlayers : 0.0;
+        return ratedPlayers > 0 ? totalRating / ratedPlayers : 0.0;
   }
+
+  // Оновити склади команд вручну
+  Future<bool> updateTeams(String matchId, List<String> teamAPlayers, List<String> teamBPlayers) async {
+    try {
+      final docRef = _firestore.collection('matches').doc(matchId);
+
+      // Отримаємо рейтинги поза транзакцією
+      final Map<String, double> ratings = await _getPlayerRatings([...teamAPlayers, ...teamBPlayers]);
+
+      return await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(docRef);
+        if (!snap.exists) throw Exception('Match not found');
+
+        final match = Match.fromFirestore(snap);
+
+        // Перевірки
+        final all = {...teamAPlayers, ...teamBPlayers}.toList();
+        if (all.length != teamAPlayers.length + teamBPlayers.length) {
+          throw Exception('Гравець не може бути у двох командах');
+        }
+        if (all.toSet().difference(match.participants.toSet()).isNotEmpty) {
+          throw Exception('У складах є гравці, яких немає серед учасників матчу');
+        }
+
+        final teamA = Team(
+          name: 'Команда A',
+          playerIds: teamAPlayers,
+          averageRating: _calculateTeamAverageRating(teamAPlayers, ratings),
+        );
+        final teamB = Team(
+          name: 'Команда B',
+          playerIds: teamBPlayers,
+          averageRating: _calculateTeamAverageRating(teamBPlayers, ratings),
+        );
+
+        tx.update(docRef, {
+          'teamA': teamA.toFirestore(),
+          'teamB': teamB.toFirestore(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        return true;
+      });
+    } catch (e) {
+      print('Error updateTeams: $e');
+      return false;
+    }
+  }
+
     // Почати матч
   Future<bool> startMatch(String matchId) async {
     try {

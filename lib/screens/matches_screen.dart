@@ -14,6 +14,7 @@ import '../services/rating_service.dart';
 import 'match_management_screen.dart';
 
 
+
 class MatchesScreen extends StatefulWidget {
   @override
   _MatchesScreenState createState() => _MatchesScreenState();
@@ -714,24 +715,17 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   }
 
   // Метод для створення картки матчу
-    Widget _buildMatchCard(Match match) {
+  Widget _buildMatchCard(Match match) {
   final currentUserId = FirebaseAuth.instance.currentUser?.uid;
   if (currentUserId == null) return SizedBox.shrink();
 
   return Container(
     margin: EdgeInsets.only(bottom: 16),
     decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Colors.white.withOpacity(0.1),
-          Colors.white.withOpacity(0.05),
-        ],
-      ),
+      color: Colors.white.withOpacity(0.08),
       borderRadius: BorderRadius.circular(16),
       border: Border.all(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withOpacity(0.2),
         width: 1,
       ),
     ),
@@ -740,7 +734,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Заголовок та статус
+          // Заголовок з статусом
           Row(
             children: [
               Expanded(
@@ -756,13 +750,17 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(match.status),
+                  color: _getStatusColor(match.status).withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _getStatusColor(match.status),
+                    width: 1,
+                  ),
                 ),
                 child: Text(
                   _getStatusText(match.status),
                   style: TextStyle(
-                    color: Colors.white,
+                    color: _getStatusColor(match.status),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -773,20 +771,20 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
           
           SizedBox(height: 12),
           
-          // Інформація про матч
+          // Дата та час
           Row(
             children: [
-              Icon(Icons.location_on, color: Colors.white70, size: 16),
-              SizedBox(width: 8),
-              Text(
-                match.city,
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-              SizedBox(width: 16),
               Icon(Icons.calendar_today, color: Colors.white70, size: 16),
               SizedBox(width: 8),
               Text(
                 '${match.date.day}.${match.date.month}.${match.date.year}',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              SizedBox(width: 16),
+              Icon(Icons.access_time, color: Colors.white70, size: 16),
+              SizedBox(width: 8),
+              Text(
+                match.time,
                 style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
@@ -794,19 +792,29 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
           
           SizedBox(height: 8),
           
+          // Локація
           Row(
             children: [
-              Icon(Icons.access_time, color: Colors.white70, size: 16),
+              Icon(Icons.location_on, color: Colors.white70, size: 16),
               SizedBox(width: 8),
-              Text(
-                match.time,
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+              Expanded(
+                child: Text(
+                  match.location,
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
               ),
-              SizedBox(width: 16),
-              Icon(Icons.people, color: Colors.white70, size: 16),
+            ],
+          ),
+          
+          SizedBox(height: 8),
+          
+          // Рівень складності
+          Row(
+            children: [
+              Icon(Icons.star, color: Colors.amber, size: 16),
               SizedBox(width: 8),
               Text(
-                '${match.currentPlayers}/${match.maxPlayers}',
+                'Рівень: ${_getLevelText(match.level)}',
                 style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
@@ -814,107 +822,28 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
           
           SizedBox(height: 12),
           
-          // Рівень складності
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: _getLevelColor(match.level).withOpacity(0.2),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: _getLevelColor(match.level),
-                width: 1,
-              ),
-            ),
-            child: Text(
-              _getLevelText(match.level),
-              style: TextStyle(
-                color: _getLevelColor(match.level),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          
-          SizedBox(height: 16),
-          
-          // Кнопки дій
+          // Кількість гравців
           Row(
             children: [
-              // Кнопка залежно від статусу користувача
-                            // Кнопка залежно від статусу користувача
-              Expanded(
-                child: _buildActionButton(match, currentUserId!),
-              ),
-              
-              SizedBox(width: 12),
-              
-              // Кнопка деталей
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/match-details',
-                      arguments: match,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: Colors.white24),
-                    ),
-                  ),
-                  child: Text(
-                    'Деталі',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
+              Icon(Icons.people, color: Colors.white70, size: 16),
+              SizedBox(width: 8),
+              Text(
+                '${match.participants.length}/${match.maxPlayers} учасників',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
           ),
           
-          // Кнопка оцінювання для завершених матчів
-          if (match.status == MatchStatus.finished && match.isParticipant(currentUserId)) ...[
-            SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/match_rating',
-                    arguments: match,
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF4caf50),
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(
-                  '⭐ Оцінити гравців',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          SizedBox(height: 16),
+          
+          // Кнопка дії
+          _buildActionButton(match, currentUserId),
         ],
       ),
     ),
   );
 }
+
 
 Widget _buildActionButton(Match match, String currentUserId) {
   final userStatus = _convertUserStatus(match.getUserStatus(currentUserId));
@@ -1147,36 +1076,56 @@ Widget _buildActionButton(Match match, String currentUserId) {
   }
 
   // Метод для отримання кольору статусу
-  Color _getStatusColor(MatchStatus status) {
-    switch (status) {
-      case MatchStatus.open:
-        return Color(0xFF4caf50); // Зелений - матч відкритий для участі
-      case MatchStatus.full:
-        return Color(0xFFFF9800); // Помаранчевий - матч заповнений
-      case MatchStatus.inProgress:
-        return Color(0xFF2196F3); // Синій - матч в процесі
-      case MatchStatus.finished:
-        return Color(0xFF9E9E9E); // Сірий - матч завершено
-      case MatchStatus.cancelled:
-        return Color(0xFFF44336); // Червоний - матч скасовано
-    }
+Color _getStatusColor(MatchStatus status) {
+  switch (status) {
+    case MatchStatus.open:
+      return Colors.blue;
+    case MatchStatus.full:
+      return Colors.green;
+    case MatchStatus.inProgress:
+      return Colors.orange;
+    case MatchStatus.finished:
+      return Colors.grey;
+    case MatchStatus.cancelled:
+      return Colors.red;
+    default:
+      return Colors.grey;
   }
+}
 
-  // Метод для отримання тексту статусу
-  String _getStatusText(MatchStatus status) {
-    switch (status) {
-      case MatchStatus.open:
-        return 'Відкрито';
-      case MatchStatus.full:
-        return 'Заповнено';
-      case MatchStatus.inProgress:
-        return 'В процесі';
-      case MatchStatus.finished:
-        return 'Завершено';
-      case MatchStatus.cancelled:
-        return 'Скасовано';
-    }
+String _getStatusText(MatchStatus status) {
+  switch (status) {
+    case MatchStatus.open:
+      return 'Відкрито';
+    case MatchStatus.full:
+      return 'Заповнено';
+    case MatchStatus.inProgress:
+      return 'В процесі';
+    case MatchStatus.finished:
+      return 'Завершено';
+    case MatchStatus.cancelled:
+      return 'Скасовано';
+    default:
+      return 'Невідомо';
   }
+}
+
+IconData _getStatusIcon(MatchStatus status) {
+  switch (status) {
+    case MatchStatus.open:
+      return Icons.person_add;
+    case MatchStatus.full:
+      return Icons.check_circle;
+    case MatchStatus.inProgress:
+      return Icons.play_circle;
+    case MatchStatus.finished:
+      return Icons.done_all;
+    case MatchStatus.cancelled:
+      return Icons.cancel;
+    default:
+      return Icons.help;
+  }
+}
 
   // Метод для форматування дати та часу
   String _formatDateTime(DateTime dateTime) {

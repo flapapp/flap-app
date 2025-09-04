@@ -7,8 +7,9 @@ import '../services/match_service.dart';
 
 class MatchManagementScreen extends StatefulWidget {
   final Match match;
-  
-  const MatchManagementScreen({Key? key, required this.match}) : super(key: key);
+  final int initialTabIndex;
+
+  const MatchManagementScreen({Key? key, required this.match, this.initialTabIndex = 1}) : super(key: key);
   
   @override
   _MatchManagementScreenState createState() => _MatchManagementScreenState();
@@ -18,19 +19,27 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
   late TabController _tabController;
   final MatchService _matchService = MatchService();
   
-    // Змінні для управління
+  // Змінні для управління
   List<String> _pendingApplications = [];
   List<String> _participants = [];
   bool _isLoading = false;
-  final Set<String> _busyUserIds = {}; // <- додаємо
+  final Set<String> _busyUserIds = {};
   // Змінні для завершення матчу
   int _teamAScore = 0;
   int _teamBScore = 0;
+
+  // Редактор команд (Drag&Drop)
+  bool _editMode = false;
+  List<String> _editingTeamA = [];
+  List<String> _editingTeamB = [];
+  final Set<String> _locked = {};
+  bool _isSavingTeams = false;
+  Map<String, double> _ratingsCache = {};
   
-  @override
+    @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTabIndex);
     _loadMatchData();
   }
   
@@ -155,7 +164,6 @@ Widget _buildApplicationsTab() {
   );
 }
 
-    // Вкладка команд
   // Вкладка команд (автооновлення)
 Widget _buildTeamsTab() {
   return StreamBuilder<DocumentSnapshot>(
@@ -172,6 +180,7 @@ Widget _buildTeamsTab() {
       }
 
       final m = Match.fromFirestore(snap.data!);
+      final isOrganizer = FirebaseAuth.instance.currentUser?.uid == m.organizerId;
 
       return Padding(
         padding: const EdgeInsets.all(16),
@@ -198,11 +207,31 @@ Widget _buildTeamsTab() {
                     style: GoogleFonts.poppins(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ),
+                                const Spacer(),
+                if (m.hasTeams && isOrganizer) ...[
+                  // Тумблер редагування
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _editMode = !_editMode;
+                        if (_editMode) {
+                          _editingTeamA = List<String>.from(m.teamA?.playerIds ?? []);
+                          _editingTeamB = List<String>.from(m.teamB?.playerIds ?? []);
+                          _locked.clear();
+                          _ratingsCache.clear();
+                        }
+                      });
+                    },
+                    icon: Icon(_editMode ? Icons.close : Icons.edit, color: Colors.white70),
+                    label: Text(_editMode ? 'Завершити редагування' : 'Редагувати склади',
+                      style: const TextStyle(color: Colors.white70)),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 20),
 
-            // Кнопка формування команд
+            // Автоформування (якщо ще нема команд)
             if (!m.hasTeams && m.participants.length >= 4)
               SizedBox(
                 width: double.infinity,
@@ -224,23 +253,298 @@ Widget _buildTeamsTab() {
                 ),
               ),
 
-            const SizedBox(height: 20),
+                        const SizedBox(height: 20),
 
-            // Відображення команд / підказки
-            if (m.hasTeams) ...[
-              _buildTeamCard('Команда A', m.teamA!),
-              const SizedBox(height: 16),
-              _buildTeamCard('Команда B', m.teamB!),
-            ] else if (m.participants.length < 4) ...[
+            if (m.hasTeams && !_editMode) ...[
+              // Баланс команд у стилі MVP
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.08)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Заголовок + Перемішати
+                    Row(
+                      children: [
+                        Icon(Icons.scale, color: Colors.white70),
+                        const SizedBox(width: 8),
+                        Text('Баланс команд',
+                            style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            )),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () async {
+                            // швидке перемішування поверх існуючих складів
+                            final ratings = _ratingsCache.isEmpty
+                                ? await _fetchRatings([...m.teamA!.playerIds, ...m.teamB!.playerIds])
+                                : _ratingsCache;
+                            setState(() {
+                              _editingTeamA = List<String>.from(m.teamA!.playerIds);
+                              _editingTeamB = List<String>.from(m.teamB!.playerIds);
+                              _autoDistributeEditingPlayers(ratings);
+                            });
+                            final ok = await _confirm('Перемішати команди?', 'Переформувати склади на основі рейтингу');
+                            if (ok == true) {
+                              await _matchService.updateTeams(widget.match.id, _editingTeamA, _editingTeamB);
+                            }
+                          },
+                          icon: const Icon(Icons.shuffle, color: Colors.white),
+                          label: const Text('Перемішати', style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Дві картки команд
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // A
+                        Expanded(
+                          child: _mvpTeamCard(
+                            title: 'Сильні Ведмеді',
+                            color: const Color(0xFF1976D2),
+                            avg: m.teamA!.averageRating,
+                            players: m.teamA!.playerIds,
+                            ratings: _ratingsCache,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // B
+                        Expanded(
+                          child: _mvpTeamCard(
+                            title: 'Гордовіті Леви',
+                            color: const Color(0xFF8E24AA),
+                            avg: m.teamB!.averageRating,
+                            players: m.teamB!.playerIds,
+                            ratings: _ratingsCache,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    // Управління матчем
+                    Text('Управління матчем',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        )),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final ok = await _confirm('Завершити матч?', 'Підтвердити рахунок і завершити матч');
+                              if (ok != true) return;
+                              Navigator.pushNamed(context, '/match_rating', arguments: m);
+                            },
+                            icon: const Icon(Icons.flag, color: Colors.white),
+                            label: const Text('Завершити матч', style: TextStyle(color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFFA000),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final ok = await _confirm('Скасувати матч?', 'Скасувати подію і повідомити учасників');
+                              if (ok != true) return;
+                              // За потреби: виклик сервісу скасування
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Матч скасовано'), backgroundColor: Colors.redAccent),
+                              );
+                            },
+                            icon: const Icon(Icons.cancel, color: Colors.white),
+                            label: const Text('Скасувати', style: TextStyle(color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE53935),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (!m.hasTeams && m.participants.length < 4) ...[
               _hintBox(Icons.info_outline, Colors.orange, 'Для формування команд потрібно мінімум 4 гравці'),
+            ] else if (_editMode) ...[
+              // Редактор з Drag&Drop
+              FutureBuilder<Map<String, double>>(
+                future: _ratingsCache.isEmpty
+                    ? _fetchRatings([..._editingTeamA, ..._editingTeamB]).then((m) {
+                        _ratingsCache = m; return m;
+                      })
+                    : Future.value(_ratingsCache),
+                builder: (context, rSnap) {
+                  final ratings = rSnap.data ?? _ratingsCache;
+                  double avgA() {
+                    if (_editingTeamA.isEmpty) return 0.0;
+                    return _editingTeamA.map((id) => ratings[id] ?? 0.0).fold(0.0, (a, b) => a + b) / _editingTeamA.length;
+                  }
+                  double avgB() {
+                    if (_editingTeamB.isEmpty) return 0.0;
+                    return _editingTeamB.map((id) => ratings[id] ?? 0.0).fold(0.0, (a, b) => a + b) / _editingTeamB.length;
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Індикатор балансу та дії
+                      Row(
+                        children: [
+                          Icon(Icons.balance, color: Colors.white70, size: 18),
+                          const SizedBox(width: 8),
+                          Text('Баланс: A ${avgA().toStringAsFixed(1)} vs B ${avgB().toStringAsFixed(1)}',
+                              style: const TextStyle(color: Colors.white70)),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                final tmp = _editingTeamA;
+                                _editingTeamA = _editingTeamB;
+                                _editingTeamB = tmp;
+                              });
+                            },
+                            icon: const Icon(Icons.swap_horiz, color: Colors.white70),
+                            label: const Text('Поміняти місцями', style: TextStyle(color: Colors.white70)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Зони перетягування
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Team A
+                          Expanded(
+                            child: _dragZone(
+                              title: 'Команда A',
+                              players: _editingTeamA,
+                              onRemove: (id) { if (_locked.contains(id)) return; setState(() => _editingTeamA.remove(id)); },
+                              onAcceptFromOther: (id) {
+                                if (_locked.contains(id)) return;
+                                setState(() {
+                                  _editingTeamB.remove(id);
+                                  if (!_editingTeamA.contains(id)) _editingTeamA.add(id);
+                                });
+                              },
+                              locked: _locked,
+                              onToggleLock: (id) => setState(() {
+                                _locked.contains(id) ? _locked.remove(id) : _locked.add(id);
+                              }),
+                              ratings: ratings,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Team B
+                          Expanded(
+                            child: _dragZone(
+                              title: 'Команда B',
+                              players: _editingTeamB,
+                              onRemove: (id) { if (_locked.contains(id)) return; setState(() => _editingTeamB.remove(id)); },
+                              onAcceptFromOther: (id) {
+                                if (_locked.contains(id)) return;
+                                setState(() {
+                                  _editingTeamA.remove(id);
+                                  if (!_editingTeamB.contains(id)) _editingTeamB.add(id);
+                                });
+                              },
+                              locked: _locked,
+                              onToggleLock: (id) => setState(() {
+                                _locked.contains(id) ? _locked.remove(id) : _locked.add(id);
+                              }),
+                              ratings: ratings,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isSavingTeams ? null : () async {
+                            final ok = await _confirm('Зберегти склади?', 'Оновити команди A/B для цього матчу');
+                            if (ok != true) return;
+                            setState(() => _isSavingTeams = true);
+                            final success = await _matchService.updateTeams(
+                              widget.match.id, _editingTeamA, _editingTeamB,
+                            );
+                            setState(() => _isSavingTeams = false);
+                            if (success) {
+                              setState(() => _editMode = false);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Склади збережено'), backgroundColor: Color(0xFF4caf50)),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Не вдалося зберегти склади'), backgroundColor: Colors.red),
+                              );
+                            }
+                          },
+                          icon: _isSavingTeams
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.save, color: Colors.white),
+                          label: Text(_isSavingTeams ? 'Збереження…' : 'Зберегти склади',
+                              style: const TextStyle(color: Colors.white)),
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4caf50), padding: const EdgeInsets.symmetric(vertical: 14)),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ] else ...[
-              _hintBox(Icons.people, Colors.blue, 'Натисніть "Сформувати команди" для автоматичного розподілу'),
+              _hintBox(Icons.people, Colors.blue, 'Натисніть "Сформувати команди" або "Редагувати склади"'),
             ],
           ],
         ),
       );
     },
   );
+}
+void _enterEditMode(Match m, {bool manual = false}) {
+  _editMode = true;
+  _locked.clear();
+  _ratingsCache.clear();
+
+  if (manual || !m.hasTeams) {
+    // Порожні склади для ручного формування
+    _editingTeamA = [];
+    _editingTeamB = [];
+  } else {
+    // Редагування вже сформованих складів
+    _editingTeamA = List<String>.from(m.teamA?.playerIds ?? []);
+    _editingTeamB = List<String>.from(m.teamB?.playerIds ?? []);
+  }
+  setState(() {});
+}
+
+void _autoDistributeEditingPlayers(Map<String, double> ratings) {
+  final List<String> all = [..._editingTeamA, ..._editingTeamB];
+  _editingTeamA.clear();
+  _editingTeamB.clear();
+
+  all.sort((a, b) => (ratings[b] ?? 0.0).compareTo(ratings[a] ?? 0.0));
+
+  for (int i = 0; i < all.length; i++) {
+    (i % 2 == 0 ? _editingTeamA : _editingTeamB).add(all[i]);
+  }
+
+  setState(() {});
 }
   
 
@@ -348,7 +652,7 @@ Widget _buildSettingsTab() {
     },
   );
 }
-  // Картка заявки
+// Картка заявки
 Widget _buildApplicationCard(String userId) {
   return Container(
     margin: EdgeInsets.only(bottom: 12),
@@ -361,42 +665,102 @@ Widget _buildApplicationCard(String userId) {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Color(0xFF4caf50),
-              child: Text(
-                userId.substring(0, 2).toUpperCase(),
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        // Заголовок заявки з даними користувача (імʼя/аватар/рейтинг)
+        StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .snapshots(),
+          builder: (context, snap) {
+            final Map<String, dynamic> data =
+                (snap.hasData && snap.data!.exists)
+                    ? (snap.data!.data() as Map<String, dynamic>)
+                    : const {};
+            final String displayName =
+                (data['displayName'] ?? 'Гравець') as String;
+            final String? photoUrl = data['photoUrl'] as String?;
+            final double rating = (data['rating'] is num)
+                ? (data['rating'] as num).toDouble()
+                : 0.0;
+
+            return InkWell(
+              onTap: () {
+                Navigator.pushNamed(
+                  context,
+                  '/player-profile',
+                  arguments: {
+                    'playerId': userId,
+                    'playerName': displayName,
+                  },
+                );
+              },
+              child: Row(
                 children: [
-                  Text(
-                    'Гравець ID: $userId',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: const Color(0xFF4caf50),
+                    backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                        ? NetworkImage(photoUrl)
+                        : null,
+                    child: (photoUrl == null || photoUrl.isEmpty)
+                        ? Text(
+                            userId.substring(0, 2).toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null,
                   ),
-                  Text(
-                    'Очікує відповіді',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          displayName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              color: Color(0xFFFFD54F),
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              rating.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'ID: ${userId.substring(0, 6)}…',
+                              style: const TextStyle(
+                                color: Colors.white38,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
+            );
+          },
         ),
-        SizedBox(height: 16),
+
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
@@ -467,6 +831,28 @@ Widget _hintBox(IconData icon, Color color, String text) {
     ),
   );
 }
+  
+Future<Map<String, double>> _fetchRatings(List<String> ids) async {
+  final Map<String, double> result = {};
+  const int chunkSize = 10;
+  for (var i = 0; i < ids.length; i += chunkSize) {
+    final chunk = ids.sublist(i, i + chunkSize > ids.length ? ids.length : i + chunkSize);
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .where(FieldPath.documentId, whereIn: chunk)
+        .get();
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final r = (data['rating'] is num) ? (data['rating'] as num).toDouble() : 0.0;
+      result[doc.id] = r;
+    }
+    for (final id in chunk) {
+      result.putIfAbsent(id, () => 0.0);
+    }
+  }
+  return result;
+}
+
   
   // Прийняття заявки
   Future<void> _acceptApplication(String userId) async {
@@ -602,6 +988,148 @@ Widget _hintBox(IconData icon, Color color, String text) {
       ),
     );
   }
+  Widget _mvpTeamCard({
+  required String title,
+  required Color color,
+  required double avg,
+  required List<String> players,
+  required Map<String, double> ratings,
+}) {
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: color.withOpacity(0.6), width: 2),
+      color: Colors.white.withOpacity(0.02),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title,
+            style: GoogleFonts.poppins(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+            )),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Icon(Icons.star, color: Color(0xFFFFD54F), size: 28),
+            const SizedBox(width: 8),
+            Text(avg.toStringAsFixed(1),
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                )),
+            const SizedBox(width: 6),
+            Text('середній рейтинг',
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...players.map((id) {
+          final r = ratings[id] ?? 0.0;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                const Icon(Icons.person, color: Colors.deepPurpleAccent, size: 18),
+                const SizedBox(width: 8),
+                Text(id.substring(0, 14),
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(color: Colors.white, fontSize: 14)),
+                const Spacer(),
+                Text(r.toStringAsFixed(1),
+                    style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
+              ],
+            ),
+          );
+        }),
+      ],
+    ),
+  );
+}
+  Widget _dragZone({
+  required String title,
+  required List<String> players,
+  required void Function(String id) onRemove,
+  required void Function(String id) onAcceptFromOther,
+  required Set<String> locked,
+  required void Function(String id) onToggleLock,
+  required Map<String, double> ratings,
+}) {
+  return DragTarget<String>(
+    onWillAccept: (id) => id != null && !(locked.contains(id)),
+    onAccept: onAcceptFromOther,
+    builder: (context, candidate, rejected) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: candidate.isNotEmpty ? Colors.blueAccent : Colors.white.withOpacity(0.1)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(title, style: GoogleFonts.poppins(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                  child: Text('${players.length}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: players.map((id) {
+                final isLocked = locked.contains(id);
+                final r = ratings[id] ?? 0.0;
+                return LongPressDraggable<String>(
+                  data: id,
+                  feedback: Material(
+                    color: Colors.transparent,
+                    child: Chip(
+                      label: Text('${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(1)})'),
+                      backgroundColor: Colors.blueGrey.shade700,
+                      labelStyle: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  child: Chip(
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(1)})'),
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: () => onToggleLock(id),
+                          child: Icon(isLocked ? Icons.lock : Icons.lock_open, size: 16, color: Colors.white70),
+                        ),
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: () => onRemove(id),
+                          child: Icon(Icons.close, size: 16, color: isLocked ? Colors.white24 : Colors.white70),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: isLocked ? Colors.white12 : Colors.white10,
+                    labelStyle: const TextStyle(color: Colors.white),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
   
   Future<void> _autoBalanceTeams() async {
     setState(() => _isLoading = true);
