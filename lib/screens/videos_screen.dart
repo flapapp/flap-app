@@ -6,8 +6,15 @@ import 'package:video_player/video_player.dart';
 import 'video_upload_screen.dart';
 import 'video_player_screen.dart';
 import '../widgets/rating_display.dart';
+import '../widgets/user_chip.dart';
+import '../services/notification_service.dart';
+import '../services/friends_service.dart';
+import '../models/friend_request.dart' show Friend;
 
 class VideosScreen extends StatefulWidget {
+  final bool showOnlyMyVideos;
+  const VideosScreen({Key? key, this.showOnlyMyVideos = false}) : super(key: key);
+
   @override
   _VideosScreenState createState() => _VideosScreenState();
 }
@@ -15,6 +22,7 @@ class VideosScreen extends StatefulWidget {
 class _VideosScreenState extends State<VideosScreen> {
   String _selectedCity = '';
   String _selectedCategory = '';
+  final Set<String> _selectedCategories = <String>{};
   String _selectedRating = '';
   String _selectedTab = 'all'; // all, trending, my
   bool _showOnlyMyVideos = false;
@@ -31,11 +39,12 @@ class _VideosScreenState extends State<VideosScreen> {
 
   final List<String> _categories = [
     'Всі категорії',
-    'Удари',
-    'Дриблінг',
-    'Передачі',
-    'Захист',
-    'Воротар',
+    'Техніка',
+    'Фізика',
+    'Тактика',
+    'Командна гра',
+    'Фрістайл',
+    'Інше',
   ];
 
   final List<String> _ratings = [
@@ -85,9 +94,19 @@ class _VideosScreenState extends State<VideosScreen> {
                     itemCount: _categories.length,
                     itemBuilder: (context, index) {
                       final category = _categories[index];
-                      final isSelected = _selectedCategory == category;
+                      final isSelected = _selectedCategories.contains(category);
                       return GestureDetector(
-                        onTap: () => setState(() => _selectedCategory = category),
+                        onTap: () => setState(() {
+                          if (category == 'Всі категорії') {
+                            _selectedCategories.clear();
+                          } else {
+                            if (isSelected) {
+                              _selectedCategories.remove(category);
+                            } else {
+                              _selectedCategories.add(category);
+                            }
+                          }
+                        }),
                         child: Container(
                           margin: const EdgeInsets.only(right: 8),
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -98,13 +117,19 @@ class _VideosScreenState extends State<VideosScreen> {
                               color: isSelected ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.3),
                             ),
                           ),
-                          child: Text(
+                          child: Row(
+                            children: [
+                              Text(
                             category,
                             style: TextStyle(
                               color: isSelected ? Colors.white : Colors.white70,
                               fontSize: 12,
                               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                             ),
+                              ),
+                              if (isSelected) const SizedBox(width: 6),
+                              if (isSelected) const Icon(Icons.check, size: 14, color: Colors.white),
+                            ],
                           ),
                         ),
                       );
@@ -171,11 +196,15 @@ class _VideosScreenState extends State<VideosScreen> {
                 // Клієнтська фільтрація для стабільності без індексів
                 var docs = allDocs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  if (_selectedTab == 'my' && currentUser != null) {
+                  if ((_selectedTab == 'my' || widget.showOnlyMyVideos) && currentUser != null) {
                     if ((data['userId'] ?? '') != currentUser.uid) return false;
                   }
                   if (_selectedCity.isNotEmpty && _selectedCity != 'Всі міста') {
                     if ((data['city'] ?? '') != _selectedCity) return false;
+                  }
+                  if (_selectedCategories.isNotEmpty) {
+                    final category = (data['category'] ?? '').toString();
+                    if (!_selectedCategories.contains(category)) return false;
                   }
                   return true;
                 }).toList();
@@ -368,7 +397,7 @@ class _VideosScreenState extends State<VideosScreen> {
           builder: (context) => VideoPlayerScreen(
             videoUrl: videoUrl,
             title: title,
-            authorName: '', // Will be loaded in VideoPlayerScreen
+            authorName: '', // Real name + avatar will be loaded in VideoPlayerScreen
             videoId: videoId,
           ),
         ),
@@ -376,15 +405,30 @@ class _VideosScreenState extends State<VideosScreen> {
     }
   }
 
-  void _likeVideo(String videoId) {
-    // Implement like functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('❤️ Відео вподобано!'),
-        duration: Duration(seconds: 1),
-        backgroundColor: Color(0xFF4caf50),
-      ),
-    );
+  Future<void> _toggleLike(String videoId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final likeRef = FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .collection('likes')
+          .doc(uid);
+
+      final likeDoc = await likeRef.get();
+      final isLiked = likeDoc.exists;
+      if (isLiked) {
+        await likeRef.delete();
+        await FirebaseFirestore.instance.collection('videos').doc(videoId).update({'likes': FieldValue.increment(-1)});
+      } else {
+        await likeRef.set({'userId': uid, 'createdAt': FieldValue.serverTimestamp()});
+        await FirebaseFirestore.instance.collection('videos').doc(videoId).update({'likes': FieldValue.increment(1)});
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка лайку: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   void _shareVideo(String videoId, String title) {
@@ -395,6 +439,75 @@ class _VideosScreenState extends State<VideosScreen> {
         backgroundColor: const Color(0xFF4caf50),
       ),
     );
+  }
+
+  Future<void> _requestRatingForVideo(String videoId, String title) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    try {
+      final friendsService = FriendsService();
+      final friends = await friendsService.getUserFriends(currentUser.uid);
+      if (friends.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Немає друзів для запиту оцінки')),
+        );
+        return;
+      }
+      final selected = <String>{};
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setStateDialog) => AlertDialog(
+            backgroundColor: const Color(0xFF1a1a2e),
+            title: const Text('Запросити друзів оцінити відео', style: TextStyle(color: Colors.white)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: friends.length,
+                itemBuilder: (context, index) {
+                  final f = friends[index] as Friend;
+                  final friendId = f.userId;
+                  final friendName = f.name;
+                  final isSel = selected.contains(friendId);
+                  return CheckboxListTile(
+                    value: isSel,
+                    onChanged: (val) => setStateDialog(() {
+                      if (val == true) { selected.add(friendId); } else { selected.remove(friendId); }
+                    }),
+                    title: Text(friendName, style: const TextStyle(color: Colors.white)),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Скасувати', style: TextStyle(color: Colors.white70))),
+              ElevatedButton(
+                onPressed: selected.isEmpty ? null : () async {
+                  final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+                  final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач').toString();
+                  await NotificationService().sendRatingRequest(
+                    toUserIds: selected.toList(),
+                    fromUserName: myName,
+                    videoIds: [videoId],
+                  );
+                  if (!mounted) return;
+                  Navigator.pop(context, true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('✅ Запити на оцінку надіслано')),
+                  );
+                },
+                child: const Text('Надіслати'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   void _showComments(String videoId, String title) {
@@ -628,18 +741,18 @@ class _VideosScreenState extends State<VideosScreen> {
   // Градієнти для різних категорій відео
   List<Color> _getVideoGradient(String category) {
     switch (category.toLowerCase()) {
-      case 'удари':
-      case 'голи':
-        return [const Color(0xFFff6b6b), const Color(0xFFee5a24)]; // Червоний
-      case 'дриблінг':
       case 'техніка':
-        return [const Color(0xFF4834d4), const Color(0xFF686de0)]; // Фіолетовий
-      case 'передачі':
-        return [const Color(0xFF00d2d3), const Color(0xFF54a0ff)]; // Блакитний
-      case 'захист':
-        return [const Color(0xFF5f27cd), const Color(0xFF341f97)]; // Темно-фіолетовий
-      case 'воротар':
-        return [const Color(0xFFff9ff3), const Color(0xFFf368e0)]; // Рожевий
+        return [const Color(0xFF4834d4), const Color(0xFF686de0)];
+      case 'фізика':
+        return [const Color(0xFF00d2d3), const Color(0xFF54a0ff)];
+      case 'тактика':
+        return [const Color(0xFF5f27cd), const Color(0xFF341f97)];
+      case 'командна гра':
+        return [const Color(0xFF43a047), const Color(0xFF66bb6a)];
+      case 'фрістайл':
+        return [const Color(0xFFff9ff3), const Color(0xFFf368e0)];
+      case 'інше':
+        return [const Color(0xFF607d8b), const Color(0xFF90a4ae)];
       default:
         return [const Color(0xFF4caf50), const Color(0xFF8bc34a)]; // Зелений за замовчуванням
     }
@@ -648,18 +761,18 @@ class _VideosScreenState extends State<VideosScreen> {
   // Іконки для категорій
   IconData _getCategoryIcon(String category) {
     switch (category.toLowerCase()) {
-      case 'удари':
-      case 'голи':
-        return Icons.sports_soccer;
-      case 'дриблінг':
       case 'техніка':
-        return Icons.directions_run;
-      case 'передачі':
-        return Icons.compare_arrows;
-      case 'захист':
-        return Icons.shield;
-      case 'воротар':
-        return Icons.sports;
+        return Icons.build;
+      case 'фізика':
+        return Icons.fitness_center;
+      case 'тактика':
+        return Icons.timeline;
+      case 'командна гра':
+        return Icons.groups;
+      case 'фрістайл':
+        return Icons.auto_awesome;
+      case 'інше':
+        return Icons.category;
       default:
         return Icons.video_library;
     }
@@ -685,7 +798,7 @@ class _VideosScreenState extends State<VideosScreen> {
       builder: (context, commentSnapshot) {
         final commentsCount = commentSnapshot.hasData ? commentSnapshot.data!.docs.length : 0;
 
-        return Container(
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
@@ -708,15 +821,15 @@ class _VideosScreenState extends State<VideosScreen> {
               child: Stack(
                 children: [
                   // Реалістичне превью відео
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                      gradient: LinearGradient(
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                        gradient: LinearGradient(
                         colors: _getVideoGradient(category),
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                       ),
-                    ),
                     child: thumbnailUrl != null && thumbnailUrl.toString().isNotEmpty
                         ? ClipRRect(
                             borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -754,7 +867,7 @@ class _VideosScreenState extends State<VideosScreen> {
                             ),
                           )
                         : _buildVideoPlaceholder(category, title),
-                  ),
+                    ),
                   
                   // Play button
                   const Center(
@@ -765,11 +878,11 @@ class _VideosScreenState extends State<VideosScreen> {
                     ),
                   ),
                   
-                  // Category badge
+                  // Category badge (top-left)
                   if (category.isNotEmpty)
                     Positioned(
                       top: 8,
-                      right: 8,
+                      left: 8,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
@@ -786,6 +899,54 @@ class _VideosScreenState extends State<VideosScreen> {
                         ),
                       ),
                     ),
+
+                  // Average rating badge (top-right) — рахуємо зі стріму голосів для миттєвого відображення
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('videos')
+                          .doc(videoId)
+                          .collection('votes')
+                          .snapshots(),
+                      builder: (context, voteSnap) {
+                        if (!voteSnap.hasData || voteSnap.data!.docs.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        double sum = 0.0;
+                        for (final d in voteSnap.data!.docs) {
+                          final m = d.data() as Map<String, dynamic>;
+                          sum += (m['rating'] ?? 0.0).toDouble();
+                        }
+                        final cnt = voteSnap.data!.docs.length;
+                        final avg = cnt == 0 ? 0.0 : double.parse((sum / cnt).toStringAsFixed(2));
+                        if (avg <= 0) return const SizedBox.shrink();
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.6)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.star, color: Color(0xFFFFD700), size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                avg.toStringAsFixed(2),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                   
                   // Duration (if available)
                   if (videoData['duration'] != null)
@@ -832,80 +993,22 @@ class _VideosScreenState extends State<VideosScreen> {
                 ),
                 const SizedBox(height: 8),
                 
-                // Author info
-                FutureBuilder<DocumentSnapshot>(
-                  future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
-                  builder: (context, userSnapshot) {
-                    if (!userSnapshot.hasData) {
-                      return const Row(
+                // Author info (unified)
+                Row(
                         children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundColor: Color(0xFF4caf50),
-                            child: Icon(Icons.person, color: Colors.white, size: 16),
-                          ),
-                          SizedBox(width: 8),
-                          Text('Завантаження...', style: TextStyle(color: Colors.white70)),
-                        ],
-                      );
-                    }
-                    
-                    final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
-                    final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? 'Користувач';
-                    final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-                    
-                    return GestureDetector(
-                      onTap: () => Navigator.pushNamed(
-                        context,
-                        '/player-profile',
-                        arguments: {
-                          'playerId': userId,
-                          'playerName': userName,
-                        },
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                            backgroundColor: const Color(0xFF4caf50),
-                            child: avatarUrl.isEmpty ? Text(
-                              userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                            ) : null,
-                          ),
-                          const SizedBox(width: 8),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  userName,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                if (createdAt != null)
-                                  Text(
-                                    _formatTimestamp(createdAt),
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.5),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          // Rating display
+                      child: UserChip(
+                        userId: userId,
+                        showName: true,
+                      ),
+                    ),
                           if (rating > 0)
                             Row(
                               children: [
                                 const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
                                 const SizedBox(width: 4),
                                 Text(
-                                  rating.toStringAsFixed(1),
+                            rating.toStringAsFixed(2),
                                   style: const TextStyle(
                                     color: Color(0xFF4caf50),
                                     fontSize: 14,
@@ -915,9 +1018,6 @@ class _VideosScreenState extends State<VideosScreen> {
                               ],
                             ),
                         ],
-                      ),
-                    );
-                  },
                 ),
                 
                 const SizedBox(height: 12),
@@ -925,47 +1025,75 @@ class _VideosScreenState extends State<VideosScreen> {
                 // Stats and actions
                 Row(
                   children: [
-                    // Likes
-                    Row(
+                    // Likes (live)
+                    StreamBuilder<DocumentSnapshot>(
+                      stream: FirebaseFirestore.instance.collection('videos').doc(videoId).snapshots(),
+                      builder: (context, docSnap) {
+                        final likeCount = docSnap.hasData && docSnap.data!.exists
+                            ? ((docSnap.data!.data() as Map<String, dynamic>)['likes'] ?? likes) as int
+                            : likes;
+                        return Row(
                       children: [
                         const Icon(Icons.favorite, color: Colors.red, size: 16),
                         const SizedBox(width: 4),
                         Text(
-                          likes.toString(),
+                              likeCount.toString(),
                           style: const TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],
+                        );
+                      },
                     ),
                     const SizedBox(width: 16),
-                    
                     // Comments - клікабельні з реальною кількістю
                     GestureDetector(
                       onTap: () => _showComments(videoId, title),
                       child: Row(
-                        children: [
-                          const Icon(Icons.comment, color: Colors.blue, size: 16),
-                          const SizedBox(width: 4),
-                          Text(
+                      children: [
+                        const Icon(Icons.comment, color: Colors.blue, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
                             commentsCount.toString(),
-                            style: const TextStyle(color: Colors.white70, fontSize: 12),
-                          ),
-                        ],
-                      ),
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ],
                     ),
-                    
+                    ),
                     const Spacer(),
-                    
                     // Action buttons
                     Row(
                       children: [
-                        IconButton(
-                          onPressed: () => _likeVideo(videoId),
-                          icon: const Icon(Icons.favorite_border, color: Colors.white70, size: 20),
+                        StreamBuilder<DocumentSnapshot>(
+                          stream: FirebaseAuth.instance.currentUser == null
+                              ? null
+                              : FirebaseFirestore.instance
+                                  .collection('videos')
+                                  .doc(videoId)
+                                  .collection('likes')
+                                  .doc(FirebaseAuth.instance.currentUser!.uid)
+                                  .snapshots(),
+                          builder: (context, likeSnap) {
+                            final isLiked = likeSnap.hasData && likeSnap.data!.exists;
+                            return IconButton(
+                              onPressed: () => _toggleLike(videoId),
+                              icon: Icon(
+                                isLiked ? Icons.favorite : Icons.favorite_border,
+                                color: isLiked ? Colors.red : Colors.white70,
+                                size: 20,
+                              ),
+                            );
+                          },
                         ),
                         IconButton(
                           onPressed: () => _shareVideo(videoId, title),
                           icon: const Icon(Icons.share, color: Colors.white70, size: 20),
                         ),
+                        if (FirebaseAuth.instance.currentUser?.uid == userId)
+                          IconButton(
+                            tooltip: 'Запросити оцінку',
+                            onPressed: () => _requestRatingForVideo(videoId, title),
+                            icon: const Icon(Icons.notifications_active, color: Colors.white70, size: 20),
+                          ),
                       ],
                     ),
                   ],
@@ -1075,9 +1203,9 @@ class _VideosScreenState extends State<VideosScreen> {
                   ),
                 ),
               ],
-            ),
-          );
-        }
+      ),
+    );
+  }
         return Container(
           color: Colors.black54,
           child: const Center(

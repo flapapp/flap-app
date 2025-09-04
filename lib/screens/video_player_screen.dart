@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/rating_display.dart';
+import '../widgets/user_chip.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
@@ -50,7 +51,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _hasVoted = false;
   bool _isSubmittingVote = false;
   String? _videoAuthorId;
+  String? _videoAuthorName;
+  String? _videoAuthorAvatar;
   bool get _isChallengeSubmission => widget.challengeId != null && widget.submissionUserId != null;
+  double? _videoAverageRating;
+  int? _videoVoteCount;
 
   @override
   void initState() {
@@ -66,6 +71,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         setState(() {
           _videoAuthorId = widget.submissionUserId;
         });
+        if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty) {
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(_videoAuthorId!).get();
+          if (userDoc.exists) {
+            final ud = userDoc.data() as Map<String, dynamic>;
+            setState(() {
+              _videoAuthorName = ud['displayName'] ?? ud['name'] ?? ud['email']?.toString().split('@').first ?? 'Користувач';
+              _videoAuthorAvatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
+            });
+          }
+        }
       } else {
         // Завантажуємо дані про лайки/автора з колекції videos
         final videoDoc = await FirebaseFirestore.instance
@@ -78,6 +93,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             _likesCount = data['likes'] ?? 0;
             _videoAuthorId = data['userId'] as String?;
           });
+          if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty) {
+            final userDoc = await FirebaseFirestore.instance.collection('users').doc(_videoAuthorId!).get();
+            if (userDoc.exists) {
+              final ud = userDoc.data() as Map<String, dynamic>;
+              setState(() {
+                _videoAuthorName = ud['displayName'] ?? ud['name'] ?? ud['email']?.toString().split('@').first ?? 'Користувач';
+                _videoAuthorAvatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
+              });
+            }
+          }
+          await _computeVideoAverage();
           final currentUser = FirebaseAuth.instance.currentUser;
           if (currentUser != null) {
             final likeDoc = await FirebaseFirestore.instance
@@ -112,6 +138,33 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     } catch (e) {
       print('Error loading video data: $e');
     }
+  }
+
+  Future<void> _computeVideoAverage() async {
+    try {
+      final votesSnap = await FirebaseFirestore.instance
+          .collection('videos')
+          .doc(widget.videoId)
+          .collection('votes')
+          .get();
+      if (votesSnap.docs.isEmpty) {
+        setState(() {
+          _videoAverageRating = 0.0;
+          _videoVoteCount = 0;
+        });
+        return;
+      }
+      double sum = 0.0;
+      for (final d in votesSnap.docs) {
+        final m = d.data() as Map<String, dynamic>;
+        final r = (m['rating'] ?? 0.0) as num;
+        sum += r.toDouble();
+      }
+      setState(() {
+        _videoVoteCount = votesSnap.docs.length;
+        _videoAverageRating = double.parse((sum / _videoVoteCount!).toStringAsFixed(2));
+      });
+    } catch (_) {}
   }
 
   Future<void> _submitVote() async {
@@ -599,6 +652,22 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           style: const TextStyle(color: Colors.white),
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          if (_videoAverageRating != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.star, color: Color(0xFFFFD700)),
+                  const SizedBox(width: 4),
+                  Text(
+                    _videoAverageRating!.toStringAsFixed(2),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
       body: _chewieController != null
           ? SingleChildScrollView(
@@ -628,33 +697,30 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Text(
-                              'Автор: ${widget.authorName}',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
+                        if (_videoAuthorId != null)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: UserChip(
+                                  userId: _videoAuthorId!,
+                                  name: _videoAuthorName ?? widget.authorName,
+                                  avatarUrl: _videoAuthorAvatar,
+                                  showName: true,
+                                  onTap: () {
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/player-profile',
+                                      arguments: {
+                                        'playerId': _videoAuthorId!,
+                                        'playerName': _videoAuthorName ?? widget.authorName,
+                                      },
+                                    );
+                                  },
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            if (_videoAuthorId != null)
-                              CompactRatingDisplay(
-                                userId: _videoAuthorId!,
-                                size: 16,
-                                onTap: () {
-                                  Navigator.pushNamed(
-                                    context,
-                                    '/player-profile',
-                                    arguments: {
-                                      'playerId': _videoAuthorId!,
-                                      'playerName': widget.authorName,
-                                    },
-                                  );
-                                },
-                              ),
-                          ],
-                        ),
+                              CompactRatingDisplay(userId: _videoAuthorId!, size: 16),
+                            ],
+                          ),
                         const SizedBox(height: 16),
                         
                         // Action buttons

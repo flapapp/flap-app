@@ -10,6 +10,8 @@ enum NotificationType {
   matchInvite,
   badgeEarned,
   coinsEarned,
+  ratingRequest,
+  ratingChanged,
 }
 
 class AppNotification {
@@ -121,6 +123,10 @@ class AppNotification {
         return '🏅';
       case NotificationType.coinsEarned:
         return '💰';
+      case NotificationType.ratingRequest:
+        return '⭐';
+      case NotificationType.ratingChanged:
+        return '📈';
     }
   }
 
@@ -143,6 +149,10 @@ class AppNotification {
       case NotificationType.badgeEarned:
         return 0xFFE91E63; // Pink
       case NotificationType.coinsEarned:
+        return 0xFFFFD700; // Gold
+      case NotificationType.ratingRequest:
+        return 0xFF2196F3; // Blue
+      case NotificationType.ratingChanged:
         return 0xFFFFD700; // Gold
     }
   }
@@ -268,6 +278,57 @@ class AppNotification {
       },
       createdAt: DateTime.now(),
       actionUrl: '/video-main',
+    );
+  }
+
+  // Ask to rate my videos
+  static AppNotification ratingRequest({
+    required String userId,
+    required String fromUserName,
+    required List<String> videoIds,
+  }) {
+    return AppNotification(
+      id: '',
+      userId: userId,
+      type: NotificationType.ratingRequest,
+      title: 'Запит оцінки відео',
+      message: '$fromUserName просить оцінити його відео (${videoIds.length} шт.)',
+      data: {
+        'fromUserName': fromUserName,
+        'videoIds': videoIds,
+        'action': 'rate_videos',
+      },
+      createdAt: DateTime.now(),
+      actionUrl: videoIds.isNotEmpty ? '/video/${videoIds.first}' : '/video-main',
+    );
+  }
+
+  // Rating changed summary
+  static AppNotification ratingChanged({
+    required String userId,
+    required String voterName,
+    required double rating,
+    required double delta,
+    required double newRating,
+    String? videoTitle,
+  }) {
+    final sign = delta >= 0 ? '+' : '';
+    final vt = videoTitle == null || videoTitle.isEmpty ? '' : ' за відео "$videoTitle"';
+    return AppNotification(
+      id: '',
+      userId: userId,
+      type: NotificationType.ratingChanged,
+      title: 'Новий рейтинг',
+      message: '$voterName оцінив ваше відео на ${rating.toStringAsFixed(2)}. Зміна: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
+      data: {
+        'voterName': voterName,
+        'rating': rating,
+        'delta': delta,
+        'newRating': newRating,
+        'videoTitle': videoTitle ?? '',
+      },
+      createdAt: DateTime.now(),
+      actionUrl: '/profile',
     );
   }
 

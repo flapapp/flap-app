@@ -28,6 +28,8 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   final FriendsService _friendsService = FriendsService();
   bool _isSendingRequest = false;
   final NotificationService _notificationService = NotificationService();
+  List<String> _myVideoIds = [];
+  bool _loadingMyVideos = false;
 
   @override
   void initState() {
@@ -77,6 +79,94 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadMyVideosForRequest() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    setState(() { _loadingMyVideos = true; });
+    try {
+      final qs = await FirebaseFirestore.instance
+          .collection('videos')
+          .where('userId', isEqualTo: currentUser.uid)
+          .limit(50)
+          .get();
+      _myVideoIds = qs.docs.map((d) => d.id).toList();
+    } catch (_) {}
+    if (mounted) setState(() { _loadingMyVideos = false; });
+  }
+
+  Future<void> _showRateMeDialog() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    await _loadMyVideosForRequest();
+    if (_myVideoIds.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Немає ваших відео для запиту оцінки')),
+      );
+      return;
+    }
+
+    final qs = await FirebaseFirestore.instance
+        .collection('videos')
+        .where('userId', isEqualTo: currentUser.uid)
+        .limit(50)
+        .get();
+    final videos = qs.docs.map((d) => {'id': d.id, ...(d.data() as Map<String, dynamic>)}).toList();
+    final selected = <String>{};
+
+    await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          backgroundColor: const Color(0xFF1a1a2e),
+          title: const Text('Оберіть мої відео для оцінки', style: TextStyle(color: Colors.white)),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: _loadingMyVideos
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)))
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: videos.length,
+                    itemBuilder: (context, index) {
+                      final v = videos[index];
+                      final id = v['id'] as String;
+                      final title = (v['title'] ?? 'Відео') as String;
+                      final isSel = selected.contains(id);
+                      return CheckboxListTile(
+                        value: isSel,
+                        onChanged: (val) => setStateDialog(() {
+                          if (val == true) { selected.add(id); } else { selected.remove(id); }
+                        }),
+                        title: Text(title, style: const TextStyle(color: Colors.white)),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Скасувати', style: TextStyle(color: Colors.white70))),
+            ElevatedButton(
+              onPressed: selected.isEmpty ? null : () async {
+                final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+                final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач').toString();
+                await _notificationService.sendRatingRequest(
+                  toUserIds: [widget.playerId],
+                  fromUserName: myName,
+                  videoIds: selected.toList(),
+                );
+                if (!mounted) return;
+                Navigator.pop(context, true);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('✅ Запит на оцінку надіслано')),
+                );
+              },
+              child: const Text('Надіслати'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<bool> _areFriends() async {
@@ -262,7 +352,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
               child: Column(children: [
-                Text(rating.toStringAsFixed(1), style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
+                Text(rating.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
                 const Text('Загальний рейтинг', style: TextStyle(color: Colors.white70)),
               ]),
             ),
@@ -270,7 +360,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
             Row(children: [
               Expanded(child: _statBox(value: matches.toString(), label: 'Матчі зіграно')),
               const SizedBox(width: 10),
-              Expanded(child: _statBox(value: averageRating.toStringAsFixed(1), label: 'Середня оцінка')),
+              Expanded(child: _statBox(value: averageRating.toStringAsFixed(2), label: 'Середня оцінка')),
             ]),
             const SizedBox(height: 20),
             // Кнопки
@@ -296,11 +386,14 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                         _isSendingRequest ? 'Надсилання...' : 'Додати в друзі'
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isFriend ? Colors.grey.withOpacity(0.3) :
-                                       hasPendingRequest ? Colors.orange.withOpacity(0.3) :
-                                       const Color(0xFF4caf50),
+                        backgroundColor: const Color(0xFF4caf50),
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))
+                        disabledBackgroundColor: hasPendingRequest
+                            ? Colors.orange.withOpacity(0.4)
+                            : Colors.grey.withOpacity(0.4),
+                        disabledForegroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
                       ),
                     ),
                   ),
@@ -309,6 +402,12 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                     onPressed: () => _showInviteToChallengeDialog(),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.12), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
                     child: const Icon(Icons.emoji_events, size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () => _showRateMeDialog(),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4caf50), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+                    child: const Text('Оціни мене'),
                   ),
                 ]);
               },

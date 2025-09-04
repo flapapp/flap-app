@@ -8,6 +8,7 @@ import '../services/challenge_service.dart';
 import 'video_upload_screen.dart';
 import 'video_player_screen.dart';
 import 'challenge_video_player_screen.dart';
+import '../services/rating_service.dart';
 
 class ChallengeDetailsScreen extends StatefulWidget {
   final Challenge challenge;
@@ -371,7 +372,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
               _buildStars(rating),
               const SizedBox(width: 6),
               Text(
-                rating.toStringAsFixed(1),
+                rating.toStringAsFixed(2),
                 style: const TextStyle(
                   color: Color(0xFF66bb6a),
                   fontWeight: FontWeight.w700,
@@ -887,6 +888,23 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         });
       });
 
+      // Recompute overall rating for the submission author (affects player rating)
+      try {
+        final submission = await submissionRef.get();
+        if (submission.exists) {
+          final userId = (submission.data() as Map<String, dynamic>)['userId'] as String?;
+          if (userId != null && userId.isNotEmpty && userId != currentUser.uid) {
+            await RatingService().recomputeOverallRating(
+              userId,
+              reason: 'challenge_vote',
+              source: currentUser.displayName ?? '',
+              sourceType: 'challenge',
+              sourceId: widget.challenge.id,
+            );
+          }
+        }
+      } catch (_) {}
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('✅ Ваша оцінка ${rating.toStringAsFixed(1)} збережена!'),
@@ -1053,7 +1071,6 @@ class _WebVideoPreviewState extends State<_WebVideoPreview> {
     }
     return FittedBox(
       fit: BoxFit.cover,
-      clipBehavior: Clip.hardEdge,
       child: SizedBox(
         width: _controller!.value.size.width,
         height: _controller!.value.size.height,

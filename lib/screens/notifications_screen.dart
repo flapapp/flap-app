@@ -3,6 +3,7 @@ import '../models/notification.dart';
 import '../services/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/challenge.dart';
+import 'video_player_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   @override
@@ -450,10 +451,53 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         Navigator.pushNamed(context, '/profile');
       } else if (actionUrl == '/video-main') {
         Navigator.pushNamed(context, '/video-main');
+      } else if (actionUrl.startsWith('/video/')) {
+        final videoId = actionUrl.split('/').last;
+        _openVideoById(videoId);
       } else if (actionUrl.startsWith('/challenge-details/')) {
         final challengeId = actionUrl.split('/').last;
         Navigator.pushNamed(context, '/challenge-details', arguments: challengeId);
       }
+    }
+  }
+
+  Future<void> _openVideoById(String videoId) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('videos').doc(videoId).get();
+      if (!doc.exists) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Відео не знайдено')),
+        );
+        return;
+      }
+      final data = doc.data() as Map<String, dynamic>;
+      final videoUrl = (data['videoUrl'] ?? '').toString();
+      final title = (data['title'] ?? 'Відео').toString();
+      if (videoUrl.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Посилання на відео відсутнє')),
+        );
+        return;
+      }
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VideoPlayerScreen(
+            videoUrl: videoUrl,
+            title: title,
+            authorName: '',
+            videoId: videoId,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка відкриття відео: $e')),
+      );
     }
   }
 

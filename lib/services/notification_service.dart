@@ -269,8 +269,8 @@ class NotificationService {
       id: '',
       userId: toUserId,
       type: NotificationType.videoVote,
-      title: 'Оцінка вашого відео',
-      message: 'За ваше відео проголосував $voterName — ${rating.toStringAsFixed(2)}',
+      title: 'Нова оцінка відео',
+      message: '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(2)}',
       data: {
         'videoTitle': videoTitle,
         'voterName': voterName,
@@ -280,6 +280,44 @@ class NotificationService {
       createdAt: DateTime.now(),
     );
     return await sendNotification(notification);
+  }
+
+  // Send a rating change summary notification
+  Future<bool> sendRatingChangedNotification({
+    required String toUserId,
+    required String voterName,
+    required double rating,
+    required double delta,
+    required double newRating,
+    String? videoTitle,
+  }) async {
+    final notification = AppNotification.ratingChanged(
+      userId: toUserId,
+      voterName: voterName,
+      rating: rating,
+      delta: delta,
+      newRating: newRating,
+      videoTitle: videoTitle,
+    );
+    return await sendNotification(notification);
+  }
+
+  // Send request to rate my videos to selected friend(s)
+  Future<bool> sendRatingRequest({
+    required List<String> toUserIds,
+    required String fromUserName,
+    required List<String> videoIds,
+  }) async {
+    try {
+      final notifications = toUserIds.map((uid) => AppNotification.ratingRequest(
+        userId: uid,
+        fromUserName: fromUserName,
+        videoIds: videoIds,
+      )).toList();
+      return await sendBulkNotifications(notifications);
+    } catch (e) {
+      return false;
+    }
   }
 
   // Send badge earned notification

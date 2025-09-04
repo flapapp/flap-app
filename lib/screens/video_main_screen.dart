@@ -779,7 +779,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                           const Text('⭐', style: TextStyle(fontSize: 12)),
                           const SizedBox(width: 4),
                           Text(
-                            rating.toStringAsFixed(1),
+                            rating.toStringAsFixed(2),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 11,
@@ -852,7 +852,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 // Author info
                 Row(
                   children: [
-                    GestureDetector(
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                       onTap: () {
                         if (authorId != null) {
                           Navigator.pushNamed(
@@ -862,7 +864,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                           );
                         }
                       },
-                      child: ClipRRect(
+                        child: Row(
+                          children: [
+                            ClipRRect(
                         borderRadius: BorderRadius.circular(16),
                         child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                           future: authorId != null
@@ -885,7 +889,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                               child: const Icon(Icons.person, color: Colors.white, size: 18),
                             );
                           },
-                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -918,6 +921,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                             ),
                           ],
                         ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],

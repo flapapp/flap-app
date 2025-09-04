@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_tracking_service.dart';
 import '../services/rating_service.dart';
+import '../widgets/user_chip.dart';
 
 class ChallengeVideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
@@ -39,6 +40,11 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   bool _hasVoted = false;
   bool _isVoting = false;
   final ValueNotifier<double> _tempRatingNotifier = ValueNotifier<double>(2.50);
+  double? _submissionAverageRating;
+  int? _submissionVoteCount;
+  String? _submissionAuthorId;
+  String? _submissionAuthorName;
+  String? _submissionAuthorAvatar;
 
   @override
   void initState() {
@@ -46,6 +52,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
     _initializeVideo();
     _checkIfVoted();
     _tempRatingNotifier.value = _tempRating;
+    _loadSubmissionAggregate();
   }
 
   Future<void> _initializeVideo() async {
@@ -103,6 +110,38 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
     }
   }
 
+  Future<void> _loadSubmissionAggregate() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(widget.challengeId)
+          .collection('submissions')
+          .doc(widget.submissionId)
+          .get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        setState(() {
+          _submissionAverageRating = (data['averageRating'] ?? data['rating'] ?? 0.0).toDouble();
+          _submissionVoteCount = (data['voteCount'] ?? 0).toInt();
+          _submissionAuthorId = (data['userId'] ?? '') as String?;
+        });
+        // Load author profile
+        if (_submissionAuthorId != null && _submissionAuthorId!.isNotEmpty) {
+          try {
+            final userDoc = await FirebaseFirestore.instance.collection('users').doc(_submissionAuthorId!).get();
+            if (userDoc.exists) {
+              final u = userDoc.data() as Map<String, dynamic>;
+              setState(() {
+                _submissionAuthorName = u['displayName'] ?? u['name'] ?? u['email']?.toString().split('@').first ?? 'Користувач';
+                _submissionAuthorAvatar = u['avatarUrl'] ?? u['avatar'] ?? '';
+              });
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
   Future<void> _checkIfVoted() async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
@@ -146,27 +185,26 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Text(
-              'Автор: ${widget.authorName}',
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
-            ),
-          ],
+        title: Text(
+          widget.title,
+          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+          overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          if (_submissionAverageRating != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.star, color: Color(0xFFFFD700)),
+                  const SizedBox(width: 4),
+                  Text(
+                    _submissionAverageRating!.toStringAsFixed(2),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.share, color: Colors.white),
             onPressed: _shareVideo,
@@ -213,6 +251,45 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                           : const SizedBox(),
             ),
           ),
+
+          // Author info under the video
+          if (_submissionAuthorId != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: Colors.black,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: UserChip(
+                      userId: _submissionAuthorId!,
+                      name: _submissionAuthorName,
+                      avatarUrl: _submissionAuthorAvatar,
+                      showName: true,
+                    ),
+                  ),
+                  if (_submissionAverageRating != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.6)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.star, color: Color(0xFFFFD700), size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            _submissionAverageRating!.toStringAsFixed(2),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
 
           // Voting Section - ОДНИМ повзунком для челенджів
           Expanded(
@@ -336,6 +413,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                                   final roundedValue = (value * 100).round() / 100;
                                   _tempRating = roundedValue;
                                   _tempRatingNotifier.value = roundedValue;
+                                  _rating = roundedValue;
                                 },
                               ),
                             ),
@@ -470,9 +548,9 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
           
       if (submissionDoc.exists) {
         final submissionData = submissionDoc.data() as Map<String, dynamic>;
-        final submissionUserId = submissionData['userId'];
-        submissionVideoId = submissionData['videoId'] as String?;
-        submissionAuthorId = submissionUserId as String?;
+        final submissionUserId = (submissionData['userId'] ?? '') as String;
+        submissionVideoId = (submissionData['videoId'] ?? '') as String?;
+        submissionAuthorId = submissionUserId;
         
         if (submissionUserId == currentUser.uid) {
           if (mounted) {
@@ -524,23 +602,24 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
           'averageRating': newRating,
           'voteCount': newVotes,
         });
+        _submissionAverageRating = newRating;
+        _submissionVoteCount = newVotes;
       });
 
-      // Also mirror vote under the original video to include in aggregated rating
+      // Записуємо голос у «відео» стандартним шляхом, щоб перерахунок рейтингу автора був ідентичним
       if (submissionVideoId != null && submissionVideoId.isNotEmpty) {
-        await FirebaseFirestore.instance
-            .collection('videos')
-            .doc(submissionVideoId)
-            .collection('votes')
-            .doc(currentUser.uid)
-            .set({
-          'ratedBy': currentUser.uid,
-          'rating': _rating,
-          'ratedAt': FieldValue.serverTimestamp(),
-          'source': 'challenge',
-          'challengeId': widget.challengeId,
-          'submissionId': widget.submissionId,
-        });
+        try {
+          await RatingService().rateVideo(
+            videoId: submissionVideoId,
+            ratedBy: currentUser.uid,
+            criteria: {
+              'technical': _rating,
+              'creativity': _rating,
+              'difficulty': _rating,
+              'quality': _rating,
+            },
+          );
+        } catch (_) {}
       }
 
       // Award coins for voting
@@ -559,19 +638,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         'description': 'Нагорода за голосування в челенджі',
       });
 
-      // Recompute overall rating for the submission author and record history
-      if (submissionAuthorId != null && submissionAuthorId.isNotEmpty) {
-        try {
-          // Recompute aggregated rating (matches + videos)
-          await RatingService().recomputeOverallRating(
-            submissionAuthorId,
-            reason: 'challenge_vote',
-            source: FirebaseAuth.instance.currentUser?.displayName ?? '',
-            sourceType: 'challenge',
-            sourceId: widget.challengeId,
-          );
-        } catch (_) {}
-      }
+      // Додатковий recompute не потрібен — rateVideo вже зробив оновлення рейтингу автора
 
       setState(() {
         _hasVoted = true;

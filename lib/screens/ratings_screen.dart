@@ -278,35 +278,52 @@ class _RatingsScreenState extends State<RatingsScreen>
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.all(16),
-            leading: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [levelColor, levelColor.withOpacity(0.7)],
+            leading: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundImage: (player['avatarUrl'] ?? '').toString().isNotEmpty
+                      ? NetworkImage(player['avatarUrl'])
+                      : null,
+                  backgroundColor: levelColor.withOpacity(0.2),
+                  child: (player['avatarUrl'] ?? '').toString().isEmpty
+                      ? Text(
+                          (player['name'] ?? 'U').toString().isNotEmpty ? (player['name'] as String)[0].toUpperCase() : 'U',
+                          style: TextStyle(color: levelColor, fontWeight: FontWeight.bold),
+                        )
+                      : null,
                 ),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: Center(
-                child: Text(
-                  '${index + 1}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                Positioned(
+                  bottom: -4,
+                  right: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: levelColor,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
             title: Row(
               children: [
-                Text(
-                  player['name'] ?? 'Невідомий',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Text(
+                    player['name'] ?? 'Невідомий',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -358,7 +375,7 @@ class _RatingsScreenState extends State<RatingsScreen>
                     const Text('⭐', style: TextStyle(fontSize: 16)),
                     const SizedBox(width: 4),
                     Text(
-                      rating.toStringAsFixed(1),
+                      rating.toStringAsFixed(2),
                       style: const TextStyle(
                         color: Color(0xFFFFD700),
                         fontSize: 20,
@@ -847,35 +864,52 @@ class _RatingsScreenState extends State<RatingsScreen>
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.all(16),
-            leading: Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [levelColor, levelColor.withOpacity(0.7)],
+            leading: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundImage: (player['avatarUrl'] ?? '').toString().isNotEmpty
+                      ? NetworkImage(player['avatarUrl'])
+                      : null,
+                  backgroundColor: levelColor.withOpacity(0.2),
+                  child: (player['avatarUrl'] ?? '').toString().isEmpty
+                      ? Text(
+                          (player['name'] ?? 'U').toString().isNotEmpty ? (player['name'] as String)[0].toUpperCase() : 'U',
+                          style: TextStyle(color: levelColor, fontWeight: FontWeight.bold),
+                        )
+                      : null,
                 ),
-                borderRadius: BorderRadius.circular(25),
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: Center(
-                child: Text(
-                  '${index + 1}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                Positioned(
+                  bottom: -4,
+                  right: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: levelColor,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
             title: Row(
               children: [
-                Text(
-                  player['name'] ?? 'Невідомий',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Text(
+                    player['name'] ?? 'Невідомий',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -910,7 +944,7 @@ class _RatingsScreenState extends State<RatingsScreen>
                 const Text('⭐', style: TextStyle(fontSize: 14)),
                 const SizedBox(width: 4),
                 Text(
-                  rating.toStringAsFixed(1),
+                  rating.toStringAsFixed(2),
                   style: const TextStyle(
                     color: Color(0xFFFFD700),
                     fontSize: 16,

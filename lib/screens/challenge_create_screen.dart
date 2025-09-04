@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 // Removed dart:io to support web build
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
+import '../services/notification_service.dart';
 import '../services/thumbnail_service.dart';
 
 class ChallengeCreateScreen extends StatefulWidget {
@@ -33,6 +34,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   
   final ChallengeService _challengeService = ChallengeService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final Set<String> _selectedInviteFriendIds = <String>{};
 
   final List<String> _cities = [
     'Київ',
@@ -307,6 +309,44 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 ),
                 
                 const SizedBox(height: 20),
+
+                // Окремі друзі для запрошення (мульти-вибір)
+                _buildSectionTitle(Icons.person_add_alt_1, 'Окремі друзі'),
+                const SizedBox(height: 10),
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _loadMyFriends(),
+                  builder: (context, snapshot) {
+                    final friends = snapshot.data ?? const <Map<String, dynamic>>[];
+                    if (friends.isEmpty) {
+                      return Text('Немає друзів для запрошення', style: TextStyle(color: Colors.white.withOpacity(0.7)));
+                    }
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: friends.map((f) {
+                        final id = f['id'] as String;
+                        final name = (f['displayName'] ?? f['name'] ?? 'Користувач').toString();
+                        final selected = _selectedInviteFriendIds.contains(id);
+                        return FilterChip(
+                          label: Text(name, style: const TextStyle(color: Colors.white)),
+                          selected: selected,
+                          backgroundColor: Colors.white.withOpacity(0.08),
+                          selectedColor: const Color(0xFF4caf50).withOpacity(0.3),
+                          shape: StadiumBorder(side: BorderSide(color: (selected ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.3)))) ,
+                          onSelected: (val) {
+                            setState(() {
+                              if (val) {
+                                _selectedInviteFriendIds.add(id);
+                              } else {
+                                _selectedInviteFriendIds.remove(id);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
                 
                 // Ставка входу
                 _buildDropdownField(
@@ -502,6 +542,29 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         ),
       ),
     );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadMyFriends() async {
+    try {
+      final me = _auth.currentUser;
+      if (me == null) return [];
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.uid).get();
+      final ids = List<String>.from(userDoc.data()?['friends'] ?? []);
+      if (ids.isEmpty) return [];
+      final result = <Map<String, dynamic>>[];
+      for (final id in ids.take(50)) {
+        final d = await FirebaseFirestore.instance.collection('users').doc(id).get();
+        if (d.exists) {
+          final data = d.data() as Map<String, dynamic>;
+          data['id'] = id;
+          result.add(data);
+        }
+      }
+      result.sort((a, b) => (a['displayName'] ?? a['name'] ?? '').toString().compareTo((b['displayName'] ?? b['name'] ?? '').toString()));
+      return result;
+    } catch (_) {
+      return [];
+    }
   }
 
   Widget _buildSectionTitle(IconData icon, String title) {
@@ -891,6 +954,19 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           'currentParticipants': FieldValue.increment(1),
         });
 
+        // Надсилаємо інвайти обраним друзям (якщо обрали)
+        if (_selectedInviteFriendIds.isNotEmpty) {
+          try {
+            await NotificationService().sendBulkChallengeInvitations(
+              userIds: _selectedInviteFriendIds.toList(),
+              challengeId: challengeId,
+              challengeTitle: _titleController.text.trim(),
+              creatorName: userName,
+              challengeType: _selectedType.toString().split('.').last,
+            );
+          } catch (_) {}
+        }
+
         // Потім завантажуємо відео створювача
         if (_selectedVideoFile != null) {
           print('Starting creator video upload for challenge: $challengeId');
@@ -1129,6 +1205,28 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         throw Exception('Помилка завантаження або отримання URL: $e');
       }
       
+      // Створюємо запис у колекції videos, щоб мати єдиний шлях голосів і агрегатів
+      String createdVideoDocId = '';
+      try {
+        final videoDoc = await FirebaseFirestore.instance.collection('videos').add({
+          'userId': userId,
+          'authorId': userId,
+          'authorName': authorName,
+          'title': 'Відео створювача',
+          'description': 'Відео челенджу',
+          'category': 'Інше',
+          'difficulty': null,
+          'videoUrl': videoUrl,
+          'createdAt': FieldValue.serverTimestamp(),
+          'likes': 0,
+          'rating': 0.0,
+          'views': 0,
+          'thumbnailUrl': null,
+          'thumbnailGenerated': false,
+        });
+        createdVideoDocId = videoDoc.id;
+      } catch (_) {}
+
       // Зберігаємо відео створювача в submissions і помічаємо як головне
       print('Saving creator video to submissions collection...');
       try {
@@ -1142,6 +1240,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           'authorName': authorName,
           'title': 'Відео створювача',
           'videoUrl': videoUrl,
+          'videoId': createdVideoDocId,
           'isCreatorVideo': true,
           'createdAt': FieldValue.serverTimestamp(),
           'averageRating': 0.0,

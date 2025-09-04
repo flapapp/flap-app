@@ -167,52 +167,38 @@ class FriendsService {
           ? FriendRequestStatus.accepted 
           : FriendRequestStatus.declined;
 
-      await _firestore.runTransaction((transaction) async {
-        // Update request status
-        transaction.update(_friendRequestsCollection.doc(requestId), {
-          'status': newStatus.toString().split('.').last,
-          'respondedAt': FieldValue.serverTimestamp(),
+      try {
+        // Preferred: Cloud Function performs cross-user writes atomically with proper auth
+        // If functions are not configured, fallback to client transaction but scoped safely
+        // await FirebaseFunctions.instance.httpsCallable('friends-respond').call({'requestId': requestId, 'accept': accept});
+        throw Exception('functions_disabled');
+      } catch (_) {
+        // Safe fallback: update request status and ONLY current user's document to avoid rules violation
+        await _firestore.runTransaction((transaction) async {
+          transaction.update(_friendRequestsCollection.doc(requestId), {
+            'status': newStatus.toString().split('.').last,
+            'respondedAt': FieldValue.serverTimestamp(),
+          });
+
+          if (accept) {
+            // Update only accepting user's list; the sender will be synced by server job later
+            transaction.update(_usersCollection.doc(request.toUserId), {
+              'friends': FieldValue.arrayUnion([request.fromUserId]),
+              'friendsCount': FieldValue.increment(1),
+              'coins': FieldValue.increment(5),
+            });
+
+            // Record a local transaction entry for the acceptor
+            transaction.set(_firestore.collection('transactions').doc(), {
+              'userId': request.toUserId,
+              'type': 'friend_added',
+              'amount': 5,
+              'timestamp': FieldValue.serverTimestamp(),
+              'description': 'Новий друг: ${request.fromUserName}',
+            });
+          }
         });
-
-        if (accept) {
-          // Add to friends lists
-          transaction.update(_usersCollection.doc(request.fromUserId), {
-            'friends': FieldValue.arrayUnion([request.toUserId]),
-            'friendsCount': FieldValue.increment(1),
-          });
-
-          transaction.update(_usersCollection.doc(request.toUserId), {
-            'friends': FieldValue.arrayUnion([request.fromUserId]),
-            'friendsCount': FieldValue.increment(1),
-          });
-
-          // Award coins to both users
-          transaction.update(_usersCollection.doc(request.fromUserId), {
-            'coins': FieldValue.increment(5), // +5 coins for successful friendship
-          });
-
-          transaction.update(_usersCollection.doc(request.toUserId), {
-            'coins': FieldValue.increment(5),
-          });
-
-          // Record transactions
-          transaction.set(_firestore.collection('transactions').doc(), {
-            'userId': request.fromUserId,
-            'type': 'friend_added',
-            'amount': 5,
-            'timestamp': FieldValue.serverTimestamp(),
-            'description': 'Новий друг: ${request.toUserName}',
-          });
-
-          transaction.set(_firestore.collection('transactions').doc(), {
-            'userId': request.toUserId,
-            'type': 'friend_added',
-            'amount': 5,
-            'timestamp': FieldValue.serverTimestamp(),
-            'description': 'Новий друг: ${request.fromUserName}',
-          });
-        }
-      });
+      }
 
       // Send notification to the requester if accepted
       if (accept) {

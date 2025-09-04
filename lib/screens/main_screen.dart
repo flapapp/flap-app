@@ -8,6 +8,12 @@ import 'video_upload_screen.dart';
 import 'challenge_create_screen.dart';
 
 class MainScreen extends StatefulWidget {
+  final int initialTabIndex;
+  final bool showOnlyMyVideos;
+  final bool showOnlyMyChallenges;
+
+  const MainScreen({Key? key, this.initialTabIndex = 0, this.showOnlyMyVideos = false, this.showOnlyMyChallenges = false}) : super(key: key);
+
   @override
   _MainScreenState createState() => _MainScreenState();
 }
@@ -21,6 +27,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    // Apply initial tab index from arguments (e.g., "My videos" / "My challenges")
+    _tabController.index = widget.initialTabIndex;
+    _isVideoMode = widget.initialTabIndex == 0;
   }
 
   @override
@@ -204,8 +213,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       body: TabBarView(
         controller: _tabController,
         children: [
-          VideosScreen(),
-          ChallengesScreen(),
+          VideosScreen(showOnlyMyVideos: widget.showOnlyMyVideos),
+          ChallengesScreen(showOnlyMyChallenges: widget.showOnlyMyChallenges),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -241,26 +250,26 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
               GestureDetector(
                 onTap: () => _showCoinsHistory(coins),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFffc107).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFffc107), width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.monetization_on, color: Color(0xFFffc107), size: 16),
-                      const SizedBox(width: 4),
-                      Text(
-                        coins.toString(),
-                        style: const TextStyle(
-                          color: Color(0xFFffc107),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFffc107).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFffc107), width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.monetization_on, color: Color(0xFFffc107), size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      coins.toString(),
+                      style: const TextStyle(
+                        color: Color(0xFFffc107),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
+                    ),
+                  ],
                   ),
                 ),
               ),
@@ -269,26 +278,26 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
               GestureDetector(
                 onTap: () => _showRatingHistory(rating),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4caf50).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF4caf50), width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
-                      const SizedBox(width: 4),
-                      Text(
-                        rating.toStringAsFixed(1),
-                        style: const TextStyle(
-                          color: Color(0xFF4caf50),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4caf50).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF4caf50), width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                        rating.toStringAsFixed(2),
+                      style: const TextStyle(
+                        color: Color(0xFF4caf50),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
+                    ),
+                  ],
                   ),
                 ),
               ),
@@ -547,7 +556,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                             ),
                           ),
                           Text(
-                            'Поточний рейтинг: ${currentRating.toStringAsFixed(1)} ⭐',
+                            'Поточний рейтинг: ${currentRating.toStringAsFixed(2)} ⭐',
                             style: const TextStyle(
                               color: Color(0xFF4caf50),
                               fontSize: 14,
@@ -715,7 +724,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                     Row(
                                       children: [
                                         Text(
-                                          '${oldRating.toStringAsFixed(1)} → ${newRating.toStringAsFixed(1)}',
+                                          '${oldRating.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
                                           style: TextStyle(
                                             color: Colors.white.withOpacity(0.7),
                                             fontSize: 12,

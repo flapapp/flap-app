@@ -130,7 +130,16 @@ class MyApp extends StatelessWidget {
                 challengeTitle: args?['challengeTitle'],
               );
             },
-        '/video-main': (context) => MainScreen(),
+        '/video-main': (context) {
+          final args = (ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?) ?? {};
+          final myContent = args['myContent'] as String?; // 'videos' | 'challenges'
+          final initialTabIndex = myContent == 'challenges' ? 1 : 0;
+          return MainScreen(
+            initialTabIndex: initialTabIndex,
+            showOnlyMyVideos: myContent == 'videos',
+            showOnlyMyChallenges: myContent == 'challenges',
+          );
+        },
         '/challenge-list': (context) => ChallengeListScreen(),
         '/challenge-create': (context) => ChallengeCreateScreen(),
         '/challenge-details': (context) {

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'notification_service.dart';
+import 'rating_tracking_service.dart';
 
 class RatingService {
   static const double _matchWeight = 0.7; // 70% ваги для матчів
@@ -31,6 +32,30 @@ class RatingService {
     'difficulty': 0.2,
     'quality': 0.1,
   };
+
+  // Перерахунок середньої оцінки відео та збереження в полі videos.rating
+  Future<void> updateVideoAggregate(String videoId) async {
+    try {
+      final votesSnap = await FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .collection('votes')
+          .get();
+      double sum = 0.0;
+      for (final d in votesSnap.docs) {
+        final m = d.data() as Map<String, dynamic>;
+        sum += (m['rating'] ?? 0.0).toDouble();
+      }
+      final count = votesSnap.docs.length;
+      final avg = count == 0 ? 0.0 : double.parse((sum / count).toStringAsFixed(2));
+      await FirebaseFirestore.instance.collection('videos').doc(videoId).update({
+        'rating': avg,
+        'voteCount': count,
+      });
+    } catch (e) {
+      // non-fatal
+    }
+  }
 
   // Отримати поточний рейтинг користувача
   Future<double> getUserRating(String userId) async {
@@ -205,6 +230,9 @@ class RatingService {
         'ratedAt': FieldValue.serverTimestamp(),
       });
 
+      // Оновлюємо агрегати відео для відображення зірочки у списках
+      await updateVideoAggregate(videoId);
+
       // Отримуємо автора відео для оновлення його рейтингу
       final videoDoc = await FirebaseFirestore.instance
           .collection('videos')
@@ -214,6 +242,7 @@ class RatingService {
       if (videoDoc.exists) {
         final videoData = videoDoc.data()!;
         final authorId = videoData['userId'] as String?;
+        final videoTitle = (videoData['title'] ?? 'Відео').toString();
         
         if (authorId != null && authorId != ratedBy) {
           // Отримуємо ім'я того, хто оцінив відео
@@ -236,6 +265,10 @@ class RatingService {
             }
           } catch (_) {}
 
+          // Перед оновленням зчитуємо попередній рейтинг
+          final beforeDoc = await FirebaseFirestore.instance.collection('users').doc(authorId).get();
+          final oldRating = (beforeDoc.data()?['rating'] ?? _defaultRating).toDouble();
+
           // Оновлюємо рейтинг автора відео і зберігаємо нотифікацію
           await _updatePlayerRating(
             authorId,
@@ -244,6 +277,30 @@ class RatingService {
             sourceType: 'video',
             sourceId: videoId,
           );
+
+          // Відправляємо нотифікації: про голос та про зміну рейтингу
+          try {
+            // 1) Нотифікація про голос з конкретною оцінкою
+            await NotificationService().sendVideoVoteNotification(
+              toUserId: authorId,
+              videoTitle: videoTitle,
+              voterName: voterName,
+              rating: weightedRating,
+            );
+
+            // 2) Нотифікація про зміну рейтингу (дельта і нове значення)
+            final afterDoc = await FirebaseFirestore.instance.collection('users').doc(authorId).get();
+            final newRating = (afterDoc.data()?['rating'] ?? _defaultRating).toDouble();
+            final delta = newRating - oldRating;
+            await NotificationService().sendRatingChangedNotification(
+              toUserId: authorId,
+              voterName: voterName,
+              rating: weightedRating,
+              delta: delta,
+              newRating: newRating,
+              videoTitle: videoTitle,
+            );
+          } catch (_) {}
         }
       }
 
@@ -316,13 +373,43 @@ class RatingService {
       // Додавання в історію рейтингу
       await _addRatingHistory(userId, overallRating, matchRating, videoRating);
 
-      // Відправка сповіщення про зміну рейтингу
-      if (reason != null && source != null && sourceType != null) {
-        final notificationService = NotificationService();
-        await notificationService.sendCoinsEarnedNotification(
+      // Дублюємо запис у публічну колекцію rating_history для відображення в модалці
+      try {
+        if (reason != null) {
+          String? challengeTitle;
+          if (sourceType == 'challenge' && sourceId != null && sourceId!.isNotEmpty) {
+            try {
+              final ch = await FirebaseFirestore.instance.collection('challenges').doc(sourceId).get();
+              if (ch.exists) {
+                final cd = ch.data() as Map<String, dynamic>;
+                challengeTitle = (cd['title'] ?? '').toString();
+              }
+            } catch (_) {}
+          }
+          await RatingTrackingService().recordRatingChange(
+            userId: userId,
+            oldRating: double.parse(oldRating.toStringAsFixed(2)),
+            newRating: double.parse(overallRating.toStringAsFixed(2)),
+            reason: reason,
+            challengeTitle: challengeTitle,
+            voterName: source,
+            challengeId: sourceType == 'challenge' ? sourceId : null,
+            videoTitle: sourceType == 'video' ? sourceId : null,
+          );
+        }
+      } catch (_) {}
+
+      // Відправка сповіщення про зміну рейтингу — для challenge_vote надсилаємо окремо в місці голосу
+      if (reason != null && source != null && reason != 'challenge_vote') {
+        final newRatingRounded = double.parse(overallRating.toStringAsFixed(2));
+        final delta = double.parse((newRatingRounded - oldRating).toStringAsFixed(2));
+        await NotificationService().sendRatingChangedNotification(
           toUserId: userId,
-          amount: 0, // Це не про монети, але використовуємо наявний метод
-          reason: 'Рейтинг оновлено: $reason',
+          voterName: source,
+          rating: 0.0, // не завжди відомо; для відео додаємо окремо у rateVideo
+          delta: delta,
+          newRating: newRatingRounded,
+          videoTitle: sourceType == 'video' ? (sourceId ?? '') : null,
         );
       }
 

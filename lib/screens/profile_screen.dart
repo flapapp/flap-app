@@ -9,13 +9,15 @@ import 'friends_screen.dart';
 import 'profile_screen_sparkline.dart';
 import 'subscription_screen.dart';
 import 'video_player_screen.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../widgets/web_video_thumbnail.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserver {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final BadgeService _badgeService = BadgeService();
   final FriendsService _friendsService = FriendsService();
@@ -30,6 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final uid = _auth.currentUser?.uid;
     if (uid != null) {
       _userStream = FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
@@ -37,6 +40,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _loadFriendsCount();
       _loadRatingDynamics(uid);
       _loadTopVideos(uid);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadUserBadges();
     }
   }
 
@@ -62,32 +78,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadRatingDynamics(String uid) async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final data = doc.data() as Map<String, dynamic>? ?? {};
-      final history = List<Map<String, dynamic>>.from(data['ratingHistory'] ?? []);
+      // Завантажуємо останні записи історії рейтингу з окремої колекції
+      final snap = await FirebaseFirestore.instance
+          .collection('rating_history')
+          .where('userId', isEqualTo: uid)
+          .orderBy('timestamp', descending: true)
+          .limit(200)
+          .get();
+
+      final all = snap.docs.map((d) => d.data() as Map<String, dynamic>).toList();
       final now = DateTime.now();
-      _ratingHistory7 = history.where((h) {
-        final ts = h['timestamp'];
-        final dt = ts is Timestamp ? ts.toDate() : null;
-        return dt != null && dt.isAfter(now.subtract(const Duration(days: 7)));
-      }).toList()
-      ..sort((a, b) {
-        final at = a['timestamp'];
-        final bt = b['timestamp'];
-        if (at is Timestamp && bt is Timestamp) return at.compareTo(bt);
-        return 0;
-      });
-      _ratingHistory30 = history.where((h) {
-        final ts = h['timestamp'];
-        final dt = ts is Timestamp ? ts.toDate() : null;
-        return dt != null && dt.isAfter(now.subtract(const Duration(days: 30)));
-      }).toList()
-      ..sort((a, b) {
-        final at = a['timestamp'];
-        final bt = b['timestamp'];
-        if (at is Timestamp && bt is Timestamp) return at.compareTo(bt);
-        return 0;
-      });
+
+      List<Map<String, dynamic>> filterByDays(int days) {
+        final from = now.subtract(Duration(days: days));
+        final filtered = all.where((h) {
+          final ts = h['timestamp'];
+          final dt = ts is Timestamp ? ts.toDate() : null;
+          return dt != null && dt.isAfter(from);
+        }).toList();
+        // Сортуємо за часом зростаюче, щоб лінія йшла зліва направо
+        filtered.sort((a, b) {
+          final at = a['timestamp'];
+          final bt = b['timestamp'];
+          if (at is Timestamp && bt is Timestamp) return at.compareTo(bt);
+          return 0;
+        });
+        return filtered;
+      }
+
+      _ratingHistory7 = filterByDays(7);
+      _ratingHistory30 = filterByDays(30);
+
       if (mounted) setState(() {});
     } catch (_) {}
   }
@@ -311,7 +332,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(width: 4),
                         Text(
-                      rating.toStringAsFixed(1),
+                      rating.toStringAsFixed(2),
                           style: TextStyle(
                         color: _getRatingColor(rating),
                             fontSize: 14,
@@ -538,7 +559,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             )
           else
             Container(
-              height: 80,
+              height: 90,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: _userBadges.length,
@@ -614,7 +635,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildSparklineCard(String title, List<Map<String, dynamic>> history) {
-    final points = history.map<double>((h) => (h['overallRating'] ?? 0.0 as double).toDouble()).toList();
+    // Малюємо по значенню newRating з історії
+    final points = history.map<double>((h) => ((h['newRating'] ?? 0.0) as num).toDouble()).toList();
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -706,15 +728,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(10),
-                              child: thumb.isNotEmpty
-                                  ? Image.network(
+                              child: () {
+                                final videoUrl = (v['videoUrl'] ?? '') as String;
+                                if (kIsWeb) {
+                                  if (thumb.isNotEmpty && thumb != videoUrl) {
+                                    return Image.network(
                                       thumb,
                                       width: 160,
                                       height: 110,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => _videoThumbFallback(title),
-                                    )
-                                  : _videoThumbFallback(title),
+                                    );
+                                  }
+                                  if (videoUrl.isNotEmpty) {
+                                    return WebVideoThumbnail(videoUrl: videoUrl);
+                                  }
+                                  return _videoThumbFallback(title);
+                                } else {
+                                  if (thumb.isNotEmpty) {
+                                    return Image.network(
+                                      thumb,
+                                      width: 160,
+                                      height: 110,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => _videoThumbFallback(title),
+                                    );
+                                  }
+                                  return _videoThumbFallback(title);
+                                }
+                              }(),
                             ),
                             Positioned(
                               left: 6,

@@ -17,6 +17,7 @@ class RatingTrackingService {
     String? challengeTitle,
     String? voterName,
     String? challengeId,
+    String? videoTitle,
   }) async {
     try {
       final change = newRating - oldRating;
@@ -30,6 +31,7 @@ class RatingTrackingService {
         'challengeTitle': challengeTitle ?? '',
         'voterName': voterName ?? '',
         'challengeId': challengeId ?? '',
+        'videoTitle': videoTitle ?? '',
         'timestamp': FieldValue.serverTimestamp(),
       });
 

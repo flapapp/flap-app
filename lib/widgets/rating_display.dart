@@ -62,7 +62,7 @@ class RatingDisplay extends StatelessWidget {
                   const Text('⭐', style: TextStyle(fontSize: 14)),
                   const SizedBox(width: 4),
                   Text(
-                    currentRating.toStringAsFixed(1),
+                    currentRating.toStringAsFixed(2),
                     style: TextStyle(
                       color: levelColor,
                       fontSize: size * 0.4,
@@ -209,7 +209,7 @@ class CompactRatingDisplay extends StatelessWidget {
                 const Text('⭐', style: TextStyle(fontSize: 12)),
                 const SizedBox(width: 2),
                 Text(
-                  currentRating.toStringAsFixed(1),
+                  currentRating.toStringAsFixed(2),
                   style: TextStyle(
                     color: levelColor,
                     fontSize: size * 0.5,

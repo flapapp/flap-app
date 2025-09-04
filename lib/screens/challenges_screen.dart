@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:video_player/video_player.dart';
+import '../widgets/web_video_thumbnail.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
@@ -9,8 +10,13 @@ import 'challenge_create_screen.dart';
 import 'challenge_details_screen.dart';
 import 'video_player_screen.dart';
 import 'challenge_video_player_screen.dart';
+import '../widgets/user_chip.dart';
 
 class ChallengesScreen extends StatefulWidget {
+  final bool showOnlyMyChallenges;
+
+  const ChallengesScreen({Key? key, this.showOnlyMyChallenges = false}) : super(key: key);
+
   @override
   _ChallengesScreenState createState() => _ChallengesScreenState();
 }
@@ -22,6 +28,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
   
   @override
   Widget build(BuildContext context) {
+    if (widget.showOnlyMyChallenges && _selectedFilter != 'my') {
+      _selectedFilter = 'my';
+    }
     return Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
       body: Column(
@@ -300,13 +309,14 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 8),
-              Text(
-                  'Автор: $creatorName',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
-                    fontSize: 11,
-                  ),
+              GestureDetector(
+                onTap: () => Navigator.pushNamed(
+                  context,
+                  '/player-profile',
+                  arguments: {'playerId': creatorId, 'playerName': creatorName},
                 ),
+                child: UserChip(userId: creatorId, name: creatorName, showName: true, size: 20),
+              ),
                 const SizedBox(height: 8),
                 // Статистика
                 Row(
@@ -377,6 +387,46 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                         ),
                       ),
                     
+                    // Average rating badge (top-right) — читаємо із submissions творця
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('challenges')
+                            .doc(challengeId)
+                            .collection('submissions')
+                            .where('isCreatorVideo', isEqualTo: true)
+                            .limit(1)
+                            .snapshots(),
+                        builder: (context, snap) {
+                          double avg = 0.0;
+                          if (snap.hasData && snap.data!.docs.isNotEmpty) {
+                            final d = snap.data!.docs.first.data() as Map<String, dynamic>;
+                            avg = (d['averageRating'] ?? d['rating'] ?? 0.0).toDouble();
+                          }
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.6)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.star, color: Color(0xFFFFD700), size: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  avg > 0 ? avg.toStringAsFixed(2) : '—.—',
+                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
                     // Video info overlay
                     Positioned(
                       bottom: 8,
@@ -470,11 +520,11 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                             submissionId: submissionId,
                           ),
                           child: Container(
-                            width: 60,
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
+                          width: 60,
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
                                     color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(8),
                                     border: Border.all(color: Colors.white.withOpacity(0.2)),
                                   ),
                                   child: FutureBuilder<DocumentSnapshot>(
@@ -500,9 +550,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                                 arguments: {
                                                   'playerId': submissionUserId,
                                                   'playerName': authorName,
-                                                },
-                                              );
-                                            },
+                      },
+                    );
+                  },
                                             child: Container(
                                               width: 32,
                                               height: 32,
@@ -524,7 +574,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                             ),
                                           ),
                                           const SizedBox(height: 4),
-                                          Text(
+                      Text(
                                             authorName.length > 8 
                                               ? '${authorName.substring(0, 8)}...' 
                                               : authorName,
@@ -1023,7 +1073,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                           const Icon(Icons.star, color: Color(0xFF4caf50), size: 14),
                                           const SizedBox(width: 4),
                                           Text(
-                                            rating.toStringAsFixed(1),
+                                            rating.toStringAsFixed(2),
                                             style: const TextStyle(
                                               color: Color(0xFF4caf50),
                                               fontSize: 12,
@@ -1081,13 +1131,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         borderRadius: BorderRadius.circular(12),
         child: kIsWeb
             ? (creatorVideoUrl.isNotEmpty
-                ? Image.network(
-                    creatorVideoUrl,
-                    width: double.infinity,
-                    height: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => _buildVideoPlaceholder(title, creatorName, true),
-                  )
+                ? WebVideoThumbnail(videoUrl: creatorVideoUrl)
                 : _buildVideoPlaceholder(title, creatorName, false))
             : (effectiveThumb.isNotEmpty
                 ? Image.network(
