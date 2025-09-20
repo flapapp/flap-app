@@ -44,7 +44,8 @@ dependencies:
   chewie: ^1.7.4
   video_thumbnail: ^0.5.3
   path_provider: ^2.1.1
-  intl: ^0.18.1
+  intl: ^0.18.1 
+  share_plus: ^10.0.0
 
 dev_dependencies:
   flutter_test:
@@ -85,7 +86,12 @@ flutter:
   # "family" key with the font family name, and a "fonts" key with a
   # list giving the asset and other descriptors for the font. For
   # example:
-  # fonts:
+  fonts:
+   - family: Roboto
+     fonts:
+       - asset: assets/fonts/Roboto-Regular.ttf
+       - asset: assets/fonts/Roboto-Bold.ttf
+         weight: 700
   #   - family: Schyler
   #     fonts:
   #       - asset: fonts/Schyler-Regular.ttf

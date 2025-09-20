@@ -163,6 +163,33 @@ class RatingService {
       }
       final averageRating = totalRating / _matchCriteria.length;
 
+            // Перевірка стану матчу та учасників
+      final matchDoc = await FirebaseFirestore.instance
+          .collection('matches')
+          .doc(matchId)
+          .get();
+      if (!matchDoc.exists) {
+        throw Exception('Матч не знайдено');
+      }
+      final matchData = matchDoc.data() as Map<String, dynamic>;
+      if (matchData['status'] != 'finished') {
+        throw Exception('Матч ще не завершено');
+      }
+      final participants = List<String>.from(matchData['participants'] ?? const <String>[]);
+      if (!participants.contains(ratedBy) || !participants.contains(playerId)) {
+        throw Exception('Лише учасники можуть оцінювати');
+      }
+
+      // Уникнення дублю (пара playerId_ratedBy)
+      final ratingDocRef = FirebaseFirestore.instance
+          .collection('matches')
+          .doc(matchId)
+          .collection('playerRatings')
+          .doc('${playerId}_${ratedBy}');
+      if ((await ratingDocRef.get()).exists) {
+        throw Exception('Ви вже оцінювали цього гравця');
+      }
+
       // Збереження оцінки в матчі
       await FirebaseFirestore.instance
           .collection('matches')
@@ -536,7 +563,7 @@ class RatingService {
     try {
       Query query = FirebaseFirestore.instance
           .collection('users')
-          .where('rating', isGreaterThan: _defaultRating - 0.1) // Виключаємо тих, хто не має рейтингу
+          .where('rating', isGreaterThanOrEqualTo: _defaultRating) // Виключаємо тих, хто не має рейтингу
           .orderBy('rating', descending: true)
           .limit(limit);
 

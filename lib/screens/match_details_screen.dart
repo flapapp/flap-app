@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/match.dart';
 import '../services/match_service.dart';
+import '../services/rating_service.dart';
+import 'package:share_plus/share_plus.dart';
 
 class MatchDetailsScreen extends StatefulWidget {
   final Match match;
@@ -14,8 +17,8 @@ class MatchDetailsScreen extends StatefulWidget {
 
 class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   final MatchService _matchService = MatchService();
+  final RatingService _ratingService = RatingService();
   bool _isJoining = false;
-  bool _isLeaving = false;
 
   @override
   Widget build(BuildContext context) {
@@ -23,8 +26,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       backgroundColor: const Color(0xFF1a1a2e),
       appBar: AppBar(
         title: Text(
-          widget.match.title,
-          style: TextStyle(color: Colors.white),
+          '⚽ Деталі матчу',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -44,11 +47,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             _buildInfoSection(),
             SizedBox(height: 20),
 
-            // Учасники
+            // Учасники з детальною інформацією
             _buildParticipantsSection(),
             SizedBox(height: 20),
             
-            // Кнопки дій
+            // Кнопки дій (тільки Приєднатися та Поділитися)
             _buildActionButtons(),
           ],
         ),
@@ -60,9 +63,22 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Color(0xFF16213e),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF2D3748),
+            Color(0xFF1A202C),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 15,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,8 +92,18 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             ),
           ),
           SizedBox(height: 8),
+          if (widget.match.description.isNotEmpty) ...[
+            Text(
+              widget.match.description,
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
+              ),
+            ),
+            SizedBox(height: 12),
+          ],
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: _getStatusColor(widget.match.status),
               borderRadius: BorderRadius.circular(20),
@@ -86,7 +112,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               _getStatusText(widget.match.status),
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -100,15 +126,28 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Color(0xFF16213e),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF2D3748),
+            Color(0xFF1A202C),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Інформація про матч',
+            '📋 Інформація про матч',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -116,13 +155,127 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             ),
           ),
           SizedBox(height: 16),
-          _buildInfoRow('📅 Дата', '${widget.match.date.day}.${widget.match.date.month}.${widget.match.date.year}'),
-          _buildInfoRow('⏰ Час', widget.match.time),
-          _buildInfoRow('📍 Локація', widget.match.location),
-          _buildInfoRow('🏙️ Місто', widget.match.city),
-          _buildInfoRow('⭐ Рівень', _getLevelText(widget.match.level)),
-          _buildInfoRow('💰 Вартість', '${widget.match.cost} грн'),
-          _buildInfoRow('⚽ Гравці', '${widget.match.currentPlayers}/${widget.match.maxPlayers}'),
+          
+          // Статистика в рядках
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  '🗓️',
+                  '${widget.match.date.day}.${widget.match.date.month}.${widget.match.date.year}',
+                  'Дата',
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  '⏰',
+                  widget.match.time,
+                  'Час',
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  '👥',
+                  '${widget.match.participants.length}/${widget.match.maxPlayers}',
+                  'Гравці',
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  '💰',
+                  '${widget.match.cost} грн',
+                  'Вартість',
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  '⭐',
+                  _getLevelText(widget.match.level),
+                  'Рівень',
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  '★',
+                  widget.match.city,
+                  'Місто',
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          
+          // Локація
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.location_on, color: Colors.white70, size: 20),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.match.location,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String icon, String value, String label) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(
+            icon,
+            style: TextStyle(fontSize: 20),
+          ),
+          SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+            ),
+          ),
         ],
       ),
     );
@@ -132,9 +285,22 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Color(0xFF16213e),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF2D3748),
+            Color(0xFF1A202C),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,7 +309,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Учасники',
+                '👥 Учасники (${widget.match.participants.length})',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -168,325 +334,424 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             ],
           ),
           SizedBox(height: 16),
+          
           if (widget.match.participants.isEmpty)
-            Text(
-              'Поки що немає учасників',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 16,
+            Container(
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(
+                  'Поки що немає учасників',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 16,
+                  ),
+                ),
               ),
             )
           else
             Column(
-              children: [
-                // Організатор (перший учасник)
-                _buildParticipantCard(
-                  widget.match.organizerName,
-                  'Організатор',
-                  true,
-                ),
-                SizedBox(height: 12),
-                // Інші учасники
-                ...widget.match.participants
-                    .where((id) => id != widget.match.organizerId)
-                    .map((id) => Padding(
-                          padding: EdgeInsets.only(bottom: 12),
-                          child: _buildParticipantCard(
-                        'Гравець ${id.length > 8 ? '${id.substring(0, 8)}...' : id}',
-                        'Учасник',
-                        false,
-                        ),
-                        )),
-              ],
+              children: widget.match.participants.map((participantId) {
+                return _buildParticipantCard(participantId);
+              }).toList(),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildActionButtons() {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return SizedBox.shrink();
 
-    final isOrganizer = widget.match.organizerId == currentUser.uid;
-    final isParticipant = widget.match.participants.contains(currentUser.uid);
-    final isFull = widget.match.currentPlayers >= widget.match.maxPlayers;
 
-    // 1. ОРГАНІЗАТОР МАТЧУ
-    if (isOrganizer) {
-      return Column(
-        children: [
-          if (widget.match.status == MatchStatus.open || widget.match.status == MatchStatus.full)
-            ElevatedButton(
-              onPressed: _startMatch,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4caf50),
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Почати матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-            ),
-          if (widget.match.status == MatchStatus.inProgress) ...[
-            ElevatedButton(
-              onPressed: _finishMatch,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Завершити матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(height: 12),
-          ],
-          ElevatedButton(
-            onPressed: _editMatch,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4caf50),
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Редагувати матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: _cancelMatch,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Скасувати матч', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      );
-    }
-
-    // 2. УЧАСНИК МАТЧУ (НЕ ОРГАНІЗАТОР)
-    if (isParticipant) {
-      return ElevatedButton(
-        onPressed: _isLeaving ? null : _leaveMatch,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.orange,
-          padding: EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        child: _isLeaving
-            ? CircularProgressIndicator(color: Colors.white)
-            : Text(
-                'Покинути матч',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-      );
-    }
-
-    // 2.5. ЗАВЕРШЕНИЙ МАТЧ — Оцінювання
-    if (widget.match.status == MatchStatus.finished && isParticipant) {
-      return ElevatedButton(
-        onPressed: () {
-          Navigator.pushNamed(context, '/match_rating', arguments: widget.match);
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF4caf50),
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        child: const Text(
-          '⭐ Оцінити гравців',
-          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-      );
-    }
-
-    if (isFull) {
-      return Container(
-        padding: EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.red.withOpacity(0.3)),
-        ),
-        child: Text(
-          'Матч заповнений',
-          style: TextStyle(
-            color: Colors.red,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
-    // 4. ГЛЯДАЧ (МОЖЕ ПРИЄДНАТИСЯ)
-    return ElevatedButton(
-      onPressed: _isJoining ? null : _joinMatch,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Color(0xFF4caf50),
-        padding: EdgeInsets.symmetric(vertical: 15),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-      child: _isJoining
-          ? CircularProgressIndicator(color: Colors.white)
-          : Text(
-              'Приєднатися до матчу',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-    );
-  }
-
-  // TODO: Додати методи для дій
-  void _editMatch() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Редагування матчу буде додано пізніше')),
-    );
-  }
-
-  void _cancelMatch() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Скасування матчу буде додано пізніше')),
-    );
-  }
-
-  Future<void> _startMatch() async {
-    try {
-      await _matchService.startMatch(widget.match.id);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Матч розпочато')),
-      );
-      Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка старту: $e'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  Future<void> _finishMatch() async {
-    try {
-      // Показуємо діалог для введення рахунку
-      final result = await _showFinishMatchDialog();
-      if (result != null) {
-        final success = await _matchService.finishMatch(
-          widget.match.id,
-          result['result'],
-          result['teamAScore'],
-          result['teamBScore'],
-        );
-        
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Матч завершено! Тепер гравці можуть оцінювати один одного.')),
-          );
-          Navigator.pop(context);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Помилка завершення матчу'), backgroundColor: Colors.red),
-          );
+  Widget _buildParticipantCard(String participantId) {
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance
+          .collection('users')
+          .doc(participantId)
+          .get(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return _buildParticipantCardPlaceholder(participantId);
         }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка завершення: $e'), backgroundColor: Colors.red),
-      );
-    }
-  }
 
-  // Додати метод для діалогу завершення матчу
-  Future<Map<String, dynamic>?> _showFinishMatchDialog() async {
-    int teamAScore = 0;
-    int teamBScore = 0;
-    
-    return showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Color(0xFF1a1a2e),
-          title: Text(
-            'Завершити матч',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        final userData = snapshot.data!.data()!;
+        final isOrganizer = participantId == widget.match.organizerId;
+        
+        return Container(
+          margin: EdgeInsets.only(bottom: 12),
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isOrganizer ? Color(0xFF4caf50) : Colors.white.withOpacity(0.1),
+              width: isOrganizer ? 2 : 1,
+            ),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
             children: [
-              Text(
-                'Введіть фінальний рахунок:',
-                style: TextStyle(color: Colors.white70),
-              ),
-              SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        labelText: 'Команда А',
-                        labelStyle: TextStyle(color: Colors.white70),
-                        border: OutlineInputBorder(),
+              // Аватарка
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: isOrganizer ? Color(0xFF4caf50) : Color(0xFF2196f3),
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: userData['avatarUrl'] != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(25),
+                        child: Image.network(
+                          userData['avatarUrl'],
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              isOrganizer ? Icons.star : Icons.person,
+                              color: Colors.white,
+                              size: 24,
+                            );
+                          },
+                        ),
+                      )
+                    : Icon(
+                        isOrganizer ? Icons.star : Icons.person,
+                        color: Colors.white,
+                        size: 24,
                       ),
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(color: Colors.white),
-                      onChanged: (value) => teamAScore = int.tryParse(value) ?? 0,
+              ),
+              SizedBox(width: 16),
+              
+              // Інформація про гравця
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          userData['displayName'] ?? 'Гравець',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (isOrganizer) ...[
+                          SizedBox(width: 8),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Color(0xFF4caf50),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              'Організатор',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '${userData['position'] ?? 'Позиція не вказана'} • ${userData['city'] ?? 'Місто не вказано'}',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Рейтинг
+              Column(
+                children: [
+                  Text(
+                    (userData['rating'] ?? 3.0).toStringAsFixed(1),
+                    style: TextStyle(
+                      color: Color(0xFF4caf50),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(width: 16),
                   Text(
-                    ':',
-                    style: TextStyle(color: Colors.white, fontSize: 24),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        labelText: 'Команда B',
-                        labelStyle: TextStyle(color: Colors.white70),
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(color: Colors.white),
-                      onChanged: (value) => teamBScore = int.tryParse(value) ?? 0,
+                    'РЕЙТИНГ',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Скасувати', style: TextStyle(color: Colors.white70)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, {
-                  'result': _determineMatchResult(teamAScore, teamBScore),
-                  'teamAScore': teamAScore,
-                  'teamBScore': teamBScore,
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFf44336),
-              ),
-              child: Text('Завершити'),
-            ),
-          ],
         );
       },
     );
   }
 
-  // Допоміжний метод для визначення результату
-  MatchResult _determineMatchResult(int teamAScore, int teamBScore) {
-    if (teamAScore > teamBScore) {
-      return MatchResult.teamAWins;
-    } else if (teamBScore > teamAScore) {
-      return MatchResult.teamBWins;
-    } else {
-      return MatchResult.draw;
-    }
+  Widget _buildParticipantCardPlaceholder(String participantId) {
+    final isOrganizer = participantId == widget.match.organizerId;
+    
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isOrganizer ? Color(0xFF4caf50) : Colors.white.withOpacity(0.1),
+          width: isOrganizer ? 2 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: isOrganizer ? Color(0xFF4caf50) : Color(0xFF2196f3),
+              borderRadius: BorderRadius.circular(25),
+            ),
+            child: Icon(
+              isOrganizer ? Icons.star : Icons.person,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Гравець ${participantId.length > 8 ? '${participantId.substring(0, 8)}...' : participantId}',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (isOrganizer) ...[
+                      SizedBox(width: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Color(0xFF4caf50),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'Організатор',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Позиція не вказана • Місто не вказано',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            children: [
+              Text(
+                '3.0',
+                style: TextStyle(
+                  color: Color(0xFF4caf50),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                'РЕЙТИНГ',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
+
+
+  Widget _buildActionButtons() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return SizedBox.shrink();
+
+    final isParticipant = widget.match.participants.contains(currentUser.uid);
+    final isFull = widget.match.currentPlayers >= widget.match.maxPlayers;
+
+    if (isFull && !isParticipant) {
+      return Container(
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.info, color: Colors.red, size: 24),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Матч заповнений. Нових учасників не приймають.',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (isParticipant) {
+      return Container(
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.green.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 24),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Ви вже приєднані до цього матчу!',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        // Кнопка приєднання
+        Expanded(
+          child: Container(
+            height: 50,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0xFF4caf50).withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _isJoining ? null : _joinMatch,
+                borderRadius: BorderRadius.circular(12),
+                child: Center(
+                  child: _isJoining
+                      ? CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add, color: Colors.white, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Приєднатися',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: 16),
+        
+        // Кнопка поділитися
+        _buildShareButton(),
+      ],
+    );
+  }
+
+  Widget _buildShareButton() {
+    return Expanded(
+      child: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _shareMatch,
+            borderRadius: BorderRadius.circular(12),
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.share, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Поділитися',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
 
   void _joinMatch() async {
     setState(() => _isJoining = true);
@@ -495,17 +760,20 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
 
-      final success = await _matchService.joinMatch(widget.match.id, currentUser.uid);
+      final success = await _matchService.applyForMatch(widget.match.id, currentUser.uid);
       
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ви успішно приєдналися до матчу!')),
+          SnackBar(
+            content: Text('Заявку подано! Очікуйте відповіді організатора.'),
+            backgroundColor: Color(0xFF4caf50),
+          ),
         );
         Navigator.pop(context);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Не вдалося приєднатися до матчу'),
+            content: Text('Не вдалося подати заявку. Спробуйте ще раз.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -522,111 +790,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     }
   }
 
-  void _leaveMatch() async {
-    setState(() => _isLeaving = true);
-
-    try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) return;
-
-      final success = await _matchService.leaveMatch(widget.match.id, currentUser.uid);
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ви покинули матч')),
-        );
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Не вдалося покинути матч'), backgroundColor: Colors.red),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка: $e'), backgroundColor: Colors.red),
-      );
-    } finally {
-      setState(() => _isLeaving = false);
-    }
-  }
-
-  Widget _buildParticipantCard(String name, String role, bool isOrganizer) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Color(0xFF0f3460),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isOrganizer ? Color(0xFF4caf50) : Colors.white10,
-          width: isOrganizer ? 2 : 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: isOrganizer ? Color(0xFF4caf50) : Color(0xFF2196f3),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Icon(
-              isOrganizer ? Icons.star : Icons.person,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  role,
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 16,
-            ),
-          ),
-          Spacer(),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
+  void _shareMatch() {
+    final url = 'https://flap.app/match/${widget.match.id}';
+    Share.share('Приєднуйся до матчу "${widget.match.title}": $url');
   }
 
   String _getLevelText(MatchLevel level) {
@@ -653,7 +819,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       case MatchStatus.inProgress:
         return Color(0xFF2196f3);
       case MatchStatus.finished:
-        return Color(0xFF9c27b0);
+        return Colors.grey;
       case MatchStatus.cancelled:
         return Colors.red;
       default:

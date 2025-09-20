@@ -230,23 +230,23 @@ class Match {
         orElse: () => MatchStatus.open,
       ),
       teamA: data['teamA'] != null ? Team(
-  name: (data['teamA']['name'] ?? '') as String,
-  playerIds: List<String>.from(data['teamA']['playerIds'] ?? const []),
-  averageRating: ((data['teamA']['averageRating'] ?? 0.0) as num).toDouble(),
-  playerRatings: Map<String, double>.from(
-    (data['teamA']['playerRatings'] ?? const <String, num>{})
-      .map((k, v) => MapEntry(k, (v as num).toDouble())),
-  ),
-) : null,
-teamB: data['teamB'] != null ? Team(
-  name: (data['teamB']['name'] ?? '') as String,
-  playerIds: List<String>.from(data['teamB']['playerIds'] ?? const []),
-  averageRating: ((data['teamB']['averageRating'] ?? 0.0) as num).toDouble(),
-  playerRatings: Map<String, double>.from(
-    (data['teamB']['playerRatings'] ?? const <String, num>{})
-      .map((k, v) => MapEntry(k, (v as num).toDouble())),
-  ),
-) : null,
+        name: (data['teamA']['name'] ?? '') as String,
+        playerIds: List<String>.from(data['teamA']['playerIds'] ?? const []),
+        averageRating: ((data['teamA']['averageRating'] ?? 0.0) as num).toDouble(),
+        playerRatings: Map<String, double>.from(
+          (data['teamA']['playerRatings'] ?? const <String, num>{})
+            .map((k, v) => MapEntry(k, (v as num).toDouble())),
+        ),
+      ) : null,
+      teamB: data['teamB'] != null ? Team(
+        name: (data['teamB']['name'] ?? '') as String,
+        playerIds: List<String>.from(data['teamB']['playerIds'] ?? const []),
+        averageRating: ((data['teamB']['averageRating'] ?? 0.0) as num).toDouble(),
+        playerRatings: Map<String, double>.from(
+          (data['teamB']['playerRatings'] ?? const <String, num>{})
+            .map((k, v) => MapEntry(k, (v as num).toDouble())),
+        ),
+      ) : null,
       result: data['result'] != null ? MatchResult.values.firstWhere(
         (e) => e.toString().split('.').last == data['result'],
         orElse: () => MatchResult.draw,
@@ -403,24 +403,30 @@ teamB: data['teamB'] != null ? Team(
   
   // Статус для конкретного користувача
   String getUserStatus(String userId) {
-    if (organizerId == userId) return 'organizer';
-    if (participants.contains(userId)) return 'participant';
-    if (pendingApplications.contains(userId)) return 'pending';
-    if (rejectedApplications.contains(userId)) return 'rejected';
+    if (organizerId == userId) {
+      return 'organizer';
+    }
+    if (participants.contains(userId)) {
+      return 'participant';
+    }
+    if (pendingApplications.contains(userId)) {
+      return 'pending';
+    }
+    if (rejectedApplications.contains(userId)) {
+      return 'rejected';
+    }
     return 'none';
   }
 
   // Кількість вільних місць
-int get availableSpots => maxPlayers - currentPlayers;
+  int get availableSpots => maxPlayers - currentPlayers;
 
-// Відсоток заповнення
-double get fillPercentage {
-  if (maxPlayers <= 0) return 0.0;
-  return (currentPlayers / maxPlayers) * 100;
-}
+  // Відсоток заповнення
+  double get fillPercentage {
+    if (maxPlayers <= 0) return 0.0;
+    return (currentPlayers / maxPlayers) * 100;
+  }
 
-// Перевірка чи може користувач оцінювати
-  
   // Перевірка чи може користувач оцінювати
   bool canRate(String userId) => 
       participants.contains(userId) && 
@@ -458,6 +464,20 @@ double get fillPercentage {
   
   // Перевірка чи можна керувати
   bool canManage(String userId) => isOrganizer(userId);
+
+  @override
+  String toString() {
+    return 'Match(id: $id, title: $title, status: $status)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Match && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 // Утиліти для роботи з матчами

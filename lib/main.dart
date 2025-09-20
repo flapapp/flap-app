@@ -32,6 +32,7 @@ import 'services/subscription_service.dart';
 import 'services/notification_service.dart';
 import 'services/badge_service.dart';
 import 'screens/match_management_screen.dart';
+import 'services/test_data.dart';
 
 
 @pragma('vm:entry-point')
@@ -48,6 +49,8 @@ Future<void> main() async {
   // Initialize NotificationService
   try {
     await NotificationService().initialize();
+    
+    // Створюємо тестові дані
   } catch (e) {
     print('Failed to initialize NotificationService: $e');
   }

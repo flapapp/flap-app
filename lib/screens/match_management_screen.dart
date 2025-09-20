@@ -35,6 +35,39 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
   final Set<String> _locked = {};
   bool _isSavingTeams = false;
   Map<String, double> _ratingsCache = {};
+
+    // Кеш профілів користувачів (ім'я та аватар)
+  final Map<String, Map<String, dynamic>> _userCache = {};
+
+  Future<Map<String, dynamic>> _getUserProfile(String userId) async {
+    if (_userCache.containsKey(userId)) {
+      return _userCache[userId]!;
+    }
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      final data = doc.data() as Map<String, dynamic>? ?? const {};
+      final profile = <String, dynamic>{
+        'displayName': (data['displayName'] ?? 'Гравець').toString(),
+        'photoUrl': (data['photoUrl'] ?? '').toString(),
+      };
+      _userCache[userId] = profile;
+      return profile;
+    } catch (_) {
+      final fallback = <String, dynamic>{'displayName': 'Гравець', 'photoUrl': ''};
+      _userCache[userId] = fallback;
+      return fallback;
+    }
+  }
+
+  String _initialsFrom(String name, String fallback) {
+    final s = name.trim();
+    if (s.isEmpty) return fallback.substring(0, 2).toUpperCase();
+    final parts = s.split(RegExp(r'\s+'));
+    final first = parts.isNotEmpty ? parts[0] : '';
+    final second = parts.length > 1 ? parts[1] : '';
+    final letters = (first.isNotEmpty ? first[0] : '') + (second.isNotEmpty ? second[0] : '');
+    return letters.isEmpty ? fallback.substring(0, 2).toUpperCase() : letters.toUpperCase();
+  }
   
     @override
   void initState() {
@@ -124,6 +157,83 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
             ],
           ],
         ),
+          backgroundColor: Colors.transparent,
+  elevation: 0,
+  flexibleSpace: Container(
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF1a1a2e), Color(0xFF16213e)],
+      ),
+    ),
+  ),
+           bottom: PreferredSize(
+    preferredSize: Size.fromHeight(48),
+    child: StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('matches')
+          .doc(widget.match.id)
+          .snapshots(),
+      builder: (context, snap) {
+        final has = snap.hasData && snap.data!.exists;
+        final m = has ? Match.fromFirestore(snap.data!) : widget.match;
+        final pendingCount = has ? m.pendingApplications.length : _pendingApplications.length;
+        final participantsCount = has ? m.participants.length : _participants.length;
+
+        return TabBar(
+          controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
+          tabs: [
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Заявки'),
+                  const SizedBox(width: 6),
+                  if (pendingCount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$pendingCount',
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Команди'),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$participantsCount',
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Tab(text: 'Налаштування'),
+          ],
+        );
+      },
+    ),
+  ),
       ),
       body: TabBarView(
         controller: _tabController,
@@ -307,8 +417,8 @@ Widget _buildTeamsTab() {
                       children: [
                         // A
                         Expanded(
-                          child: _mvpTeamCard(
-                            title: 'Сильні Ведмеді',
+                            child: _mvpTeamCard(
+                            title: (m.teamA?.name?.isNotEmpty == true ? m.teamA!.name : 'Команда A'),
                             color: const Color(0xFF1976D2),
                             avg: m.teamA!.averageRating,
                             players: m.teamA!.playerIds,
@@ -318,8 +428,8 @@ Widget _buildTeamsTab() {
                         const SizedBox(width: 16),
                         // B
                         Expanded(
-                          child: _mvpTeamCard(
-                            title: 'Гордовіті Леви',
+                            child: _mvpTeamCard(
+                            title: (m.teamB?.name?.isNotEmpty == true ? m.teamB!.name : 'Команда B'),
                             color: const Color(0xFF8E24AA),
                             avg: m.teamB!.averageRating,
                             players: m.teamB!.playerIds,
@@ -339,40 +449,72 @@ Widget _buildTeamsTab() {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () async {
-                              final ok = await _confirm('Завершити матч?', 'Підтвердити рахунок і завершити матч');
-                              if (ok != true) return;
-                              Navigator.pushNamed(context, '/match_rating', arguments: m);
-                            },
-                            icon: const Icon(Icons.flag, color: Colors.white),
-                            label: const Text('Завершити матч', style: TextStyle(color: Colors.white)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFFA000),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                          ),
-                        ),
+                        // Показуємо кнопку залежно від статусу матчу
+if (m.isInProgress)
+  Expanded(
+    child: ElevatedButton.icon(
+      onPressed: _isLoading ? null : _showFinishMatchDialog,
+      icon: const Icon(Icons.flag, color: Colors.white),
+      label: const Text('Завершити матч', style: TextStyle(color: Colors.white)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFFFA000),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+    ),
+  )
+else if (m.isFinished)
+  Expanded(
+    child: ElevatedButton.icon(
+      onPressed: null,
+      icon: const Icon(Icons.check_circle, color: Colors.white),
+      label: const Text('Матч завершено', style: TextStyle(color: Colors.white)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.grey,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+    ),
+  )
+else if (m.isCancelled)
+  Expanded(
+    child: ElevatedButton.icon(
+      onPressed: null,
+      icon: const Icon(Icons.cancel, color: Colors.white),
+      label: const Text('Матч скасовано', style: TextStyle(color: Colors.white)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.grey,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+    ),
+  )
+else
+  Expanded(
+    child: ElevatedButton.icon(
+      onPressed: _startMatch,
+      icon: const Icon(Icons.play_arrow, color: Colors.white),
+      label: const Text('Почати матч', style: TextStyle(color: Colors.white)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF4caf50),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+    ),
+  ),
                         const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () async {
-                              final ok = await _confirm('Скасувати матч?', 'Скасувати подію і повідомити учасників');
-                              if (ok != true) return;
-                              // За потреби: виклик сервісу скасування
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Матч скасовано'), backgroundColor: Colors.redAccent),
-                              );
-                            },
-                            icon: const Icon(Icons.cancel, color: Colors.white),
-                            label: const Text('Скасувати', style: TextStyle(color: Colors.white)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE53935),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                          ),
-                        ),
+                        if (!m.isFinished && !m.isCancelled)
+  Expanded(
+    child: ElevatedButton.icon(
+      onPressed: () async {
+        final ok = await _confirm('Скасувати матч?', 'Скасувати подію і повідомити учасників');
+        if (ok != true) return;
+        await _cancelMatch();
+      },
+      icon: const Icon(Icons.cancel, color: Colors.white),
+      label: const Text('Скасувати', style: TextStyle(color: Colors.white)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFE53935),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+    ),
+  ),
                       ],
                     ),
                   ],
@@ -577,11 +719,11 @@ Widget _buildSettingsTab() {
             const SizedBox(height: 20),
 
             // Почати матч
-            if (m.hasTeams && !m.isInProgress && !m.isFinished)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _startMatch,
+if (m.hasTeams && !m.isInProgress && !m.isFinished && !m.isCancelled)
+  SizedBox(
+    width: double.infinity,
+    child: ElevatedButton(
+      onPressed: _startMatch,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4caf50),
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -605,12 +747,12 @@ Widget _buildSettingsTab() {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _showFinishMatchDialog,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFf44336),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
+  onPressed: _isLoading ? null : _showFinishMatchDialog,
+  style: ElevatedButton.styleFrom(
+    backgroundColor: const Color(0xFFf44336),
+    padding: const EdgeInsets.symmetric(vertical: 16),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: const [
@@ -1028,21 +1170,50 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
           ],
         ),
         const SizedBox(height: 12),
-        ...players.map((id) {
+                ...players.map((id) {
           final r = ratings[id] ?? 0.0;
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                const Icon(Icons.person, color: Colors.deepPurpleAccent, size: 18),
-                const SizedBox(width: 8),
-                Text(id.substring(0, 14),
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(color: Colors.white, fontSize: 14)),
-                const Spacer(),
-                Text(r.toStringAsFixed(1),
-                    style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
-              ],
+            child: FutureBuilder<Map<String, dynamic>>(
+              future: _getUserProfile(id),
+              builder: (context, snap) {
+                final name = (snap.data?['displayName'] ?? 'Гравець') as String;
+                final photoUrl = (snap.data?['photoUrl'] ?? '') as String;
+                final initials = _initialsFrom(name, id);
+
+                return Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: Colors.white12,
+                      backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                      child: photoUrl.isEmpty
+                          ? Text(
+                              initials,
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        name,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(color: Colors.white, fontSize: 14),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      r.toStringAsFixed(1),
+                      style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
+                );
+              },
             ),
           );
         }),
@@ -1183,12 +1354,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
       // Перезавантажуємо дані
       await _loadMatchData();
 
-      // Перенаправляємо на екран оцінювання
-      Navigator.pushReplacementNamed(
-        context,
-        '/match_rating',
-        arguments: widget.match,
-      );
+      
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1268,15 +1434,15 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
             child: Text('Скасувати', style: TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _finishMatch();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFf44336),
-            ),
-            child: Text('Завершити'),
-          ),
+  onPressed: _isLoading ? null : () {
+    Navigator.pop(context);
+    _finishMatch();
+  },
+  style: ElevatedButton.styleFrom(
+    backgroundColor: Color(0xFFf44336),
+  ),
+  child: Text('Завершити'),
+),
         ],
       ),
     );
@@ -1332,6 +1498,29 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
       setState(() => _isLoading = false);
     }
   }
+
+  Future<void> _cancelMatch() async {
+  setState(() => _isLoading = true);
+  try {
+    final success = await _matchService.cancelMatch(widget.match.id);
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Матч скасовано'), backgroundColor: Colors.redAccent),
+      );
+      await _loadMatchData();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не вдалося скасувати матч'), backgroundColor: Colors.red),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Помилка: $e'), backgroundColor: Colors.red),
+    );
+  } finally {
+    setState(() => _isLoading = false);
+  }
+}
   
   String _formatDateTime(DateTime dateTime) {
     return '${dateTime.day.toString().padLeft(2, '0')}.${dateTime.month.toString().padLeft(2, '0')}.${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';

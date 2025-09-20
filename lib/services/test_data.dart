@@ -1,11 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
 
 class TestDataService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static Future<void> createTestMatches() async {
+    static Future<void> createTestMatches() async {
     try {
+      // Спочатку створити користувача
+      await createTestUser();
       // Тестовий матч 1
       final match1 = Match(
         id: 'test_match_1',
@@ -20,7 +23,7 @@ class TestDataService {
         currentPlayers: 8,
         maxPlayers: 14,
         // Participants left empty to avoid missing user docs in rating init
-        participants: [],
+        participants: ['user1', 'user2', 'user3', 'user4'],
         level: MatchLevel.intermediate,
         cost: 50.0,
         autoBalance: true,
@@ -43,7 +46,7 @@ class TestDataService {
         city: 'Київ',
         currentPlayers: 12,
         maxPlayers: 22,
-        participants: [],
+        participants: ['user5', 'user6', 'user7', 'user8', 'user9'],
         level: MatchLevel.professional,
         cost: 100.0,
         autoBalance: true,
@@ -95,6 +98,44 @@ class TestDataService {
       print('✅ Тестові дані видалені!');
     } catch (e) {
       print('❌ Помилка видалення тестових даних: $e');
+    }
+  }
+  static Future<void> createTestUser() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        print('❌ Користувач не авторизований');
+        return;
+      }
+
+      // Створення документа користувача
+      await _firestore.collection('users').doc(currentUser.uid).set({
+        'authorName': 'Тестовий користувач',
+        'displayName': 'Тестовий користувач',
+        'name': 'Тестовий',
+        'surname': 'Користувач',
+        'email': currentUser.email ?? 'test@example.com',
+        'phone': '+380123456789',
+        'city': 'Київ',
+        'age': 25,
+        'position': 'Універсал',
+        'experience': 'Досвідчений',
+        'rating': 4.5,
+        'totalMatches': 15,
+        'wonMatches': 8,
+        'lostMatches': 5,
+        'drawMatches': 2,
+        'premium': false,
+        'premiumExpiry': null,
+        'coins': 1000,
+        'badges': [],
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      print('✅ Тестовий користувач створений успішно!');
+    } catch (e) {
+      print('❌ Помилка створення тестового користувача: $e');
     }
   }
 }

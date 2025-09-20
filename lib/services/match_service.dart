@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
 
 class MatchService {
@@ -129,6 +130,10 @@ class MatchService {
       if (!doc.exists) return false;
 
       final match = Match.fromFirestore(doc);
+      // Приватний матч: заявки лише від запрошених
+if (match.isPrivate && !match.invitedFriends.contains(userId)) {
+  return false;
+}
 
       // Перевірити чи користувач вже учасник
       if (match.participants.contains(userId)) {
@@ -167,6 +172,11 @@ class MatchService {
         if (!snap.exists) throw Exception('Match not found');
 
         final match = Match.fromFirestore(snap);
+
+final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+if (currentUserId == null || currentUserId != match.organizerId) {
+  throw Exception('Only organizer can perform this action');
+}
 
         // Перевірити чи є заявка
         if (!match.pendingApplications.contains(userId)) {
@@ -216,6 +226,11 @@ class MatchService {
         if (!snap.exists) throw Exception('Match not found');
 
         final match = Match.fromFirestore(snap);
+
+final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+if (currentUserId == null || currentUserId != match.organizerId) {
+  throw Exception('Only organizer can perform this action');
+}
 
         // Перевірити чи є заявка
         if (!match.pendingApplications.contains(userId)) {
@@ -280,6 +295,11 @@ class MatchService {
         if (!snap.exists) throw Exception('Match not found');
 
         final match = Match.fromFirestore(snap);
+
+final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+if (currentUserId == null || currentUserId != match.organizerId) {
+  throw Exception('Only organizer can perform this action');
+}
 
         // Повторні перевірки всередині транзакції
         if (match.participants.length < 4) {
@@ -423,6 +443,11 @@ class MatchService {
         if (!snap.exists) throw Exception('Match not found');
         
         final match = Match.fromFirestore(snap);
+
+final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+if (currentUserId == null || currentUserId != match.organizerId) {
+  throw Exception('Only organizer can perform this action');
+}
         
         // Перевіряємо чи можна почати матч
         if (!match.hasTeams) {
@@ -458,6 +483,11 @@ class MatchService {
         if (!snap.exists) throw Exception('Match not found');
         
         final match = Match.fromFirestore(snap);
+
+final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+if (currentUserId == null || currentUserId != match.organizerId) {
+  throw Exception('Only organizer can perform this action');
+}
         
         if (!match.isInProgress) {
           throw Exception('Матч не почався або вже завершений');
@@ -494,5 +524,37 @@ class MatchService {
             // Клієнтська перевірка: ще не оцінював цей користувач
             .where((match) => !match.playerRatings.any((r) => r.ratedBy == userId))
             .toList());
+  }
+    // Скасувати матч
+  Future<bool> cancelMatch(String matchId) async {
+    try {
+      final docRef = _firestore.collection('matches').doc(matchId);
+
+      return await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(docRef);
+        if (!snap.exists) throw Exception('Match not found');
+
+        final match = Match.fromFirestore(snap);
+
+        final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        if (currentUserId == null || currentUserId != match.organizerId) {
+          throw Exception('Only organizer can perform this action');
+        }
+
+        if (match.isFinished || match.isCancelled) {
+          throw Exception('Матч вже завершено або скасовано');
+        }
+
+        tx.update(docRef, {
+          'status': 'cancelled',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        return true;
+      });
+    } catch (e) {
+      print('Error cancelling match: $e');
+      return false;
+    }
   }
 }

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/notification.dart';
+import 'package:flutter/foundation.dart';
 
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -14,6 +15,10 @@ class NotificationService {
 
   // Initialize notifications
   Future<void> initialize() async {
+    if (kIsWeb) {
+     print('Running on web - skipping notification initialization');
+     return;
+   }
     try {
       print('Initializing NotificationService...');
 

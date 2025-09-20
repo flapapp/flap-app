@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_service.dart';
 import '../models/match.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MatchRatingScreen extends StatefulWidget {
   final Match match;
@@ -38,6 +39,36 @@ class _MatchRatingScreenState extends State<MatchRatingScreen> {
   ];
   
   bool _isSubmitting = false;
+  // Кеш профілів користувачів (displayName, photoUrl)
+final Map<String, Map<String, String>> _userCache = {};
+
+Future<Map<String, String>> _getUserProfile(String userId) async {
+  if (_userCache.containsKey(userId)) {
+    return _userCache[userId]!;
+  }
+  try {
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .get();
+    if (!snap.exists) {
+      _userCache[userId] = const {};
+      return const {};
+    }
+    final data = (snap.data() as Map<String, dynamic>? ?? const {});
+    final String displayName = (data['displayName'] as String?)?.trim() ?? '';
+    final String photoUrl = (data['photoUrl'] as String?)?.trim() ?? '';
+    final profile = <String, String>{
+      'displayName': displayName,
+      'photoUrl': photoUrl,
+    };
+    _userCache[userId] = profile;
+    return profile;
+  } catch (_) {
+    _userCache[userId] = const {};
+    return const {};
+  }
+}
   
   @override
 void initState() {
@@ -60,23 +91,67 @@ void initState() {
   _initializeRatings();
 }
   
-  void _initializeRatings() {
+  Future<void> _initializeRatings() async {
     // Ініціалізуємо оцінки для всіх гравців
     // Використовуємо participants як fallback, якщо teamA/teamB не існують
-    final allPlayers = [
-      ...widget.match.teamA?.playerIds ?? [],
-      ...widget.match.teamB?.playerIds ?? [],
-    ];
-    
-    // Якщо команди не існують, використовуємо всіх учасників матчу
-    final playersToRate = allPlayers.isNotEmpty ? allPlayers : widget.match.participants;
-    
-    for (final playerId in playersToRate) {
+    _playerRatings.clear();
+    final List<String> allPlayers = [
+  ...List<String>.from(widget.match.teamA?.playerIds ?? const <String>[]),
+  ...List<String>.from(widget.match.teamB?.playerIds ?? const <String>[]),
+];
+
+// Якщо команди не існують, використовуємо всіх учасників матчу
+
+final participantsSet = widget.match.participants.toSet();
+final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+final List<String> teamAIds = List<String>.from(widget.match.teamA?.playerIds ?? const <String>[]);
+final List<String> teamBIds = List<String>.from(widget.match.teamB?.playerIds ?? const <String>[]);
+
+final bool teamsExist = teamAIds.isNotEmpty && teamBIds.isNotEmpty;
+
+List<String> basePlayers;
+if (teamsExist && currentUserId != null && teamAIds.contains(currentUserId)) {
+  basePlayers = teamBIds; // оцінюємо лише суперників (команда B)
+} else if (teamsExist && currentUserId != null && teamBIds.contains(currentUserId)) {
+  basePlayers = teamAIds; // оцінюємо лише суперників (команда A)
+} else {
+  basePlayers = allPlayers.isNotEmpty ? allPlayers : widget.match.participants; // фолбек
+}
+
+final playersToRate = basePlayers.where((id) => participantsSet.contains(id)).toSet().toList();
+final sanitizedPlayers = playersToRate.where((id) =>
+  id != 'current_user_i' && id != 'current_user' && !id.startsWith('current_')
+).toList();
+
+// виключаємо тих, кого ви вже оцінювали
+final existingSnap = await FirebaseFirestore.instance
+    .collection('matches')
+    .doc(widget.match.id)
+    .collection('playerRatings')
+    .where('ratedBy', isEqualTo: currentUserId)
+    .get();
+final alreadyRatedIds = existingSnap.docs
+    .map((d) => (d.data()['playerId'] as String?) ?? '')
+    .toSet();
+    print('RATING DEBUG matchId=${widget.match.id}');
+print('RATING DEBUG participants=${widget.match.participants.length}');
+print('RATING DEBUG allPlayers=${allPlayers.length}');
+print('RATING DEBUG basePlayers=${basePlayers.length}');
+print('RATING DEBUG playersToRate=${playersToRate.length}');
+print('RATING DEBUG sanitizedPlayers=${sanitizedPlayers.length}');
+print('RATING DEBUG alreadyRatedIds=${alreadyRatedIds.length}');
+
+    for (final playerId in sanitizedPlayers) {
+      if (currentUserId != null && playerId == currentUserId) continue;
+      if (alreadyRatedIds.contains(playerId)) continue;
       _playerRatings[playerId] = {};
       for (final criterion in _criteria) {
         _playerRatings[playerId]![criterion] = 2.5; // Середня оцінка за замовчуванням
       }
     }
+    setState(() {});
+   
   }
   
   @override
@@ -124,12 +199,12 @@ void initState() {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: _isSubmitting ? null : _submitAllRatings,
+                    TextButton(
+            onPressed: (_isSubmitting || _playerRatings.isEmpty) ? null : _submitAllRatings,
             child: Text(
               _isSubmitting ? 'Зберігаємо...' : 'Зберегти',
               style: TextStyle(
-                color: _isSubmitting ? Colors.white54 : Colors.white,
+                color: (_isSubmitting || _playerRatings.isEmpty) ? Colors.white54 : Colors.white,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -208,20 +283,36 @@ void initState() {
               ],
             ),
           ),
-          
+
           // Список гравців для оцінювання
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(15),
-              itemCount: _playerRatings.length,
-              itemBuilder: (context, index) {
-                final playerId = _playerRatings.keys.elementAt(index);
-                final ratings = _playerRatings[playerId]!;
-                
-                return _buildPlayerRatingCard(playerId, ratings);
-              },
-            ),
-          ),
+if (_playerRatings.isEmpty)
+  Padding(
+    padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
+    child: Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: const Text(
+        'Немає гравців для оцінювання.\nМожливо, ви вже оцінили всіх учасників цього матчу.',
+        style: TextStyle(color: Colors.white70),
+      ),
+    ),
+  )
+else
+  Expanded(
+    child: ListView.builder(
+      padding: const EdgeInsets.all(15),
+      itemCount: _playerRatings.length,
+      itemBuilder: (context, index) {
+        final playerId = _playerRatings.keys.elementAt(index);
+        final ratings = _playerRatings[playerId]!;
+        return _buildPlayerRatingCard(playerId, ratings);
+      },
+    ),
+  ),
         ],
       ),
     );
@@ -253,53 +344,54 @@ void initState() {
           children: [
             // Заголовок гравця
             Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF9800), Color(0xFFF57C00)],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                  child: Center(
-                    child: Text(
-                      playerId.substring(0, 2).toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Гравець ${playerId.substring(0, 8)}...',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        'Оберіть оцінку за кожним критерієм',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+  children: [
+    FutureBuilder<Map<String, String>>(
+      future: _getUserProfile(playerId),
+      builder: (context, snap) {
+        final profile = snap.data ?? const {};
+        final displayName = (profile['displayName'] ?? '').trim();
+        final photoUrl = (profile['photoUrl'] ?? '').trim();
+        final initials = (displayName.isNotEmpty
+                ? displayName.split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join()
+                : playerId.substring(0, 2))
+            .toUpperCase();
+
+        return Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: ClipOval(
+                child: (photoUrl.isNotEmpty)
+                    ? Image.network(
+                        photoUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _AvatarFallback(initials: initials),
+                      )
+                    : _AvatarFallback(initials: initials),
+              ),
             ),
+            const SizedBox(width: 12),
+            // Імʼя гравця
+            Text(
+              displayName.isNotEmpty ? displayName : 'Гравець ${playerId.substring(0, 8)}...',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+    const Spacer(),
+  ],
+),
             
             const SizedBox(height: 16),
             
@@ -386,19 +478,33 @@ void initState() {
     
     try {
       int successCount = 0;
-      int totalCount = _playerRatings.length;
-      
-      // Оцінюємо кожного гравця
-      for (final entry in _playerRatings.entries) {
-        final playerId = entry.key;
-        final ratings = entry.value;
-        
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      final idsToRate = _playerRatings.keys.where((id) => id != currentUserId).toList();
+      final int totalCount = idsToRate.length;
+            if (totalCount == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Немає гравців для оцінювання'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        setState(() => _isSubmitting = false);
+        return;
+      }
+
+      for (final playerId in idsToRate) {
+        final ratings = _playerRatings[playerId]!;
         final success = await _ratingService.ratePlayerAfterMatch(
           matchId: widget.match.id,
           playerId: playerId,
           ratedBy: FirebaseAuth.instance.currentUser!.uid,
           criteria: ratings,
         );
+        if (success) {
+  print('RATING DEBUG saved playerId=$playerId');
+} else {
+  print('RATING DEBUG FAILED playerId=$playerId');
+}
         
         if (success) {
           successCount++;
@@ -453,5 +559,25 @@ void initState() {
     } else {
       return 'Щойно';
     }
+  }
+}
+class _AvatarFallback extends StatelessWidget {
+  final String initials;
+  const _AvatarFallback({Key? key, required this.initials}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF616161),
+      child: Center(
+        child: Text(
+          initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
   }
 }
