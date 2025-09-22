@@ -100,15 +100,36 @@ class MatchService {
     (match.currentPlayers - 1).clamp(0, match.maxPlayers).toInt();
 
         final Map<String, dynamic> updates = <String, dynamic>{
-          'participants': updatedParticipants,
-          'currentPlayers': newCurrentPlayers,
-        };
+  'participants': updatedParticipants,
+  'currentPlayers': newCurrentPlayers,
+};
 
-        // Якщо був 'full' і стало менше максимальної — повертаємо 'open'
-        if (match.status == MatchStatus.full &&
-            newCurrentPlayers < match.maxPlayers) {
-          updates['status'] = 'open';
-        }
+// Якщо команди вже були — приберемо гравця з команд і перерахуємо середній рейтинг
+if (match.hasTeams) {
+  final List<String> teamAPlayers = List<String>.from(match.teamA?.playerIds ?? const <String>[])..remove(userId);
+  final List<String> teamBPlayers = List<String>.from(match.teamB?.playerIds ?? const <String>[])..remove(userId);
+
+  final Map<String, double> ratings = await _getPlayerRatings([...teamAPlayers, ...teamBPlayers]);
+
+  updates['teamA'] = {
+    'name': match.teamA?.name ?? 'Команда A',
+    'playerIds': teamAPlayers,
+    'averageRating': _calculateTeamAverageRating(teamAPlayers, ratings),
+    'playerRatings': match.teamA?.playerRatings ?? <String, double>{},
+  };
+  updates['teamB'] = {
+    'name': match.teamB?.name ?? 'Команда B',
+    'playerIds': teamBPlayers,
+    'averageRating': _calculateTeamAverageRating(teamBPlayers, ratings),
+    'playerRatings': match.teamB?.playerRatings ?? <String, double>{},
+  };
+}
+
+// Якщо був 'full' і стало менше максимальної — повертаємо 'open'
+if (match.status == MatchStatus.full &&
+    newCurrentPlayers < match.maxPlayers) {
+  updates['status'] = 'open';
+}
 
         tx.update(docRef, updates);
       });
@@ -207,6 +228,70 @@ if (currentUserId == null || currentUserId != match.organizerId) {
 
         tx.update(docRef, updates);
       });
+
+      // Якщо команди вже існують – додаємо нового гравця до однієї з команд
+      // (мінімізуємо дисбаланс за кількістю/середнім рейтингом)
+      try {
+        final snapshot = await docRef.get();
+        if (snapshot.exists) {
+          final updated = Match.fromFirestore(snapshot);
+          if (updated.hasTeams) {
+            final List<String> teamAPlayers = List<String>.from(updated.teamA?.playerIds ?? const <String>[]);
+            final List<String> teamBPlayers = List<String>.from(updated.teamB?.playerIds ?? const <String>[]);
+
+            // Уникаємо дублювань
+            if (teamAPlayers.contains(userId) || teamBPlayers.contains(userId)) {
+              return true;
+            }
+
+            // Отримаємо рейтинги для коректного перерахунку
+            final Map<String, double> ratings = await _getPlayerRatings([
+              ...teamAPlayers,
+              ...teamBPlayers,
+              userId,
+            ]);
+
+            // Вибір цільової команди: спочатку за кількістю, потім за середнім рейтингом
+            final double avgA = _calculateTeamAverageRating(teamAPlayers, ratings);
+            final double avgB = _calculateTeamAverageRating(teamBPlayers, ratings);
+
+            bool addToA;
+            if (teamAPlayers.length < teamBPlayers.length) {
+              addToA = true;
+            } else if (teamBPlayers.length < teamAPlayers.length) {
+              addToA = false;
+            } else {
+              // рівна кількість: додамо в команду з нижчим середнім рейтингом
+              addToA = avgA <= avgB;
+            }
+
+            if (addToA) {
+              teamAPlayers.add(userId);
+            } else {
+              teamBPlayers.add(userId);
+            }
+
+            final double newAvgA = _calculateTeamAverageRating(teamAPlayers, ratings);
+            final double newAvgB = _calculateTeamAverageRating(teamBPlayers, ratings);
+
+            await docRef.update({
+              'teamA': {
+                'name': updated.teamA?.name ?? 'Команда A',
+                'playerIds': teamAPlayers,
+                'averageRating': newAvgA,
+                'playerRatings': updated.teamA?.playerRatings ?? <String, double>{},
+              },
+              'teamB': {
+                'name': updated.teamB?.name ?? 'Команда B',
+                'playerIds': teamBPlayers,
+                'averageRating': newAvgB,
+                'playerRatings': updated.teamB?.playerRatings ?? <String, double>{},
+              },
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      } catch (_) {}
 
       return true;
     } catch (e) {

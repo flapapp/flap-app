@@ -20,6 +20,30 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   final RatingService _ratingService = RatingService();
   bool _isJoining = false;
 
+    // Кеш профілів для уникнення повторних запитів
+  final Map<String, Map<String, dynamic>> _profileCache = {};
+
+  Future<Map<String, dynamic>> _fetchUserProfile(String userId) async {
+    if (_profileCache.containsKey(userId)) return _profileCache[userId]!;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      final data = snap.data() as Map<String, dynamic>? ?? const {};
+      final profile = <String, dynamic>{
+        'displayName': (data['displayName'] ?? data['authorName'] ?? 'Гравець').toString(),
+        'avatarUrl': (data['avatarUrl'] ?? '').toString(),
+      };
+      _profileCache[userId] = profile;
+      return profile;
+    } catch (_) {
+      final fallback = <String, dynamic>{'displayName': 'Гравець', 'avatarUrl': ''};
+      _profileCache[userId] = fallback;
+      return fallback;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -46,6 +70,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             // Основна інформація
             _buildInfoSection(),
             SizedBox(height: 20),
+
+            // Склади та рахунок для завершених матчів (MVP-стиль)
+            if (widget.match.status == MatchStatus.finished)
+              _buildFinishedTeamsAndScoreSection(),
+            if (widget.match.status == MatchStatus.finished)
+              SizedBox(height: 20),
 
             // Учасники з детальною інформацією
             _buildParticipantsSection(),
@@ -209,7 +239,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                  '★',
+                   '🏙️',
                   widget.match.city,
                   'Місто',
                 ),
@@ -633,6 +663,42 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       );
     }
 
+     if (isParticipant && widget.match.status == MatchStatus.finished) {
+      final userId = currentUser.uid;
+      return FutureBuilder<double>(
+        future: _getMyMatchAverageRating(widget.match.id, userId),
+        builder: (context, snap) {
+          final value = (snap.data ?? 0.0);
+          return Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.star, color: Color(0xFF4CAF50), size: 24),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    value > 0 ?
+                      'Ваша оцінка за матч: ${value.toStringAsFixed(2)}' :
+                      'Ще немає оцінок',
+                    style: TextStyle(
+                      color: Color(0xFF4CAF50),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    }
+
     if (isParticipant) {
       return Container(
         padding: EdgeInsets.all(20),
@@ -842,5 +908,194 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       default:
         return 'Невідомо';
     }
+  }
+  Future<double> _getMyMatchAverageRating(String matchId, String userId) async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('matches')
+          .doc(matchId)
+          .collection('playerRatings')
+          .where('playerId', isEqualTo: userId)
+          .get();
+      if (snap.docs.isEmpty) return 0.0;
+      double sum = 0.0;
+      for (final d in snap.docs) {
+        final m = d.data();
+        final r = (m['rating'] is num) ? (m['rating'] as num).toDouble() : 0.0;
+        sum += r;
+      }
+      return sum / snap.docs.length;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
+  Widget _buildFinishedTeamsAndScoreSection() {
+    final aName = (widget.match.teamA?.name?.isNotEmpty == true)
+        ? widget.match.teamA!.name
+        : 'Команда A';
+    final bName = (widget.match.teamB?.name?.isNotEmpty == true)
+        ? widget.match.teamB!.name
+        : 'Команда B';
+    // Якщо команди відсутні або порожні, показуємо всіх учасників, розбитих навпіл,
+    // щоб уникнути розсинхрону з учасниками (MVP-фолбек лише для відображення)
+    List<String> aPlayers = List<String>.from(widget.match.teamA?.playerIds ?? const <String>[]);
+    List<String> bPlayers = List<String>.from(widget.match.teamB?.playerIds ?? const <String>[]);
+    if (aPlayers.isEmpty && bPlayers.isEmpty) {
+      final all = List<String>.from(widget.match.participants);
+      all.sort();
+      final mid = (all.length / 2).floor();
+      aPlayers = all.sublist(0, mid);
+      bPlayers = all.sublist(mid);
+    }
+    final aScore = widget.match.teamAScore ?? 0;
+    final bScore = widget.match.teamBScore ?? 0;
+
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white.withOpacity(0.06), Colors.white.withOpacity(0.03)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Рахунок і заголовок
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  aName,
+                  style: TextStyle(
+                    color: Color(0xFF64B5F6),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.12)),
+                ),
+                child: Text(
+                  '$aScore : $bScore',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    bName,
+                    style: TextStyle(
+                      color: Color(0xFFE57373),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+
+          // Дві колонки зі складами
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _teamList(aPlayers, color: Color(0xFF64B5F6))),
+              SizedBox(width: 12),
+              Expanded(child: _teamList(bPlayers, color: Color(0xFFE57373))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _teamList(List<String> ids, {required Color color}) {
+    if (ids.isEmpty) {
+      return Container(
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: Text(
+          'Склад відсутній',
+          style: TextStyle(color: Colors.white70),
+        ),
+      );
+    }
+
+    return Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: ids.map((id) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _fetchUserProfile(id),
+      builder: (context, snap) {
+        final profile = snap.data ?? const {'displayName': 'Гравець', 'avatarUrl': ''};
+        final displayName = (profile['displayName'] as String).trim();
+        final avatarUrl = (profile['avatarUrl'] as String).trim();
+        final initials = (displayName.isNotEmpty
+                ? displayName.split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join()
+                : (id.isNotEmpty ? id.substring(0, id.length >= 2 ? 2 : 1) : '?'))
+            .toUpperCase();
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white.withOpacity(0.06)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: color.withOpacity(0.35),
+                backgroundImage: (avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
+                child: (avatarUrl.isEmpty)
+                    ? Text(
+                        initials,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  displayName.isNotEmpty
+                      ? displayName
+                      : 'Гравець ${id.substring(0, id.length >= 6 ? 6 : id.length)}…',
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }).toList(),
+);
   }
 }

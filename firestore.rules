@@ -85,21 +85,28 @@ allow create: if isSignedIn() &&
     request.auth.uid, request.resource.data.playerId
   ]) &&
   get(/databases/$(database)/documents/matches/$(matchId)).data.status == 'finished' &&
+              // Кнопка деталей
+           (
+  // якщо команди не задані — дозволяємо (фолбек)
+  !get(/databases/$(database)/documents/matches/$(matchId)).data.keys().hasAll(['teamA','teamB'])
+  ||
+  // або якщо команди є, але порожні — теж дозволяємо (фолбек)
+  get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.size() == 0
+  ||
+  get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.size() == 0
+  ||
+  // інакше — ratedBy і playerId мають бути в протилежних командах
   (
-    // якщо команди не задані — дозволяємо (фолбек)
-    !get(/databases/$(database)/documents/matches/$(matchId)).data.keys().hasAll(['teamA','teamB'])
-    ||
-    // інакше — ratedBy і playerId мають бути в протилежних командах
-    (
-      get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.hasAny([request.auth.uid]) &&
-      get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.hasAny([request.resource.data.playerId])
-    )
-    ||
-    (
-      get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.hasAny([request.auth.uid]) &&
-      get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.hasAny([request.resource.data.playerId])
-    )
-  ) &&
+    get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.hasAny([request.auth.uid]) &&
+    get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.hasAny([request.resource.data.playerId])
+  )
+  ||
+  (
+    get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.hasAny([request.auth.uid]) &&
+    get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.hasAny([request.resource.data.playerId])
+  )
+)
+ &&
   !exists(/databases/$(database)/documents/matches/$(matchId)/playerRatings/$(docId));
 
     

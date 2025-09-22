@@ -1646,59 +1646,59 @@ Widget _buildMyMatchCard(Match match) {
 
         // Кнопки дій
         Row(
-          children: [
-            if (isOrganizer)
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/match_management',
-                    arguments: match,
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF4caf50),
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(
-                  'Управління',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            if (isOrganizer) SizedBox(width: 8),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pushNamed(
-                  context,
-                  '/match-details',
-                  arguments: match,
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.1),
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text(
-                'Деталі',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
+  children: [
+    if (isOrganizer && match.status != MatchStatus.finished)
+      ElevatedButton(
+        onPressed: () {
+          Navigator.pushNamed(
+            context,
+            '/match_management',
+            arguments: match,
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFF4caf50),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
+        child: Text(
+          'Управління',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    if (isOrganizer && match.status != MatchStatus.finished) SizedBox(width: 8),
+    ElevatedButton(
+      onPressed: () {
+        Navigator.pushNamed(
+          context,
+          '/match-details',
+          arguments: match,
+        );
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white.withOpacity(0.1),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      child: Text(
+        'Деталі',
+        style: TextStyle(
+          color: Colors.white70,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+  ],
+),
 
         // Кнопка "Вийти з матчу" (учасник, не організатор, відкритий матч)
         if (!isOrganizer &&
@@ -2139,6 +2139,26 @@ Future<void> _onLeaveMatch(Match match) async {
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
+                if (match.status == MatchStatus.finished &&
+                    match.participants.contains(currentUserId))
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pushNamed(
+                        context,
+                        '/match_rating',
+                        arguments: match,
+                      );
+                    },
+                    child: const Text(
+                      'Оцінити гравців',
+                      style: TextStyle(
+                        color: Color(0xFF4caf50),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ],
