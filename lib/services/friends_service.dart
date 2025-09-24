@@ -17,15 +17,14 @@ class FriendsService {
 
   // Send friend request
   Future<bool> sendFriendRequest(String toUserId, {String? message}) async {
-    try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
-      }
-
-      if (currentUser.uid == toUserId) {
-        throw Exception('Не можна додати себе в друзі');
-      }
+  try {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('Користувач не авторизований');
+    }
+    if (toUserId == currentUser.uid) {
+      throw Exception('Неможливо додати себе у друзі');
+    }
 
       // Check if users are already friends
       final areFriends = await areUsersFriends(currentUser.uid, toUserId);

@@ -47,13 +47,13 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
       final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
       final data = doc.data() as Map<String, dynamic>? ?? const {};
       final profile = <String, dynamic>{
-        'displayName': (data['displayName'] ?? 'Гравець').toString(),
-        'photoUrl': (data['photoUrl'] ?? '').toString(),
-      };
+  'displayName': (data['displayName'] ?? 'Гравець').toString(),
+  'avatarUrl': ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toString(),
+};
       _userCache[userId] = profile;
       return profile;
     } catch (_) {
-      final fallback = <String, dynamic>{'displayName': 'Гравець', 'photoUrl': ''};
+  final fallback = <String, dynamic>{'displayName': 'Гравець', 'avatarUrl': ''};
       _userCache[userId] = fallback;
       return fallback;
     }
@@ -818,9 +818,8 @@ Widget _buildApplicationCard(String userId) {
                 (snap.hasData && snap.data!.exists)
                     ? (snap.data!.data() as Map<String, dynamic>)
                     : const {};
-            final String displayName =
-                (data['displayName'] ?? 'Гравець') as String;
-            final String? photoUrl = data['photoUrl'] as String?;
+            final String displayName = (data['displayName'] ?? 'Гравець') as String;
+final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toString();
             final double rating = (data['rating'] is num)
                 ? (data['rating'] as num).toDouble()
                 : 0.0;
@@ -841,11 +840,8 @@ Widget _buildApplicationCard(String userId) {
                   CircleAvatar(
                     radius: 20,
                     backgroundColor: const Color(0xFF4caf50),
-                    backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
-                        ? NetworkImage(photoUrl)
-                        : null,
-                    child: (photoUrl == null || photoUrl.isEmpty)
-                        ? Text(
+                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+child: avatarUrl.isEmpty ? Text(
                             userId.substring(0, 2).toUpperCase(),
                             style: const TextStyle(
                               color: Colors.white,
@@ -1178,7 +1174,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
               future: _getUserProfile(id),
               builder: (context, snap) {
                 final name = (snap.data?['displayName'] ?? 'Гравець') as String;
-                final photoUrl = (snap.data?['photoUrl'] ?? '') as String;
+final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as String;
                 final initials = _initialsFrom(name, id);
 
                 return Row(
@@ -1186,8 +1182,8 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
                     CircleAvatar(
                       radius: 14,
                       backgroundColor: Colors.white12,
-                      backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                      child: photoUrl.isEmpty
+                      backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                      child: avatarUrl.isEmpty
                           ? Text(
                               initials,
                               style: GoogleFonts.poppins(

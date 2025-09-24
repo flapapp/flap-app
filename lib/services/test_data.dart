@@ -7,8 +7,7 @@ class TestDataService {
 
     static Future<void> createTestMatches() async {
     try {
-      // Спочатку створити користувача
-      await createTestUser();
+
       // Тестовий матч 1
       final match1 = Match(
         id: 'test_match_1',

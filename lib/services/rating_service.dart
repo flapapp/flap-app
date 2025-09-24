@@ -71,16 +71,15 @@ class RatingService {
         
         // Якщо рейтинг відсутній або 0.0/некоректний, встановлюємо початковий
         if (rating == null || (rating is num && rating <= 0.0)) {
-          await _initializeUserRating(userId);
-          return _defaultRating;
-        }
+  // не створюємо документ; просто повертаємо дефолт
+  return _defaultRating;
+}
         
         return (rating as num).toDouble();
       } else {
-        // Користувача не існує, створюємо з початковим рейтингом
-        await _initializeUserRating(userId);
-        return _defaultRating;
-      }
+  // користувача немає — повертаємо дефолт без запису
+  return _defaultRating;
+}
     } catch (e) {
       print('Error getting user rating: $e');
       return _defaultRating;

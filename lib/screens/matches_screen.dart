@@ -7,13 +7,13 @@ import 'create_match_screen.dart';
 import 'match_details_screen.dart';
 import 'video_main_screen.dart';
 import '../services/match_service.dart';
-import '../services/test_data.dart';
 import 'ratings_screen.dart';
 import '../widgets/rating_display.dart';
 import '../services/rating_service.dart';
 import 'match_management_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:async';
+import '../widgets/user_chip.dart';
 
 
 
@@ -99,8 +99,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
       vsync: this,
     );
     
-    // Створити тестові дані після авторизації
-    _createTestData();
+
   }
 
   @override
@@ -109,14 +108,7 @@ void dispose() {
   _tabController.dispose();
   super.dispose();
 }
-    // Метод для створення тестових даних
-  Future<void> _createTestData() async {
-    try {
-      await TestDataService.createTestMatches();
-    } catch (e) {
-      print('❌ Помилка створення тестових даних: $e');
-    }
-  }
+
 void _resetFindFilters() {
   setState(() {
     _selectedCity = 'Всі міста';
@@ -299,42 +291,7 @@ Widget _buildFilters() {
               label: Text('Скинути фільтри', style: TextStyle(color: Colors.white70)),
             ),
           ],
-        ),
-        
-        // Кнопка для створення тестових матчів
-        SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () async {
-              print('DEBUG: Створення тестових матчів...');
-              await _createTestData();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('✅ Тестові матчі створені!'),
-                  backgroundColor: Colors.green,
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            icon: Icon(Icons.sports_soccer, color: Colors.white),
-            label: Text(
-              'Створити тестові матчі',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF4caf50),
-              padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
+        )
       ],
     ),
   );
@@ -470,12 +427,18 @@ Container(
           ],
         ),
         child: IconButton(
-          icon: Icon(Icons.person, color: Colors.white, size: 20),
-          onPressed: () {
-            // TODO: Додати функціонал профілю
-          },
-          padding: EdgeInsets.zero,
-        ),
+  icon: Icon(Icons.person, color: Colors.white, size: 20),
+  onPressed: () {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    Navigator.pushNamed(
+      context,
+      '/player-profile',
+      arguments: {'playerId': uid, 'playerName': ''},
+    );
+  },
+  padding: EdgeInsets.zero,
+),
       ),
       SizedBox(width: 12),
       // Рейтинг з покращеним дизайном
@@ -1087,22 +1050,15 @@ Widget _buildMatchDetails(Match match) {
           // Аватарки учасників
           if (match.participants.isNotEmpty) ...[
             ...match.participants.take(5).map((id) {
-              return Container(
-                margin: EdgeInsets.only(right: 4),
-                child: CircleAvatar(
-  radius: 12,
-  backgroundColor: Colors.transparent,
-  child: CircleAvatar(
-    radius: 11,
-    backgroundColor: Color(0xFF4caf50),
-    child: Text(
-      id.length >= 2 ? id.substring(0, 2).toUpperCase() : '?',
-      style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+  return Container(
+    margin: EdgeInsets.only(right: 4),
+    child: UserChip(
+      userId: id,
+      size: 22,
+      showName: false,
     ),
-  ),
-),
-              );
-            }).toList(),
+  );
+}).toList(),
             if (match.participants.length > 5)
               Container(
                 margin: EdgeInsets.only(left: 4),
@@ -1560,6 +1516,20 @@ Widget _buildMyMatchCard(Match match) {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 6),
+Row(
+  children: [
+    const Icon(Icons.person, color: Colors.white70, size: 16),
+    const SizedBox(width: 4),
+    Expanded(
+      child: Text(
+        'Організатор: ${match.organizerName.isNotEmpty ? match.organizerName : 'Невідомий'}',
+        style: const TextStyle(color: Colors.white70, fontSize: 14),
+        overflow: TextOverflow.ellipsis,
+      ),
+    ),
+  ],
+),
                 ],
               ),
             ),
@@ -1580,7 +1550,9 @@ Widget _buildMyMatchCard(Match match) {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  if (match.pendingApplications.isNotEmpty) ...[
+                  if (match.pendingApplications.isNotEmpty &&
+    match.status != MatchStatus.finished &&
+    match.status != MatchStatus.cancelled) ...[
                     SizedBox(width: 8),
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1626,19 +1598,15 @@ Widget _buildMyMatchCard(Match match) {
           padding: const EdgeInsets.only(top: 4, bottom: 4),
           child: Row(
             children: match.participants.take(10).map((id) {
-              final label = id.isNotEmpty ? id.substring(0, 2).toUpperCase() : '?';
-              return Container(
-                margin: const EdgeInsets.only(right: 6),
-                child: CircleAvatar(
-                  radius: 12,
-                  backgroundColor: Colors.white.withOpacity(0.15),
-                  child: Text(
-                    label,
-                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              );
-            }).toList(),
+  return Container(
+    margin: const EdgeInsets.only(right: 6),
+    child: UserChip(
+      userId: id,
+      size: 24, // ≈ радіус 12
+      showName: false,
+    ),
+  );
+}).toList(),
           ),
         ),
 
@@ -1854,7 +1822,7 @@ Widget _buildMyMatchCard(Match match) {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Не вдалося подати заявку. Спробуйте ще раз.'),
+            content: Text('Ви вже подали заявку на участь у цьому матчі.'),
             backgroundColor: Colors.red,
           ),
         );

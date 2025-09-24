@@ -56,14 +56,14 @@ Future<Map<String, String>> _getUserProfile(String userId) async {
       return const {};
     }
     final data = (snap.data() as Map<String, dynamic>? ?? const {});
-    final String displayName = (data['displayName'] as String?)?.trim() ?? '';
-    final String photoUrl = (data['photoUrl'] as String?)?.trim() ?? '';
-    final profile = <String, String>{
-      'displayName': displayName,
-      'photoUrl': photoUrl,
-    };
-    _userCache[userId] = profile;
-    return profile;
+final String displayName = (data['displayName'] as String?)?.trim() ?? '';
+final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) as String?)?.trim() ?? '';
+final profile = <String, String>{
+  'displayName': displayName,
+  'avatarUrl': avatarUrl,
+};
+_userCache[userId] = profile;
+return profile;
   } catch (_) {
     _userCache[userId] = const {};
     return const {};
@@ -350,7 +350,7 @@ else
       builder: (context, snap) {
         final profile = snap.data ?? const {};
         final displayName = (profile['displayName'] ?? '').trim();
-        final photoUrl = (profile['photoUrl'] ?? '').trim();
+        final avatarUrl = (profile['avatarUrl'] ?? '').trim();
         final initials = (displayName.isNotEmpty
                 ? displayName.split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join()
                 : playerId.substring(0, 2))
@@ -366,14 +366,14 @@ else
                 border: Border.all(color: Colors.white, width: 2),
               ),
               child: ClipOval(
-                child: (photoUrl.isNotEmpty)
-                    ? Image.network(
-                        photoUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _AvatarFallback(initials: initials),
-                      )
-                    : _AvatarFallback(initials: initials),
-              ),
+  child: (avatarUrl.isNotEmpty)
+      ? Image.network(
+          avatarUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _AvatarFallback(initials: initials),
+        )
+      : _AvatarFallback(initials: initials),
+)
             ),
             const SizedBox(width: 12),
             // Імʼя гравця

@@ -68,6 +68,16 @@ class _RatingsScreenState extends State<RatingsScreen>
     _tabController.dispose();
     super.dispose();
   }
+
+  List<Map<String, dynamic>> _dedupeById(List<Map<String, dynamic>> players) {
+  final Map<String, Map<String, dynamic>> byId = {};
+  for (final p in players) {
+    final id = (p['id'] ?? '').toString();
+    if (id.isEmpty) continue;
+    byId[id] = p; // залишаємо останній екземпляр
+  }
+  return byId.values.toList();
+}
   
   Future<void> _loadData() async {
     setState(() {
@@ -76,23 +86,26 @@ class _RatingsScreenState extends State<RatingsScreen>
     
     try {
       // Завантажуємо топ гравців
-      _topPlayers = await _ratingService.getTopPlayers(limit: 50);
-      
-      // Завантажуємо гравців за містом
-      if (_selectedCity != 'Всі міста') {
-        _cityPlayers = await _ratingService.getTopPlayers(
-          limit: 50,
-          city: _selectedCity,
-        );
-      }
+_topPlayers = await _ratingService.getTopPlayers(limit: 50);
+_topPlayers = _dedupeById(_topPlayers);
+
+// Завантажуємо гравців за містом
+if (_selectedCity != 'Всі міста') {
+  _cityPlayers = await _ratingService.getTopPlayers(
+    limit: 50,
+    city: _selectedCity,
+  );
+  _cityPlayers = _dedupeById(_cityPlayers);
+}
       
       // Завантажуємо гравців за позицією
-      if (_selectedPosition != 'Всі позиції') {
-        _positionPlayers = await _ratingService.getTopPlayers(
-          limit: 50,
-          position: _selectedPosition,
-        );
-      }
+if (_selectedPosition != 'Всі позиції') {
+  _positionPlayers = await _ratingService.getTopPlayers(
+    limit: 50,
+    position: _selectedPosition,
+  );
+  _positionPlayers = _dedupeById(_positionPlayers);
+}
       
       // Завантажуємо мою статистику
       await _loadMyStats();
@@ -978,8 +991,8 @@ class _RatingsScreenState extends State<RatingsScreen>
         city: city,
       );
       setState(() {
-        _cityPlayers = players;
-      });
+  _cityPlayers = _dedupeById(players);
+});
     } catch (e) {
       print('Error loading city players: $e');
     }
@@ -993,8 +1006,8 @@ class _RatingsScreenState extends State<RatingsScreen>
         position: position,
       );
       setState(() {
-        _positionPlayers = players;
-      });
+  _positionPlayers = _dedupeById(players);
+});
     } catch (e) {
       print('Error loading position players: $e');
     }

@@ -396,20 +396,32 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
 
   Widget _buildParticipantCard(String participantId) {
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future: FirebaseFirestore.instance
-          .collection('users')
-          .doc(participantId)
-          .get(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
-          return _buildParticipantCardPlaceholder(participantId);
-        }
+  return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+    future: FirebaseFirestore.instance
+        .collection('users')
+        .doc(participantId)
+        .get(),
+    builder: (context, snapshot) {
+      if (!snapshot.hasData || !snapshot.data!.exists) {
+        return _buildParticipantCardPlaceholder(participantId);
+      }
 
-        final userData = snapshot.data!.data()!;
-        final isOrganizer = participantId == widget.match.organizerId;
-        
-        return Container(
+      final userData = snapshot.data!.data()!;
+      final isOrganizer = participantId == widget.match.organizerId;
+      final displayName =
+          (userData['displayName'] ?? userData['authorName'] ?? 'Гравець')
+              .toString()
+              .trim();
+
+      return GestureDetector(
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            '/player-profile',
+            arguments: {'playerId': participantId, 'playerName': displayName},
+          );
+        },
+        child: Container(
           margin: EdgeInsets.only(bottom: 12),
           padding: EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -423,33 +435,42 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           child: Row(
             children: [
               // Аватарка
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: isOrganizer ? Color(0xFF4caf50) : Color(0xFF2196f3),
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                child: userData['avatarUrl'] != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(25),
-                        child: Image.network(
-                          userData['avatarUrl'],
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              isOrganizer ? Icons.star : Icons.person,
-                              color: Colors.white,
-                              size: 24,
-                            );
-                          },
+              GestureDetector(
+                onTap: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/player-profile',
+                    arguments: {'playerId': participantId, 'playerName': displayName},
+                  );
+                },
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: isOrganizer ? Color(0xFF4caf50) : Color(0xFF2196f3),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: userData['avatarUrl'] != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(25),
+                          child: Image.network(
+                            userData['avatarUrl'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(
+                                isOrganizer ? Icons.star : Icons.person,
+                                color: Colors.white,
+                                size: 24,
+                              );
+                            },
+                          ),
+                        )
+                      : Icon(
+                          isOrganizer ? Icons.star : Icons.person,
+                          color: Colors.white,
+                          size: 24,
                         ),
-                      )
-                    : Icon(
-                        isOrganizer ? Icons.star : Icons.person,
-                        color: Colors.white,
-                        size: 24,
-                      ),
+                ),
               ),
               SizedBox(width: 16),
               
@@ -460,12 +481,16 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          userData['displayName'] ?? 'Гравець',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                        Flexible(
+                          child: Text(
+                            displayName.isNotEmpty ? displayName : 'Гравець',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         if (isOrganizer) ...[
@@ -523,10 +548,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ),
             ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   Widget _buildParticipantCardPlaceholder(String participantId) {
     final isOrganizer = participantId == widget.match.organizerId;
@@ -839,7 +865,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Не вдалося подати заявку. Спробуйте ще раз.'),
+            content: Text('Ви вже подали заявку на участь у цьому матчі.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1026,76 +1052,85 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _teamList(List<String> ids, {required Color color}) {
-    if (ids.isEmpty) {
-      return Container(
-        padding: EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
-        ),
-        child: Text(
-          'Склад відсутній',
-          style: TextStyle(color: Colors.white70),
-        ),
-      );
-    }
-
-    return Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: ids.map((id) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _fetchUserProfile(id),
-      builder: (context, snap) {
-        final profile = snap.data ?? const {'displayName': 'Гравець', 'avatarUrl': ''};
-        final displayName = (profile['displayName'] as String).trim();
-        final avatarUrl = (profile['avatarUrl'] as String).trim();
-        final initials = (displayName.isNotEmpty
-                ? displayName.split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join()
-                : (id.isNotEmpty ? id.substring(0, id.length >= 2 ? 2 : 1) : '?'))
-            .toUpperCase();
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.03),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white.withOpacity(0.06)),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 14,
-                backgroundColor: color.withOpacity(0.35),
-                backgroundImage: (avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
-                child: (avatarUrl.isEmpty)
-                    ? Text(
-                        initials,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  displayName.isNotEmpty
-                      ? displayName
-                      : 'Гравець ${id.substring(0, id.length >= 6 ? 6 : id.length)}…',
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+  if (ids.isEmpty) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Text(
+        'Склад відсутній',
+        style: TextStyle(color: Colors.white70),
+      ),
     );
-  }).toList(),
-);
   }
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: ids.map((id) {
+      return FutureBuilder<Map<String, dynamic>>(
+        future: _fetchUserProfile(id),
+        builder: (context, snap) {
+          final profile = snap.data ?? const {'displayName': 'Гравець', 'avatarUrl': ''};
+          final displayName = (profile['displayName'] as String).trim();
+          final avatarUrl = (profile['avatarUrl'] as String).trim();
+          final initials = (displayName.isNotEmpty
+                  ? displayName.split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join()
+                  : (id.isNotEmpty ? id.substring(0, id.length >= 2 ? 2 : 1) : '?'))
+              .toUpperCase();
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.03),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white.withOpacity(0.06)),
+            ),
+            child: GestureDetector(
+              onTap: () {
+                Navigator.pushNamed(
+                  context,
+                  '/player-profile',
+                  arguments: {'playerId': id, 'playerName': displayName},
+                );
+              },
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 14,
+                    backgroundColor: color.withOpacity(0.35),
+                    backgroundImage: (avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
+                    child: (avatarUrl.isEmpty)
+                        ? Text(
+                            initials,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      displayName.isNotEmpty
+                          ? displayName
+                          : 'Гравець ${id.substring(0, id.length >= 6 ? 6 : id.length)}…',
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }).toList(),
+  );
+}
 }

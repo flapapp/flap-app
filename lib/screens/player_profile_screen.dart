@@ -3,6 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:video_player/video_player.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:typed_data';
 import '../services/friends_service.dart';
 import 'video_player_screen.dart';
 import '../services/notification_service.dart';
@@ -27,9 +30,17 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   bool isLoading = true;
   final FriendsService _friendsService = FriendsService();
   bool _isSendingRequest = false;
+  // Пікер та локальний буфер аватару
+  final ImagePicker _picker = ImagePicker();
+  XFile? _pickedAvatar; // web-safe файл
+  bool _uploadingAvatar = false;
   final NotificationService _notificationService = NotificationService();
   List<String> _myVideoIds = [];
   bool _loadingMyVideos = false;
+
+  // Опції як у реєстрації
+  final List<String> _positions = ['Воротар', 'Захисник', 'Півзахисник', 'Нападник', 'Універсал'];
+  final List<String> _experiences = ['Початківець', 'Аматор', 'Досвідчений', 'Професіонал'];
 
   @override
   void initState() {
@@ -61,7 +72,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         data['id'] = doc.id;
         return data;
       }).toList();
-      
+
       // Sort on client side to avoid index requirement
       playerVideos.sort((a, b) {
         final aTime = a['createdAt'] as Timestamp?;
@@ -84,7 +95,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   Future<void> _loadMyVideosForRequest() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
-    setState(() { _loadingMyVideos = true; });
+    setState(() {
+      _loadingMyVideos = true;
+    });
     try {
       final qs = await FirebaseFirestore.instance
           .collection('videos')
@@ -93,8 +106,39 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           .get();
       _myVideoIds = qs.docs.map((d) => d.id).toList();
     } catch (_) {}
-    if (mounted) setState(() { _loadingMyVideos = false; });
+    if (mounted) setState(() {
+      _loadingMyVideos = false;
+    });
   }
+
+  Future<void> _pickAvatar() async {
+  try {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512, imageQuality: 85);
+    if (image != null) {
+      setState(() => _pickedAvatar = image);
+    }
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Помилка вибору фото: $e')));
+  }
+}
+
+Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
+  try {
+    setState(() => _uploadingAvatar = true);
+    final ref = FirebaseStorage.instance.ref().child('avatars').child(userId).child('avatar.jpg');
+    final Uint8List bytes = await file.readAsBytes();
+    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+    final url = await ref.getDownloadURL();
+    return url;
+  } catch (e) {
+    if (!mounted) return null;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Помилка завантаження: $e')));
+    return null;
+  } finally {
+    if (mounted) setState(() => _uploadingAvatar = false);
+  }
+}
 
   Future<void> _showRateMeDialog() async {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -137,7 +181,11 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                       return CheckboxListTile(
                         value: isSel,
                         onChanged: (val) => setStateDialog(() {
-                          if (val == true) { selected.add(id); } else { selected.remove(id); }
+                          if (val == true) {
+                            selected.add(id);
+                          } else {
+                            selected.remove(id);
+                          }
                         }),
                         title: Text(title, style: const TextStyle(color: Colors.white)),
                       );
@@ -147,20 +195,22 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Скасувати', style: TextStyle(color: Colors.white70))),
             ElevatedButton(
-              onPressed: selected.isEmpty ? null : () async {
-                final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
-                final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач').toString();
-                await _notificationService.sendRatingRequest(
-                  toUserIds: [widget.playerId],
-                  fromUserName: myName,
-                  videoIds: selected.toList(),
-                );
-                if (!mounted) return;
-                Navigator.pop(context, true);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('✅ Запит на оцінку надіслано')),
-                );
-              },
+              onPressed: selected.isEmpty
+                  ? null
+                  : () async {
+                      final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+                      final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач').toString();
+                      await _notificationService.sendRatingRequest(
+                        toUserIds: [widget.playerId],
+                        fromUserName: myName,
+                        videoIds: selected.toList(),
+                      );
+                      if (!mounted) return;
+                      Navigator.pop(context, true);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('✅ Запит на оцінку надіслано')),
+                      );
+                    },
               child: const Text('Надіслати'),
             ),
           ],
@@ -228,14 +278,212 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (index) {
         return Icon(
-          rating > index 
-            ? (rating > index + 0.5 ? Icons.star : Icons.star_half)
-            : Icons.star_border,
+          rating > index ? (rating > index + 0.5 ? Icons.star : Icons.star_half) : Icons.star_border,
           color: Colors.amber,
           size: 16,
         );
       }),
     );
+  }
+
+  Future<void> _showEditProfileDialog() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || currentUser.uid != widget.playerId) return;
+
+    final data = Map<String, dynamic>.from(playerData ?? {});
+    final nameCtrl = TextEditingController(text: (data['name'] ?? '').toString());
+    final surnameCtrl = TextEditingController(text: (data['surname'] ?? '').toString());
+    final emailCtrl = TextEditingController(text: (data['email'] ?? '').toString());
+    final phoneCtrl = TextEditingController(text: (data['phone'] ?? '').toString());
+    final cityCtrl = TextEditingController(text: (data['city'] ?? '').toString());
+    final ageCtrl = TextEditingController(text: (data['age'] ?? '').toString());
+    String? selectedPosition = (data['position'] as String?)?.trim().isNotEmpty == true ? (data['position'] as String) : null;
+    String? selectedExperience = (data['experience'] as String?)?.trim().isNotEmpty == true ? (data['experience'] as String) : null;
+    final avatarUrlCtrl = TextEditingController(text: (data['avatarUrl'] ?? '').toString());
+    final formKey = GlobalKey<FormState>();
+    bool saving = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          backgroundColor: const Color(0xFF1a1a2e),
+          title: const Text('Редагувати профіль', style: TextStyle(color: Colors.white)),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _textField('Ім’я', nameCtrl),
+                  const SizedBox(height: 8),
+                  _textField('Прізвище', surnameCtrl),
+                  const SizedBox(height: 8),
+                  _textField('Email', emailCtrl, requiredField: false),
+                  const SizedBox(height: 8),
+                  _textField('Телефон', phoneCtrl, requiredField: false),
+                  const SizedBox(height: 8),
+                  _textField('Місто', cityCtrl),
+                  const SizedBox(height: 8),
+                  _textField('Вік', ageCtrl, requiredField: false),
+                  const SizedBox(height: 8),
+
+                  // Позиція (випадаючий список)
+                  DropdownButtonFormField<String>(
+                    value: selectedPosition,
+                    items: _positions
+                        .map((p) => DropdownMenuItem(value: p, child: Text(p, style: const TextStyle(color: Colors.white))))
+                        .toList(),
+                    onChanged: (v) => selectedPosition = v,
+                    dropdownColor: const Color(0xFF1a1a2e),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Позиція',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.08),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
+                      focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF4caf50))),
+                    ),
+                    validator: (v) => (v == null || v.isEmpty) ? 'Оберіть позицію' : null,
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Досвід (випадаючий список)
+                  DropdownButtonFormField<String>(
+                    value: selectedExperience,
+                    items: _experiences
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(color: Colors.white))))
+                        .toList(),
+                    onChanged: (v) => selectedExperience = v,
+                    dropdownColor: const Color(0xFF1a1a2e),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Досвід',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.08),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
+                      focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF4caf50))),
+                    ),
+                    validator: (v) => (v == null || v.isEmpty) ? 'Оберіть досвід' : null,
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Аватар (вибір файлу)
+Align(
+  alignment: Alignment.centerLeft,
+  child: Text('Аватар', style: const TextStyle(color: Colors.white70)),
+),
+const SizedBox(height: 6),
+Row(
+  children: [
+    Container(
+      width: 56, height: 56,
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white24)),
+      clipBehavior: Clip.antiAlias,
+      child: _pickedAvatar != null
+          ? FutureBuilder<Uint8List>(
+              future: _pickedAvatar!.readAsBytes(),
+              builder: (context, snap) {
+                if (!snap.hasData) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                return Image.memory(snap.data!, fit: BoxFit.cover);
+              },
+            )
+          : (avatarUrlCtrl.text.isNotEmpty
+              ? Image.network(avatarUrlCtrl.text, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.black26))
+              : Container(color: Colors.black26, child: const Icon(Icons.person, color: Colors.white54))),
+    ),
+    const SizedBox(width: 12),
+    ElevatedButton.icon(
+      onPressed: _uploadingAvatar ? null : _pickAvatar,
+      icon: const Icon(Icons.photo_library, size: 18),
+      label: Text(_pickedAvatar == null ? 'Обрати фото' : 'Змінити'),
+    ),
+    const SizedBox(width: 12),
+    if (_uploadingAvatar) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+  ],
+),
+const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(ctx),
+              child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+            ),
+            ElevatedButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (!(formKey.currentState?.validate() ?? false)) return;
+                      setStateDialog(() => saving = true);
+                      try {
+                        final displayName = '${nameCtrl.text.trim()} ${surnameCtrl.text.trim()}'.trim();
+                        String avatarUrlToSave = avatarUrlCtrl.text.trim();
+if (_pickedAvatar != null) {
+  final uploaded = await _uploadAvatarToStorage(widget.playerId, _pickedAvatar!);
+  if (uploaded != null) {
+    avatarUrlToSave = uploaded;
+  }
+}
+
+await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update({
+  'name': nameCtrl.text.trim(),
+  'surname': surnameCtrl.text.trim(),
+  'displayName': displayName.isNotEmpty ? displayName : null,
+  'email': emailCtrl.text.trim(),
+  'phone': phoneCtrl.text.trim(),
+  'city': cityCtrl.text.trim(),
+  'age': int.tryParse(ageCtrl.text.trim()) ?? FieldValue.delete(),
+  'position': selectedPosition ?? FieldValue.delete(),
+  'experience': selectedExperience ?? FieldValue.delete(),
+  'avatarUrl': avatarUrlToSave,
+  'updatedAt': FieldValue.serverTimestamp(),
+});
+                        if (!mounted) return;
+                        Navigator.pop(ctx);
+                        _pickedAvatar = null;
+                        await _loadPlayerData();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('✅ Профіль оновлено')),
+                        );
+                      } catch (e) {
+                        setStateDialog(() => saving = false);
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Помилка збереження: $e')),
+                        );
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Зберегти'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    nameCtrl.dispose();
+    surnameCtrl.dispose();
+    emailCtrl.dispose();
+    phoneCtrl.dispose();
+    cityCtrl.dispose();
+    ageCtrl.dispose();
+    avatarUrlCtrl.dispose();
   }
 
   @override
@@ -299,6 +547,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     final draws = playerData!['draws'] ?? 0;
     final avatarUrl = playerData!['avatarUrl'] as String?;
 
+    final me = FirebaseAuth.instance.currentUser?.uid;
+    final isOwnProfile = me != null && widget.playerId == me;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
       appBar: AppBar(
@@ -309,47 +560,60 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(widget.playerName ?? 'Профіль гравця', style: const TextStyle(color: Colors.white)),
+        actions: [
+          if (isOwnProfile)
+            IconButton(
+              tooltip: 'Редагувати профіль',
+              icon: const Icon(Icons.edit, color: Colors.white),
+              onPressed: _showEditProfileDialog,
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-          child: Column(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Аватар
-              Container(
+          children: [
+            // Аватар
+            Container(
               width: 96,
               height: 96,
-                decoration: BoxDecoration(
+              decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(48),
                 border: Border.all(color: Colors.white24, width: 2),
-                ),
-                child: ClipRRect(
-                borderRadius: BorderRadius.circular(48),
-                  child: avatarUrl != null && avatarUrl.isNotEmpty
-                    ? Image.network(avatarUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildDefaultAvatar(displayName))
-                      : _buildDefaultAvatar(displayName),
-                ),
               ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(48),
+                child: avatarUrl != null && avatarUrl.isNotEmpty
+                    ? Image.network(avatarUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildDefaultAvatar(displayName))
+                    : _buildDefaultAvatar(displayName),
+              ),
+            ),
             const SizedBox(height: 12),
-            Text(displayName.isNotEmpty ? displayName : 'Гравець', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            Text(displayName.isNotEmpty ? displayName : 'Гравець',
+                style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
-              if (position.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            if (position.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
                 child: Text('⚽ $position', style: const TextStyle(color: Colors.white)),
               ),
             const SizedBox(height: 12),
-              if (city.isNotEmpty)
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Icon(Icons.location_on, color: Colors.white70, size: 16),
-                    const SizedBox(width: 4),
-                Text(city, style: const TextStyle(color: Colors.white70)),
-              ]),
+            if (city.isNotEmpty)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.location_on, color: Colors.white70, size: 16),
+                  const SizedBox(width: 4),
+                  Text(city, style: const TextStyle(color: Colors.white70)),
+                ],
+              ),
             const SizedBox(height: 20),
+
             // Рейтинг
-              Container(
-                padding: const EdgeInsets.all(16),
+            Container(
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
               child: Column(children: [
                 Text(rating.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
@@ -363,115 +627,145 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               Expanded(child: _statBox(value: averageRating.toStringAsFixed(2), label: 'Середня оцінка')),
             ]),
             const SizedBox(height: 20),
-            // Кнопки
-            FutureBuilder<Map<String, bool>>(
-              future: Future.wait([_areFriends(), _hasPendingRequest()]).then((results) {
-                return {'isFriend': results[0], 'hasPendingRequest': results[1]};
-              }),
-              builder: (context, snapshot) {
-                final data = snapshot.data ?? {'isFriend': false, 'hasPendingRequest': false};
-                final isFriend = data['isFriend']!;
-                final hasPendingRequest = data['hasPendingRequest']!;
 
-                return Row(children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: isFriend || hasPendingRequest || _isSendingRequest
-                          ? null
-                          : () => _sendFriendRequest(),
-                      icon: Icon(isFriend ? Icons.people : hasPendingRequest ? Icons.schedule : Icons.person_add),
-                      label: Text(
-                        isFriend ? 'Друзі' :
-                        hasPendingRequest ? 'Запрошення надіслано' :
-                        _isSendingRequest ? 'Надсилання...' : 'Додати в друзі'
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4caf50),
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: hasPendingRequest
-                            ? Colors.orange.withOpacity(0.4)
-                            : Colors.grey.withOpacity(0.4),
-                        disabledForegroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () => _showInviteToChallengeDialog(),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.12), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
-                    child: const Icon(Icons.emoji_events, size: 16),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () => _showRateMeDialog(),
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4caf50), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
-                    child: const Text('Оціни мене'),
-                  ),
-                ]);
-              },
-              ),
-              const SizedBox(height: 12),
-              // Відео гравця
-              if (playerVideos.isNotEmpty) ...[
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: const Text('Відео', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 110,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: playerVideos.length,
-                    itemBuilder: (context, index) {
-                      final v = playerVideos[index];
-                      final thumb = (v['thumbnailUrl'] ?? '') as String;
-                      final vUrl = (v['videoUrl'] ?? '') as String;
-                      final title = (v['title'] ?? 'Відео') as String;
-                      return GestureDetector(
-                        onTap: () {
-                          if (vUrl.isEmpty) return;
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => VideoPlayerScreen(
-                                videoUrl: vUrl,
-                                title: title,
-                                authorName: displayName.isNotEmpty ? displayName : 'Гравець',
-                                videoId: (v['id'] ?? '') as String,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          width: 160,
-                          margin: const EdgeInsets.only(right: 10),
-                          decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white24)),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: thumb.isNotEmpty
-                                ? (kIsWeb && thumb == vUrl
-                                    ? _buildWebVideoPreview(vUrl)
-                                    : Image.network(thumb, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _videoThumbFallback(title)))
-                                : (kIsWeb && vUrl.isNotEmpty
-                                    ? _buildWebVideoPreview(vUrl)
-                                    : _videoThumbFallback(title)),
+            // Кнопки (приховані на власному профілі)
+            Builder(
+              builder: (context) {
+                final me = FirebaseAuth.instance.currentUser?.uid;
+                final isOwnProfile = me != null && widget.playerId == me;
+                if (isOwnProfile) return const SizedBox.shrink();
+
+                return FutureBuilder<Map<String, bool>>(
+                  future: Future.wait([_areFriends(), _hasPendingRequest()]).then((results) {
+                    return {'isFriend': results[0], 'hasPendingRequest': results[1]};
+                  }),
+                  builder: (context, snapshot) {
+                    final data = snapshot.data ?? {'isFriend': false, 'hasPendingRequest': false};
+                    final isFriend = data['isFriend']!;
+                    final hasPendingRequest = data['hasPendingRequest']!;
+
+                    return Row(children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: isFriend || hasPendingRequest || _isSendingRequest ? null : () => _sendFriendRequest(),
+                          icon: Icon(isFriend
+                              ? Icons.people
+                              : hasPendingRequest
+                                  ? Icons.schedule
+                                  : Icons.person_add),
+                          label: Text(isFriend
+                              ? 'Друзі'
+                              : hasPendingRequest
+                                  ? 'Запрошення надіслано'
+                                  : _isSendingRequest
+                                      ? 'Надсилання...'
+                                      : 'Додати в друзі'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4caf50),
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: hasPendingRequest ? Colors.orange.withOpacity(0.4) : Colors.grey.withOpacity(0.4),
+                            disabledForegroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                            side: BorderSide(color: Colors.white.withOpacity(0.2)),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => _showInviteToChallengeDialog(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white.withOpacity(0.12),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        ),
+                        child: const Icon(Icons.emoji_events, size: 16),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => _showRateMeDialog(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4caf50),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        ),
+                        child: const Text('Оціни мене'),
+                      ),
+                    ]);
+                  },
+                );
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            // Відео гравця
+            if (playerVideos.isNotEmpty) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: const Text('Відео', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 110,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: playerVideos.length,
+                  itemBuilder: (context, index) {
+                    final v = playerVideos[index];
+                    final thumb = (v['thumbnailUrl'] ?? '') as String;
+                    final vUrl = (v['videoUrl'] ?? '') as String;
+                    final title = (v['title'] ?? 'Відео') as String;
+                    return GestureDetector(
+                      onTap: () {
+                        if (vUrl.isEmpty) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => VideoPlayerScreen(
+                              videoUrl: vUrl,
+                              title: title,
+                              authorName: displayName.isNotEmpty ? displayName : 'Гравець',
+                              videoId: (v['id'] ?? '') as String,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 160,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: thumb.isNotEmpty
+                              ? (kIsWeb && thumb == vUrl
+                                  ? _buildWebVideoPreview(vUrl)
+                                  : Image.network(
+                                      thumb,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => _videoThumbFallback(title),
+                                    ))
+                              : (kIsWeb && vUrl.isNotEmpty ? _buildWebVideoPreview(vUrl) : _videoThumbFallback(title)),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ] else ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
-                  child: const Text('Поки що немає відео', style: TextStyle(color: Colors.white54)),
+              ),
+            ] else ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
+                child: const Text('Поки що немає відео', style: TextStyle(color: Colors.white54)),
+              ),
+            ],
           ],
         ),
       ),
@@ -566,14 +860,17 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           .limit(50)
           .get();
 
-      final all = snap.docs.map((d) {
-        final data = d.data() as Map<String, dynamic>;
-        data['id'] = d.id;
-        return data;
-      }).where((c) {
-        final participants = List<String>.from(c['participants'] ?? []);
-        return !participants.contains(widget.playerId);
-      }).toList();
+      final all = snap.docs
+          .map((d) {
+            final data = d.data() as Map<String, dynamic>;
+            data['id'] = d.id;
+            return data;
+          })
+          .where((c) {
+            final participants = List<String>.from(c['participants'] ?? []);
+            return !participants.contains(widget.playerId);
+          })
+          .toList();
 
       if (all.isEmpty) {
         if (!mounted) return;
@@ -603,7 +900,8 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                       groupValue: selectedIndex,
                       onChanged: (v) => setStateDialog(() => selectedIndex = v ?? -1),
                       title: Text(c['title'] ?? 'Челендж', style: const TextStyle(color: Colors.white)),
-                      subtitle: Text('Учасників: ${(c['participants'] as List?)?.length ?? 0}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                      subtitle: Text('Учасників: ${(c['participants'] as List?)?.length ?? 0}',
+                          style: const TextStyle(color: Colors.white54, fontSize: 12)),
                     );
                   },
                 ),
@@ -614,21 +912,25 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                   child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
                 ),
                 ElevatedButton(
-                  onPressed: selectedIndex < 0 ? null : () async {
-                    final selected = all[selectedIndex];
-                    final ok = await _notificationService.sendChallengeInvitation(
-                      toUserId: widget.playerId,
-                      challengeId: selected['id'] as String,
-                      challengeTitle: (selected['title'] ?? 'Челендж') as String,
-                      creatorName: (playerData?['displayName'] ?? 'Користувач') as String,
-                      challengeType: (selected['type'] ?? 'technical') as String,
-                    );
-                    if (!mounted) return;
-                    Navigator.pop(context, true);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(ok ? '✅ Запрошення надіслано' : '❌ Не вдалося надіслати')),
-                    );
-                  },
+                  onPressed: selectedIndex < 0
+                      ? null
+                      : () async {
+                          final me = FirebaseAuth.instance.currentUser?.uid;
+                          if (me == null || widget.playerId == me) return;
+                          final selected = all[selectedIndex];
+                          final ok = await _notificationService.sendChallengeInvitation(
+                            toUserId: widget.playerId,
+                            challengeId: selected['id'] as String,
+                            challengeTitle: (selected['title'] ?? 'Челендж') as String,
+                            creatorName: (playerData?['displayName'] ?? 'Користувач') as String,
+                            challengeType: (selected['type'] ?? 'technical') as String,
+                          );
+                          if (!mounted) return;
+                          Navigator.pop(context, true);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(ok ? '✅ Запрошення надіслано' : '❌ Не вдалося надіслати')),
+                          );
+                        },
                   child: const Text('Запросити'),
                 ),
               ],
@@ -642,5 +944,31 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         SnackBar(content: Text('Помилка: $e')),
       );
     }
+  }
+
+  // Універсальний текстовий інпут для форм модалки
+  Widget _textField(String label, TextEditingController c, {bool requiredField = true}) {
+    return TextFormField(
+      controller: c,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.08),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFF4caf50)),
+        ),
+      ),
+      validator: requiredField ? (v) => (v == null || v.trim().isEmpty) ? 'Обов’язкове поле' : null : null,
+    );
   }
 }

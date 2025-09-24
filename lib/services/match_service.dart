@@ -406,13 +406,20 @@ if (currentUserId == null || currentUserId != match.organizerId) {
         }
 
         // Створюємо команди
+        final names = MatchUtils.teamNames;
+        final base = DateTime.now().millisecondsSinceEpoch;
+        final idxA = base % names.length;
+        final idxB = (idxA + 1) % names.length; // ensure distinct
+        final nameA = names[idxA];
+        final nameB = names[idxB];
+
         final teamA = Team(
-          name: 'Команда A',
+          name: nameA,
           playerIds: teamAPlayers,
           averageRating: _calculateTeamAverageRating(teamAPlayers, playerRatings),
         );
         final teamB = Team(
-          name: 'Команда B',
+          name: nameB,
           playerIds: teamBPlayers,
           averageRating: _calculateTeamAverageRating(teamBPlayers, playerRatings),
         );
@@ -493,13 +500,23 @@ if (currentUserId == null || currentUserId != match.organizerId) {
           throw Exception('У складах є гравці, яких немає серед учасників матчу');
         }
 
+                // Preserve existing team names or pick fun defaults if missing
+        final existingNameA = match.teamA?.name ?? '';
+        final existingNameB = match.teamB?.name ?? '';
+        final fun = MatchUtils.teamNames;
+        final seed = DateTime.now().millisecondsSinceEpoch;
+        final funA = fun[seed % fun.length];
+        final funB = fun[(seed + 1) % fun.length];
+        final nameA = existingNameA.isNotEmpty ? existingNameA : funA;
+        final nameB = existingNameB.isNotEmpty ? existingNameB : (funB == nameA ? fun[(seed + 2) % fun.length] : funB);
+
         final teamA = Team(
-          name: 'Команда A',
+          name: nameA,
           playerIds: teamAPlayers,
           averageRating: _calculateTeamAverageRating(teamAPlayers, ratings),
         );
         final teamB = Team(
-          name: 'Команда B',
+          name: nameB,
           playerIds: teamBPlayers,
           averageRating: _calculateTeamAverageRating(teamBPlayers, ratings),
         );
@@ -560,41 +577,80 @@ if (currentUserId == null || currentUserId != match.organizerId) {
   
   // Завершити матч
   Future<bool> finishMatch(String matchId, MatchResult result, int teamAScore, int teamBScore) async {
-    try {
-      final docRef = _firestore.collection('matches').doc(matchId);
-      
-      return await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(docRef);
-        if (!snap.exists) throw Exception('Match not found');
-        
-        final match = Match.fromFirestore(snap);
+  try {
+    final docRef = _firestore.collection('matches').doc(matchId);
 
-final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-if (currentUserId == null || currentUserId != match.organizerId) {
-  throw Exception('Only organizer can perform this action');
-}
-        
-        if (!match.isInProgress) {
-          throw Exception('Матч не почався або вже завершений');
-        }
-        
-        // Оновлюємо матч
-        tx.update(docRef, {
-          'status': 'finished',
-          'result': result.toString().split('.').last,
-          'teamAScore': teamAScore,
-          'teamBScore': teamBScore,
-          'finishedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        
-        return true;
+    final ok = await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(docRef);
+      if (!snap.exists) throw Exception('Match not found');
+
+      final match = Match.fromFirestore(snap);
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null || currentUserId != match.organizerId) {
+        throw Exception('Only organizer can perform this action');
+      }
+      if (!match.isInProgress) {
+        throw Exception('Матч не почався або вже завершений');
+      }
+
+      tx.update(docRef, {
+        'status': 'finished',
+        'result': result.toString().split('.').last,
+        'teamAScore': teamAScore,
+        'teamBScore': teamBScore,
+        'finishedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
-    } catch (e) {
-      print('Error finishing match: $e');
-      return false;
+
+      return true;
+    });
+    if (!ok) return false;
+
+    // Після успішного завершення — інкрементуємо лічильники гравцям
+    final snapAfter = await docRef.get();
+    if (!snapAfter.exists) return true;
+    final m = Match.fromFirestore(snapAfter);
+
+    final WriteBatch batch = _firestore.batch();
+    for (final uid in m.participants) {
+      batch.update(_firestore.collection('users').doc(uid), {
+        'totalMatches': FieldValue.increment(1),
+        'lastMatchAt': FieldValue.serverTimestamp(),
+      });
     }
+
+    // (опційно) перемоги/поразки/нічиї, якщо є склади
+    if (m.hasTeams) {
+      final a = m.teamA?.playerIds ?? const <String>[];
+      final b = m.teamB?.playerIds ?? const <String>[];
+      if (teamAScore > teamBScore) {
+        for (final uid in a) {
+          batch.update(_firestore.collection('users').doc(uid), {'wonMatches': FieldValue.increment(1)});
+        }
+        for (final uid in b) {
+          batch.update(_firestore.collection('users').doc(uid), {'lostMatches': FieldValue.increment(1)});
+        }
+      } else if (teamBScore > teamAScore) {
+        for (final uid in b) {
+          batch.update(_firestore.collection('users').doc(uid), {'wonMatches': FieldValue.increment(1)});
+        }
+        for (final uid in a) {
+          batch.update(_firestore.collection('users').doc(uid), {'lostMatches': FieldValue.increment(1)});
+        }
+      } else {
+        for (final uid in {...a, ...b}) {
+          batch.update(_firestore.collection('users').doc(uid), {'drawMatches': FieldValue.increment(1)});
+        }
+      }
+    }
+
+    await batch.commit();
+    return true;
+  } catch (e) {
+    print('Error finishing match: $e');
+    return false;
   }
+}
   
     // Отримати матчі для оцінювання
   Stream<List<Match>> getMatchesForRating(String userId) {
