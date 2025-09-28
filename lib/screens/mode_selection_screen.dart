@@ -78,10 +78,10 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
           ? (data['displayName'] ?? data['authorName'] ?? data['name'] ?? 'Гравець')
           : 'Гравець';
       final rating = data != null ? (data['rating'] ?? 3.0).toDouble() : 3.0;
-      final matches = data != null ? (data['matches'] ?? 0) : 0;
-      setState(() {
-        _currentGreeting = g['greeting']?.replaceAll('Олександр', name) ?? 'Вітаємо, $name!';
-        _currentRatingText = 'Ваш рейтинг: ${rating.toStringAsFixed(1)} • $matches матчів зіграно';
+      final matches = data != null ? ((data['totalMatches'] ?? data['matches'] ?? data['matchesPlayed'] ?? 0) as num).toInt() : 0;
+setState(() {
+  _currentGreeting = g['greeting']?.replaceAll('Олександр', name) ?? 'Вітаємо, $name!';
+  _currentRatingText = 'Ваш рейтинг: ${rating.toStringAsFixed(1)} • $matches матчів зіграно';
         _currentInstruction = g['instruction'] ?? 'Оберіть режим роботи для початку гри';
       });
     });

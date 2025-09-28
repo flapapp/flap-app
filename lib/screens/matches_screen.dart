@@ -17,6 +17,7 @@ import '../widgets/user_chip.dart';
 
 
 
+
 class MatchesScreen extends StatefulWidget {
   @override
   _MatchesScreenState createState() => _MatchesScreenState();
@@ -109,6 +110,18 @@ void dispose() {
   super.dispose();
 }
 
+@override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && args['initialTabIndex'] is int) {
+      final idx = args['initialTabIndex'] as int;
+      if (idx >= 0 && idx < _tabController.length && _tabController.index != idx) {
+        _tabController.index = idx;
+      }
+    }
+  }
+
 void _resetFindFilters() {
   setState(() {
     _selectedCity = 'Всі міста';
@@ -129,10 +142,10 @@ Widget _buildFilters() {
     ),
     child: Column(
       children: [
-        // Ряд 1: Місто та Рівень
-        Row(
-          children: [
-            Expanded(
+        LayoutBuilder(
+  builder: (context, constraints) {
+    final bool narrow = constraints.maxWidth < 380;
+    final city = Expanded(
               child: DropdownButtonFormField<String>(
                 value: _selectedCity,
                 decoration: InputDecoration(
@@ -166,9 +179,8 @@ Widget _buildFilters() {
                   });
                 },
               ),
-            ),
-            SizedBox(width: 16),
-            Expanded(
+            );
+    final level = Expanded(
               child: DropdownButtonFormField<String>(
                 value: _selectedLevel,
                 decoration: InputDecoration(
@@ -202,14 +214,17 @@ Widget _buildFilters() {
                   });
                 },
               ),
-            ),
-          ],
-        ),
+            );
+    return narrow
+      ? Column(children: [city, SizedBox(height: 12), level])
+      : Row(children: [city, SizedBox(width: 16), level]);
+  },
+),
         SizedBox(height: 16),
-        // Ряд 2: Час та Пошук
-        Row(
-          children: [
-            Expanded(
+        LayoutBuilder(
+  builder: (context, constraints) {
+    final bool narrow = constraints.maxWidth < 380;
+    final time = Expanded(
               child: DropdownButtonFormField<String>(
                 value: _selectedTime,
                 decoration: InputDecoration(
@@ -243,9 +258,8 @@ Widget _buildFilters() {
                   });
                 },
               ),
-            ),
-            SizedBox(width: 16),
-            Expanded(
+            );
+    final search = Expanded(
               child: TextField(
                 decoration: InputDecoration(
                   labelText: '🔍 Пошук',
@@ -276,9 +290,12 @@ Widget _buildFilters() {
                   });
                 },
               ),
-            ),
-          ],
-        ),
+            );
+    return narrow
+      ? Column(children: [time, SizedBox(height: 12), search])
+      : Row(children: [time, SizedBox(width: 16), search]);
+  },
+),
         
         // Кнопка скидання фільтрів
         SizedBox(height: 16),
@@ -299,6 +316,7 @@ Widget _buildFilters() {
 
   @override
   Widget build(BuildContext context) {
+    final bool isCompact = MediaQuery.of(context).size.width < 400;
     return Scaffold(
       backgroundColor: const Color(0xFF1a1a2e),
       appBar: AppBar(
@@ -339,52 +357,66 @@ Container(
         ),
       ),
       Spacer(),
-      // Монети з покращеним дизайном
-      Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFFFD700).withOpacity(0.2),
-              Color(0xFFFFA000).withOpacity(0.1),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Color(0xFFFFD700).withOpacity(0.4),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0xFFFFD700).withOpacity(0.2),
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.monetization_on, color: Color(0xFFFFD700), size: 18),
-            SizedBox(width: 6),
-            Text(
-              '127',
-              style: TextStyle(
-                color: Color(0xFFFFD700),
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+         // Монети: живий баланс + перехід у "Мої монети"
+      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(FirebaseAuth.instance.currentUser?.uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          final coins = snapshot.hasData && snapshot.data!.exists
+              ? (snapshot.data!.data()?['coins'] ?? 0) as int
+              : 0;
+          return GestureDetector(
+            onTap: () => _showCoinsSheet(coins),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: isCompact ? 4 : 6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFFFD700).withOpacity(0.2),
+                    Color(0xFFFFA000).withOpacity(0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Color(0xFFFFD700).withOpacity(0.4),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFFFFD700).withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.monetization_on, color: Color(0xFFFFD700), size: isCompact ? 16 : 18),
+                  SizedBox(width: 6),
+                  Text(
+                    coins.toString(),
+                    style: TextStyle(
+                      color: Color(0xFFFFD700),
+                      fontSize: isCompact ? 14 : 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
       SizedBox(width: 12),
       // Кнопка створення матчу з градієнтом
       Container(
-        width: 40,
-        height: 40,
+        width: isCompact ? 36 : 40,
+        height: isCompact ? 36 : 40,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -401,16 +433,16 @@ Container(
           ],
         ),
         child: IconButton(
-          icon: Icon(Icons.add, color: Colors.white, size: 20),
+          icon: Icon(Icons.add, color: Colors.white, size: isCompact ? 18 : 20),
           onPressed: () => Navigator.pushNamed(context, '/create-match'),
           padding: EdgeInsets.zero,
         ),
       ),
       SizedBox(width: 12),
       // Аватар користувача з градієнтом
-      Container(
-        width: 40,
-        height: 40,
+       Container(
+        width: isCompact ? 36 : 40,
+        height: isCompact ? 36 : 40,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -426,56 +458,82 @@ Container(
             ),
           ],
         ),
-        child: IconButton(
-  icon: Icon(Icons.person, color: Colors.white, size: 20),
-  onPressed: () {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-    Navigator.pushNamed(
-      context,
-      '/player-profile',
-      arguments: {'playerId': uid, 'playerName': ''},
-    );
-  },
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(FirebaseAuth.instance.currentUser?.uid)
+              .snapshots(),
+          builder: (context, snapshot) {
+            String avatarUrl = '';
+            String displayName = '';
+            if (snapshot.hasData && snapshot.data!.exists) {
+              final d = snapshot.data!.data()!;
+              avatarUrl = (d['avatarUrl'] ?? d['photoUrl'] ?? '') as String? ?? '';
+              displayName = (d['displayName'] ?? d['name'] ?? d['authorName'] ?? '') as String? ?? '';
+            }
+            return IconButton(
   padding: EdgeInsets.zero,
-),
+  onPressed: () => Navigator.pushNamed(context, '/profile'),
+  icon: CircleAvatar(
+    radius: isCompact ? 18 : 20,
+    backgroundColor: const Color(0xFF4caf50),
+    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+    child: avatarUrl.isEmpty
+        ? Text(
+            displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+          )
+        : null,
+  ),
+);
+          },
+        ),
       ),
       SizedBox(width: 12),
       // Рейтинг з покращеним дизайном
-      Container(
-        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.star, color: Color(0xFFFFD700), size: 16),
-            SizedBox(width: 4),
-            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(FirebaseAuth.instance.currentUser?.uid)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                final rating = snapshot.hasData && snapshot.data!.exists
-                    ? (snapshot.data!.data()!['rating'] ?? 3.0).toDouble()
-                    : 3.0;
-                return Text(
-                  rating.toStringAsFixed(1),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+           !isCompact
+          ? Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _showRatingModal,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withOpacity(0.2)),
                   ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.star, color: Color(0xFFFFD700), size: 16),
+                      SizedBox(width: 4),
+                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(FirebaseAuth.instance.currentUser?.uid)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          final rating = snapshot.hasData && snapshot.data!.exists
+                              ? (snapshot.data!.data()!['rating'] ?? 3.0).toDouble()
+                              : 3.0;
+                          return Text(
+                            rating.toStringAsFixed(1),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          : SizedBox.shrink(),
     ],
   ),
   actions: [
@@ -511,22 +569,24 @@ Container(
         border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
       child: TabBar(
-        controller: _tabController,
-        tabs: _tabTitles.map((title) => Tab(
-          child: Container(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-          ),
-        )).toList(),
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.white70,
-        indicator: BoxDecoration(
+  controller: _tabController,
+  isScrollable: true,
+  labelPadding: EdgeInsets.symmetric(horizontal: 8),
+  tabs: _tabTitles.map((title) => Tab(
+    child: Padding(
+      padding: EdgeInsets.symmetric(vertical: isCompact ? 6 : 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: isCompact ? 13 : 14,
+        ),
+      ),
+    ),
+  )).toList(),
+  labelColor: Colors.white,
+  unselectedLabelColor: Colors.white70,
+  indicator: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -586,6 +646,347 @@ Container(
         ),
       ),
     );
+  }
+
+  void _showRatingModal() {
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (context) {
+      return Dialog(
+        backgroundColor: const Color(0xFF0f0f23),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0f0f23),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.star, color: Color(0xFFFFD700), size: 16),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Мій рейтинг',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white70, size: 18),
+                      splashRadius: 18,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Поточний рейтинг
+                Row(
+                  children: [
+                    const Icon(Icons.circle, size: 10, color: Color(0xFF4caf50)),
+                    const SizedBox(width: 8),
+                    StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(FirebaseAuth.instance.currentUser?.uid)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        final rating = snapshot.hasData && snapshot.data!.exists
+                            ? ((snapshot.data!.data()?['rating'] ?? 0.0) as num).toDouble()
+                            : 0.0;
+                        return RichText(
+                          text: TextSpan(
+                            children: [
+                              const TextSpan(
+                                text: 'Поточний рейтинг: ',
+                                style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                              TextSpan(
+                                text: rating.toStringAsFixed(2),
+                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                              ),
+                              const TextSpan(text: '  '),
+                              const WidgetSpan(child: Icon(Icons.star, color: Color(0xFFFFD700), size: 14)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Як формується рейтинг (детально)
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withOpacity(0.12)),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Center(
+                        child: Text(
+                          'Як формується рейтинг?',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                        ),
+                      ),
+                      SizedBox(height: 10),
+
+                      // Формула
+                      Text('Формула', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      SizedBox(height: 4),
+                      Text(
+                        'Загальний рейтинг = (Рейтинг матчів × 0.7) + (Рейтинг відео × 0.3)',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+
+                      SizedBox(height: 10),
+                      // Ваги
+                      Text('Ваги', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      SizedBox(height: 4),
+                      Text('• Матчі — 70%', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      Text('• Відео/Челенджі — 30%', style: TextStyle(color: Colors.white70, fontSize: 13)),
+
+                      SizedBox(height: 10),
+                      // Матчі
+                      Text('Рейтинг матчів', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      SizedBox(height: 4),
+                      Text('• Критерії (по 25%): Техніка, Фізика, Тактика, Командна гра', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      Text('• Після матчу гравці оцінюють один одного', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      Text('• Самооцінка заборонена', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      Text('• Мінімум 3 оцінки для зарахування', style: TextStyle(color: Colors.white70, fontSize: 13)),
+
+                      SizedBox(height: 10),
+                      // Відео/челенджі
+                      Text('Рейтинг відео', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      SizedBox(height: 4),
+                      Text(
+                        '• Критерії: Технічне виконання (40%), Креативність (30%), Складність (20%), Якість відео (10%)',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                      Text('• 1 голос = +1 монета', style: TextStyle(color: Colors.white70, fontSize: 13)),
+
+                      SizedBox(height: 10),
+                      // Захист
+                      Text('Захист від накручувань', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      SizedBox(height: 4),
+                      Text('• Діапазон 0.0–5.0, валідація та перевірка аномалій', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      Text('• Мінімум 3 оцінки, повторні голоси блокуються', style: TextStyle(color: Colors.white70, fontSize: 13)),
+
+                      SizedBox(height: 10),
+                      // Рівні гравців
+                      Text('Рівні гравців', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      SizedBox(height: 4),
+                      Text(
+                        '0.0–1.5 Новачок • 1.5–2.5 Початковий • 2.5–3.5 Середній • 3.5–4.5 Високий • 4.5–5.0 Професійний',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Порожній стан (поки без історії)
+                Column(
+                  children: const [
+                    Icon(Icons.show_chart, color: Colors.white30, size: 48),
+                    SizedBox(height: 10),
+                    Text(
+                      'Поки немає змін рейтингу',
+                      style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Беріть участь у челенджах та отримуйте оцінки\nза свої дії, щоб побачити історію рейтингу',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.3),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+    void _showCoinsSheet(int currentCoins) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1a1a2e),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    const Icon(Icons.monetization_on, color: Color(0xFFFFD700), size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Мої монети',
+                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                          ),
+                          Text('Поточний баланс: $currentCoins монет',
+                            style: const TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.white24, height: 1),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Історія транзакцій',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('transactions')
+                      .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                      .limit(50)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)));
+                    }
+                    final txDocs = snapshot.data!.docs.toList();
+                    txDocs.sort((a, b) {
+                      final ad = a.data() as Map<String, dynamic>;
+                      final bd = b.data() as Map<String, dynamic>;
+                      final at = ad['timestamp'] as Timestamp?;
+                      final bt = bd['timestamp'] as Timestamp?;
+                      if (at == null && bt == null) return 0;
+                      if (at == null) return 1;
+                      if (bt == null) return -1;
+                      return bt.compareTo(at);
+                    });
+                    if (txDocs.isEmpty) {
+                      return const Center(
+                        child: Text('Поки немає транзакцій', style: TextStyle(color: Colors.white70)),
+                      );
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: txDocs.length,
+                      itemBuilder: (context, index) {
+                        final t = txDocs[index].data() as Map<String, dynamic>;
+                        final amount = t['amount'] ?? 0;
+                        final description = t['description'] ?? '';
+                        final timestamp = t['timestamp'] as Timestamp?;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white.withOpacity(0.1)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40, height: 40,
+                                decoration: BoxDecoration(
+                                  color: amount > 0 ? const Color(0xFF4caf50).withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Icon(amount > 0 ? Icons.add : Icons.remove,
+                                  color: amount > 0 ? const Color(0xFF4caf50) : Colors.red, size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(description, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+                                    if (timestamp != null)
+                                      Text(_formatTransactionTime(timestamp.toDate()),
+                                        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Text('${amount > 0 ? '+' : ''}$amount',
+                                style: TextStyle(color: amount > 0 ? const Color(0xFF4caf50) : Colors.red,
+                                  fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatTransactionTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    if (difference.inDays > 7) {
+      const months = ['січ','лют','бер','квіт','трав','черв','лип','серп','вер','жовт','лист','груд'];
+      return '${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays} дн. тому';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} год. тому';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} хв. тому';
+    } else {
+      return 'Щойно';
+    }
   }
 
   // ВКЛАДКА 1: Знайти матч
@@ -1508,25 +1909,19 @@ Widget _buildMyMatchCard(Match match) {
                         style: TextStyle(color: Colors.white70, fontSize: 14),
                       ),
                       SizedBox(width: 15),
-                      Icon(Icons.star, color: Color(0xFFFFD700), size: 16),
-                      SizedBox(width: 4),
-                      Text(
-                        role,
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
-                      ),
+                      
                     ],
                   ),
                   const SizedBox(height: 6),
 Row(
   children: [
-    const Icon(Icons.person, color: Colors.white70, size: 16),
-    const SizedBox(width: 4),
-    Expanded(
-      child: Text(
-        'Організатор: ${match.organizerName.isNotEmpty ? match.organizerName : 'Невідомий'}',
-        style: const TextStyle(color: Colors.white70, fontSize: 14),
-        overflow: TextOverflow.ellipsis,
-      ),
+    isOrganizer
+        ? Text('👑', style: TextStyle(fontSize: 16)) // корона для організатора
+        : Icon(Icons.person, color: Colors.white70, size: 16),
+    SizedBox(width: 4),
+    Text(
+      role, // 'Організатор' або 'Учасник'
+      style: TextStyle(color: Colors.white70, fontSize: 14),
     ),
   ],
 ),

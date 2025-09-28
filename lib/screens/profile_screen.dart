@@ -422,17 +422,18 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   }
 
   Widget _buildStatsCards(Map<String, dynamic> userData) {
+    final int matchesCount = ((userData['totalMatches'] ?? userData['matches'] ?? userData['matchesPlayed'] ?? 0) as num).toInt();
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
         children: [
           Expanded(
             child: _buildStatCard(
-              'Матчі',
-              (userData['matchesPlayed'] ?? 0).toString(),
-              Icons.sports_soccer,
-              const Color(0xFF4caf50),
-            ),
+  'Матчі',
+  matchesCount.toString(),
+  Icons.sports_soccer,
+  const Color(0xFF4caf50),
+),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -816,6 +817,12 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
             'Керування друзями',
             Icons.people,
             () => _openFriends(),
+          ),
+          _buildActionItem(
+            '⚽ Мої матчі',
+            'Перейти до моїх матчів',
+            Icons.sports_soccer,
+            () => Navigator.pushNamed(context, '/matches', arguments: {'initialTabIndex': 1}),
           ),
           _buildActionItem(
             '🏆 Мої відео',

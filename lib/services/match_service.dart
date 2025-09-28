@@ -613,34 +613,51 @@ if (currentUserId == null || currentUserId != match.organizerId) {
 
     final WriteBatch batch = _firestore.batch();
     for (final uid in m.participants) {
-      batch.update(_firestore.collection('users').doc(uid), {
-        'totalMatches': FieldValue.increment(1),
-        'lastMatchAt': FieldValue.serverTimestamp(),
-      });
-    }
+  batch.update(_firestore.collection('users').doc(uid), {
+    'totalMatches': FieldValue.increment(1),
+    'matches': FieldValue.increment(1),
+    'matchesPlayed': FieldValue.increment(1),
+    'lastMatchAt': FieldValue.serverTimestamp(),
+  });
+}
 
     // (опційно) перемоги/поразки/нічиї, якщо є склади
     if (m.hasTeams) {
       final a = m.teamA?.playerIds ?? const <String>[];
       final b = m.teamB?.playerIds ?? const <String>[];
       if (teamAScore > teamBScore) {
-        for (final uid in a) {
-          batch.update(_firestore.collection('users').doc(uid), {'wonMatches': FieldValue.increment(1)});
-        }
-        for (final uid in b) {
-          batch.update(_firestore.collection('users').doc(uid), {'lostMatches': FieldValue.increment(1)});
-        }
+       for (final uid in a) {
+  batch.update(_firestore.collection('users').doc(uid), {
+    'wonMatches': FieldValue.increment(1),
+    'wins': FieldValue.increment(1),
+  });
+}
+for (final uid in b) {
+  batch.update(_firestore.collection('users').doc(uid), {
+    'lostMatches': FieldValue.increment(1),
+    'losses': FieldValue.increment(1),
+  });
+}
       } else if (teamBScore > teamAScore) {
         for (final uid in b) {
-          batch.update(_firestore.collection('users').doc(uid), {'wonMatches': FieldValue.increment(1)});
-        }
-        for (final uid in a) {
-          batch.update(_firestore.collection('users').doc(uid), {'lostMatches': FieldValue.increment(1)});
-        }
+  batch.update(_firestore.collection('users').doc(uid), {
+    'wonMatches': FieldValue.increment(1),
+    'wins': FieldValue.increment(1),
+  });
+}
+for (final uid in a) {
+  batch.update(_firestore.collection('users').doc(uid), {
+    'lostMatches': FieldValue.increment(1),
+    'losses': FieldValue.increment(1),
+  });
+}
       } else {
         for (final uid in {...a, ...b}) {
-          batch.update(_firestore.collection('users').doc(uid), {'drawMatches': FieldValue.increment(1)});
-        }
+  batch.update(_firestore.collection('users').doc(uid), {
+    'drawMatches': FieldValue.increment(1),
+    'draws': FieldValue.increment(1),
+  });
+}
       }
     }
 

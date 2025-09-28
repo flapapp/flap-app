@@ -540,11 +540,11 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
     final experience = playerData!['experience'] ?? '';
     final city = playerData!['city'] ?? '';
     final rating = (playerData!['rating'] ?? 0.0).toDouble();
-    final matches = playerData!['matches'] ?? 0;
+    final matches = ((playerData!['totalMatches'] ?? playerData!['matches'] ?? playerData!['matchesPlayed'] ?? 0) as num).toInt();
     final averageRating = (playerData!['averageRating'] ?? rating).toDouble();
-    final wins = playerData!['wins'] ?? 0;
-    final losses = playerData!['losses'] ?? 0;
-    final draws = playerData!['draws'] ?? 0;
+    final wins   = ((playerData!['wins'] ?? playerData!['wonMatches']  ?? 0) as num).toInt();
+    final losses = ((playerData!['losses'] ?? playerData!['lostMatches'] ?? 0) as num).toInt();
+    final draws  = ((playerData!['draws'] ?? playerData!['drawMatches']  ?? 0) as num).toInt();
     final avatarUrl = playerData!['avatarUrl'] as String?;
 
     final me = FirebaseAuth.instance.currentUser?.uid;

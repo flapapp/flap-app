@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
 import '../services/match_service.dart';
+import '../services/notification_service.dart';
+import '../models/notification.dart';
 
 class CreateMatchScreen extends StatefulWidget {
   @override
@@ -23,6 +25,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   double _cost = 0.0;
   bool _autoBalance = true;
   bool _isPrivate = false;
+  final Set<String> _selectedInviteFriendIds = <String>{};
   
   final List<String> _cities = ['Київ', 'Харків', 'Одеса', 'Дніпро', 'Львів'];
   final List<String> _levels = ['Початковий', 'Середній', 'Високий', 'Професійний'];
@@ -337,6 +340,61 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                 ),
               ],
             ),
+
+            const SizedBox(height: 20),
+// Запросити друзів
+Row(
+  children: [
+    Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
+    const SizedBox(width: 8),
+    const Text(
+      'Запросити друзів',
+      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+    ),
+  ],
+),
+const SizedBox(height: 10),
+FutureBuilder<List<Map<String, dynamic>>>(
+  future: _loadMyFriends(),
+  builder: (context, snapshot) {
+    final friends = snapshot.data ?? const <Map<String, dynamic>>[];
+    if (friends.isEmpty) {
+      return Text(
+        'Немає друзів для запрошення',
+        style: TextStyle(color: Colors.white.withOpacity(0.7)),
+      );
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: friends.map((f) {
+        final id = f['id'] as String;
+        final name = (f['displayName'] ?? f['name'] ?? 'Користувач').toString();
+        final selected = _selectedInviteFriendIds.contains(id);
+        return FilterChip(
+          label: Text(name, style: const TextStyle(color: Colors.white)),
+          selected: selected,
+          backgroundColor: Colors.white.withOpacity(0.08),
+          selectedColor: const Color(0xFF4caf50).withOpacity(0.3),
+          shape: StadiumBorder(
+            side: BorderSide(
+              color: selected ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.3),
+            ),
+          ),
+          onSelected: (val) {
+            setState(() {
+              if (val) {
+                _selectedInviteFriendIds.add(id);
+              } else {
+                _selectedInviteFriendIds.remove(id);
+              }
+            });
+          },
+        );
+      }).toList(),
+    );
+  },
+),
             SizedBox(height: 20),
             
             // Кнопка створення
@@ -366,13 +424,28 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
+
+      // NEW: resolve organizer name reliably
+final userSnap = await FirebaseFirestore.instance
+    .collection('users')
+    .doc(currentUser.uid)
+    .get();
+final userData = userSnap.data() ?? {};
+final emailPrefix = currentUser.email?.split('@').first;
+final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == true)
+    ? currentUser.displayName!.trim()
+    : (userData['displayName'] ??
+       userData['authorName'] ??
+       userData['name'] ??
+       emailPrefix ??
+       'Невідомий').toString();
       
       final match = Match(
         id: '', // Firestore згенерує ID
         title: _titleController.text,
         description: _descriptionController.text,
         organizerId: currentUser.uid,
-        organizerName: currentUser.displayName ?? 'Невідомий',
+        organizerName: resolvedOrganizerName,
         date: _selectedDate,
         time: '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
         location: _locationController.text,
@@ -384,12 +457,38 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
         cost: _cost,
         autoBalance: _autoBalance,
         isPrivate: _isPrivate,
+        invitedFriends: _selectedInviteFriendIds.toList(),
         status: MatchStatus.open,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
       
       await MatchService().createMatch(match);
+
+      // Надіслати інвайти вибраним друзям (push + in-app)
+      if (_selectedInviteFriendIds.isNotEmpty) {
+        try {
+          final title = _titleController.text.trim();
+          final notifService = NotificationService();
+          for (final uid in _selectedInviteFriendIds) {
+            await notifService.sendNotification(AppNotification(
+              id: '',
+              userId: uid,
+              type: NotificationType.matchInvite,
+              title: 'Запрошення на матч',
+              message: '$resolvedOrganizerName запросив вас на матч "$title"',
+              data: {
+                'matchTitle': title,
+                'city': _selectedCity,
+                'date': _selectedDate.toIso8601String(),
+                'time': '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
+                'action': 'open_matches',
+              },
+              createdAt: DateTime.now(),
+            ));
+          }
+        } catch (_) {}
+      }
       
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -411,4 +510,29 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
       default: return MatchLevel.intermediate;
     }
   }
+
+  Future<List<Map<String, dynamic>>> _loadMyFriends() async {
+  try {
+    final me = FirebaseAuth.instance.currentUser;
+    if (me == null) return [];
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.uid).get();
+    final ids = List<String>.from(userDoc.data()?['friends'] ?? []);
+    if (ids.isEmpty) return [];
+    final result = <Map<String, dynamic>>[];
+    for (final id in ids.take(50)) {
+      final d = await FirebaseFirestore.instance.collection('users').doc(id).get();
+      if (d.exists) {
+        final data = d.data() as Map<String, dynamic>;
+        data['id'] = id;
+        result.add(data);
+      }
+    }
+    result.sort((a, b) => (a['displayName'] ?? a['name'] ?? '')
+        .toString()
+        .compareTo((b['displayName'] ?? b['name'] ?? '').toString()));
+    return result;
+  } catch (_) {
+    return [];
+  }
+}
 }
