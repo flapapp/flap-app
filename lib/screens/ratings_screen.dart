@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_service.dart';
 import 'player_profile_screen.dart';
 
@@ -51,6 +52,8 @@ class _RatingsScreenState extends State<RatingsScreen>
   Map<String, dynamic> _myStats = {};
   
   bool _isLoading = false;
+  bool _isCityLoading = false;
+  bool _isPositionLoading = false;
   
   @override
   void initState() {
@@ -123,25 +126,21 @@ if (_selectedPosition != 'Всі позиції') {
   }
   
   Future<void> _loadMyStats() async {
-    // TODO: Отримати ID поточного користувача
-    // final currentUser = FirebaseAuth.instance.currentUser;
-    // if (currentUser != null) {
-    //   _myStats = await _ratingService.getUserRatingStats(currentUser.uid);
-    // }
-    
-    // Тимчасові дані для демонстрації
-    _myStats = {
-      'currentRating': 4.2,
-      'matchRating': 4.3,
-      'videoRating': 3.9,
-      'totalMatches': 45,
-      'totalVideos': 12,
-      'ratingHistory': [
-        {'overallRating': 4.1, 'timestamp': DateTime.now().subtract(Duration(days: 7))},
-        {'overallRating': 4.2, 'timestamp': DateTime.now()},
-      ],
-    };
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser == null) {
+    setState(() => _myStats = {});
+    return;
   }
+  try {
+    final stats = await _ratingService.getUserRatingStats(currentUser.uid);
+    setState(() => _myStats = stats);
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Помилка завантаження статистики: $e')),
+    );
+  }
+}
   
   @override
   Widget build(BuildContext context) {
@@ -502,7 +501,21 @@ if (_selectedPosition != 'Всі позиції') {
                     ),
                   ),
                 )
-              : _buildPlayersList(_cityPlayers),
+              : _isCityLoading
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(color: Color(0xFF4caf50)),
+                          SizedBox(height: 16),
+                          Text(
+                            'Завантаження гравців...',
+                            style: TextStyle(color: Colors.white70, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _buildPlayersList(_cityPlayers),
         ),
       ],
     );
@@ -576,6 +589,7 @@ if (_selectedPosition != 'Всі позиції') {
         ),
         
         // Список гравців
+                // Список гравців
         Expanded(
           child: _selectedPosition == 'Всі позиції'
               ? Center(
@@ -587,7 +601,21 @@ if (_selectedPosition != 'Всі позиції') {
                     ),
                   ),
                 )
-              : _buildPlayersList(_positionPlayers),
+              : _isPositionLoading
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(color: Color(0xFF4caf50)),
+                          SizedBox(height: 16),
+                          Text(
+                            'Завантаження гравців...',
+                            style: TextStyle(color: Colors.white70, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _buildPlayersList(_positionPlayers),
         ),
       ],
     );
@@ -601,11 +629,11 @@ if (_selectedPosition != 'Всі позиції') {
       );
     }
     
-    final currentRating = _myStats['currentRating'] as double;
-    final matchRating = _myStats['matchRating'] as double;
-    final videoRating = _myStats['videoRating'] as double;
-    final totalMatches = _myStats['totalMatches'] as int;
-    final totalVideos = _myStats['totalVideos'] as int;
+    final currentRating = (_myStats['currentRating'] ?? 3.0).toDouble();
+    final matchRating = (_myStats['matchRating'] ?? 3.0).toDouble();
+    final videoRating = (_myStats['videoRating'] ?? 3.0).toDouble();
+    final totalMatches = (_myStats['totalMatches'] ?? 0) as int;
+    final totalVideos = (_myStats['totalVideos'] ?? 0) as int;
     
     final level = _ratingService.getPlayerLevel(currentRating);
     final levelColor = Color(_ratingService.getPlayerLevelColor(currentRating));
@@ -983,33 +1011,73 @@ if (_selectedPosition != 'Всі позиції') {
     );
   }
   
-  // Завантаження гравців за містом
+    // Завантаження гравців за містом
   Future<void> _loadCityPlayers(String city) async {
+    setState(() {
+      _isCityLoading = true;
+    });
+    
     try {
+      print('🔍 Loading players for city: $city');
       final players = await _ratingService.getTopPlayers(
         limit: 50,
         city: city,
       );
+      print('✅ Loaded ${players.length} players for city: $city');
+      
       setState(() {
-  _cityPlayers = _dedupeById(players);
-});
+        _cityPlayers = _dedupeById(players);
+        _isCityLoading = false;
+      });
     } catch (e) {
-      print('Error loading city players: $e');
+      print('❌ Error loading city players: $e');
+      setState(() {
+        _isCityLoading = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Помилка завантаження: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
   
-  // Завантаження гравців за позицією
+    // Завантаження гравців за позицією
   Future<void> _loadPositionPlayers(String position) async {
+    setState(() {
+      _isPositionLoading = true;
+    });
+    
     try {
+      print('🔍 Loading players for position: $position');
       final players = await _ratingService.getTopPlayers(
         limit: 50,
         position: position,
       );
+      print('✅ Loaded ${players.length} players for position: $position');
+      
       setState(() {
-  _positionPlayers = _dedupeById(players);
-});
+        _positionPlayers = _dedupeById(players);
+        _isPositionLoading = false;
+      });
     } catch (e) {
-      print('Error loading position players: $e');
+      print('❌ Error loading position players: $e');
+      setState(() {
+        _isPositionLoading = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Помилка завантаження: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }

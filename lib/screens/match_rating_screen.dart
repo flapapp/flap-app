@@ -70,28 +70,21 @@ return profile;
   }
 }
   
-  @override
+    @override
 void initState() {
   super.initState();
   
-  // Перевіряємо, чи можна оцінювати цей матч
-  if (widget.match.status != MatchStatus.finished) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Цей матч ще не завершено'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      Navigator.pop(context);
-    });
-    return;
-  }
-  
+  // Завантажуємо гравців незалежно від статусу
+  // Перевірка статусу буде при збереженні оцінок
   _initializeRatings();
 }
   
-  Future<void> _initializeRatings() async {
+    Future<void> _initializeRatings() async {
+    print('🔴 RATING DEBUG: _initializeRatings() CALLED');
+    print('🔴 RATING DEBUG: match.id = ${widget.match.id}');
+    print('🔴 RATING DEBUG: match.status = ${widget.match.status}');
+    print('🔴 RATING DEBUG: match.title = ${widget.match.title}');
+    
     // Ініціалізуємо оцінки для всіх гравців
     // Використовуємо participants як fallback, якщо teamA/teamB не існують
     _playerRatings.clear();
@@ -108,15 +101,18 @@ final currentUserId = FirebaseAuth.instance.currentUser?.uid;
 final List<String> teamAIds = List<String>.from(widget.match.teamA?.playerIds ?? const <String>[]);
 final List<String> teamBIds = List<String>.from(widget.match.teamB?.playerIds ?? const <String>[]);
 
-final bool teamsExist = teamAIds.isNotEmpty && teamBIds.isNotEmpty;
+final bool teamsExist = teamAIds.isNotEmpty || teamBIds.isNotEmpty;
 
 List<String> basePlayers;
 if (teamsExist && currentUserId != null && teamAIds.contains(currentUserId)) {
-  basePlayers = teamBIds; // оцінюємо лише суперників (команда B)
+  // Якщо я в команді А → оцінюю СВОЮ команду А (без себе)
+  basePlayers = teamAIds.where((id) => id != currentUserId).toList();
 } else if (teamsExist && currentUserId != null && teamBIds.contains(currentUserId)) {
-  basePlayers = teamAIds; // оцінюємо лише суперників (команда A)
+  // Якщо я в команді Б → оцінюю СВОЮ команду Б (без себе)
+  basePlayers = teamBIds.where((id) => id != currentUserId).toList();
 } else {
-  basePlayers = allPlayers.isNotEmpty ? allPlayers : widget.match.participants; // фолбек
+  // Якщо команди не задані → оцінюю всіх учасників (без себе)
+  basePlayers = widget.match.participants.where((id) => id != currentUserId).toList();
 }
 
 final playersToRate = basePlayers.where((id) => participantsSet.contains(id)).toSet().toList();
@@ -135,21 +131,31 @@ final alreadyRatedIds = existingSnap.docs
     .map((d) => (d.data()['playerId'] as String?) ?? '')
     .toSet();
     print('RATING DEBUG matchId=${widget.match.id}');
-print('RATING DEBUG participants=${widget.match.participants.length}');
-print('RATING DEBUG allPlayers=${allPlayers.length}');
-print('RATING DEBUG basePlayers=${basePlayers.length}');
-print('RATING DEBUG playersToRate=${playersToRate.length}');
-print('RATING DEBUG sanitizedPlayers=${sanitizedPlayers.length}');
-print('RATING DEBUG alreadyRatedIds=${alreadyRatedIds.length}');
+    print('RATING DEBUG participants=${widget.match.participants.length}');
+    print('RATING DEBUG allPlayers=${allPlayers.length}');
+    print('RATING DEBUG basePlayers=${basePlayers.length}');
+    print('RATING DEBUG playersToRate=${playersToRate.length}');
+    print('RATING DEBUG sanitizedPlayers=${sanitizedPlayers.length}');
+    print('RATING DEBUG alreadyRatedIds=${alreadyRatedIds.length}');
 
-    for (final playerId in sanitizedPlayers) {
-      if (currentUserId != null && playerId == currentUserId) continue;
-      if (alreadyRatedIds.contains(playerId)) continue;
+        for (final playerId in sanitizedPlayers) {
+      print('RATING DEBUG checking playerId=$playerId');
+      if (currentUserId != null && playerId == currentUserId) {
+        print('RATING DEBUG SKIP: playerId == currentUserId');
+        continue;
+      }
+      if (alreadyRatedIds.contains(playerId)) {
+        print('RATING DEBUG SKIP: already rated');
+        continue;
+      }
+      print('RATING DEBUG ADDING playerId=$playerId to _playerRatings');
       _playerRatings[playerId] = {};
       for (final criterion in _criteria) {
         _playerRatings[playerId]![criterion] = 2.5; // Середня оцінка за замовчуванням
       }
     }
+    print('RATING DEBUG FINAL _playerRatings.length=${_playerRatings.length}');
+    print('RATING DEBUG FINAL _playerRatings.keys=${_playerRatings.keys.toList()}');
     setState(() {});
    
   }
@@ -454,8 +460,9 @@ else
                       divisions: 50, // крок 0.1
                       label: value.toStringAsFixed(1),
                       onChanged: (newValue) {
+                        print('🎚️ SLIDER CHANGED: playerId=$playerId, criterion=$criterion, value=$newValue');
                         setState(() {
-                          ratings[criterion] = newValue;
+                          _playerRatings[playerId]![criterion] = newValue;
                         });
                       },
                     ),
@@ -492,8 +499,13 @@ else
         return;
       }
 
-      for (final playerId in idsToRate) {
+            for (final playerId in idsToRate) {
         final ratings = _playerRatings[playerId]!;
+        print('💾 SAVING matchId=${widget.match.id}, playerId=$playerId with ratings:');
+        print('   technical: ${ratings['technical']}');
+        print('   physical: ${ratings['physical']}');
+        print('   tactical: ${ratings['tactical']}');
+        print('   teamwork: ${ratings['teamwork']}');
         final success = await _ratingService.ratePlayerAfterMatch(
           matchId: widget.match.id,
           playerId: playerId,

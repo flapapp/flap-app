@@ -32,7 +32,6 @@ import 'services/subscription_service.dart';
 import 'services/notification_service.dart';
 import 'services/badge_service.dart';
 import 'screens/match_management_screen.dart';
-import 'services/test_data.dart';
 
 
 @pragma('vm:entry-point')
@@ -151,8 +150,13 @@ class MyApp extends StatelessWidget {
         },
         '/matches': (context) => MatchesScreen(),
         '/ratings': (context) => RatingsScreen(),
-        '/match_rating': (context) {
-  final match = ModalRoute.of(context)?.settings.arguments as app_models.Match;
+                '/match_rating': (context) {
+  final match = ModalRoute.of(context)?.settings.arguments as app_models.Match?;
+  if (match == null) {
+    return Scaffold(
+      body: Center(child: Text('Помилка: матч не знайдено')),
+    );
+  }
   return MatchRatingScreen(match: match);
 },
         '/match-details': (context) {

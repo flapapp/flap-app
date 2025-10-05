@@ -30,8 +30,10 @@ class MatchService {
   }
 
   // Створити новий матч
-  Future<void> createMatch(Match match) async {
-    await _firestore.collection('matches').add(match.toFirestore());
+    // Створити новий матч
+  Future<String> createMatch(Match match) async {
+    final docRef = await _firestore.collection('matches').add(match.toFirestore());
+    return docRef.id;
   }
 
   // Приєднатися до матчу

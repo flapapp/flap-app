@@ -30,6 +30,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   final List<String> _cities = ['Київ', 'Харків', 'Одеса', 'Дніпро', 'Львів'];
   final List<String> _levels = ['Початковий', 'Середній', 'Високий', 'Професійний'];
   final List<int> _playerOptions = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
+  final ScrollController _friendsScrollController = ScrollController();
 
   @override
   Widget build(BuildContext context) {
@@ -361,37 +362,110 @@ FutureBuilder<List<Map<String, dynamic>>>(
     if (friends.isEmpty) {
       return Text(
         'Немає друзів для запрошення',
-        style: TextStyle(color: Colors.white.withOpacity(0.7)),
+        style: TextStyle(color: Colors.white.withOpacity(0.75)),
       );
     }
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: friends.map((f) {
-        final id = f['id'] as String;
-        final name = (f['displayName'] ?? f['name'] ?? 'Користувач').toString();
-        final selected = _selectedInviteFriendIds.contains(id);
-        return FilterChip(
-          label: Text(name, style: const TextStyle(color: Colors.white)),
-          selected: selected,
-          backgroundColor: Colors.white.withOpacity(0.08),
-          selectedColor: const Color(0xFF4caf50).withOpacity(0.3),
-          shape: StadiumBorder(
-            side: BorderSide(
-              color: selected ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.3),
-            ),
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+      ),
+      padding: const EdgeInsets.all(8),
+      child: SizedBox(
+  height: 240,
+  child: Scrollbar(
+    thumbVisibility: true,
+    controller: _friendsScrollController,
+    child: ListView.separated(
+      controller: _friendsScrollController,
+      primary: false,
+      shrinkWrap: true,
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: friends.length,
+      separatorBuilder: (_, __) => Divider(
+        height: 1,
+        color: Colors.white.withOpacity(0.08),
+      ),
+      itemBuilder: (context, i) {
+              final f = friends[i];
+              final id = f['id'] as String;
+              final name = (f['displayName'] ?? f['name'] ?? 'Користувач').toString();
+              final photoUrl = (f['avatarUrl'] ?? f['photoUrl'] ?? '').toString();
+              final position = (f['position'] ?? f['role'] ?? '').toString();
+              final rating = ((f['rating'] ?? f['averageRating'] ?? 0) as num).toDouble();
+              final selected = _selectedInviteFriendIds.contains(id);
+
+              return ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                leading: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.white.withOpacity(0.10),
+                  backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                  child: photoUrl.isEmpty
+                      ? Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                        )
+                      : null,
+                ),
+                title: Text(
+                  name,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Row(
+                  children: [
+                    if (position.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          position,
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ),
+                    if (position.isNotEmpty) const SizedBox(width: 8),
+                    const Icon(Icons.star, size: 14, color: Color(0xFFFFD700)),
+                    const SizedBox(width: 2),
+                    Text(
+                      rating > 0 ? rating.toStringAsFixed(1) : '-',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+                trailing: Checkbox(
+                  value: selected,
+                  onChanged: (val) {
+                    setState(() {
+                      if (val == true) {
+                        _selectedInviteFriendIds.add(id);
+                      } else {
+                        _selectedInviteFriendIds.remove(id);
+                      }
+                    });
+                  },
+                  activeColor: const Color(0xFF4caf50),
+                  checkColor: Colors.white,
+                ),
+                onTap: () {
+                  setState(() {
+                    if (selected) {
+                      _selectedInviteFriendIds.remove(id);
+                    } else {
+                      _selectedInviteFriendIds.add(id);
+                    }
+                  });
+                },
+              );
+            },
           ),
-          onSelected: (val) {
-            setState(() {
-              if (val) {
-                _selectedInviteFriendIds.add(id);
-              } else {
-                _selectedInviteFriendIds.remove(id);
-              }
-            });
-          },
-        );
-      }).toList(),
+        ),
+      ),
     );
   },
 ),
@@ -463,7 +537,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
         updatedAt: DateTime.now(),
       );
       
-      await MatchService().createMatch(match);
+            final matchId = await MatchService().createMatch(match);
 
       // Надіслати інвайти вибраним друзям (push + in-app)
       if (_selectedInviteFriendIds.isNotEmpty) {
@@ -478,11 +552,12 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
               title: 'Запрошення на матч',
               message: '$resolvedOrganizerName запросив вас на матч "$title"',
               data: {
+                'matchId': matchId,  // ← ДОДАНО matchId!
                 'matchTitle': title,
                 'city': _selectedCity,
                 'date': _selectedDate.toIso8601String(),
                 'time': '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
-                'action': 'open_matches',
+                'action': 'open_match',
               },
               createdAt: DateTime.now(),
             ));
@@ -534,5 +609,14 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
   } catch (_) {
     return [];
   }
+}
+
+@override
+void dispose() {
+  _titleController.dispose();
+  _descriptionController.dispose();
+  _locationController.dispose();
+  _friendsScrollController.dispose();
+  super.dispose();
 }
 }

@@ -9,6 +9,9 @@ class RatingService {
   static const double _videoWeight = 0.3; // 30% ваги для відео/челенджів
   static const double _defaultRating = 3.0; // Початковий рейтинг для нових користувачів
 
+// Нове: правила з Повної документації
+  static const bool _trimOutliers = false; // тримінг вимкнено
+
   // Критерії оцінювання для матчів
   static const List<String> _matchCriteria = [
     'technical',    // Техніка
@@ -168,16 +171,28 @@ class RatingService {
           .doc(matchId)
           .get();
       if (!matchDoc.exists) {
-        throw Exception('Матч не знайдено');
-      }
-      final matchData = matchDoc.data() as Map<String, dynamic>;
-      if (matchData['status'] != 'finished') {
-        throw Exception('Матч ще не завершено');
-      }
-      final participants = List<String>.from(matchData['participants'] ?? const <String>[]);
-      if (!participants.contains(ratedBy) || !participants.contains(playerId)) {
-        throw Exception('Лише учасники можуть оцінювати');
-      }
+  throw Exception('Матч не знайдено');
+}
+final matchData = matchDoc.data() as Map<String, dynamic>;
+if (matchData['status'] != 'finished') {
+  throw Exception('Матч ще не завершено');
+}
+final participants = List<String>.from(matchData['participants'] ?? const <String>[]);
+if (!participants.contains(ratedBy) || !participants.contains(playerId)) {
+  throw Exception('Лише учасники можуть оцінювати');
+}
+
+// Нове: оцінювання лише всередині своєї команди (якщо команди задані)
+final teamAIds = List<String>.from((matchData['teamA']?['playerIds']) ?? const <String>[]);
+final teamBIds = List<String>.from((matchData['teamB']?['playerIds']) ?? const <String>[]);
+final bool teamsExist = teamAIds.isNotEmpty || teamBIds.isNotEmpty;
+if (teamsExist) {
+  final sameTeam = (teamAIds.contains(ratedBy) && teamAIds.contains(playerId)) ||
+                   (teamBIds.contains(ratedBy) && teamBIds.contains(playerId));
+  if (!sameTeam) {
+    throw Exception('Оцінювання дозволене лише гравцями своєї команди');
+  }
+}
 
       // Уникнення дублю (пара playerId_ratedBy)
       final ratingDocRef = FirebaseFirestore.instance
@@ -445,36 +460,56 @@ class RatingService {
   }
 
   // Отримати всі оцінки гравця з матчів
-  Future<List<double>> _getMatchRatings(String userId) async {
-    try {
-      final ratings = <double>[];
-      
-      // Шукаємо всі матчі, де гравець брав участь
-      final matchesQuery = await FirebaseFirestore.instance
+    Future<List<double>> _getMatchRatings(String userId) async {
+  try {
+    print('📊 _getMatchRatings for userId=$userId');
+    final perMatchAverages = <double>[];
+
+    // Беремо всі завершені матчі
+    final matchesQuery = await FirebaseFirestore.instance
+    .collection('matches')
+    .where('status', isEqualTo: 'finished')
+    .where('participants', arrayContains: userId) // лише матчі, де гравець брав участь
+    .get();
+    
+    print('📊 Found ${matchesQuery.docs.length} finished matches');
+
+    for (final matchDoc in matchesQuery.docs) {
+      // У цьому матчі всі оцінки для userId
+      final ratingsQuery = await FirebaseFirestore.instance
           .collection('matches')
-          .where('status', isEqualTo: 'finished')
+          .doc(matchDoc.id)
+          .collection('playerRatings')
+          .where('playerId', isEqualTo: userId)
           .get();
 
-      for (final matchDoc in matchesQuery.docs) {
-        final ratingsQuery = await FirebaseFirestore.instance
-            .collection('matches')
-            .doc(matchDoc.id)
-            .collection('playerRatings')
-            .where('playerId', isEqualTo: userId)
-            .get();
-
-        for (final ratingDoc in ratingsQuery.docs) {
-          final data = ratingDoc.data();
-          ratings.add((data['rating'] ?? 0.0).toDouble());
-        }
+      final values = <double>[];
+      for (final d in ratingsQuery.docs) {
+        final m = d.data();
+        values.add((m['rating'] ?? 0.0).toDouble());
       }
 
-      return ratings;
-    } catch (e) {
-      print('Error getting match ratings: $e');
-      return [];
+      print('📊 Match ${matchDoc.id}: got ${values.length} ratings for userId');
+      print('📊 Match ${matchDoc.id}: got ${values.length} ratings for userId');
+      print('   Ratings: ${values.map((v) => v.toStringAsFixed(2)).join(', ')}');
+
+      // Тримінг вимкнено: використовуємо всі значення як є
+      if (values.isEmpty) {
+          continue;
+        }
+
+      final trimmed = values;
+
+      final avg = trimmed.reduce((a, b) => a + b) / trimmed.length;
+      perMatchAverages.add(double.parse(avg.toStringAsFixed(2)));
     }
+
+    return perMatchAverages;
+  } catch (e) {
+    print('Error getting match ratings: $e');
+    return [];
   }
+}
 
   // Отримати всі оцінки гравця з відео
   Future<List<double>> _getVideoRatings(String userId) async {
@@ -554,18 +589,18 @@ class RatingService {
   }
 
   // Отримати топ гравців за рейтингом
-  Future<List<Map<String, dynamic>>> getTopPlayers({
-    int limit = 10,
+    Future<List<Map<String, dynamic>>> getTopPlayers({
+    int limit = 50,
     String? city,
     String? position,
   }) async {
     try {
-      Query query = FirebaseFirestore.instance
-          .collection('users')
-          .where('rating', isGreaterThanOrEqualTo: _defaultRating) // Виключаємо тих, хто не має рейтингу
-          .orderBy('rating', descending: true)
-          .limit(limit);
+      // Завантажуємо більше користувачів для клієнтської фільтрації
+      final queryLimit = limit * 5; // Множимо на 5 щоб після фільтрації залишилось достатньо
+      
+      Query query = FirebaseFirestore.instance.collection('users');
 
+      // 1. Спочатку equality filters
       if (city != null && city.isNotEmpty) {
         query = query.where('city', isEqualTo: city);
       }
@@ -574,23 +609,58 @@ class RatingService {
         query = query.where('position', isEqualTo: position);
       }
 
+      // 2. Потім range filter + orderBy на тому ж полі
+      // Фільтр: рейтинг > 3.0 (виключаємо дефолтні)
+      query = query
+          .where('rating', isGreaterThan: 3.0)
+          .orderBy('rating', descending: true)
+          .limit(queryLimit);
+
       final snapshot = await query.get();
-      final players = <Map<String, dynamic>>[];
+      final activePlayers = <Map<String, dynamic>>[];
 
       for (final doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        players.add({
+        final rating = (data['rating'] ?? 0.0).toDouble();
+        final totalMatches = (data['totalMatches'] ?? data['matches'] ?? data['matchesPlayed'] ?? 0) as int;
+        final totalVideos = (data['totalVideos'] ?? 0) as int;
+        
+        // Перевірка активності:
+        // 1. Має мінімум 1 завершену гру АБО
+        // 2. Має мінімум 1 відео АБО
+        // 3. Рейтинг відрізняється від дефолтного (означає була активність)
+        final hasActivity = totalMatches > 0 || 
+                           totalVideos > 0 || 
+                           rating != _defaultRating;
+        
+        // Пропускаємо неактивних гравців
+        if (!hasActivity) {
+          continue;
+        }
+        
+        // Рейтинг має бути > 3.0 (подвійна перевірка)
+        if (rating <= 3.0) {
+          continue;
+        }
+        
+        activePlayers.add({
           'id': doc.id,
-          'name': data['displayName'] ?? 'Невідомий',
-          'rating': (data['rating'] ?? 0.0).toDouble(),
+          'name': data['displayName'] ?? data['name'] ?? 'Невідомий',
+          'rating': rating,
           'city': data['city'] ?? 'Невідомо',
           'position': data['position'] ?? 'Невідомо',
-          'totalMatches': data['totalMatches'] ?? 0,
+          'totalMatches': totalMatches,
+          'totalVideos': totalVideos,
           'avatarUrl': data['avatarUrl'],
         });
+        
+        // Зупиняємось коли набрали потрібну кількість
+        if (activePlayers.length >= limit) {
+          break;
+        }
       }
 
-      return players;
+      return activePlayers;
     } catch (e) {
       print('Error getting top players: $e');
       return [];
@@ -641,21 +711,31 @@ class RatingService {
 
   // Отримати початковий рейтинг
   double getDefaultRating() => _defaultRating;
-    // Отримати рейтинг матчу
-  Stream<double> getMatchRating(String matchId) {
-    return FirebaseFirestore.instance
-        .collection('matches')
-        .doc(matchId)
-        .snapshots()
-        .map((doc) {
-      if (doc.exists) {
-        final data = doc.data()!;
-        // Тут можна додати логіку розрахунку рейтингу матчу
-        return 0.0; // Тимчасово повертаємо 0.0
-      }
-      return 0.0;
-    });
-  }
+  // Отримати рейтинг матчу (середнє оцінок з matches/{matchId}/playerRatings)
+Stream<double> getMatchRating(String matchId) {
+  return FirebaseFirestore.instance
+      .collection('matches')
+      .doc(matchId)
+      .collection('playerRatings')
+      .snapshots()
+      .map((snap) {
+        if (!snap.docs.any((_) => true)) return 0.0;
+
+        final ratings = <double>[];
+        for (final d in snap.docs) {
+          final m = d.data() as Map<String, dynamic>;
+          final r = (m['rating'] ?? 0.0);
+          if (r is num) ratings.add(r.toDouble());
+        }
+        if (ratings.isEmpty) return 0.0;
+
+        ratings.sort();
+        final effective = ratings; // без тримінгу
+
+        final avg = effective.reduce((a, b) => a + b) / effective.length;
+        return double.parse(avg.toStringAsFixed(2));
+      });
+}
 
   // Публічний метод для перерахунку загального рейтингу (використовується з челенджів)
   Future<void> recomputeOverallRating(
@@ -673,4 +753,45 @@ class RatingService {
       sourceId: sourceId,
     );
   }
+
+  // Ручний перерахунок для всіх учасників конкретного матчу
+Future<void> recomputeForMatchParticipants(String matchId) async {
+  try {
+    final doc = await FirebaseFirestore.instance.collection('matches').doc(matchId).get();
+    if (!doc.exists) return;
+    final data = doc.data() as Map<String, dynamic>;
+    final participants = List<String>.from(data['participants'] ?? const <String>[]);
+    for (final uid in participants.toSet()) {
+      await recomputeOverallRating(
+        uid,
+        reason: 'manual_recompute',
+        source: 'Адмін',
+        sourceType: 'system',
+        sourceId: matchId,
+      );
+    }
+  } catch (_) {}
+}
+
+// Масовий перерахунок для всіх користувачів (обережно на продакшені)
+Future<void> recomputeAllUsers({int pageSize = 200}) async {
+  try {
+    Query q = FirebaseFirestore.instance.collection('users').orderBy(FieldPath.documentId);
+    DocumentSnapshot? last;
+    while (true) {
+      final snap = await (last == null ? q.limit(pageSize).get() : q.startAfterDocument(last!).limit(pageSize).get());
+      if (snap.docs.isEmpty) break;
+      for (final d in snap.docs) {
+        await recomputeOverallRating(
+          d.id,
+          reason: 'manual_recompute',
+          source: 'Адмін',
+          sourceType: 'system',
+          sourceId: 'bulk',
+        );
+      }
+      last = snap.docs.last;
+    }
+  } catch (_) {}
+}
 }

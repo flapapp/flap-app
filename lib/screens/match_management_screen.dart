@@ -396,13 +396,18 @@ Widget _buildTeamsTab() {
                                 ? await _fetchRatings([...m.teamA!.playerIds, ...m.teamB!.playerIds])
                                 : _ratingsCache;
                             setState(() {
-                              _editingTeamA = List<String>.from(m.teamA!.playerIds);
-                              _editingTeamB = List<String>.from(m.teamB!.playerIds);
-                              _autoDistributeEditingPlayers(ratings);
-                            });
+                                _ratingsCache = ratings;
+                                _editingTeamA = List<String>.from(m.teamA!.playerIds);
+                                _editingTeamB = List<String>.from(m.teamB!.playerIds);
+                                _autoDistributeEditingPlayers(ratings);
+                              });
                             final ok = await _confirm('Перемішати команди?', 'Переформувати склади на основі рейтингу');
                             if (ok == true) {
                               await _matchService.updateTeams(widget.match.id, _editingTeamA, _editingTeamB);
+                              setState(() {
+                                _editingTeamA = [];
+                                _editingTeamB = [];
+                              });
                             }
                           },
                           icon: const Icon(Icons.shuffle, color: Colors.white),
@@ -420,8 +425,11 @@ Widget _buildTeamsTab() {
                             child: _mvpTeamCard(
                             title: (m.teamA?.name?.isNotEmpty == true ? m.teamA!.name : 'Команда A'),
                             color: const Color(0xFF1976D2),
-                            avg: m.teamA!.averageRating,
-                            players: m.teamA!.playerIds,
+                            avg: _localAvgFor(
+                              _editingTeamA.isNotEmpty ? _editingTeamA : m.teamA!.playerIds,
+                              m.teamA!.averageRating,
+                            ),
+                            players: _editingTeamA.isNotEmpty ? _editingTeamA : m.teamA!.playerIds,
                             ratings: _ratingsCache,
                           ),
                         ),
@@ -431,8 +439,11 @@ Widget _buildTeamsTab() {
                             child: _mvpTeamCard(
                             title: (m.teamB?.name?.isNotEmpty == true ? m.teamB!.name : 'Команда B'),
                             color: const Color(0xFF8E24AA),
-                            avg: m.teamB!.averageRating,
-                            players: m.teamB!.playerIds,
+                            avg: _localAvgFor(
+                              _editingTeamB.isNotEmpty ? _editingTeamB : m.teamB!.playerIds,
+                              m.teamB!.averageRating,
+                            ),
+                            players: _editingTeamB.isNotEmpty ? _editingTeamB : m.teamB!.playerIds,
                             ratings: _ratingsCache,
                           ),
                         ),
@@ -991,7 +1002,19 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
   return result;
 }
 
-  
+ double _localAvgFor(List<String> players, double remoteAvg) {
+  if (_ratingsCache.isEmpty || players.isEmpty) return remoteAvg;
+  double sum = 0.0;
+  int n = 0;
+  for (final id in players) {
+    final r = _ratingsCache[id];
+    if (r != null) {
+      sum += r;
+      n++;
+    }
+  }
+  return n > 0 ? sum / n : remoteAvg;
+} 
   // Прийняття заявки
   Future<void> _acceptApplication(String userId) async {
     try {
@@ -1258,37 +1281,51 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
               children: players.map((id) {
                 final isLocked = locked.contains(id);
                 final r = ratings[id] ?? 0.0;
-                return LongPressDraggable<String>(
-                  data: id,
-                  feedback: Material(
-                    color: Colors.transparent,
-                    child: Chip(
-                      label: Text('${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(1)})'),
-                      backgroundColor: Colors.blueGrey.shade700,
-                      labelStyle: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  child: Chip(
-                    label: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(1)})'),
-                        const SizedBox(width: 6),
-                        InkWell(
-                          onTap: () => onToggleLock(id),
-                          child: Icon(isLocked ? Icons.lock : Icons.lock_open, size: 16, color: Colors.white70),
-                        ),
-                        const SizedBox(width: 6),
-                        InkWell(
-                          onTap: () => onRemove(id),
-                          child: Icon(Icons.close, size: 16, color: isLocked ? Colors.white24 : Colors.white70),
-                        ),
-                      ],
-                    ),
-                    backgroundColor: isLocked ? Colors.white12 : Colors.white10,
-                    labelStyle: const TextStyle(color: Colors.white),
-                  ),
-                );
+                return Draggable<String>(
+  data: id,
+  feedback: Material(
+    color: Colors.transparent,
+    child: Chip(
+      label: Text(
+        '${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(1)})',
+        style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+      ),
+      backgroundColor: Colors.white,
+    ),
+  ),
+  childWhenDragging: Opacity(
+    opacity: 0.6,
+    child: Chip(
+      label: Text(
+        '${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(1)})',
+        style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.w600),
+      ),
+      backgroundColor: isLocked ? Colors.grey.shade200 : Colors.white,
+    ),
+  ),
+  child: Chip(
+    label: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(1)})',
+          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(width: 6),
+        InkWell(
+          onTap: () => onToggleLock(id),
+          child: Icon(isLocked ? Icons.lock : Icons.lock_open, size: 16, color: Colors.black54),
+        ),
+        const SizedBox(width: 6),
+        InkWell(
+          onTap: () => onRemove(id),
+          child: Icon(Icons.close, size: 16, color: isLocked ? Colors.black26 : Colors.black45),
+        ),
+      ],
+    ),
+    backgroundColor: isLocked ? Colors.grey.shade200 : Colors.white,
+  ),
+);
               }).toList(),
             ),
           ],

@@ -173,30 +173,38 @@ class FriendsService {
         throw Exception('functions_disabled');
       } catch (_) {
         // Safe fallback: update request status and ONLY current user's document to avoid rules violation
-        await _firestore.runTransaction((transaction) async {
-          transaction.update(_friendRequestsCollection.doc(requestId), {
-            'status': newStatus.toString().split('.').last,
-            'respondedAt': FieldValue.serverTimestamp(),
+                // Двостороння синхронізація друзів
+               // Оновлюємо статус запрошення
+        await _friendRequestsCollection.doc(requestId).update({
+          'status': newStatus.toString().split('.').last,
+          'respondedAt': FieldValue.serverTimestamp(),
+        });
+
+        if (accept) {
+          // Двостороння дружба: оновлюємо обох користувачів окремо
+          
+          // 1. Оновлюємо того, хто ПРИЙМАЄ (поточний користувач)
+          await _usersCollection.doc(request.toUserId).update({
+            'friends': FieldValue.arrayUnion([request.fromUserId]),
+            'friendsCount': FieldValue.increment(1),
+            'coins': FieldValue.increment(5),
           });
 
-          if (accept) {
-            // Update only accepting user's list; the sender will be synced by server job later
-            transaction.update(_usersCollection.doc(request.toUserId), {
-              'friends': FieldValue.arrayUnion([request.fromUserId]),
-              'friendsCount': FieldValue.increment(1),
-              'coins': FieldValue.increment(5),
-            });
+          // 2. Оновлюємо того, хто ВІДПРАВЛЯВ (інший користувач)
+          await _usersCollection.doc(request.fromUserId).update({
+            'friends': FieldValue.arrayUnion([request.toUserId]),
+            'friendsCount': FieldValue.increment(1),
+          });
 
-            // Record a local transaction entry for the acceptor
-            transaction.set(_firestore.collection('transactions').doc(), {
-              'userId': request.toUserId,
-              'type': 'friend_added',
-              'amount': 5,
-              'timestamp': FieldValue.serverTimestamp(),
-              'description': 'Новий друг: ${request.fromUserName}',
-            });
-          }
-        });
+          // 3. Транзакція для того, хто приймає
+          await _firestore.collection('transactions').add({
+            'userId': request.toUserId,
+            'type': 'friend_added',
+            'amount': 5,
+            'timestamp': FieldValue.serverTimestamp(),
+            'description': 'Новий друг: ${request.fromUserName}',
+          });
+        }
       }
 
       // Send notification to the requester if accepted

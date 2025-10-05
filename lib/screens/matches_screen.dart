@@ -14,6 +14,7 @@ import 'match_management_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:async';
 import '../widgets/user_chip.dart';
+import '../services/notification_service.dart';
 
 
 
@@ -91,6 +92,11 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
 
   final MatchService _matchService = MatchService();
   final RatingService _ratingService = RatingService();
+  final NotificationService _notificationService = NotificationService();
+  // Стан фільтрів рейтингів (замість ValueNotifier використовуємо звичайний state)
+  String _ratingsSelectedCity = 'Всі міста';
+  String _ratingsSelectedPosition = 'Всі позиції';
+  Future<List<Map<String, dynamic>>>? _ratingsTopPlayersFuture;
 
     @override
   void initState() {
@@ -100,9 +106,9 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
       vsync: this,
     );
     
-
+    // Завантажуємо топ гравців один раз
+    _ratingsTopPlayersFuture = _ratingService.getTopPlayers(limit: 300);
   }
-
   @override
 void dispose() {
   _searchDebounce?.cancel();
@@ -411,6 +417,65 @@ Container(
             ),
           );
         },
+            ),
+      SizedBox(width: 12),
+      // Кнопка сповіщень
+      StreamBuilder<int>(
+        stream: _notificationService.getUnreadCount(),
+        builder: (context, snapshot) {
+          final unreadCount = snapshot.data ?? 0;
+          return Stack(
+            children: [
+              Container(
+                width: isCompact ? 36 : 40,
+                height: isCompact ? 36 : 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    Icons.notifications_outlined, 
+                    color: Colors.white, 
+                    size: isCompact ? 18 : 20
+                  ),
+                  onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                  padding: EdgeInsets.zero,
+                  tooltip: 'Сповіщення',
+                ),
+              ),
+              if (unreadCount > 0)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Text(
+                      unreadCount > 99 ? '99+' : unreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
       SizedBox(width: 12),
       // Кнопка створення матчу з градієнтом
@@ -616,34 +681,78 @@ Container(
           _buildRatingsTab(),
         ],
       ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF4caf50),
-              Color(0xFF66bb6a),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0xFF4caf50).withOpacity(0.4),
-              blurRadius: 20,
-              offset: Offset(0, 6),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Кнопка переходу до відео (як в MVP)
+          Container(
+            width: 48,
+            height: 48,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: FloatingActionButton(
-          onPressed: () {
-            Navigator.pushNamed(context, '/create-match');
-          },
-          child: Icon(Icons.add, color: Colors.white),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          tooltip: 'Створити матч',
-        ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () {
+                  // Перехід до відео режиму
+                  Navigator.pushNamed(context, '/video-main');
+                },
+                child: const Center(
+                  child: Text(
+                    '📹',
+                    style: TextStyle(fontSize: 24),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          
+          // Основна FAB кнопка створення матчу
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF4caf50),
+                  Color(0xFF66bb6a),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0xFF4caf50).withOpacity(0.4),
+                  blurRadius: 20,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            child: FloatingActionButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/create-match');
+              },
+              child: Icon(Icons.add, color: Colors.white),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              tooltip: 'Створити матч',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1259,15 +1368,332 @@ return Column(
     );
   }
 
-  // ВКЛАДКА 4: Рейтинги
-  Widget _buildRatingsTab() {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      child: RatingsScreen(),
+
+// ВКЛАДКА 4: Рейтинги (MVP)
+Widget _buildRatingsTab() {
+  // Використовуємо кешований Future замість створення нового
+  final topFuture = _ratingsTopPlayersFuture ?? Future.value(<Map<String, dynamic>>[]);
+
+  // Локальні хелпери для фільтрації (не залежать від наявності зовнішніх функцій)
+  String norm(String? s) => (s ?? '').trim().toLowerCase();
+
+  // Синоніми міст для надійного матчінгу
+  final Map<String, List<String>> cityAliases = <String, List<String>>{
+    'Київ':   ['київ', 'kyiv', 'kiev'],
+    'Харків': ['харків', 'kharkiv'],
+    'Одеса':  ['одеса', 'odesa', 'odessa'],
+    'Дніпро': ['дніпро', 'dnipro', 'dnepr', 'dnepropetrovsk'],
+    'Львів':  ['львів', 'lviv', 'lwow', 'lwów'],
+  };
+
+  bool cityMatches(String dbCity, String selectedUi) {
+    final db = norm(dbCity);
+    final sel = norm(selectedUi);
+    if (db == sel) return true;
+    final aliases = <String>{sel, ...?cityAliases[selectedUi]?.map(norm)};
+    return aliases.contains(db);
+  }
+
+  // Коди позицій
+  String toCode(String uiOrCode) {
+    // Якщо вже код — повертаємо
+    switch (uiOrCode) {
+      case 'goalkeeper':
+      case 'defender':
+      case 'midfielder':
+      case 'forward':
+        return uiOrCode;
+    }
+    // Українська → код
+    switch (uiOrCode) {
+      case 'Воротар': return 'goalkeeper';
+      case 'Захисник': return 'defender';
+      case 'Півзахисник': return 'midfielder';
+      case 'Нападник': return 'forward';
+      default: return uiOrCode;
+    }
+  }
+
+  // Побудова вузького дропдауна без підпису
+    // Побудова вузького дропдауна без підпису
+  Widget narrowDropdown({
+    required String value,
+    required List<String> options,
+    required ValueChanged<String?> onChanged,
+    Key? key,
+  }) {
+    return SizedBox(
+      width: 160,
+      child: DropdownButtonFormField<String>(
+        key: key,
+        value: value,
+        items: options
+            .map((v) => DropdownMenuItem<String>(
+                  value: v,
+                  child: Text(v, style: const TextStyle(color: Colors.white)),
+                ))
+            .toList(),
+        onChanged: onChanged,
+        style: const TextStyle(color: Colors.white),
+        dropdownColor: const Color(0xFF16213e),
+        iconEnabledColor: Colors.white70,
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.06),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+          ),
+          focusedBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+            borderSide: BorderSide(color: Color(0xFF4caf50), width: 1.5),
+          ),
+        ),
+      ),
     );
   }
 
+  return DefaultTabController(
+    length: 4,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Заголовок + ручний перерахунок
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Row(
+            children: [
+              const Text('Рейтинги',
+                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+              const Spacer(),
+            ],
+          ),
+        ),
+
+        // Підтаби
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: const TabBar(
+            isScrollable: true,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            tabs: [
+              Tab(text: 'Загальний рейтинг'),
+              Tab(text: 'За містом'),
+              Tab(text: 'За позицією'),
+              Tab(text: 'Моя статистика'),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        // Вміст
+        Expanded(
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: topFuture,
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
+              }
+              final all = (snap.data ?? const <Map<String, dynamic>>[]).toList();
+
+              // Гарантоване сортування за рейтингом спадаючим
+              all.sort((a, b) {
+                final ar = ((a['rating'] ?? 0) as num).toDouble();
+                final br = ((b['rating'] ?? 0) as num).toDouble();
+                return br.compareTo(ar);
+              });
+
+              return TabBarView(
+                key: ValueKey('ratings_${_ratingsSelectedCity}_${_ratingsSelectedPosition}'),
+                children: [
+                  // 1) Загальний рейтинг
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(20, 8, 20, 6),
+                        child: Text('🏆 Топ гравці',
+                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                      ),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(0, 6, 0, 6),
+                          itemCount: all.length,
+                          itemBuilder: (context, i) => _buildRatingItem(all[i], i + 1),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // 2) За містом
+                  Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                        child: Row(
+                          children: [
+                            narrowDropdown(
+                              value: _ratingsSelectedCity,
+                              options: const ['Всі міста', 'Київ', 'Харків', 'Одеса', 'Дніпро', 'Львів'],
+                              onChanged: (v) {
+                                setState(() {
+                                  _ratingsSelectedCity = v ?? 'Всі міста';
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(20, 8, 20, 6),
+                        child: Text('🏆 Топ гравці',
+                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                      ),
+                      Expanded(
+                        child: () {
+                          final String? cityFilter = (_ratingsSelectedCity == 'Всі міста') ? null : _ratingsSelectedCity;
+                          final list = (cityFilter == null)
+                              ? all
+                              : all.where((p) => cityMatches((p['city'] ?? '').toString(), cityFilter)).toList();
+                          if (list.isEmpty) {
+                            return const Center(
+                              child: Text('Пусто для вибраного міста',
+                                  style: TextStyle(color: Colors.white70)),
+                            );
+                          }
+                          return ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(0, 6, 0, 6),
+                            itemCount: list.length,
+                            itemBuilder: (context, i) => _buildRatingItem(list[i], i + 1),
+                          );
+                        }(),
+                      ),
+                    ],
+                  ),
+
+                  // 3) За позицією
+                  Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                        child: Row(
+                          children: [
+                            narrowDropdown(
+                              value: _ratingsSelectedPosition,
+                              options: const ['Всі позиції', 'Воротар', 'Захисник', 'Півзахисник', 'Нападник'],
+                              onChanged: (v) {
+                                setState(() {
+                                  _ratingsSelectedPosition = v ?? 'Всі позиції';
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(20, 8, 20, 6),
+                        child: Text('🏆 Топ гравці',
+                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                      ),
+                      Expanded(
+                        child: () {
+                          final String? positionFilter =
+                              (_ratingsSelectedPosition == 'Всі позиції') ? null : toCode(_ratingsSelectedPosition);
+                          final list = (positionFilter == null)
+                              ? all
+                              : all.where((p) {
+                                  final raw = (p['position'] ?? '').toString();
+                                  final dbCode = ['goalkeeper','defender','midfielder','forward'].contains(raw)
+                                      ? raw
+                                      : toCode(raw);
+                                  return norm(dbCode) == norm(positionFilter);
+                                }).toList();
+                          if (list.isEmpty) {
+                            return const Center(
+                              child: Text('Пусто для вибраної позиції',
+                                  style: TextStyle(color: Colors.white70)),
+                            );
+                          }
+                          return ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(0, 6, 0, 6),
+                            itemCount: list.length,
+                            itemBuilder: (context, i) => _buildRatingItem(list[i], i + 1),
+                          );
+                        }(),
+                      ),
+                    ],
+                  ),
+
+                  // 4) Моя статистика
+                  Builder(
+                    builder: (context) {
+                      final uid = FirebaseAuth.instance.currentUser?.uid;
+                      if (uid == null) {
+                        return const Center(
+                          child: Text('Увійдіть, щоб побачити статистику',
+                              style: TextStyle(color: Colors.white70)),
+                        );
+                      }
+                      return FutureBuilder<Map<String, dynamic>>(
+                        future: _ratingService.getUserRatingStats(uid),
+                        builder: (context, snap) {
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const Center(
+                                child: CircularProgressIndicator(color: Color(0xFF4caf50)));
+                          }
+                          final s = snap.data ?? const {};
+                          final current = ((s['currentRating'] ?? 3.0) as num).toDouble();
+                          final m = ((s['matchRating'] ?? 3.0) as num).toDouble();
+                          final v = ((s['videoRating'] ?? 3.0) as num).toDouble();
+                          final tm = (s['totalMatches'] ?? 0).toString();
+                          final tv = (s['totalVideos'] ?? 0).toString();
+
+                          return ListView(
+                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                            children: [
+                              _statTile('Поточний рейтинг', current),
+                              const SizedBox(height: 8),
+                              _statTile('Рейтинг з матчів (70%)', m),
+                              const SizedBox(height: 8),
+                              _statTile('Рейтинг з відео/челенджів (30%)', v),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  _chipStat(Icons.sports_soccer, 'Матчі', tm),
+                                  const SizedBox(width: 8),
+                                  _chipStat(Icons.videocam, 'Відео', tv),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              const SizedBox.shrink(),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    ),
+  );
+}
   // Метод для розрахунку середнього рейтингу учасників
   Future<double> _calculateAverageRating(List<String> participantIds) async {
     try {
@@ -2610,4 +3036,241 @@ Widget _buildLevelChip(MatchLevel level) {
     ),
   );
 }
-} 
+
+Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
+  final String name = (p['name']
+        ?? p['displayName']
+        ?? ((p['firstName'] != null || p['lastName'] != null)
+            ? '${p['firstName'] ?? ''} ${p['lastName'] ?? ''}'.trim()
+            : null)
+        ?? 'Невідомий').toString();
+
+  final double rating = ((p['rating'] ?? 0) as num).toDouble();
+  final String rawPosition = (p['position'] ?? '').toString();
+  final String position = _humanPosition(rawPosition);
+  final String city = (p['city'] ?? 'Невідомо').toString();
+  final String avatar = (p['avatarUrl'] ?? p['photoUrl'] ?? '').toString();
+  final _Level lvl = _levelFor(rating);
+  final int matchesCount = ((p['totalMatches'] ?? p['matches'] ?? p['matchesPlayed'] ?? 0) as num).toInt();
+
+  return InkWell(
+    onTap: () => Navigator.pushNamed(
+      context,
+      '/player-profile',
+      arguments: {'playerId': p['id'], 'playerName': name},
+    ),
+    child: Container(
+  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+  decoration: BoxDecoration(
+    color: Colors.white.withOpacity(0.04),
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(color: Colors.white.withOpacity(0.08)),
+  ),
+  child: Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      _rankBadge(rank),
+      const SizedBox(width: 14),
+            Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white12,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: avatar.isNotEmpty
+            ? Image.network(
+                avatar,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  // Якщо помилка завантаження - показуємо літеру
+                  return Container(
+                    color: Colors.white12,
+                    child: Center(
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 20,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              )
+            : Center(
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+      ),
+      const SizedBox(width: 14),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+            const SizedBox(height: 4),
+            Row(
+  children: [
+    Text(
+      position.isNotEmpty ? position : 'Невідомо',
+      style: const TextStyle(color: Colors.white70, fontSize: 12),
+    ),
+    const SizedBox(width: 6),
+    const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
+    const SizedBox(width: 6),
+    Text(city, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+    const SizedBox(width: 6),
+    const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
+    const SizedBox(width: 6),
+    Text('$matchesCount матчів', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+  ],
+),
+          ],
+        ),
+      ),
+      const SizedBox(width: 12),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Color(lvl.color).withOpacity(0.15),
+              border: Border.all(color: Color(lvl.color).withOpacity(0.5)),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(lvl.label, style: TextStyle(color: Color(lvl.color), fontSize: 12, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(height: 8),
+          Text('РЕЙТИНГ', style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 0.4)),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.star, color: Color(0xFFFFD700), size: 18),
+              const SizedBox(width: 4),
+              Text(
+                rating.toStringAsFixed(2),
+                style: const TextStyle(color: Color(0xFF4caf50), fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  ),
+),
+  );
+}
+
+Widget _rankBadge(int rank) {
+  if (rank == 1 || rank == 2 || rank == 3) {
+    final String medal = rank == 1 ? '🥇' : rank == 2 ? '🥈' : '🥉';
+    return SizedBox(
+      width: 36,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(medal, style: const TextStyle(fontSize: 18)),
+      ),
+    );
+  }
+  return SizedBox(
+    width: 36,
+    child: Text(
+      '#$rank',
+      textAlign: TextAlign.left,
+      style: const TextStyle(color: Colors.white54, fontWeight: FontWeight.w700),
+    ),
+  );
+}
+
+Widget _statTile(String title, double val) {
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.06),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white.withOpacity(0.12)),
+    ),
+    child: Row(
+      children: [
+        Text(title, style: const TextStyle(color: Colors.white70)),
+        const Spacer(),
+        const Icon(Icons.star, color: Color(0xFFFFD700), size: 18),
+        const SizedBox(width: 6),
+        Text(val.toStringAsFixed(2),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+      ],
+    ),
+  );
+}
+
+Widget _chipStat(IconData icon, String label, String value) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.06),
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: Colors.white.withOpacity(0.12)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: Colors.white70, size: 16),
+        const SizedBox(width: 6),
+        Text('$label: $value', style: const TextStyle(color: Colors.white70)),
+      ],
+    ),
+  );
+}
+
+}
+class _Level {
+  final String label;
+  final int color;
+  const _Level(this.label, this.color);
+}
+
+_Level _levelFor(double rating) {
+  if (rating >= 4.5) return const _Level('Професійний', 0xFF9C27B0);
+  if (rating >= 3.5) return const _Level('Високий', 0xFFFF9800);
+  if (rating >= 2.5) return const _Level('Середній', 0xFF2196F3);
+  if (rating >= 1.5) return const _Level('Початковий', 0xFF4CAF50);
+  return const _Level('Новачок', 0xFF9E9E9E);
+}
+
+String _humanPosition(String raw) {
+  switch (raw) {
+    case 'goalkeeper': return 'Воротар';
+    case 'defender':   return 'Захисник';
+    case 'midfielder': return 'Півзахисник';
+    case 'forward':    return 'Нападник';
+    default:           return raw.isEmpty ? 'Невідомо' : raw;
+  }
+}
+String _positionCodeFromUi(String ui) {
+  switch (ui) {
+    case 'Воротар': return 'goalkeeper';
+    case 'Захисник': return 'defender';
+    case 'Півзахисник': return 'midfielder';
+    case 'Нападник': return 'forward';
+    default: return ui;
+  }
+}
+const Set<String> _posCodes = {'goalkeeper', 'defender', 'midfielder', 'forward'};
+
+String _norm(String? s) => (s ?? '').trim().toLowerCase();

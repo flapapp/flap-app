@@ -313,13 +313,16 @@ class AppNotification {
     String? videoTitle,
   }) {
     final sign = delta >= 0 ? '+' : '';
-    final vt = videoTitle == null || videoTitle.isEmpty ? '' : ' за відео "$videoTitle"';
+    final hasVideo = videoTitle != null && videoTitle.isNotEmpty;
+    final messageText = hasVideo
+        ? '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(2)}. Зміна: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}'
+        : 'Ваш рейтинг було оновлено. Зміна: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}';
     return AppNotification(
       id: '',
       userId: userId,
       type: NotificationType.ratingChanged,
       title: 'Новий рейтинг',
-      message: '$voterName оцінив ваше відео на ${rating.toStringAsFixed(2)}. Зміна: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
+      message: messageText,
       data: {
         'voterName': voterName,
         'rating': rating,

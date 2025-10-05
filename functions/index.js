@@ -408,3 +408,107 @@ exports.cleanupOldNotifications = functions.pubsub
       console.error('Error cleaning up old notifications:', error);
     }
   });
+
+// Cloud Function для прийняття запрошення в друзі
+exports.acceptFriendRequest = functions.https.onCall(async (data, context) => {
+  // Перевірка авторизації
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Користувач не авторизований');
+  }
+
+  const { requestId, accept } = data;
+  const currentUserId = context.auth.uid;
+
+  try {
+    // Отримуємо запрошення
+    const requestDoc = await admin.firestore()
+      .collection('friend_requests')
+      .doc(requestId)
+      .get();
+
+    if (!requestDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Запрошення не знайдено');
+    }
+
+    const request = requestDoc.data();
+
+    // Перевірка що це запрошення для поточного користувача
+    if (request.toUserId !== currentUserId) {
+      throw new functions.https.HttpsError('permission-denied', 'Це не ваше запрошення');
+    }
+
+    // Перевірка статусу
+    if (request.status !== 'pending') {
+      throw new functions.https.HttpsError('failed-precondition', 'Запрошення вже оброблено');
+    }
+
+    const batch = admin.firestore().batch();
+    const newStatus = accept ? 'accepted' : 'declined';
+
+    // Оновлюємо статус запрошення
+    batch.update(requestDoc.ref, {
+      status: newStatus,
+      respondedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    if (accept) {
+      // Двостороння дружба: оновлюємо ОБОХ користувачів
+      
+      // 1. Той хто приймає (toUserId)
+      const toUserRef = admin.firestore().collection('users').doc(request.toUserId);
+      batch.update(toUserRef, {
+        friends: admin.firestore.FieldValue.arrayUnion(request.fromUserId),
+        friendsCount: admin.firestore.FieldValue.increment(1),
+        coins: admin.firestore.FieldValue.increment(5),
+      });
+
+      // 2. Той хто відправляв (fromUserId)
+      const fromUserRef = admin.firestore().collection('users').doc(request.fromUserId);
+      batch.update(fromUserRef, {
+        friends: admin.firestore.FieldValue.arrayUnion(request.toUserId),
+        friendsCount: admin.firestore.FieldValue.increment(1),
+      });
+
+      // 3. Транзакція для того хто приймає
+      batch.set(admin.firestore().collection('transactions').doc(), {
+        userId: request.toUserId,
+        type: 'friend_added',
+        amount: 5,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        description: `Новий друг: ${request.fromUserName}`,
+      });
+
+      // 4. Транзакція для того хто відправляв
+      batch.set(admin.firestore().collection('transactions').doc(), {
+        userId: request.fromUserId,
+        type: 'friend_request_accepted',
+        amount: 0,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        description: `${request.toUserName} прийняв ваше запрошення в друзі`,
+      });
+
+      // 5. Сповіщення для того хто відправляв
+      batch.set(admin.firestore().collection('notifications').doc(), {
+        userId: request.fromUserId,
+        type: 'friendRequestAccepted',
+        title: 'Запрошення прийнято',
+        message: `${request.toUserName} прийняв ваше запрошення в друзі`,
+        data: {
+          friendId: request.toUserId,
+          friendName: request.toUserName,
+        },
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        isRead: false,
+      });
+    }
+
+    // Виконуємо всі операції атомарно
+    await batch.commit();
+
+    return { success: true, message: accept ? 'Запрошення прийнято' : 'Запрошення відхилено' };
+
+  } catch (error) {
+    console.error('Error in acceptFriendRequest:', error);
+    throw new functions.https.HttpsError('internal', error.message);
+  }
+});

@@ -4,6 +4,7 @@ import '../services/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/challenge.dart';
 import 'video_player_screen.dart';
+import '../models/match.dart';
 
 class NotificationsScreen extends StatefulWidget {
   @override
@@ -402,6 +403,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     // Fallback by type if actionUrl відсутній у старих записах
+        // Fallback by type if actionUrl відсутній у старих записах
     switch (notification.type) {
       case NotificationType.challengeInvitation:
       case NotificationType.challengeUpdate:
@@ -409,6 +411,25 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         final challengeId = notification.data['challengeId'] as String?;
         if (challengeId != null && challengeId.isNotEmpty) {
           await _openChallengeById(challengeId);
+          return;
+        }
+        break;
+        case NotificationType.matchInvite:
+        print('🔔 NOTIFICATION: matchInvite clicked');
+        print('🔔 NOTIFICATION: notification.data = ${notification.data}');
+        final matchId = notification.data['matchId'] as String?;
+        print('🔔 NOTIFICATION: extracted matchId = $matchId');
+        if (matchId != null && matchId.isNotEmpty) {
+          print('🔔 NOTIFICATION: Calling _openMatchById...');
+          await _openMatchById(matchId);
+          return;
+        }
+        // Fallback для старих сповіщень без matchId
+        print('⚠️ NOTIFICATION: matchId is null, checking action...');
+        final action = notification.data['action'] as String?;
+        if (action == 'open_matches') {
+          print('🔔 NOTIFICATION: Navigating to /matches (fallback)');
+          Navigator.pushNamed(context, '/matches');
           return;
         }
         break;
@@ -443,6 +464,33 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  
+    Future<void> _openMatchById(String matchId) async {
+    print('🔍 NOTIFICATION: Opening match with ID: $matchId');
+    try {
+      final doc = await FirebaseFirestore.instance.collection('matches').doc(matchId).get();
+      print('🔍 NOTIFICATION: Match doc exists: ${doc.exists}');
+      if (!doc.exists) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Матч не знайдено: $matchId')),
+        );
+        return;
+      }
+      final match = Match.fromFirestore(doc);
+      print('🔍 NOTIFICATION: Match loaded: ${match.title}');
+      if (!mounted) return;
+      print('🔍 NOTIFICATION: Navigating to match-details...');
+      Navigator.pushNamed(context, '/match-details', arguments: match);
+      print('✅ NOTIFICATION: Navigation complete');
+    } catch (e) {
+      print('❌ NOTIFICATION: Error opening match: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Помилка відкриття матчу: $e')),
+      );
+    }
+  }
   void _navigateToAction(String actionUrl) {
     if (actionUrl.startsWith('/')) {
       if (actionUrl == '/friends') {

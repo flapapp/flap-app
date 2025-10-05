@@ -73,43 +73,34 @@ service cloud.firestore {
         !resource.data.rejectedApplications.hasAny([request.auth.uid]);
       
     
-            // Оцінки після матчу (дозволяємо лише учасникам; не можна оцінювати себе; матч має бути завершений)
+                  
+      // Оцінки гравців після матчу (підколекція)
       match /playerRatings/{docId} {
-        allow read: if isSignedIn() &&
-  get(/databases/$(database)/documents/matches/$(matchId)).data.participants.hasAny([request.auth.uid]);
+      // Читати можуть всі учасники матчу
+        allow read: if isSignedIn();
 
-allow create: if isSignedIn() &&
-  request.resource.data.ratedBy == request.auth.uid &&
-  request.resource.data.playerId != request.auth.uid &&
-  get(/databases/$(database)/documents/matches/$(matchId)).data.participants.hasAll([
-    request.auth.uid, request.resource.data.playerId
-  ]) &&
-  get(/databases/$(database)/documents/matches/$(matchId)).data.status == 'finished' &&
-              // Кнопка деталей
-           (
-  // якщо команди не задані — дозволяємо (фолбек)
-  !get(/databases/$(database)/documents/matches/$(matchId)).data.keys().hasAll(['teamA','teamB'])
-  ||
-  // або якщо команди є, але порожні — теж дозволяємо (фолбек)
-  get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.size() == 0
-  ||
-  get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.size() == 0
-  ||
-  // інакше — ratedBy і playerId мають бути в протилежних командах
-  (
-    get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.hasAny([request.auth.uid]) &&
-    get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.hasAny([request.resource.data.playerId])
-  )
-  ||
-  (
-    get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.hasAny([request.auth.uid]) &&
-    get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.hasAny([request.resource.data.playerId])
-  )
-)
- &&
-  !exists(/databases/$(database)/documents/matches/$(matchId)/playerRatings/$(docId));
-
-    
+        // Створювати оцінку може тільки учасник для іншого учасника своєї команди
+        allow create: if isSignedIn() &&
+          request.resource.data.ratedBy == request.auth.uid &&
+          request.resource.data.playerId != request.auth.uid &&
+          get(/databases/$(database)/documents/matches/$(matchId)).data.participants.hasAll([
+            request.auth.uid, request.resource.data.playerId
+          ]) &&
+          get(/databases/$(database)/documents/matches/$(matchId)).data.status == 'finished' &&
+          (
+            // Якщо команди не задані - дозволяємо
+            !get(/databases/$(database)/documents/matches/$(matchId)).data.keys().hasAll(['teamA','teamB']) ||
+            get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.size() == 0 ||
+            get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.size() == 0 ||
+            // Якщо команди є - ratedBy і playerId мають бути В ОДНІЙ КОМАНДІ
+            (
+              get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.hasAll([request.auth.uid, request.resource.data.playerId])
+            ) ||
+            (
+              get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.hasAll([request.auth.uid, request.resource.data.playerId])
+            )
+          ) &&
+          !exists(/databases/$(database)/documents/matches/$(matchId)/playerRatings/$(docId));
       }
     }
 
