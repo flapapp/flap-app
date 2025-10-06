@@ -529,7 +529,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               Column(
                 children: [
                   Text(
-                    (userData['rating'] ?? 3.0).toStringAsFixed(1),
+                    (userData['rating'] ?? 3.0).toStringAsFixed(2),
                     style: TextStyle(
                       color: Color(0xFF4caf50),
                       fontSize: 20,

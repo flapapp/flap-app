@@ -678,7 +678,7 @@ if (_selectedPosition != 'Всі позиції') {
                     const Text('⭐', style: TextStyle(fontSize: 48)),
                     const SizedBox(width: 16),
                     Text(
-                      currentRating.toStringAsFixed(1),
+                      currentRating.toStringAsFixed(2),
                       style: TextStyle(
                         color: levelColor,
                         fontSize: 48,
@@ -716,7 +716,7 @@ if (_selectedPosition != 'Всі позиції') {
               Expanded(
                 child: _buildStatCard(
                   'Матчі',
-                  '${matchRating.toStringAsFixed(1)} ⭐',
+                  '${matchRating.toStringAsFixed(2)} ⭐',
                   '70% ваги',
                   Icons.sports_soccer,
                   const Color(0xFF4CAF50),
@@ -726,7 +726,7 @@ if (_selectedPosition != 'Всі позиції') {
               Expanded(
                 child: _buildStatCard(
                   'Відео',
-                  '${videoRating.toStringAsFixed(1)} ⭐',
+                  '${videoRating.toStringAsFixed(2)} ⭐',
                   '30% ваги',
                   Icons.videocam,
                   const Color(0xFFFF9800),

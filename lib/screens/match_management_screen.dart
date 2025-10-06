@@ -560,7 +560,7 @@ else
                         children: [
                           Icon(Icons.balance, color: Colors.white70, size: 18),
                           const SizedBox(width: 8),
-                          Text('Баланс: A ${avgA().toStringAsFixed(1)} vs B ${avgB().toStringAsFixed(1)}',
+                          Text('Баланс: A ${avgA().toStringAsFixed(2)} vs B ${avgB().toStringAsFixed(1)}',
                               style: const TextStyle(color: Colors.white70)),
                           const Spacer(),
                           TextButton.icon(
@@ -884,7 +884,7 @@ child: avatarUrl.isEmpty ? Text(
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              rating.toStringAsFixed(1),
+                              rating.toStringAsFixed(2),
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 14,
@@ -1105,7 +1105,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Рейтинг: ${team.averageRating.toStringAsFixed(1)}',
+                  'Рейтинг: ${team.averageRating.toStringAsFixed(2)}',
                   style: GoogleFonts.poppins(
                     color: Colors.white,
                     fontSize: 12,
@@ -1177,7 +1177,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
           children: [
             const Icon(Icons.star, color: Color(0xFFFFD54F), size: 28),
             const SizedBox(width: 8),
-            Text(avg.toStringAsFixed(1),
+            Text(avg.toStringAsFixed(2),
                 style: GoogleFonts.poppins(
                   color: Colors.white,
                   fontSize: 24,
@@ -1227,7 +1227,7 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
                     ),
                     const Spacer(),
                     Text(
-                      r.toStringAsFixed(1),
+                      r.toStringAsFixed(2),
                       style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13),
                     ),
                   ],
@@ -1287,7 +1287,7 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
     color: Colors.transparent,
     child: Chip(
       label: Text(
-        '${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(1)})',
+        '${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(2)})',
         style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
       ),
       backgroundColor: Colors.white,
@@ -1297,7 +1297,7 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
     opacity: 0.6,
     child: Chip(
       label: Text(
-        '${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(1)})',
+        '${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(2)})',
         style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.w600),
       ),
       backgroundColor: isLocked ? Colors.grey.shade200 : Colors.white,
@@ -1308,7 +1308,7 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(1)})',
+          '${id.substring(0, 2).toUpperCase()} (${r.toStringAsFixed(2)})',
           style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
         ),
         const SizedBox(width: 6),

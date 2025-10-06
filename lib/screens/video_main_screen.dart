@@ -2533,7 +2533,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
                     const SizedBox(width: 4),
                     Text(
-                      rating.toStringAsFixed(1),
+                      rating.toStringAsFixed(2),
                       style: const TextStyle(
                         color: Color(0xFF4caf50),
                         fontSize: 12,

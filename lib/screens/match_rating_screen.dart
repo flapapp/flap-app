@@ -429,7 +429,7 @@ else
                           border: Border.all(color: Colors.white24),
                         ),
                         child: Text(
-                          value.toStringAsFixed(1),
+                          value.toStringAsFixed(2),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
@@ -458,7 +458,7 @@ else
                       min: 0.0,
                       max: 5.0,
                       divisions: 50, // крок 0.1
-                      label: value.toStringAsFixed(1),
+                      label: value.toStringAsFixed(2),
                       onChanged: (newValue) {
                         print('🎚️ SLIDER CHANGED: playerId=$playerId, criterion=$criterion, value=$newValue');
                         setState(() {
