@@ -32,6 +32,7 @@ import 'services/subscription_service.dart';
 import 'services/notification_service.dart';
 import 'services/badge_service.dart';
 import 'screens/match_management_screen.dart';
+import 'utils/i18n.dart';
 
 
 @pragma('vm:entry-point')
@@ -109,14 +110,16 @@ class MyApp extends StatelessWidget {
       useMaterial3: true,
     );
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'FLAP',
-      theme: baseTheme.copyWith(
-        textTheme: GoogleFonts.poppinsTextTheme(baseTheme.textTheme),
-      ),
-      initialRoute: '/',
-      routes: {
+    return ValueListenableBuilder<String>(
+      valueListenable: I18n.language,
+      builder: (context, lang, _) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'FLAP',
+        theme: baseTheme.copyWith(
+          textTheme: GoogleFonts.robotoTextTheme(baseTheme.textTheme),
+        ),
+        initialRoute: '/',
+        routes: {
         '/': (context) => const WelcomeScreen(),
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
@@ -180,7 +183,8 @@ class MyApp extends StatelessWidget {
         '/admin': (context) => AdminScreen(),
         
         // VideoPlayerScreen не має маршруту, оскільки він викликається з параметрами
-      },
+        },
+      ),
     );
   }
 }
@@ -232,9 +236,9 @@ class WelcomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  // Назва
-                  const Text(
-                    'FLAP',
+                // Назва + language selector
+                const Text(
+                  'FLAP',
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
@@ -249,17 +253,43 @@ class WelcomeScreen extends StatelessWidget {
                       ],
                     ),
                   ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: ValueListenableBuilder<String>(
+                    valueListenable: I18n.language,
+                    builder: (context, lang, _) => DropdownButton<String>(
+                      value: lang,
+                      underline: const SizedBox.shrink(),
+                      dropdownColor: const Color(0xFF1e7d32),
+                      icon: const Icon(Icons.language, color: Colors.white),
+                      style: const TextStyle(color: Colors.white),
+                      items: const [
+                        DropdownMenuItem(value: 'uk', child: Text('Українська')),
+                        DropdownMenuItem(value: 'en', child: Text('English')),
+                      ],
+                      onChanged: (v) { if (v != null) I18n.setLanguage(v); },
+                    ),
+                  ),
+                ),
                   const SizedBox(height: 10),
                   // Підзаголовок
-                  Text(
-                    'Feel Like A Pro\nТвоя футбольна соціальна мережа',
+                ValueListenableBuilder<String>(
+                  valueListenable: I18n.language,
+                  builder: (context, lang, _) => Text(
+                    lang == 'uk' ? 'Feel Like A Pro\nТвоя футбольна соціальна мережа' : 'Feel Like A Pro\nYour football social network',
                     style: TextStyle(
                       fontSize: 18,
                       color: Colors.white.withOpacity(0.9),
                       height: 1.5,
                     ),
                     textAlign: TextAlign.center,
-                  ),
+                )),
                   const SizedBox(height: 40),
                   // Кнопки як у MVP
                   SizedBox(
@@ -293,15 +323,17 @@ class WelcomeScreen extends StatelessWidget {
                             onPressed: () {
                               Navigator.pushNamed(context, '/login');
                             },
-                            child: const Text(
-                              'УВІЙТИ',
+                            child: ValueListenableBuilder<String>(
+                              valueListenable: I18n.language,
+                              builder: (context, lang, _) => Text(
+                                lang == 'uk' ? 'УВІЙТИ' : 'LOG IN',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1,
                                 fontSize: 16,
                                 color: Colors.white,
                               ),
-                            ),
+                            )),
                           ),
                         ),
                         const SizedBox(height: 15),
@@ -324,15 +356,17 @@ class WelcomeScreen extends StatelessWidget {
                             onPressed: () {
                               Navigator.pushNamed(context, '/register');
                             },
-                            child: const Text(
-                              'РЕЄСТРАЦІЯ',
+                            child: ValueListenableBuilder<String>(
+                              valueListenable: I18n.language,
+                              builder: (context, lang, _) => Text(
+                                lang == 'uk' ? 'РЕЄСТРАЦІЯ' : 'REGISTER',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1,
                                 fontSize: 16,
                               ),
-                            ),
+                            )),
                           ),
                         ),
                       ],

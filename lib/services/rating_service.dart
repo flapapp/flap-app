@@ -595,72 +595,46 @@ if (teamsExist) {
     String? position,
   }) async {
     try {
-      // Завантажуємо більше користувачів для клієнтської фільтрації
-      final queryLimit = limit * 5; // Множимо на 5 щоб після фільтрації залишилось достатньо
-      
-      Query query = FirebaseFirestore.instance.collection('users');
-
-      // 1. Спочатку equality filters
-      if (city != null && city.isNotEmpty) {
-        query = query.where('city', isEqualTo: city);
-      }
-
-      if (position != null && position.isNotEmpty) {
-        query = query.where('position', isEqualTo: position);
-      }
-
-      // 2. Потім range filter + orderBy на тому ж полі
-      // Фільтр: рейтинг > 3.0 (виключаємо дефолтні)
-      query = query
-          .where('rating', isGreaterThan: 3.0)
-          .orderBy('rating', descending: true)
-          .limit(queryLimit);
-
-      final snapshot = await query.get();
-      final activePlayers = <Map<String, dynamic>>[];
+      // Беремо всіх користувачів без where-фільтрів (клієнтська фільтрація)
+      final snapshot = await FirebaseFirestore.instance.collection('users').limit(500).get();
+      final allPlayers = <Map<String, dynamic>>[];
 
       for (final doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
+        
         final rating = (data['rating'] ?? 0.0).toDouble();
         final totalMatches = (data['totalMatches'] ?? data['matches'] ?? data['matchesPlayed'] ?? 0) as int;
         final totalVideos = (data['totalVideos'] ?? 0) as int;
+        final userCity = (data['city'] ?? '').toString();
+        final userPosition = (data['position'] ?? '').toString();
         
-        // Перевірка активності:
-        // 1. Має мінімум 1 завершену гру АБО
-        // 2. Має мінімум 1 відео АБО
-        // 3. Рейтинг відрізняється від дефолтного (означає була активність)
-        final hasActivity = totalMatches > 0 || 
-                           totalVideos > 0 || 
-                           rating != _defaultRating;
-        
-        // Пропускаємо неактивних гравців
-        if (!hasActivity) {
-          continue;
+        // Клієнтська фільтрація по місту
+        if (city != null && city.isNotEmpty && city != 'Всі міста') {
+          if (userCity != city) continue;
         }
         
-        // Рейтинг має бути > 3.0 (подвійна перевірка)
-        if (rating <= 3.0) {
-          continue;
+        // Клієнтська фільтрація по позиції
+        if (position != null && position.isNotEmpty && position != 'Всі позиції') {
+          if (userPosition != position) continue;
         }
         
-        activePlayers.add({
+        allPlayers.add({
           'id': doc.id,
-          'name': data['displayName'] ?? data['name'] ?? 'Невідомий',
+          'name': data['displayName'] ?? data['name'] ?? data['authorName'] ?? data['email']?.toString().split('@').first ?? 'Невідомий',
           'rating': rating,
-          'city': data['city'] ?? 'Невідомо',
-          'position': data['position'] ?? 'Невідомо',
+          'city': userCity.isNotEmpty ? userCity : 'Невідомо',
+          'position': userPosition.isNotEmpty ? userPosition : 'Невідомо',
           'totalMatches': totalMatches,
           'totalVideos': totalVideos,
-          'avatarUrl': data['avatarUrl'],
+          'avatarUrl': data['avatarUrl'] ?? data['avatar'] ?? data['photoUrl'] ?? data['photoURL'] ?? '',
         });
-        
-        // Зупиняємось коли набрали потрібну кількість
-        if (activePlayers.length >= limit) {
-          break;
-        }
       }
-
-      return activePlayers;
+      
+      // Сортуємо по рейтингу на клієнті
+      allPlayers.sort((a, b) => (b['rating'] as double).compareTo(a['rating'] as double));
+      
+      // Повертаємо топ N
+      return allPlayers.take(limit).toList();
     } catch (e) {
       print('Error getting top players: $e');
       return [];

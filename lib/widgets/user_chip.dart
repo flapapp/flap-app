@@ -57,8 +57,8 @@ class UserChip extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: size / 2,
-            backgroundImage: (resolvedAvatarUrl.isNotEmpty) ? NetworkImage(resolvedAvatarUrl) : null,
             backgroundColor: const Color(0xFF4caf50),
+            backgroundImage: resolvedAvatarUrl.isNotEmpty ? NetworkImage(resolvedAvatarUrl) : null,
             child: resolvedAvatarUrl.isEmpty
                 ? Text(
                     displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',

@@ -1043,8 +1043,8 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                   },
                                   leading: CircleAvatar(
                                     radius: 20,
-                                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
                                     backgroundColor: const Color(0xFF4caf50),
+                                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
                                     child: avatarUrl.isEmpty ? Text(
                                       userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
                                       style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
@@ -1312,8 +1312,8 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         return ListTile(
           onTap: () => Navigator.pushNamed(context, '/player-profile', arguments: {'playerId': userId, 'playerName': name}),
           leading: CircleAvatar(
-            backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
             backgroundColor: const Color(0xFF4caf50),
+            backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
             child: avatar.isEmpty ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'U', style: const TextStyle(color: Colors.white)) : null,
           ),
           title: Text('$medal $name', style: const TextStyle(color: Colors.white)),

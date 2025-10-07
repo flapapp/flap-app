@@ -15,6 +15,7 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:async';
 import '../widgets/user_chip.dart';
 import '../services/notification_service.dart';
+import '../utils/i18n.dart';
 
 
 
@@ -29,12 +30,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   int _currentTabIndex = 0;
 
   // Назви вкладок
-  final List<String> _tabTitles = [
-    'Знайти матч',
-    'Мої матчі',
-    'Історія',
-    'Рейтинги'
-  ];
+  final List<String> _tabKeys = ['find_match', 'my_matches', 'history', 'ratings'];
 
   // Змінні для фільтрів
   String _selectedCity = 'Всі міста';
@@ -102,7 +98,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: _tabTitles.length,
+      length: _tabKeys.length,
       vsync: this,
     );
     
@@ -151,7 +147,8 @@ Widget _buildFilters() {
         LayoutBuilder(
   builder: (context, constraints) {
     final bool narrow = constraints.maxWidth < 380;
-    final city = Expanded(
+    final city = SizedBox(
+              width: double.infinity,
               child: DropdownButtonFormField<String>(
                 value: _selectedCity,
                 decoration: InputDecoration(
@@ -186,7 +183,8 @@ Widget _buildFilters() {
                 },
               ),
             );
-    final level = Expanded(
+    final level = SizedBox(
+              width: double.infinity,
               child: DropdownButtonFormField<String>(
                 value: _selectedLevel,
                 decoration: InputDecoration(
@@ -223,14 +221,15 @@ Widget _buildFilters() {
             );
     return narrow
       ? Column(children: [city, SizedBox(height: 12), level])
-      : Row(children: [city, SizedBox(width: 16), level]);
+      : Row(children: [Expanded(child: city), SizedBox(width: 16), Expanded(child: level)]);
   },
 ),
         SizedBox(height: 16),
         LayoutBuilder(
   builder: (context, constraints) {
     final bool narrow = constraints.maxWidth < 380;
-    final time = Expanded(
+    final time = SizedBox(
+              width: double.infinity,
               child: DropdownButtonFormField<String>(
                 value: _selectedTime,
                 decoration: InputDecoration(
@@ -265,7 +264,8 @@ Widget _buildFilters() {
                 },
               ),
             );
-    final search = Expanded(
+    final search = SizedBox(
+              width: double.infinity,
               child: TextField(
                 decoration: InputDecoration(
                   labelText: '🔍 Пошук',
@@ -299,7 +299,7 @@ Widget _buildFilters() {
             );
     return narrow
       ? Column(children: [time, SizedBox(height: 12), search])
-      : Row(children: [time, SizedBox(width: 16), search]);
+      : Row(children: [Expanded(child: time), SizedBox(width: 16), Expanded(child: search)]);
   },
 ),
         
@@ -339,282 +339,87 @@ Widget _buildFilters() {
   ),
   title: Row(
     children: [
-      // Логотип з MVP (PNG з assets)
-Container(
-  width: 34,
-  height: 34,
-  decoration: BoxDecoration(
-    borderRadius: BorderRadius.circular(10),
-    boxShadow: [
-      BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 8, offset: Offset(0, 2)),
-    ],
-  ),
-  clipBehavior: Clip.antiAlias,
-  child: Image.asset('assets/logo/flap_logo.jpg', fit: BoxFit.cover, filterQuality: FilterQuality.high),
-),
-      SizedBox(width: 16),
-      Text(
-        'FLAP',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.2,
-        ),
-      ),
-      Spacer(),
-         // Монети: живий баланс + перехід у "Мої монети"
-      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(FirebaseAuth.instance.currentUser?.uid)
-            .snapshots(),
-        builder: (context, snapshot) {
-          final coins = snapshot.hasData && snapshot.data!.exists
-              ? (snapshot.data!.data()?['coins'] ?? 0) as int
-              : 0;
-          return GestureDetector(
-            onTap: () => _showCoinsSheet(coins),
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: isCompact ? 4 : 6),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFFFD700).withOpacity(0.2),
-                    Color(0xFFFFA000).withOpacity(0.1),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Color(0xFFFFD700).withOpacity(0.4),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFFFFD700).withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.monetization_on, color: Color(0xFFFFD700), size: isCompact ? 16 : 18),
-                  SizedBox(width: 6),
-                  Text(
-                    coins.toString(),
-                    style: TextStyle(
-                      color: Color(0xFFFFD700),
-                      fontSize: isCompact ? 14 : 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-            ),
-      SizedBox(width: 12),
-      // Кнопка сповіщень
-      StreamBuilder<int>(
-        stream: _notificationService.getUnreadCount(),
-        builder: (context, snapshot) {
-          final unreadCount = snapshot.data ?? 0;
-          return Stack(
-            children: [
-              Container(
-                width: isCompact ? 36 : 40,
-                height: isCompact ? 36 : 40,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: IconButton(
-                  icon: Icon(
-                    Icons.notifications_outlined, 
-                    color: Colors.white, 
-                    size: isCompact ? 18 : 20
-                  ),
-                  onPressed: () => Navigator.pushNamed(context, '/notifications'),
-                  padding: EdgeInsets.zero,
-                  tooltip: 'Сповіщення',
-                ),
-              ),
-              if (unreadCount > 0)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
-                    child: Text(
-                      unreadCount > 99 ? '99+' : unreadCount.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-      SizedBox(width: 12),
-      // Кнопка створення матчу з градієнтом
       Container(
-        width: isCompact ? 36 : 40,
-        height: isCompact ? 36 : 40,
+        width: 28,
+        height: 28,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-          ),
-          shape: BoxShape.circle,
+          borderRadius: BorderRadius.circular(8),
           boxShadow: [
-            BoxShadow(
-              color: Color(0xFF4caf50).withOpacity(0.4),
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 6, offset: Offset(0, 2)),
           ],
         ),
-        child: IconButton(
-          icon: Icon(Icons.add, color: Colors.white, size: isCompact ? 18 : 20),
-          onPressed: () => Navigator.pushNamed(context, '/create-match'),
-          padding: EdgeInsets.zero,
-        ),
+        clipBehavior: Clip.antiAlias,
+        child: Image.asset('assets/logo/flap_logo.jpg', fit: BoxFit.cover),
       ),
-      SizedBox(width: 12),
-      // Аватар користувача з градієнтом
-       Container(
-        width: isCompact ? 36 : 40,
-        height: isCompact ? 36 : 40,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-          ),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Color(0xFF4caf50).withOpacity(0.3),
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(FirebaseAuth.instance.currentUser?.uid)
-              .snapshots(),
-          builder: (context, snapshot) {
-            String avatarUrl = '';
-            String displayName = '';
-            if (snapshot.hasData && snapshot.data!.exists) {
-              final d = snapshot.data!.data()!;
-              avatarUrl = (d['avatarUrl'] ?? d['photoUrl'] ?? '') as String? ?? '';
-              displayName = (d['displayName'] ?? d['name'] ?? d['authorName'] ?? '') as String? ?? '';
-            }
-            return IconButton(
-  padding: EdgeInsets.zero,
-  onPressed: () => Navigator.pushNamed(context, '/profile'),
-  icon: CircleAvatar(
-    radius: isCompact ? 18 : 20,
-    backgroundColor: const Color(0xFF4caf50),
-    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-    child: avatarUrl.isEmpty
-        ? Text(
-            displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
-          )
-        : null,
-  ),
-);
-          },
-        ),
-      ),
-      SizedBox(width: 12),
-      // Рейтинг з покращеним дизайном
-           // Рейтинг (стиль як у відео: зелений чип)
- Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: _showRatingModal,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF4caf50).withOpacity(0.2),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF4caf50), width: 1),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
-              const SizedBox(width: 4),
-              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(FirebaseAuth.instance.currentUser?.uid)
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  final rating = snapshot.hasData && snapshot.data!.exists
-                      ? (snapshot.data!.data()?['rating'] ?? 3.0).toDouble()
-                      : 3.0;
-                  return Text(
-                    rating.toStringAsFixed(2),
-                    style: const TextStyle(
-                      color: Color(0xFF4caf50),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    )
+      SizedBox(width: 10),
+      const Text('FLAP', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1)),
     ],
   ),
   actions: [
-    // Перемикач режимів з покращеним дизайном
-    Container(
-      margin: EdgeInsets.only(right: 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
-      ),
-      child: IconButton(
-        tooltip: 'Перейти до відео',
-        icon: Icon(Icons.video_library, color: Colors.white, size: 20),
-        onPressed: () => Navigator.pushNamed(context, '/video-main'),
-      ),
+    IconButton(
+      tooltip: 'Відео',
+      icon: const Icon(Icons.videocam, color: Colors.white, size: 20),
+      onPressed: () => Navigator.pushNamed(context, '/video-main'),
+      padding: EdgeInsets.zero,
     ),
+    StreamBuilder<int>(
+      stream: _notificationService.getUnreadCount(),
+      builder: (context, snapshot) {
+        final unreadCount = snapshot.data ?? 0;
+        return Stack(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 20),
+              onPressed: () => Navigator.pushNamed(context, '/notifications'),
+              padding: EdgeInsets.zero,
+              tooltip: 'Сповіщення',
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                  child: Center(
+                    child: Text(unreadCount > 9 ? '9+' : unreadCount.toString(), style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    ),
+    IconButton(
+      icon: const Icon(Icons.add_circle_outline, color: Colors.white, size: 22),
+      onPressed: () => Navigator.pushNamed(context, '/create-match'),
+      padding: EdgeInsets.zero,
+      tooltip: 'Створити матч',
+    ),
+    StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).snapshots(),
+      builder: (context, snapshot) {
+        String avatarUrl = '';
+        String displayName = '';
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final d = snapshot.data!.data()!;
+          avatarUrl = (d['avatarUrl'] ?? d['avatar'] ?? d['photoUrl'] ?? '').toString();
+          displayName = (d['displayName'] ?? d['name'] ?? d['authorName'] ?? d['email']?.toString().split('@').first ?? 'Г').toString();
+        }
+        return IconButton(
+          padding: EdgeInsets.zero,
+          onPressed: () => Navigator.pushNamed(context, '/profile'),
+          icon: CircleAvatar(
+            radius: 14,
+            backgroundColor: const Color(0xFF4caf50),
+            backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+            child: avatarUrl.isEmpty ? Text(displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)) : null,
+          ),
+        );
+      },
+    ),
+    const SizedBox(width: 6),
   ],
   
   bottom: PreferredSize(
@@ -637,11 +442,11 @@ Container(
   controller: _tabController,
   isScrollable: true,
   labelPadding: EdgeInsets.symmetric(horizontal: 8),
-  tabs: _tabTitles.map((title) => Tab(
+  tabs: _tabKeys.map((key) => Tab(
     child: Padding(
       padding: EdgeInsets.symmetric(vertical: isCompact ? 6 : 8),
       child: Text(
-        title,
+        I18n.t(key),
         style: TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: isCompact ? 13 : 14,
@@ -3201,22 +3006,17 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
             ),
             const SizedBox(height: 4),
-            Row(
-  children: [
-    Text(
-      position.isNotEmpty ? position : 'Невідомо',
-      style: const TextStyle(color: Colors.white70, fontSize: 12),
-    ),
-    const SizedBox(width: 6),
-    const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
-    const SizedBox(width: 6),
-    Text(city, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-    const SizedBox(width: 6),
-    const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
-    const SizedBox(width: 6),
-    Text('$matchesCount матчів', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-  ],
-),
+            Wrap(
+              spacing: 6,
+              runSpacing: 2,
+              children: [
+                Text(position.isNotEmpty ? position : 'Невідомо', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                Text(city, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                Text('$matchesCount матчів', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+              ],
+            ),
           ],
         ),
       ),
@@ -3234,7 +3034,7 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
             child: Text(lvl.label, style: TextStyle(color: Color(lvl.color), fontSize: 12, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 8),
-          Text('РЕЙТИНГ', style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 0.4)),
+          Text(I18n.t('rating').toUpperCase(), style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 0.4)),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [

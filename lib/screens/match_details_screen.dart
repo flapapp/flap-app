@@ -1101,7 +1101,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 children: [
                   CircleAvatar(
                     radius: 14,
-                    backgroundColor: color.withOpacity(0.35),
+                    backgroundColor: const Color(0xFF4caf50),
                     backgroundImage: (avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
                     child: (avatarUrl.isEmpty)
                         ? Text(

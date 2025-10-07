@@ -401,7 +401,7 @@ FutureBuilder<List<Map<String, dynamic>>>(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                 leading: CircleAvatar(
                   radius: 18,
-                  backgroundColor: Colors.white.withOpacity(0.10),
+                  backgroundColor: const Color(0xFF4caf50),
                   backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
                   child: photoUrl.isEmpty
                       ? Text(

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_service.dart';
 import 'player_profile_screen.dart';
+import '../utils/i18n.dart';
 
 class RatingsScreen extends StatefulWidget {
   @override
@@ -17,10 +18,10 @@ class _RatingsScreenState extends State<RatingsScreen>
   int _currentTabIndex = 0;
   
   final List<String> _tabTitles = [
-    'Загальний рейтинг',
-    'За містом',
-    'За позицією',
-    'Моя статистика'
+    I18n.t('overall_rating'),
+    I18n.t('by_city'),
+    I18n.t('by_position'),
+    I18n.t('my_stats'),
   ];
   
   // Фільтри
@@ -176,14 +177,13 @@ if (_selectedPosition != 'Всі позиції') {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Рейтинги',
-                  style: TextStyle(
+                Text(
+                  I18n.t('ratings'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
-                ),
+                    fontSize: 20,
+                  )),
                 Text(
                   'Топ гравців FLAP',
                   style: TextStyle(
@@ -289,16 +289,16 @@ if (_selectedPosition != 'Всі позиції') {
             ),
           ),
           child: ListTile(
-            contentPadding: const EdgeInsets.all(16),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             leading: Stack(
               clipBehavior: Clip.none,
               children: [
                 CircleAvatar(
                   radius: 24,
+                  backgroundColor: levelColor.withOpacity(0.2),
                   backgroundImage: (player['avatarUrl'] ?? '').toString().isNotEmpty
                       ? NetworkImage(player['avatarUrl'])
                       : null,
-                  backgroundColor: levelColor.withOpacity(0.2),
                   child: (player['avatarUrl'] ?? '').toString().isEmpty
                       ? Text(
                           (player['name'] ?? 'U').toString().isNotEmpty ? (player['name'] as String)[0].toUpperCase() : 'U',
@@ -363,6 +363,8 @@ if (_selectedPosition != 'Всі позиції') {
                 const SizedBox(height: 4),
                 Text(
                   '${player['position'] ?? 'Невідомо'} • ${player['city'] ?? 'Невідомо'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 12,
@@ -371,6 +373,8 @@ if (_selectedPosition != 'Всі позиції') {
                 const SizedBox(height: 4),
                 Text(
                   '${player['totalMatches'] ?? 0} матчів зіграно',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 12,
@@ -378,33 +382,11 @@ if (_selectedPosition != 'Всі позиції') {
                 ),
               ],
             ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('⭐', style: TextStyle(fontSize: 16)),
-                    const SizedBox(width: 4),
-                    Text(
-                      rating.toStringAsFixed(2),
-                      style: const TextStyle(
-                        color: Color(0xFFFFD700),
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                Text(
-                  '${index + 1} місце',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Text('⭐', style: TextStyle(fontSize: 14)),
+              const SizedBox(width: 4),
+              Text(rating.toStringAsFixed(2), style: const TextStyle(color: Color(0xFFFFD700), fontSize: 16, fontWeight: FontWeight.bold)),
+            ]),
             onTap: () {
               Navigator.push(
                 context,
@@ -904,16 +886,16 @@ if (_selectedPosition != 'Всі позиції') {
             ),
           ),
           child: ListTile(
-            contentPadding: const EdgeInsets.all(16),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             leading: Stack(
               clipBehavior: Clip.none,
               children: [
                 CircleAvatar(
                   radius: 22,
+                  backgroundColor: levelColor.withOpacity(0.2),
                   backgroundImage: (player['avatarUrl'] ?? '').toString().isNotEmpty
                       ? NetworkImage(player['avatarUrl'])
                       : null,
-                  backgroundColor: levelColor.withOpacity(0.2),
                   child: (player['avatarUrl'] ?? '').toString().isEmpty
                       ? Text(
                           (player['name'] ?? 'U').toString().isNotEmpty ? (player['name'] as String)[0].toUpperCase() : 'U',
@@ -979,21 +961,11 @@ if (_selectedPosition != 'Всі позиції') {
                 fontSize: 11,
               ),
             ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('⭐', style: TextStyle(fontSize: 14)),
-                const SizedBox(width: 4),
-                Text(
-                  rating.toStringAsFixed(2),
-                  style: const TextStyle(
-                    color: Color(0xFFFFD700),
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Text('⭐', style: TextStyle(fontSize: 14)),
+              const SizedBox(width: 4),
+              Text(rating.toStringAsFixed(2), style: const TextStyle(color: Color(0xFFFFD700), fontSize: 16, fontWeight: FontWeight.bold)),
+            ]),
             onTap: () {
               Navigator.push(
                 context,

@@ -533,9 +533,11 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
       );
     }
 
-    final name = playerData!['name'] ?? '';
-    final surname = playerData!['surname'] ?? '';
-    final displayName = '$name $surname'.trim();
+    final displayName = (playerData!['displayName'] ?? 
+                         playerData!['name'] ?? 
+                         playerData!['authorName'] ?? 
+                         playerData!['email']?.toString().split('@').first ?? 
+                         'Гравець').toString();
     final position = playerData!['position'] ?? '';
     final experience = playerData!['experience'] ?? '';
     final city = playerData!['city'] ?? '';
@@ -545,7 +547,7 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
     final wins   = ((playerData!['wins'] ?? playerData!['wonMatches']  ?? 0) as num).toInt();
     final losses = ((playerData!['losses'] ?? playerData!['lostMatches'] ?? 0) as num).toInt();
     final draws  = ((playerData!['draws'] ?? playerData!['drawMatches']  ?? 0) as num).toInt();
-    final avatarUrl = playerData!['avatarUrl'] as String?;
+    final avatarUrl = (playerData!['avatarUrl'] ?? playerData!['avatar'] ?? playerData!['photoUrl'] ?? '').toString();
 
     final me = FirebaseAuth.instance.currentUser?.uid;
     final isOwnProfile = me != null && widget.playerId == me;
@@ -584,13 +586,13 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(48),
-                child: avatarUrl != null && avatarUrl.isNotEmpty
+                child: avatarUrl.isNotEmpty
                     ? Image.network(avatarUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildDefaultAvatar(displayName))
                     : _buildDefaultAvatar(displayName),
               ),
             ),
             const SizedBox(height: 12),
-            Text(displayName.isNotEmpty ? displayName : 'Гравець',
+            Text(displayName,
                 style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             if (position.isNotEmpty)
@@ -724,7 +726,7 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
                             builder: (context) => VideoPlayerScreen(
                               videoUrl: vUrl,
                               title: title,
-                              authorName: displayName.isNotEmpty ? displayName : 'Гравець',
+                              authorName: displayName,
                               videoId: (v['id'] ?? '') as String,
                             ),
                           ),

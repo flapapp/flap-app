@@ -168,12 +168,14 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 onPressed: () => _showProfile(context),
                 icon: CircleAvatar(
                   radius: 16,
-                  backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
                   backgroundColor: const Color(0xFF4caf50),
-                  child: avatarUrl.isEmpty ? Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                  ) : null,
+                  backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                  child: avatarUrl.isEmpty
+                      ? Text(
+                          userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                        )
+                      : null,
                 ),
               );
             },

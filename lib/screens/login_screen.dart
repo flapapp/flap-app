@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'mode_selection_screen.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/i18n.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -37,7 +38,8 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 // Заголовок і підзаголовок як у MVP
                 const Text(
-                  'Вхід до FLAP',
+                  // Static brand; we can localize subtitle below
+                  'FLAP',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
@@ -46,7 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Увійдіть до своєї футбольної спільноти',
+                  I18n.t('login_subtitle'),
                   style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
@@ -63,14 +65,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _emailController,
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                     decoration: InputDecoration(
-                      hintText: 'Email або телефон',
+                      hintText: I18n.t('email_or_phone'),
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.7), fontWeight: FontWeight.w400),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Введіть email';
+                        return I18n.t('enter_email');
                       }
                       return null;
                     },
@@ -90,14 +92,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     obscureText: true,
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                     decoration: InputDecoration(
-                      hintText: 'Пароль',
+                      hintText: I18n.t('password'),
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.7), fontWeight: FontWeight.w400),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Введіть пароль';
+                        return I18n.t('enter_password');
                       }
                       return null;
                     },
@@ -109,11 +111,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: TextButton(
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Відновлення паролю буде додано пізніше')),
+                        SnackBar(content: Text(I18n.t('password_recovery_later'))),
                       );
                     },
                     child: Text(
-                      'Забули пароль?',
+                      I18n.t('forgot_password'),
                       style: TextStyle(color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -176,13 +178,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                   case 'invalid-credential':
                                   case 'wrong-password':
                                   case 'user-not-found':
-                                    message = 'Невірний email або пароль';
+                                    message = I18n.t('invalid_email_or_password');
                                     break;
                                   case 'too-many-requests':
-                                    message = 'Забагато спроб. Спробуйте пізніше';
+                                    message = I18n.t('too_many_requests');
                                     break;
                                   default:
-                                    message = e.message ?? 'Помилка входу';
+                                    message = e.message ?? I18n.t('login_error');
                                 }
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(content: Text(message)),
@@ -201,9 +203,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                        : const Text(
-                            'УВІЙТИ',
-                            style: TextStyle(
+                        : Text(
+                            I18n.t('login'),
+                            style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
                               fontSize: 16,
@@ -216,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextButton(
                   onPressed: () => Navigator.pushNamed(context, '/register'),
                   child: Text(
-                    "Немає акаунта? Зареєструватися",
+                    I18n.t('no_account_register'),
                     style: TextStyle(color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.w600),
                   ),
                 ),

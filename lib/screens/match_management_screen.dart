@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../models/match.dart';
 import '../services/match_service.dart';
 
@@ -130,9 +129,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Управління матчем',
-              style: GoogleFonts.poppins(
+              style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
               ),
@@ -147,7 +146,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
                 ),
                 child: Text(
                   '+${_pendingApplications.length} заявок',
-                  style: GoogleFonts.poppins(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -300,9 +299,9 @@ Widget _buildTeamsTab() {
             // Заголовок з бейджем кількості учасників
             Row(
               children: [
-                Text(
+                const Text(
                   'Команди',
-                  style: GoogleFonts.poppins(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
@@ -314,7 +313,7 @@ Widget _buildTeamsTab() {
                   decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(12)),
                   child: Text(
                     '${m.participants.length} учасників',
-                    style: GoogleFonts.poppins(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ),
                                 const Spacer(),
@@ -382,8 +381,8 @@ Widget _buildTeamsTab() {
                       children: [
                         Icon(Icons.scale, color: Colors.white70),
                         const SizedBox(width: 8),
-                        Text('Баланс команд',
-                            style: GoogleFonts.poppins(
+                        const Text('Баланс команд',
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -451,8 +450,8 @@ Widget _buildTeamsTab() {
                     ),
                     const SizedBox(height: 20),
                     // Управління матчем
-                    Text('Управління матчем',
-                        style: GoogleFonts.poppins(
+                    const Text('Управління матчем',
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -725,7 +724,7 @@ Widget _buildSettingsTab() {
           children: [
             Text(
               'Керування матчем',
-              style: GoogleFonts.poppins(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 20),
 
@@ -788,12 +787,12 @@ if (m.hasTeams && !m.isInProgress && !m.isFinished && !m.isCancelled)
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Статус: ${m.statusText}', style: GoogleFonts.poppins(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+            Text('Статус: ${m.statusText}', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   if (m.isInProgress && m.startedAt != null)
-                    Text('Почався: ${_formatDateTime(m.startedAt!)}', style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
+                    Text('Почався: ${_formatDateTime(m.startedAt!)}', style: const TextStyle(color: Colors.white70, fontSize: 14)),
                   if (m.isFinished && m.finishedAt != null)
-                    Text('Завершився: ${_formatDateTime(m.finishedAt!)}', style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
+                    Text('Завершився: ${_formatDateTime(m.finishedAt!)}', style: const TextStyle(color: Colors.white70, fontSize: 14)),
                   if (m.hasTeams)
                     const Text('Команди сформовані', style: TextStyle(color: Colors.green, fontSize: 14)),
                 ],
@@ -852,7 +851,7 @@ final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toStrin
                     radius: 20,
                     backgroundColor: const Color(0xFF4caf50),
                     backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-child: avatarUrl.isEmpty ? Text(
+                    child: avatarUrl.isEmpty ? Text(
                             userId.substring(0, 2).toUpperCase(),
                             style: const TextStyle(
                               color: Colors.white,
@@ -975,7 +974,7 @@ Widget _hintBox(IconData icon, Color color, String text) {
       children: [
         Icon(icon, color: color, size: 20),
         const SizedBox(width: 12),
-        Expanded(child: Text(text, style: GoogleFonts.poppins(color: color, fontSize: 14))),
+        Expanded(child: Text(text, style: TextStyle(color: color, fontSize: 14))),
       ],
     ),
   );
@@ -1092,7 +1091,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
             children: [
               Text(
                 teamName,
-                style: GoogleFonts.poppins(
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -1106,7 +1105,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
                 ),
                 child: Text(
                   'Рейтинг: ${team.averageRating.toStringAsFixed(2)}',
-                  style: GoogleFonts.poppins(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -1118,7 +1117,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
           SizedBox(height: 12),
           Text(
             'Гравці (${team.playerIds.length}):',
-            style: GoogleFonts.poppins(
+            style: const TextStyle(
               color: Colors.white70,
               fontSize: 14,
             ),
@@ -1136,7 +1135,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
                 ),
                 child: Text(
                   playerId.substring(0, 2).toUpperCase(),
-                  style: GoogleFonts.poppins(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -1167,7 +1166,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title,
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               color: color,
               fontWeight: FontWeight.w700,
               fontSize: 18,
@@ -1178,14 +1177,14 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
             const Icon(Icons.star, color: Color(0xFFFFD54F), size: 28),
             const SizedBox(width: 8),
             Text(avg.toStringAsFixed(2),
-                style: GoogleFonts.poppins(
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                 )),
             const SizedBox(width: 6),
-            Text('середній рейтинг',
-                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+            const Text('середній рейтинг',
+                style: TextStyle(color: Colors.white70, fontSize: 12)),
           ],
         ),
         const SizedBox(height: 12),
@@ -1204,12 +1203,12 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
                   children: [
                     CircleAvatar(
                       radius: 14,
-                      backgroundColor: Colors.white12,
+                      backgroundColor: const Color(0xFF4caf50),
                       backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
                       child: avatarUrl.isEmpty
                           ? Text(
                               initials,
-                              style: GoogleFonts.poppins(
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
@@ -1222,13 +1221,13 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
                       child: Text(
                         name,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(color: Colors.white, fontSize: 14),
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
                       ),
                     ),
                     const Spacer(),
                     Text(
                       r.toStringAsFixed(2),
-                      style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13),
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
                     ),
                   ],
                 );
@@ -1265,7 +1264,7 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
           children: [
             Row(
               children: [
-                Text(title, style: GoogleFonts.poppins(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1415,14 +1414,14 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
         backgroundColor: Color(0xFF2a2a2a),
         title: Text(
           'Завершити матч',
-          style: GoogleFonts.poppins(color: Colors.white),
+          style: const TextStyle(color: Colors.white),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'Введіть рахунок матчу:',
-              style: GoogleFonts.poppins(color: Colors.white70),
+              style: const TextStyle(color: Colors.white70),
             ),
             SizedBox(height: 16),
             Row(

@@ -6,6 +6,7 @@ import 'videos_screen.dart';
 import 'challenges_screen.dart';
 import 'video_upload_screen.dart';
 import 'challenge_create_screen.dart';
+import '../utils/i18n.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -88,7 +89,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           ],
         ),
         actions: [
-          // User chips: coins and rating
+      // User chips: coins and rating
           _buildUserChips(),
           // Notifications
           StreamBuilder<int>(
@@ -131,6 +132,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
               );
             },
           ),
+          // Quick Matches button
+          IconButton(
+            tooltip: 'Матчі',
+            icon: const Icon(Icons.sports_soccer, color: Colors.white),
+            onPressed: () => Navigator.pushNamed(context, '/matches'),
+          ),
           // Profile button with avatar
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance
@@ -153,12 +160,14 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 onPressed: () => _showProfile(context),
                 icon: CircleAvatar(
                   radius: 16,
-                  backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
                   backgroundColor: const Color(0xFF4caf50),
-                  child: avatarUrl.isEmpty ? Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                  ) : null,
+                  backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                  child: avatarUrl.isEmpty
+                      ? Text(
+                          userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                        )
+                      : null,
                 ),
               );
             },
@@ -184,14 +193,17 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
               labelStyle: const TextStyle(fontWeight: FontWeight.w600),
-              tabs: const [
+              tabs: [
                 Tab(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.videocam, size: 20),
-                      SizedBox(width: 8),
-                      Text('Відео'),
+                      const Icon(Icons.videocam, size: 20),
+                      const SizedBox(width: 8),
+                      ValueListenableBuilder(
+                        valueListenable: I18n.language,
+                        builder: (_, __, ___) => Text(I18n.t('videos')),
+                      ),
                     ],
                   ),
                 ),
@@ -199,9 +211,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.emoji_events, size: 20),
-                      SizedBox(width: 8),
-                      Text('Челенджі'),
+                      const Icon(Icons.emoji_events, size: 20),
+                      const SizedBox(width: 8),
+                      ValueListenableBuilder(
+                        valueListenable: I18n.language,
+                        builder: (_, __, ___) => Text(I18n.t('challenges')),
+                      ),
                     ],
                   ),
                 ),
@@ -794,17 +809,24 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   String _formatRatingReason(String reason, String challengeTitle, String voterName) {
     switch (reason) {
       case 'challenge_vote':
-        return voterName.isNotEmpty 
-            ? 'За ваше відео проголосував $voterName у "$challengeTitle". Рейтинг оновлено.'
-            : 'За ваше відео отримано голос у "$challengeTitle". Рейтинг оновлено.';
+      case 'video_vote':
+      case 'video_rating':
+        if (voterName.isNotEmpty && challengeTitle.isNotEmpty) {
+          return '$voterName оцінив ваше відео "$challengeTitle"';
+        }
+        if (voterName.isNotEmpty) return '$voterName оцінив ваше відео';
+        if (challengeTitle.isNotEmpty) return 'Отримано оцінку за відео "$challengeTitle"';
+        return 'Отримано оцінку за відео';
       case 'challenge_win':
         return 'Перемога в челенджі "$challengeTitle"';
       case 'challenge_second':
         return '2-е місце в челенджі "$challengeTitle"';
       case 'challenge_third':
         return '3-є місце в челенджі "$challengeTitle"';
-      case 'video_rating':
-        return 'Оцінка за відео від користувача';
+      case 'manual_recompute':
+      case 'manual_recalculation':
+      case 'system_recompute':
+        return 'Перерахунок рейтингу системою';
       case 'penalty':
         return 'Штраф за порушення правил';
       case 'bonus':

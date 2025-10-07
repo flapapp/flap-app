@@ -233,15 +233,18 @@ setState(() {
                                 return const Icon(Icons.person, size: 40, color: Color(0xFF6a1b9a));
                               }
                               
-                              final avatarUrl = data['avatarUrl'] as String?;
+                              final String avatarUrl = (data['avatarUrl'] ?? data['avatar'] ?? data['photoUrl'] ?? data['photoURL'] ?? data['profilePhotoUrl'] ?? '').toString();
                               print('avatarUrl on mode: $avatarUrl');
                               
-                              if (avatarUrl == null || avatarUrl.isEmpty) {
+                              if (avatarUrl.isEmpty) {
                                 print('No avatar URL found');
                                 return const Icon(Icons.person, size: 40, color: Color(0xFF6a1b9a));
                               }
                               
-                              return _avatarFromUrl(avatarUrl);
+                              return CircleAvatar(
+                                radius: 40,
+                                backgroundImage: NetworkImage(avatarUrl),
+                              );
                             },
                           ),
                         ),
@@ -254,7 +257,7 @@ setState(() {
                       builder: (context, snapshot) {
                                                  if (snapshot.hasData && snapshot.data!.exists) {
                            final data = snapshot.data!.data();
-                           final displayName = data?['authorName'] ?? data?['displayName'] ?? 'Гравець';
+                           final displayName = data?['displayName'] ?? data?['name'] ?? data?['authorName'] ?? data?['email']?.toString().split('@').first ?? 'Гравець';
                           return Text(
                             displayName,
                             style: const TextStyle(

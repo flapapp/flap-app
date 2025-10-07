@@ -165,8 +165,8 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   }
 
   Widget _buildProfileContent(Map<String, dynamic> userData) {
-    final displayName = userData['name'] ?? userData['displayName'] ?? 'Гравець';
-    final avatarUrl = userData['avatar'] ?? userData['avatarUrl'];
+    final displayName = userData['displayName'] ?? userData['name'] ?? userData['authorName'] ?? userData['email']?.toString().split('@').first ?? 'Гравець';
+    final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? userData['photoUrl'] ?? '';
     final rating = (userData['rating'] ?? 0.0).toDouble();
     final coins = userData['coins'] ?? 0;
     
@@ -266,7 +266,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                 bottom: 0,
                 right: 0,
                 child: GestureDetector(
-                  onTap: () => _editProfile(),
+                  onTap: () => Navigator.pushNamed(context, '/profile-edit'),
                   child: Container(
                     width: 36,
                     height: 36,
