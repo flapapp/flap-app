@@ -1408,77 +1408,68 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
 }
   
   void _showFinishMatchDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Color(0xFF2a2a2a),
-        title: Text(
-          'Завершити матч',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Введіть рахунок матчу:',
-              style: const TextStyle(color: Colors.white70),
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Команда A',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    style: TextStyle(color: Colors.white),
-                    onChanged: (value) => _teamAScore = int.tryParse(value) ?? 0,
+  final aName = widget.match.teamA?.name ?? 'Команда A';
+  final bName = widget.match.teamB?.name ?? 'Команда B';
+
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: const Color(0xFF2a2a2a),
+      title: const Text('Завершити матч', style: TextStyle(color: Colors.white)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Введіть рахунок матчу:', style: TextStyle(color: Colors.white70)),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    labelText: aName,
+                    hintText: 'Голи',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    border: const OutlineInputBorder(),
                   ),
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.white),
+                  onChanged: (v) => _teamAScore = int.tryParse(v) ?? 0,
                 ),
-                SizedBox(width: 16),
-                Text(
-                  ':',
-                  style: TextStyle(color: Colors.white, fontSize: 24),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Команда B',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    style: TextStyle(color: Colors.white),
-                    onChanged: (value) => _teamBScore = int.tryParse(value) ?? 0,
+              ),
+              const SizedBox(width: 16),
+              const Text(':', style: TextStyle(color: Colors.white, fontSize: 24)),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    labelText: bName,
+                    hintText: 'Голи',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    border: const OutlineInputBorder(),
                   ),
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.white),
+                  onChanged: (v) => _teamBScore = int.tryParse(v) ?? 0,
                 ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Скасувати', style: TextStyle(color: Colors.white70)),
+              ),
+            ],
           ),
-          ElevatedButton(
-  onPressed: _isLoading ? null : () {
-    Navigator.pop(context);
-    _finishMatch();
-  },
-  style: ElevatedButton.styleFrom(
-    backgroundColor: Color(0xFFf44336),
-  ),
-  child: Text('Завершити'),
-),
         ],
       ),
-    );
-  }
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+        ),
+        ElevatedButton(
+          onPressed: _isLoading ? null : () { Navigator.pop(context); _finishMatch(); },
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFf44336)),
+          child: const Text('Завершити'),
+        ),
+      ],
+    ),
+  );
+}
   
   Future<void> _finishMatch() async {
     setState(() => _isLoading = true);

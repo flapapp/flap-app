@@ -27,7 +27,7 @@ android {
     applicationId = "com.example.flap_app"
 
     // Піднімаємо мінімальну SDK для Firebase тощо
-    minSdk = 23
+    minSdk = flutter.minSdkVersion
 
     targetSdk = flutter.targetSdkVersion
     versionCode = flutter.versionCode

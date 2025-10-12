@@ -395,55 +395,71 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           const SizedBox(height: 8),
 
           // Action buttons
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: ElevatedButton.icon(
-                  onPressed: () => _playVideo(videoUrl, title, videoId, userId),
-                  icon: const Icon(Icons.play_arrow, size: 16),
-                  label: const Text('Дивитися', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.1),
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: ElevatedButton.icon(
-                  onPressed: () => _shareVideo(videoId),
-                  icon: const Icon(Icons.share, size: 16),
-                  label: const Text('Поділитися', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.1),
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: ElevatedButton.icon(
-                  onPressed: () => _saveVideo(videoId),
-                  icon: const Icon(Icons.bookmark_outline, size: 16),
-                  label: const Text('Зберегти', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.1),
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          LayoutBuilder(
+  builder: (context, constraints) {
+    final isNarrow = constraints.maxWidth < 360;
+
+    final buttons = <Widget>[
+      ElevatedButton.icon(
+        onPressed: () => _playVideo(videoUrl, title, videoId, userId),
+        icon: const Icon(Icons.play_arrow, size: 16),
+        label: const Text('Дивитися', style: TextStyle(fontSize: 12)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withOpacity(0.1),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withOpacity(0.2)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          minimumSize: const Size(0, 36),
+        ),
+      ),
+      ElevatedButton.icon(
+        onPressed: () => _shareVideo(videoId),
+        icon: const Icon(Icons.share, size: 16),
+        label: const Text('Поділитися', style: TextStyle(fontSize: 12)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withOpacity(0.1),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withOpacity(0.2)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          minimumSize: const Size(0, 36),
+        ),
+      ),
+      ElevatedButton.icon(
+        onPressed: () => _saveVideo(videoId),
+        icon: const Icon(Icons.bookmark_outline, size: 16),
+        label: const Text('Зберегти', style: TextStyle(fontSize: 12)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withOpacity(0.1),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withOpacity(0.2)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          minimumSize: const Size(0, 36),
+        ),
+      ),
+    ];
+
+    if (isNarrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final b in buttons)
+            Padding(padding: const EdgeInsets.only(bottom: 6), child: b),
+        ],
+      );
+    }
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: buttons
+          .map((b) => SizedBox(height: 36, child: b))
+          .toList(),
+    );
+  },
+)
         ],
       ),
     );

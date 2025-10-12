@@ -424,50 +424,40 @@ Widget _buildFilters() {
   
   bottom: PreferredSize(
     preferredSize: Size.fromHeight(70),
-    child: Container(
-      margin: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.05),
-            Colors.white.withOpacity(0.02),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: TabBar(
-  controller: _tabController,
-  isScrollable: true,
-  labelPadding: EdgeInsets.symmetric(horizontal: 8),
-  tabs: _tabKeys.map((key) => Tab(
-    child: Padding(
-      padding: EdgeInsets.symmetric(vertical: isCompact ? 6 : 8),
-      child: Text(
-        I18n.t(key),
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: isCompact ? 13 : 14,
-        ),
-      ),
+    child: ClipRRect(
+  borderRadius: BorderRadius.circular(16),
+  child: Container(
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.05),
+      border: Border.all(color: Colors.white.withOpacity(0.1)),
     ),
-  )).toList(),
-  labelColor: Colors.white,
-  unselectedLabelColor: Colors.white70,
-  indicator: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+    child: TabBar(
+      controller: _tabController,
+      isScrollable: true,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+      tabs: _tabKeys.map((key) => Tab(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: isCompact ? 6 : 8),
+          child: Text(
+            I18n.t(key),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: isCompact ? 13 : 14,
+            ),
           ),
-          borderRadius: BorderRadius.circular(10),
         ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        indicatorPadding: EdgeInsets.all(5),
+      )).toList(),
+      labelColor: Colors.white,
+      unselectedLabelColor: Colors.white70,
+      indicator: BoxDecoration(
+        color: const Color(0xFF4caf50),
+        borderRadius: BorderRadius.circular(12),
       ),
+      indicatorSize: TabBarIndicatorSize.tab,
+      indicatorPadding: const EdgeInsets.all(4),
     ),
+  ),
+),
   ),
 ),
       body: TabBarView(
@@ -2749,7 +2739,13 @@ Future<void> _onLeaveMatch(Match match) async {
                 const SizedBox(width: 8),
                 Text(
                   '${match.teamA?.name ?? 'Команда A'} vs ${match.teamB?.name ?? 'Команда B'}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),

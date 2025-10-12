@@ -238,9 +238,12 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     ),
                     const SizedBox(height: 10),
                     // City and Category filters
-                    Row(
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
                       children: [
-                        Expanded(
+                        SizedBox(
+                          width: (MediaQuery.of(context).size.width - 40) / 2, // 20px паддінг зліва+справа
                           child: _buildFilterDropdown(
                             _cities,
                             _selectedCity.isEmpty ? 'Всі міста' : _selectedCity,
@@ -252,8 +255,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                             '🏙️',
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
+                        SizedBox(
+                          width: (MediaQuery.of(context).size.width - 40) / 2,
                           child: _buildFilterDropdown(
                             _categories,
                             _selectedCategory.isEmpty ? 'Всі категорії' : _selectedCategory,

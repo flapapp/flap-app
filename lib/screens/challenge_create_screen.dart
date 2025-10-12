@@ -273,36 +273,32 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 Row(
                   children: [
                     Expanded(
+                      flex: 1,
                       child: _buildDropdownField(
                         label: 'Тип челенджу *',
                         value: _selectedType,
                         items: ChallengeType.values,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedType = value!;
-                          });
-                        },
-                        itemBuilder: (type) => Text(type == ChallengeType.technical ? 'Технічні' : 'Позиційні'),
-                        icon: _selectedType == ChallengeType.technical ? Icons.sports_soccer : Icons.location_on,
+                        onChanged: (value) { setState(() { _selectedType = value!; }); },
+                        itemBuilder: (type) => const Text('Технічні', overflow: TextOverflow.ellipsis),
+                        icon: Icons.sports_soccer,
                       ),
                     ),
-                    const SizedBox(width: 15),
+                    const SizedBox(width: 12),
                     Expanded(
+                      flex: 1,
                       child: _buildDropdownField(
                         label: 'Аудиторія *',
                         value: _selectedAudience,
                         items: ChallengeAudience.values,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedAudience = value!;
-                          });
-                        },
-                        itemBuilder: (audience) => Text(audience == ChallengeAudience.friends ? 'Моїм друзям' : 
-                                                      audience == ChallengeAudience.city ? 'Моєму місту' :
-                                                      audience == ChallengeAudience.country ? 'Моїй країні' : 'Усьому світу'),
-                        icon: _selectedAudience == ChallengeAudience.friends ? '👥' : 
-                              _selectedAudience == ChallengeAudience.city ? '🏙️' :
-                              _selectedAudience == ChallengeAudience.country ? '🇺🇦' : '🌍',
+                        onChanged: (value) { setState(() { _selectedAudience = value!; }); },
+                        itemBuilder: (audience) => Text(
+                          audience == ChallengeAudience.friends ? 'Моїм друзям'
+                          : audience == ChallengeAudience.city ? 'Моєму місту'
+                          : audience == ChallengeAudience.country ? 'Моїй країні'
+                          : 'Усьому світу',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        icon: '👥',
                       ),
                     ),
                   ],
@@ -323,25 +319,33 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     return Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: friends.map((f) {
+                      children: friends
+                          .where((f) => ((f['displayName'] ?? f['name'] ?? '').toString().trim()).isNotEmpty)
+                          .map((f) {
                         final id = f['id'] as String;
-                        final name = (f['displayName'] ?? f['name'] ?? 'Користувач').toString();
+                        final name = (f['displayName'] ?? f['name']).toString().trim();
                         final selected = _selectedInviteFriendIds.contains(id);
                         return FilterChip(
-                          label: Text(name, style: const TextStyle(color: Colors.white)),
+                          label: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 20, minWidth: 40),
+                            child: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.black87),
+                            ),
+                          ),
                           selected: selected,
-                          backgroundColor: Colors.white.withOpacity(0.08),
-                          selectedColor: const Color(0xFF4caf50).withOpacity(0.3),
-                          shape: StadiumBorder(side: BorderSide(color: (selected ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.3)))) ,
-                          onSelected: (val) {
-                            setState(() {
-                              if (val) {
-                                _selectedInviteFriendIds.add(id);
-                              } else {
-                                _selectedInviteFriendIds.remove(id);
-                              }
-                            });
-                          },
+                          backgroundColor: Colors.white,
+                          selectedColor: const Color(0xFF4caf50).withOpacity(0.15),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: StadiumBorder(
+                            side: BorderSide(color: selected ? const Color(0xFF4caf50) : Colors.black26),
+                          ),
+                          onSelected: (val) => setState(() {
+                            val ? _selectedInviteFriendIds.add(id) : _selectedInviteFriendIds.remove(id);
+                          }),
                         );
                       }).toList(),
                     );
@@ -627,10 +631,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 fontSize: 14,
               ),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
           ),
         ),
@@ -639,26 +640,28 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   }
 
   Widget _buildDropdownField<T>({
-    required String label,
-    required T value,
-    required List<T> items,
-    required Function(T?) onChanged,
-    required Widget Function(T) itemBuilder,
-    required dynamic icon,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
+  required String label,
+  required T value,
+  required List<T> items,
+  required Function(T?) onChanged,
+  required Widget Function(T) itemBuilder,
+  required dynamic icon,
+}) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
         ),
-        const SizedBox(height: 8),
-        Container(
+      ),
+      const SizedBox(height: 8),
+      ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44), // єдина висота
+        child: Container(
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.9),
             borderRadius: BorderRadius.circular(12),
@@ -668,20 +671,30 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             child: DropdownButton<T>(
               value: value,
               isExpanded: true,
+              isDense: true,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               dropdownColor: Colors.white,
-              style: const TextStyle(color: Colors.black87, fontSize: 16),
+              style: const TextStyle(color: Colors.black87, fontSize: 14, height: 1.05), // єдиний розмір шрифту
               items: items.map((item) {
                 return DropdownMenuItem<T>(
                   value: item,
                   child: Row(
                     children: [
-                      if (icon is IconData) 
-                        Icon(icon, size: 20, color: Colors.grey[600])
+                      if (icon is IconData)
+                        Icon(icon, size: 18, color: Colors.grey[700])
                       else if (icon is String)
                         Text(icon),
                       const SizedBox(width: 8),
-                      Expanded(child: itemBuilder(item)),
+                      Expanded(
+                        child: DefaultTextStyle.merge(
+                          style: const TextStyle(fontSize: 14), // єдиний розмір у списку
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: itemBuilder(item),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 );
@@ -690,9 +703,10 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             ),
           ),
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 
   Widget _buildStageInfo() {
     return Container(
