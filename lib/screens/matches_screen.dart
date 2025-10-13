@@ -1349,25 +1349,72 @@ Widget _buildRatingsTab() {
         ),
 
         // Підтаби
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
-          ),
-          child: const TabBar(
-            isScrollable: true,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            tabs: [
-              Tab(text: 'Загальний рейтинг'),
-              Tab(text: 'За містом'),
-              Tab(text: 'За позицією'),
-              Tab(text: 'Моя статистика'),
-            ],
-          ),
+      ClipRRect(
+  borderRadius: BorderRadius.circular(12),
+  child: Container(
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.05),
+      border: Border.all(color: Colors.white.withOpacity(0.1)),
+    ),
+    child: SizedBox(
+      height: 56, // місце для 2 рядків
+      child: TabBar(
+        isScrollable: false,
+        labelPadding: const EdgeInsets.symmetric(vertical: 6),
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.white70,
+        indicator: BoxDecoration(
+          color: const Color(0xFF4caf50),
+          borderRadius: BorderRadius.circular(10),
         ),
+        tabs: const [
+          Tab(
+            child: Center(
+              child: Text(
+                'Загальний\nрейтинг',
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                softWrap: true,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.05),
+              ),
+            ),
+          ),
+          Tab(
+            child: Center(
+              child: Text(
+                'За містом',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          Tab(
+            child: Center(
+              child: Text(
+                'За позицією',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          Tab(
+            child: Center(
+              child: Text(
+                'Моя\nстатистика',
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                softWrap: true,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.05),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  ),
+),
 
         const SizedBox(height: 8),
 
@@ -1565,6 +1612,11 @@ Widget _buildRatingsTab() {
       ],
     ),
   );
+}
+
+void _shareMatch(Match match) {
+  final url = 'https://flap.app/match/${match.id}';
+  Share.share('Приєднуйся до матчу: $url');
 }
   // Метод для розрахунку середнього рейтингу учасників
   Future<double> _calculateAverageRating(List<String> participantIds) async {
@@ -1846,79 +1898,73 @@ Widget _buildActionButtons(Match match, String currentUserId) {
 
   // Відкритий матч і користувач не учасник — показати три компактні кнопки
   if (userStatus == 'Подати заявку' && match.status == MatchStatus.open) {
+    return LayoutBuilder(
+  builder: (context, c) {
+    final isNarrow = c.maxWidth < 360;
+
+    final joinBtn = ElevatedButton.icon(
+      onPressed: () => _applyForMatch(match.id),
+      icon: const Icon(Icons.person_add_alt_1, size: 16),
+      label: const Text('Приєднатися', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF4caf50),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        minimumSize: const Size(0, 40),
+      ),
+    );
+
+    final detailsBtn = OutlinedButton.icon(
+      onPressed: () => Navigator.pushNamed(context, '/match-details', arguments: match),
+      icon: const Icon(Icons.info_outline, size: 16),
+      label: const Text('Деталі', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.white,
+        side: BorderSide(color: Colors.white.withOpacity(0.3)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        minimumSize: const Size(0, 40),
+      ),
+    );
+
+    final shareBtn = OutlinedButton.icon(
+      onPressed: () => _shareMatch(match),
+      icon: const Icon(Icons.share, size: 16),
+      label: const Text('Поділитися', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.white,
+        side: BorderSide(color: Colors.white.withOpacity(0.3)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        minimumSize: const Size(0, 40),
+      ),
+    );
+
+    if (isNarrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(width: double.infinity, child: joinBtn),
+          const SizedBox(height: 8),
+          SizedBox(width: double.infinity, child: detailsBtn),
+          const SizedBox(height: 8),
+          SizedBox(width: double.infinity, child: shareBtn),
+        ],
+      );
+    }
+
     return Row(
       children: [
-        // Приєднатися (градієнт)
-        Expanded(
-          child: Container(
-            height: 40,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-              ),
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF4caf50).withOpacity(0.25),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: TextButton(
-              onPressed: () => _applyForMatch(match.id),
-              child: const Text(
-                'Приєднатися',
-                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-        ),
+        Expanded(child: SizedBox(height: 40, child: joinBtn)),
         const SizedBox(width: 8),
-        // Деталі (outline)
-        Expanded(
-          child: Container(
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: TextButton(
-              onPressed: () => Navigator.pushNamed(context, '/match-details', arguments: match),
-              child: const Text(
-                'Деталі',
-                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-        ),
+        Expanded(child: SizedBox(height: 40, child: detailsBtn)),
         const SizedBox(width: 8),
-        // Поділитися (outline)
-        Expanded(
-          child: Container(
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: TextButton(
-              onPressed: () {
-                final url = 'https://flap.app/match/${match.id}';
-                Share.share('Приєднуйся до матчу: $url');
-              },
-              child: const Text(
-                'Поділитися',
-                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-        ),
+        Expanded(child: SizedBox(height: 40, child: shareBtn)),
       ],
     );
+  },
+);
   }
 
   // Інші стани — дві компактні кнопки
@@ -2727,28 +2773,30 @@ Future<void> _onLeaveMatch(Match match) async {
             
             // Мета-інформація
             Row(
-              children: [
-                Icon(Icons.calendar_today, color: Colors.white70, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  '${match.date.day}.${match.date.month}.${match.date.year}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const SizedBox(width: 16),
-                Icon(Icons.people, color: Colors.white70, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  '${match.teamA?.name ?? 'Команда A'} vs ${match.teamB?.name ?? 'Команда B'}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+  children: [
+    const Icon(Icons.calendar_today, color: Colors.white70, size: 16),
+    const SizedBox(width: 8),
+    Flexible(
+      child: Text(
+        '${match.date.day}.${match.date.month}.${match.date.year}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Colors.white70, fontSize: 14),
+      ),
+    ),
+    const SizedBox(width: 12),
+    const Icon(Icons.people, color: Colors.white70, size: 16),
+    const SizedBox(width: 8),
+    Expanded(
+      child: Text(
+        '${match.teamA?.name ?? 'Команда A'} vs ${match.teamB?.name ?? 'Команда B'}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+    ),
+  ],
+),
             
             const SizedBox(height: 8),
             
@@ -2938,115 +2986,132 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
       arguments: {'playerId': p['id'], 'playerName': name},
     ),
     child: Container(
-  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-  decoration: BoxDecoration(
-    color: Colors.white.withOpacity(0.04),
-    borderRadius: BorderRadius.circular(16),
-    border: Border.all(color: Colors.white.withOpacity(0.08)),
-  ),
-  child: Row(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      _rankBadge(rank),
-      const SizedBox(width: 14),
-            Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white12,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: avatar.isNotEmpty
-            ? Image.network(
-                avatar,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  // Якщо помилка завантаження - показуємо літеру
-                  return Container(
-                    color: Colors.white12,
-                    child: Center(
-                      child: Text(
-                        name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 20,
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _rankBadge(rank),
+          const SizedBox(width: 14),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white12,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: avatar.isNotEmpty
+                ? Image.network(
+                    avatar,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Center(
+                        child: Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                          ),
                         ),
+                      );
+                    },
+                  )
+                : Center(
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
                       ),
                     ),
-                  );
-                },
-              )
-            : Center(
-                child: Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                  ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
-                    fontSize: 20,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 2,
+                  children: [
+                    Text(
+                      position.isNotEmpty ? position : 'Невідомо',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                    Text(city, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                    Text('$matchesCount матчів', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Color(lvl.color).withOpacity(0.15),
+                  border: Border.all(color: Color(lvl.color).withOpacity(0.5)),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  lvl.label,
+                  style: TextStyle(
+                    color: Color(lvl.color),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-      ),
-      const SizedBox(width: 14),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
-            ),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 6,
-              runSpacing: 2,
-              children: [
-                Text(position.isNotEmpty ? position : 'Невідомо', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
-                Text(city, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
-                Text('$matchesCount матчів', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-              ],
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(width: 12),
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Color(lvl.color).withOpacity(0.15),
-              border: Border.all(color: Color(lvl.color).withOpacity(0.5)),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(lvl.label, style: TextStyle(color: Color(lvl.color), fontSize: 12, fontWeight: FontWeight.w700)),
-          ),
-          const SizedBox(height: 8),
-          Text(I18n.t('rating').toUpperCase(), style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 0.4)),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.star, color: Color(0xFFFFD700), size: 18),
-              const SizedBox(width: 4),
-              Text(
-                rating.toStringAsFixed(2),
-                style: const TextStyle(color: Color(0xFF4caf50), fontWeight: FontWeight.w800, fontSize: 16),
+              const SizedBox(height: 8),
+              const Text(
+                'РЕЙТИНГ',
+                style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 0.3),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.star, color: Color(0xFFFFD700), size: 18),
+                  const SizedBox(width: 4),
+                  Text(
+                    rating.toStringAsFixed(2),
+                    style: const TextStyle(
+                      color: Color(0xFF4caf50),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ],
       ),
-    ],
-  ),
-),
+    ),
   );
 }
 

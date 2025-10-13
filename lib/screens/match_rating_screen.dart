@@ -5,6 +5,7 @@ import '../services/rating_service.dart';
 import '../models/match.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum RatingMode { simple, advanced }
 class MatchRatingScreen extends StatefulWidget {
   final Match match;
   
@@ -37,6 +38,10 @@ class _MatchRatingScreenState extends State<MatchRatingScreen> {
     '🧠 Тактика',
     '🤝 Командна гра',
   ];
+
+  RatingMode _mode = RatingMode.advanced;
+  final Map<String, double> _simpleRating = {}; // playerId -> 0..5
+  
   
   bool _isSubmitting = false;
   // Кеш профілів користувачів (displayName, photoUrl)
@@ -148,6 +153,7 @@ final alreadyRatedIds = existingSnap.docs
         print('RATING DEBUG SKIP: already rated');
         continue;
       }
+      _simpleRating[playerId] = 2.5;
       print('RATING DEBUG ADDING playerId=$playerId to _playerRatings');
       _playerRatings[playerId] = {};
       for (final criterion in _criteria) {
@@ -290,6 +296,36 @@ final alreadyRatedIds = existingSnap.docs
             ),
           ),
 
+          Padding(
+  padding: const EdgeInsets.fromLTRB(15, 0, 15, 8),
+  child: Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.05),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white.withOpacity(0.1)),
+    ),
+    child: Row(
+      children: [
+        const Text('Режим:', style: TextStyle(color: Colors.white70)),
+        const SizedBox(width: 10),
+        ToggleButtons(
+          isSelected: [_mode == RatingMode.simple, _mode == RatingMode.advanced],
+          onPressed: (i) => setState(() => _mode = i == 0 ? RatingMode.simple : RatingMode.advanced),
+          borderRadius: BorderRadius.circular(8),
+          selectedColor: Colors.white,
+          fillColor: const Color(0xFF4CAF50).withOpacity(0.3),
+          color: Colors.white70,
+          children: const [
+            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Простий')),
+            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Розширений')),
+          ],
+        ),
+      ],
+    ),
+  ),
+),
+
           // Список гравців для оцінювання
 if (_playerRatings.isEmpty)
   Padding(
@@ -401,76 +437,71 @@ else
             
             const SizedBox(height: 16),
             
-            // Критерії оцінювання
-            ...List.generate(_criteria.length, (index) {
-              final criterion = _criteria[index];
-              final label = _criteriaLabels[index];
-              final value = ratings[criterion] ?? 2.5;
-              
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white24),
-                        ),
-                        child: Text(
-                          value.toStringAsFixed(2),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: const Color(0xFF4CAF50),
-                      inactiveTrackColor: Colors.white24,
-                      thumbColor: const Color(0xFF4CAF50),
-                      overlayColor: const Color(0xFF4CAF50).withOpacity(0.2),
-                      valueIndicatorColor: const Color(0xFF4CAF50),
-                      valueIndicatorTextStyle: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    child: Slider(
-                      value: value,
-                      min: 0.0,
-                      max: 5.0,
-                      divisions: 50, // крок 0.1
-                      label: value.toStringAsFixed(2),
-                      onChanged: (newValue) {
-                        print('🎚️ SLIDER CHANGED: playerId=$playerId, criterion=$criterion, value=$newValue');
-                        setState(() {
-                          _playerRatings[playerId]![criterion] = newValue;
-                        });
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              );
-            }),
+            if (_mode == RatingMode.simple) ...[
+  const Text('Загальна оцінка', style: TextStyle(color: Colors.white70)),
+  const SizedBox(height: 8),
+  SliderTheme(
+    data: SliderTheme.of(context).copyWith(
+      activeTrackColor: const Color(0xFF4CAF50),
+      inactiveTrackColor: Colors.white24,
+      thumbColor: const Color(0xFF4CAF50),
+      overlayColor: const Color(0xFF4CAF50).withOpacity(0.2),
+      valueIndicatorColor: const Color(0xFF4CAF50),
+      valueIndicatorTextStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+    ),
+    child: Slider(
+      value: _simpleRating[playerId] ?? 2.5,
+      min: 0.0,
+      max: 5.0,
+      divisions: 50,
+      label: (_simpleRating[playerId] ?? 2.5).toStringAsFixed(2),
+      onChanged: (v) => setState(() => _simpleRating[playerId] = v),
+    ),
+  ),
+  const SizedBox(height: 8),
+] else ...[
+  ...List.generate(_criteria.length, (index) {
+    final criterion = _criteria[index];
+    final label = _criteriaLabels[index];
+    final value = ratings[criterion] ?? 2.5;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(label, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14, fontWeight: FontWeight.w600)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white24)),
+              child: Text(value.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: const Color(0xFF4CAF50),
+            inactiveTrackColor: Colors.white24,
+            thumbColor: const Color(0xFF4CAF50),
+            overlayColor: const Color(0xFF4CAF50).withOpacity(0.2),
+            valueIndicatorColor: const Color(0xFF4CAF50),
+            valueIndicatorTextStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+          child: Slider(
+            value: value,
+            min: 0.0,
+            max: 5.0,
+            divisions: 50,
+            label: value.toStringAsFixed(2),
+            onChanged: (nv) => setState(() => _playerRatings[playerId]![criterion] = nv),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }),
+]
           ],
         ),
       ),
@@ -501,17 +532,22 @@ else
 
             for (final playerId in idsToRate) {
         final ratings = _playerRatings[playerId]!;
+final double simple = _simpleRating[playerId] ?? 2.5;
+final Map<String, double> effectiveCriteria =
+  (_mode == RatingMode.advanced)
+    ? ratings
+    : {'technical': simple, 'physical': simple, 'tactical': simple, 'teamwork': simple};
         print('💾 SAVING matchId=${widget.match.id}, playerId=$playerId with ratings:');
         print('   technical: ${ratings['technical']}');
         print('   physical: ${ratings['physical']}');
         print('   tactical: ${ratings['tactical']}');
         print('   teamwork: ${ratings['teamwork']}');
         final success = await _ratingService.ratePlayerAfterMatch(
-          matchId: widget.match.id,
-          playerId: playerId,
-          ratedBy: FirebaseAuth.instance.currentUser!.uid,
-          criteria: ratings,
-        );
+  matchId: widget.match.id,
+  playerId: playerId,
+  ratedBy: FirebaseAuth.instance.currentUser!.uid,
+  criteria: effectiveCriteria,
+);
         if (success) {
   print('RATING DEBUG saved playerId=$playerId');
 } else {

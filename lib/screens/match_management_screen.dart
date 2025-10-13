@@ -527,6 +527,23 @@ else
   ),
                       ],
                     ),
+                        if (m.isFinished) ...[
+      const SizedBox(height: 12),
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => Navigator.pushNamed(context, '/match_rating', arguments: m),
+          icon: const Icon(Icons.star_rate_rounded),
+          label: const Text('Оцінити гравців'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF4caf50),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+        ),
+      ),
+    ]
                   ],
                 ),
               ),
@@ -1173,68 +1190,70 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
             )),
         const SizedBox(height: 8),
         Row(
-          children: [
-            const Icon(Icons.star, color: Color(0xFFFFD54F), size: 28),
-            const SizedBox(width: 8),
-            Text(avg.toStringAsFixed(2),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                )),
-            const SizedBox(width: 6),
-            const Text('середній рейтинг',
-                style: TextStyle(color: Colors.white70, fontSize: 12)),
-          ],
-        ),
+  children: [
+    const Icon(Icons.star, color: Color(0xFFFFD54F), size: 20),
+    const SizedBox(width: 6),
+    Text(
+      avg.toStringAsFixed(2),
+      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+    ),
+  ],
+),
         const SizedBox(height: 12),
                 ...players.map((id) {
-          final r = ratings[id] ?? 0.0;
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: FutureBuilder<Map<String, dynamic>>(
-              future: _getUserProfile(id),
-              builder: (context, snap) {
-                final name = (snap.data?['displayName'] ?? 'Гравець') as String;
-final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as String;
-                final initials = _initialsFrom(name, id);
+  final r = ratings[id] ?? 0.0;
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: FutureBuilder<Map<String, dynamic>>(
+      future: _getUserProfile(id),
+      builder: (context, snap) {
+        final name = (snap.data?['displayName'] ?? 'Гравець') as String;
+        final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as String;
+        final initials = _initialsFrom(name, id);
 
-                return Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 14,
-                      backgroundColor: const Color(0xFF4caf50),
-                      backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                      child: avatarUrl.isEmpty
-                          ? Text(
-                              initials,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        name,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      r.toStringAsFixed(2),
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                  ],
-                );
-              },
+    return Padding(
+  padding: const EdgeInsets.symmetric(vertical: 6),
+  child: Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      CircleAvatar(
+        radius: 16,
+        backgroundColor: const Color(0xFF4caf50),
+        backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+        child: avatarUrl.isEmpty
+            ? Text(initials, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700))
+            : null,
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              name,
+              maxLines: 2,
+              softWrap: true,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                height: 1.1, // щільніше, щоб вміститись
+              ),
             ),
-          );
-        }),
+            const SizedBox(height: 0),
+            
+          ],
+        ),
+      ),
+    ],
+  ),
+);
+      },
+    ),
+  );
+}),
       ],
     ),
   );
@@ -1422,38 +1441,72 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
           const Text('Введіть рахунок матчу:', style: TextStyle(color: Colors.white70)),
           const SizedBox(height: 16),
           Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  decoration: InputDecoration(
-                    labelText: aName,
-                    hintText: 'Голи',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    border: const OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.white),
-                  onChanged: (v) => _teamAScore = int.tryParse(v) ?? 0,
-                ),
-              ),
-              const SizedBox(width: 16),
-              const Text(':', style: TextStyle(color: Colors.white, fontSize: 24)),
-              const SizedBox(width: 16),
-              Expanded(
-                child: TextField(
-                  decoration: InputDecoration(
-                    labelText: bName,
-                    hintText: 'Голи',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    border: const OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.white),
-                  onChanged: (v) => _teamBScore = int.tryParse(v) ?? 0,
-                ),
-              ),
-            ],
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            aName,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
           ),
+          const SizedBox(height: 6),
+          TextField(
+            decoration: const InputDecoration(
+              labelText: 'Голи',
+              labelStyle: TextStyle(color: Colors.white70),
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: Colors.white),
+            onChanged: (v) => _teamAScore = int.tryParse(v) ?? 0,
+          ),
+        ],
+      ),
+    ),
+    const SizedBox(width: 12),
+    const Padding(
+      padding: EdgeInsets.only(top: 28),
+      child: Text(':', style: TextStyle(color: Colors.white, fontSize: 22)),
+    ),
+    const SizedBox(width: 12),
+    Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            bName,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            decoration: const InputDecoration(
+              labelText: 'Голи',
+              labelStyle: TextStyle(color: Colors.white70),
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: Colors.white),
+            onChanged: (v) => _teamBScore = int.tryParse(v) ?? 0,
+          ),
+        ],
+      ),
+    ),
+  ],
+),
         ],
       ),
       actions: [
@@ -1502,6 +1555,7 @@ final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as
         
         // Перезавантажуємо дані
         await _loadMatchData();
+        await Navigator.pushNamed(context, '/match_rating', arguments: widget.match);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
