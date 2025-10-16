@@ -33,6 +33,8 @@ import 'services/notification_service.dart';
 import 'services/badge_service.dart';
 import 'screens/match_management_screen.dart';
 import 'utils/i18n.dart';
+import 'utils/app_navigator.dart';
+
 
 
 @pragma('vm:entry-point')
@@ -115,6 +117,7 @@ class MyApp extends StatelessWidget {
       builder: (context, lang, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'FLAP',
+        navigatorKey: AppNavigator.navigatorKey,
         theme: baseTheme.copyWith(
           textTheme: GoogleFonts.robotoTextTheme(baseTheme.textTheme),
         ),

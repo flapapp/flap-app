@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
+import 'notification_service.dart';
 
 class MatchService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -32,9 +33,26 @@ class MatchService {
   // Створити новий матч
     // Створити новий матч
   Future<String> createMatch(Match match) async {
-    final docRef = await _firestore.collection('matches').add(match.toFirestore());
-    return docRef.id;
-  }
+  final docRef = await _firestore.collection('matches').add(match.toFirestore());
+  final matchId = docRef.id;
+
+  // Надсилаємо інвайти, якщо матч приватний і є запрошені
+  try {
+    if (match.isPrivate && match.invitedFriends.isNotEmpty) {
+      final orgDoc = await _firestore.collection('users').doc(match.organizerId).get();
+      final organizerName = (orgDoc.data()?['displayName'] ?? orgDoc.data()?['name'] ?? 'Організатор').toString();
+      for (final uid in match.invitedFriends) {
+        await NotificationService().sendMatchInvite(
+          toUserId: uid,
+          matchId: matchId,
+          organizerName: organizerName,
+        );
+      }
+    }
+  } catch (_) {}
+
+  return matchId;
+}
 
   // Приєднатися до матчу
     // СТАРИЙ МЕТОД - ЗАКОМЕНТОВАНО
@@ -178,6 +196,20 @@ if (match.isPrivate && !match.invitedFriends.contains(userId)) {
         'pendingApplications': FieldValue.arrayUnion([userId]),
       });
 
+      try {
+  final snapAfter = await docRef.get();
+  if (snapAfter.exists) {
+    final m = Match.fromFirestore(snapAfter);
+    final applicantDoc = await _firestore.collection('users').doc(userId).get();
+    final applicantName = (applicantDoc.data()?['displayName'] ?? applicantDoc.data()?['name'] ?? 'Гравець').toString();
+    await NotificationService().sendMatchApplicationSubmitted(
+      toOrganizerId: m.organizerId,
+      matchId: matchId,
+      applicantName: applicantName,
+    );
+  }
+} catch (_) {}
+
       return true;
     } catch (e) {
       print('Error applying for match: $e');
@@ -185,6 +217,7 @@ if (match.isPrivate && !match.invitedFriends.contains(userId)) {
     }
   }
 
+    // Прийняти заявку користувача
     // Прийняти заявку користувача
   Future<bool> acceptApplication(String matchId, String userId) async {
     try {
@@ -196,10 +229,10 @@ if (match.isPrivate && !match.invitedFriends.contains(userId)) {
 
         final match = Match.fromFirestore(snap);
 
-final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-if (currentUserId == null || currentUserId != match.organizerId) {
-  throw Exception('Only organizer can perform this action');
-}
+        final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        if (currentUserId == null || currentUserId != match.organizerId) {
+          throw Exception('Only organizer can perform this action');
+        }
 
         // Перевірити чи є заявка
         if (!match.pendingApplications.contains(userId)) {
@@ -212,10 +245,8 @@ if (currentUserId == null || currentUserId != match.organizerId) {
         }
 
         // Перемістити з заявок до учасників
-        final updatedPending = List<String>.from(match.pendingApplications)
-          ..remove(userId);
-        final updatedParticipants = List<String>.from(match.participants)
-          ..add(userId);
+        final updatedPending = List<String>.from(match.pendingApplications)..remove(userId);
+        final updatedParticipants = List<String>.from(match.participants)..add(userId);
 
         final updates = <String, dynamic>{
           'pendingApplications': updatedPending,
@@ -231,8 +262,22 @@ if (currentUserId == null || currentUserId != match.organizerId) {
         tx.update(docRef, updates);
       });
 
-      // Якщо команди вже існують – додаємо нового гравця до однієї з команд
-      // (мінімізуємо дисбаланс за кількістю/середнім рейтингом)
+      // Надіслати сповіщення про підтвердження ЗАРАЗ, одразу після транзакції
+      try {
+        final updatedSnap = await _firestore.collection('matches').doc(matchId).get();
+        if (updatedSnap.exists) {
+          final m = Match.fromFirestore(updatedSnap);
+          final orgDoc = await _firestore.collection('users').doc(m.organizerId).get();
+          final organizerName = (orgDoc.data()?['displayName'] ?? orgDoc.data()?['name'] ?? 'Організатор').toString();
+          await NotificationService().sendMatchApplicationAccepted(
+            toUserId: userId,
+            matchId: matchId,
+            organizerName: organizerName,
+          );
+        }
+      } catch (_) {}
+
+      // Якщо команди вже існують – додати гравця до однієї з команд
       try {
         final snapshot = await docRef.get();
         if (snapshot.exists) {
@@ -253,7 +298,7 @@ if (currentUserId == null || currentUserId != match.organizerId) {
               userId,
             ]);
 
-            // Вибір цільової команди: спочатку за кількістю, потім за середнім рейтингом
+            // Вибір цільової команди
             final double avgA = _calculateTeamAverageRating(teamAPlayers, ratings);
             final double avgB = _calculateTeamAverageRating(teamBPlayers, ratings);
 
@@ -302,7 +347,6 @@ if (currentUserId == null || currentUserId != match.organizerId) {
     }
   }
 
-
     // Відхилити заявку користувача
   Future<bool> rejectApplication(String matchId, String userId) async {
     try {
@@ -335,6 +379,19 @@ if (currentUserId == null || currentUserId != match.organizerId) {
           'rejectedApplications': updatedRejected,
         });
       });
+      try {
+  final updated = await _firestore.collection('matches').doc(matchId).get();
+  if (updated.exists) {
+    final m = Match.fromFirestore(updated);
+    final orgDoc = await _firestore.collection('users').doc(m.organizerId).get();
+    final organizerName = (orgDoc.data()?['displayName'] ?? orgDoc.data()?['name'] ?? 'Організатор').toString();
+    await NotificationService().sendMatchApplicationRejected(
+      toUserId: userId,
+      matchId: matchId,
+      organizerName: organizerName,
+    );
+  }
+} catch (_) {}
 
       return true;
     } catch (e) {
@@ -664,6 +721,20 @@ for (final uid in a) {
     }
 
     await batch.commit();
+    try {
+  final teamAName = m.teamA?.name ?? 'Команда A';
+  final teamBName = m.teamB?.name ?? 'Команда B';
+  for (final uid in m.participants) {
+    await NotificationService().sendMatchFinished(
+      toUserId: uid,
+      matchId: snapAfter.id,
+      teamAName: teamAName,
+      teamBName: teamBName,
+      teamAScore: teamAScore,
+      teamBScore: teamBScore,
+    );
+  }
+} catch (_) {}
     return true;
   } catch (e) {
     print('Error finishing match: $e');

@@ -189,30 +189,30 @@ exports.sendPushNotification = functions.firestore
       
       const userData = userDoc.data();
       const fcmToken = userData.fcmToken;
-      
-      if (!fcmToken) {
-        console.log('No FCM token for user:', notificationData.userId);
+      const deviceTokens = Array.isArray(userData.deviceTokens) ? userData.deviceTokens.filter(Boolean) : [];
+
+      if (fcmToken) {
+        const message = {
+          notification: { title: notificationData.title, body: notificationData.message },
+          data: { ...notificationData.data, notificationId: notificationId },
+          token: fcmToken,
+        };
+        const response = await admin.messaging().send(message);
+        console.log('Successfully sent (single) push notification:', response);
+      } else if (deviceTokens.length > 0) {
+        const message = {
+          notification: { title: notificationData.title, body: notificationData.message },
+          data: { ...notificationData.data, notificationId: notificationId },
+          tokens: deviceTokens.slice(0, 500),
+        };
+        const response = await admin.messaging().sendMulticast(message);
+        console.log(`Successfully sent multicast: ${response.successCount}/${deviceTokens.length}`);
+      } else {
+        console.log('No FCM token(s) for user:', notificationData.userId);
         return;
       }
-      
-      // Формуємо повідомлення
-      const message = {
-        notification: {
-          title: notificationData.title,
-          body: notificationData.message,
-        },
-        data: {
-          ...notificationData.data,
-          notificationId: notificationId,
-        },
-        token: fcmToken,
-      };
-      
-      // Відправляємо повідомлення
-      const response = await admin.messaging().send(message);
-      console.log('Successfully sent push notification:', response);
-      
-      // Видаляємо запис з черги після успішної відправки
+
+      // remove from queue after success
       await snap.ref.delete();
       
     } catch (error) {

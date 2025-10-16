@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/notification.dart';
 import 'package:flutter/foundation.dart';
+import '../models/match.dart' as app_models;
+import '../utils/app_navigator.dart';
 
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -40,12 +42,24 @@ class NotificationService {
 
       // Listen for token refresh
       _messaging.onTokenRefresh.listen(_saveFCMToken);
+      FirebaseAuth.instance.authStateChanges().listen((user) async {
+  if (user != null) {
+    final token = await _messaging.getToken();
+    if (token != null) {
+      await _saveFCMToken(token);
+    }
+  }
+});
 
       // Handle foreground messages
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
       // Handle notification taps
       FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+if (initial != null) {
+  _handleNotificationTap(initial);
+}
 
       print('NotificationService initialized successfully');
     } catch (e) {
@@ -72,9 +86,37 @@ class NotificationService {
 
   // Handle notification tap
   void _handleNotificationTap(RemoteMessage message) {
-    print('Notification tapped: ${message.data}');
-    // Navigate to appropriate screen based on notification data
-  }
+  _navigateFromData(message.data);
+}
+
+Future<void> _navigateFromData(Map<String, dynamic> data) async {
+  final type = data['type'] as String? ?? '';
+  final matchId = data['matchId'] as String?;
+  if (matchId == null || type.isEmpty) return;
+
+  try {
+    final doc = await _firestore.collection('matches').doc(matchId).get();
+    if (!doc.exists) return;
+
+    final match = app_models.Match.fromFirestore(doc);
+    final nav = AppNavigator.navigatorKey.currentState;
+    if (nav == null) return;
+
+    switch (type) {
+      case 'match_invite':
+      case 'match_application_accepted':
+      case 'match_application_rejected':
+        nav.pushNamed('/match-details', arguments: match);
+        break;
+      case 'match_finished':
+        nav.pushNamed('/match_management', arguments: match);
+        break;
+      case 'match_application_submitted':
+        nav.pushNamed('/match_management', arguments: match);
+        break;
+    }
+  } catch (_) {}
+}
 
   // Send notification to user
   Future<bool> sendNotification(AppNotification notification) async {
@@ -585,4 +627,89 @@ class NotificationService {
       return false;
     }
   }
+  Future<bool> sendMatchInvite({
+  required String toUserId,
+  required String matchId,
+  required String organizerName,
+  String title = 'Запрошення на матч',
+  String? body,
+}) async {
+  return sendNotification(AppNotification(
+    id: '',
+    userId: toUserId,
+    type: NotificationType.matchInvite,
+    title: title,
+    message: body ?? '$organizerName запросив(ла) вас на матч',
+    data: {'type': 'match_invite', 'matchId': matchId},
+    createdAt: DateTime.now(),
+  ));
+}
+
+Future<bool> sendMatchApplicationSubmitted({
+  required String toOrganizerId,
+  required String matchId,
+  required String applicantName,
+}) async {
+  return sendNotification(AppNotification(
+    id: '',
+    userId: toOrganizerId,
+    type: NotificationType.matchInvite,
+    title: 'Нова заявка на матч',
+    message: '$applicantName подав(ла) заявку на участь у вашому матчі',
+    data: {'type': 'match_application_submitted', 'matchId': matchId},
+    createdAt: DateTime.now(),
+  ));
+}
+
+Future<bool> sendMatchApplicationAccepted({
+  required String toUserId,
+  required String matchId,
+  required String organizerName,
+}) async {
+  return sendNotification(AppNotification(
+    id: '',
+    userId: toUserId,
+    type: NotificationType.matchInvite,
+    title: 'Заявку підтверджено',
+    message: '$organizerName підтвердив(ла) вашу участь у матчі',
+    data: {'type': 'match_application_accepted', 'matchId': matchId},
+    createdAt: DateTime.now(),
+  ));
+}
+
+Future<bool> sendMatchApplicationRejected({
+  required String toUserId,
+  required String matchId,
+  required String organizerName,
+}) async {
+  return sendNotification(AppNotification(
+    id: '',
+    userId: toUserId,
+    type: NotificationType.matchInvite,
+    title: 'Заявку відхилено',
+    message: '$organizerName відхилив(ла) вашу заявку на матч',
+    data: {'type': 'match_application_rejected', 'matchId': matchId},
+    createdAt: DateTime.now(),
+  ));
+}
+
+Future<bool> sendMatchFinished({
+  required String toUserId,
+  required String matchId,
+  required String teamAName,
+  required String teamBName,
+  required int teamAScore,
+  required int teamBScore,
+}) async {
+  final score = '$teamAName $teamAScore:$teamBScore $teamBName';
+  return sendNotification(AppNotification(
+    id: '',
+    userId: toUserId,
+    type: NotificationType.ratingRequest,
+    title: 'Матч завершено',
+    message: 'Матч завершено: $score. Поставте оцінки гравцям.',
+    data: {'type': 'match_finished', 'matchId': matchId},
+    createdAt: DateTime.now(),
+  ));
+}
 }

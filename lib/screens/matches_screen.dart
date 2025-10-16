@@ -1660,38 +1660,21 @@ void _shareMatch(Match match) {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Заголовок та статус
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  match.title,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              if (isFinished)
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.grey,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'Завершено',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+          Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Text(
+      match.title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  ],
+),
           
           SizedBox(height: 12),
           
@@ -1740,17 +1723,19 @@ Widget _buildMatchDetails(Match match) {
       
       // Локація
       Row(
-        children: [
-          Icon(Icons.location_city, color: Colors.white70, size: 16),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              match.location,
-              style: TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-          ),
-        ],
+  children: [
+    Icon(Icons.location_city, color: Colors.white70, size: 16),
+    SizedBox(width: 8),
+    Expanded(
+      child: Text(
+        match.location,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: Colors.white70, fontSize: 14),
       ),
+    ),
+  ],
+),
       
       SizedBox(height: 6),
       
@@ -1789,62 +1774,49 @@ Widget _buildMatchDetails(Match match) {
       SizedBox(height: 8),
       
       // Кількість гравців з аватарками
-      Row(
-        children: [
-          Icon(Icons.people, color: Colors.white70, size: 16),
-          SizedBox(width: 8),
-          Text(
-            '${match.participants.length}/${match.maxPlayers} учасників',
-            style: TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-          Spacer(),
-          // Аватарки учасників
-          if (match.participants.isNotEmpty) ...[
-            ...match.participants.take(5).map((id) {
-  return Container(
-    margin: EdgeInsets.only(right: 4),
-    child: UserChip(
-      userId: id,
-      size: 22,
-      showName: false,
+      // Кількість гравців + плашка статусу (в один ряд)
+Row(
+  children: [
+    Icon(Icons.people, color: Colors.white70, size: 16),
+    SizedBox(width: 8),
+    Text(
+      '${match.participants.length}/${match.maxPlayers} учасників',
+      style: TextStyle(color: Colors.white70, fontSize: 14),
     ),
-  );
-}).toList(),
-            if (match.participants.length > 5)
-              Container(
-                margin: EdgeInsets.only(left: 4),
-                child: CircleAvatar(
-                  radius: 12,
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  child: Text(
-                    '+${match.participants.length - 5}',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-          ] else ...[
-            // Якщо немає учасників, показуємо порожні круги
-            ...List.generate(3, (index) {
-              return Container(
-                margin: EdgeInsets.only(right: 4),
-                child: CircleAvatar(
-                  radius: 12,
-                  backgroundColor: Colors.white.withOpacity(0.1),
-                  child: Icon(
-                    Icons.person_add,
-                    color: Colors.white.withOpacity(0.5),
-                    size: 12,
-                  ),
-                ),
-              );
-            }),
-          ],
-        ],
+    Spacer(),
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: _getStatusColor(match.status),
+        borderRadius: BorderRadius.circular(20),
       ),
+      child: Text(
+        _getStatusText(match.status),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+  ],
+),
+
+const SizedBox(height: 8),
+
+// Аватарки окремим рядком, щоб не було переповнення
+SingleChildScrollView(
+  scrollDirection: Axis.horizontal,
+  padding: const EdgeInsets.only(top: 4, bottom: 4),
+  child: Row(
+    children: match.participants.take(10).map((id) {
+      return Container(
+        margin: const EdgeInsets.only(right: 6),
+        child: UserChip(userId: id, size: 22, showName: false),
+      );
+    }).toList(),
+  ),
+),
       
       SizedBox(height: 8),
       
@@ -2220,114 +2192,88 @@ Widget _buildMyMatchCard(Match match) {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Заголовок та статус + бейдж заявок
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    match.title,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_today, color: Colors.white70, size: 16),
-                      SizedBox(width: 4),
-                      Text(
-                        '${match.date.day}.${match.date.month} о ${match.time}',
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
-                      ),
-                      SizedBox(width: 15),
-                      Icon(Icons.location_on, color: Colors.white70, size: 16),
-                      SizedBox(width: 4),
-                      Text(
-                        match.location,
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
-                      ),
-                      SizedBox(width: 15),
-                      
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-Row(
+        // Шапка картки: статус окремим рядком, щоб уникнути overflow
+Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
   children: [
-    isOrganizer
-        ? Text('👑', style: TextStyle(fontSize: 16)) // корона для організатора
-        : Icon(Icons.person, color: Colors.white70, size: 16),
+    Text(
+      match.title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+    ),
+    const SizedBox(height: 8),
+    // Дата/час + локація у Wrap: перенос і еліпсиси на вузьких екранах
+    Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        const Icon(Icons.calendar_today, color: Colors.white70, size: 16),
+        const SizedBox(width: 4),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 140),
+          child: Text(
+            '${match.date.day}.${match.date.month} о ${match.time}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+        ),
+        const Icon(Icons.location_on, color: Colors.white70, size: 16),
+        const SizedBox(width: 4),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 160),
+          child: Text(
+            match.location,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+        ),
+      ],
+    ),
+    const SizedBox(height: 6),
+    Row(
+      children: [
+        isOrganizer ? const Text('👑', style: TextStyle(fontSize: 16))
+                    : const Icon(Icons.person, color: Colors.white70, size: 16),
+        const SizedBox(width: 4),
+        Text(role, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+      ],
+    ),
+    const SizedBox(height: 8),
+    
+  ],
+),
+        SizedBox(height: 16),
+
+        Row(
+  children: [
+    Icon(Icons.people, color: Colors.white70, size: 16),
     SizedBox(width: 4),
     Text(
-      role, // 'Організатор' або 'Учасник'
+      '${match.currentPlayers}/${match.maxPlayers}',
       style: TextStyle(color: Colors.white70, fontSize: 14),
+    ),
+    Spacer(),
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: _getStatusColor(match.status),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        _getStatusText(match.status),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     ),
   ],
 ),
-                ],
-              ),
-            ),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: _getStatusColor(match.status),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _getStatusText(match.status),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (match.pendingApplications.isNotEmpty &&
-    match.status != MatchStatus.finished &&
-    match.status != MatchStatus.cancelled) ...[
-                    SizedBox(width: 8),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.orange,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${match.pendingApplications.length}',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-
-        SizedBox(height: 16),
-
-        // Кількість гравців
-        Row(
-          children: [
-            Icon(Icons.people, color: Colors.white70, size: 16),
-            SizedBox(width: 4),
-            Text(
-              '${match.currentPlayers}/${match.maxPlayers}',
-              style: TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-          ],
-        ),
 
         const SizedBox(height: 8),
 
