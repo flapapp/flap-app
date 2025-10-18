@@ -80,8 +80,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       appBar: AppBar(
         backgroundColor: const Color(0xFF0f0f23),
         elevation: 0,
-        title: const Text(
-          '👥 Друзі',
+        title: Text(
+          '👥 ${I18n.t('friends')}',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         leading: IconButton(
@@ -104,7 +104,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             Tab(
               icon: const Icon(Icons.people, size: 20),
               child: Text(
-                'Друзі (${_friends.length})',
+                '${I18n.t('friends')} (${_friends.length})',
                 overflow: TextOverflow.ellipsis,
               ),
             ),

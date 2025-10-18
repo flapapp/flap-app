@@ -11,6 +11,7 @@ import 'subscription_screen.dart';
 import 'video_player_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../widgets/web_video_thumbnail.dart';
+import '../utils/i18n.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
@@ -675,7 +676,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Топ відео за переглядами', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(I18n.t('top_videos_by_views'), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
           if (_topVideos.isEmpty)
             Container(

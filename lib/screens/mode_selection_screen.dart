@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
+import '../utils/i18n.dart';
 
 class ModeSelectionScreen extends StatefulWidget {
   @override
@@ -16,18 +17,18 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
 
   final List<Map<String, String>> _greetings = [
     {
-      'greeting': 'Вітаю, Олександр! 👋',
-      'rating': 'Ваш рейтинг: 4.2 • 45 матчів зіграно',
-      'instruction': 'Оберіть режим роботи для початку гри'
+      'greeting': '',
+      'rating': '',
+      'instruction': ''
     },
     {
-      'greeting': 'Готовий до нових викликів? 🔥',
-      'rating': 'Твій рейтинг: 4.2 • Відмінний результат! ',
-      'instruction': 'Обери свій шлях до перемоги'
+      'greeting': '',
+      'rating': '',
+      'instruction': ''
     },
     {
-      'greeting': 'Привіт, чемпіоне! 🏆',
-      'rating': 'Рейтинг: 4.2 з 5.0 • Продовжуй у тому ж дусі!',
+      'greeting': '',
+      'rating': '',
       'instruction': 'Що сьогодні будемо робити?'
     },
     {
@@ -148,13 +149,13 @@ setState(() {
                     ),
                     IconButton(
                       icon: const Icon(Icons.swap_horiz, color: Colors.white),
-                      tooltip: 'Відео ↔ Матчі',
+                      tooltip: '${I18n.t('videos')} ↔ ${I18n.t('matches')}',
                       onPressed: () => Navigator.pushNamed(context, '/matches'),
                     ),
                     IconButton(
                       icon: const Icon(Icons.person, color: Colors.white),
                       onPressed: () => Navigator.pushNamed(context, '/profile'),
-                      tooltip: 'Профіль',
+                      tooltip: I18n.t('profile'),
                     ),
                   ],
                 );
@@ -268,9 +269,9 @@ setState(() {
                             textAlign: TextAlign.center,
                           );
                         }
-                        return const Text(
-                          'Гравець',
-                          style: TextStyle(
+                        return Text(
+                          I18n.t('player'),
+                          style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -338,12 +339,12 @@ setState(() {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          children: const [
-                            Icon(Icons.video_library, size: 30, color: Colors.white),
-                            SizedBox(width: 15),
+                          children: [
+                            const Icon(Icons.video_library, size: 30, color: Colors.white),
+                            const SizedBox(width: 15),
                                                      Text(
-                           'ВІДЕО',
-                           style: TextStyle(
+                           I18n.t('videos').toUpperCase(),
+                           style: const TextStyle(
                              fontSize: 32,
                              fontWeight: FontWeight.bold,
                              color: Colors.white,
@@ -405,12 +406,12 @@ setState(() {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          children: const [
-                            Icon(Icons.sports_soccer, size: 30, color: Colors.white),
-                            SizedBox(width: 15),
+                          children: [
+                            const Icon(Icons.sports_soccer, size: 30, color: Colors.white),
+                            const SizedBox(width: 15),
                                                      Text(
-                           'МАТЧІ',
-                           style: TextStyle(
+                           I18n.t('matches').toUpperCase(),
+                           style: const TextStyle(
                              fontSize: 32,
                              fontWeight: FontWeight.bold,
                              color: Colors.white,

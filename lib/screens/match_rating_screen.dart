@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_service.dart';
 import '../models/match.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/i18n.dart';
 
 enum RatingMode { simple, advanced }
 class MatchRatingScreen extends StatefulWidget {
@@ -307,7 +308,7 @@ final alreadyRatedIds = existingSnap.docs
     ),
     child: Row(
       children: [
-        const Text('Режим:', style: TextStyle(color: Colors.white70)),
+        Text(I18n.t('mode_colon'), style: const TextStyle(color: Colors.white70)),
         const SizedBox(width: 10),
         ToggleButtons(
           isSelected: [_mode == RatingMode.simple, _mode == RatingMode.advanced],
@@ -316,9 +317,9 @@ final alreadyRatedIds = existingSnap.docs
           selectedColor: Colors.white,
           fillColor: const Color(0xFF4CAF50).withOpacity(0.3),
           color: Colors.white70,
-          children: const [
-            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Простий')),
-            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Розширений')),
+          children: [
+            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text(I18n.t('simple'))),
+            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text(I18n.t('advanced_mode'))),
           ],
         ),
       ],

@@ -33,39 +33,39 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   final List<String> _tabKeys = ['find_match', 'my_matches', 'history', 'ratings'];
 
   // Змінні для фільтрів
-  String _selectedCity = 'Всі міста';
-  String _selectedLevel = 'Всі рівні';
-  String _selectedTime = 'Будь-коли';
+  late String _selectedCity;
+  late String _selectedLevel;
+  late String _selectedTime;
   String _searchQuery = '';
 
   // Списки опцій для фільтрів
-  final List<String> _cityOptions = [
-    'Всі міста',
-    'Київ',
-    'Харків',
-    'Одеса',
-    'Дніпро',
-    'Львів'
+  List<String> get _cityOptions => [
+    I18n.t('all_cities'),
+    I18n.t('kyiv'),
+    I18n.t('kharkiv'),
+    I18n.t('odesa'),
+    I18n.t('dnipro'),
+    I18n.t('lviv'),
   ];
 
-  final List<String> _levelOptions = [
-    'Всі рівні',
-    'Початковий',
-    'Середній',
-    'Високий',
-    'Професійний'
+  List<String> get _levelOptions => [
+    I18n.t('all_levels'),
+    I18n.t('beginner'),
+    I18n.t('intermediate'),
+    I18n.t('advanced'),
+    I18n.t('professional'),
   ];
 
-  final List<String> _timeOptions = [
-    'Будь-коли',
+  List<String> get _timeOptions => [
+    I18n.t('anytime'),
     'Сьогодні',
     'Завтра',
-    'Цього тижня'
+    'Цього тижня',
   ];
 
   // Змінні для "Мої матчі"
   String _selectedMyMatchesFilter = 'Всі';
-  final List<String> _myMatchesFilters = ['Всі', 'Організовані', 'Участь'];
+  List<String> get _myMatchesFilters => [I18n.t('all'), I18n.t('organized'), I18n.t('participation')];
 
   // TabController для керування вкладками
   late TabController _tabController;
@@ -102,6 +102,11 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
       vsync: this,
     );
 
+    // Ініціалізуємо фільтри
+    _selectedCity = I18n.t('all_cities');
+    _selectedLevel = I18n.t('all_levels');
+    _selectedTime = I18n.t('anytime');
+
     // Завантажуємо топ гравців один раз
     _ratingsTopPlayersFuture = _ratingService.getTopPlayers(limit: 300);
   }
@@ -126,9 +131,9 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
 
 void _resetFindFilters() {
   setState(() {
-    _selectedCity = 'Всі міста';
-    _selectedLevel = 'Всі рівні';
-    _selectedTime = 'Будь-коли';
+    _selectedCity = I18n.t('all_cities');
+    _selectedLevel = I18n.t('all_levels');
+    _selectedTime = I18n.t('anytime');
     _searchQuery = '';
   });
 }
@@ -152,7 +157,7 @@ void _resetFindFilters() {
                   child: DropdownButtonFormField<String>(
                     value: _selectedCity,
                     decoration: InputDecoration(
-                      labelText: '🏙️ Місто',
+                      labelText: I18n.t('city_label'),
                       labelStyle: TextStyle(color: Colors.white70),
                   prefixIcon: Icon(Icons.location_city, color: Colors.white70, size: 20),
                   border: OutlineInputBorder(
@@ -178,7 +183,7 @@ void _resetFindFilters() {
                     ).toList(),
                     onChanged: (value) {
                       setState(() {
-                        _selectedCity = value ?? 'Всі міста';
+                        _selectedCity = value ?? I18n.t('all_cities');
                       });
                     },
                   ),
@@ -188,7 +193,7 @@ void _resetFindFilters() {
                   child: DropdownButtonFormField<String>(
                     value: _selectedLevel,
                     decoration: InputDecoration(
-                      labelText: '📊 Рівень',
+                      labelText: I18n.t('level_label'),
                       labelStyle: TextStyle(color: Colors.white70),
                   prefixIcon: Icon(Icons.star, color: Colors.white70, size: 20),
                   border: OutlineInputBorder(
@@ -214,7 +219,7 @@ void _resetFindFilters() {
                     ).toList(),
                     onChanged: (value) {
                       setState(() {
-                        _selectedLevel = value ?? 'Всі рівні';
+                        _selectedLevel = value ?? I18n.t('all_levels');
                       });
                     },
                   ),
@@ -233,7 +238,7 @@ void _resetFindFilters() {
                   child: DropdownButtonFormField<String>(
                     value: _selectedTime,
                     decoration: InputDecoration(
-                      labelText: '⏰ Час',
+                      labelText: I18n.t('time_label'),
                       labelStyle: TextStyle(color: Colors.white70),
                   prefixIcon: Icon(Icons.access_time, color: Colors.white70, size: 20),
                   border: OutlineInputBorder(
@@ -259,7 +264,7 @@ void _resetFindFilters() {
                     ).toList(),
                     onChanged: (value) {
                       setState(() {
-                        _selectedTime = value ?? 'Будь-коли';
+                        _selectedTime = value ?? I18n.t('anytime');
                       });
                     },
                   ),
@@ -268,9 +273,9 @@ void _resetFindFilters() {
               width: double.infinity,
                   child: TextField(
                     decoration: InputDecoration(
-                      labelText: '🔍 Пошук',
+                      labelText: I18n.t('search_label'),
                       labelStyle: TextStyle(color: Colors.white70),
-                  hintText: 'Пошук матчів...',
+                  hintText: I18n.t('search_matches'),
                   hintStyle: TextStyle(color: Colors.white54),
                   prefixIcon: Icon(Icons.search, color: Colors.white70, size: 20),
                   border: OutlineInputBorder(
@@ -311,7 +316,7 @@ void _resetFindFilters() {
             TextButton.icon(
               onPressed: _resetFindFilters,
               icon: Icon(Icons.refresh, color: Colors.white70, size: 18),
-              label: Text('Скинути фільтри', style: TextStyle(color: Colors.white70)),
+              label: Text(I18n.t('reset_filters'), style: const TextStyle(color: Colors.white70)),
             ),
           ],
         )
@@ -1201,10 +1206,10 @@ return Column(
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
+              children: [
                 Icon(Icons.history, size: 64, color: Colors.white54),
                 SizedBox(height: 12),
-                Text('Історія матчів порожня', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                Text(I18n.t('match_history_empty'), style: const TextStyle(color: Colors.white70, fontSize: 16)),
               ],
             ),
           );
@@ -1214,8 +1219,8 @@ return Column(
             // Заголовок секції як у MVP
             Container(
               margin: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: const Text(
-                '📊 Історія матчів',
+              child: Text(
+                I18n.t('match_history'),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -1341,7 +1346,7 @@ Widget _buildRatingsTab() {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           child: Row(
             children: [
-              const Text('Рейтинги',
+              Text(I18n.t('ratings_title'),
                   style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
               const Spacer(),
             ],
@@ -1466,10 +1471,10 @@ Widget _buildRatingsTab() {
                           children: [
                             narrowDropdown(
                               value: _ratingsSelectedCity,
-                              options: const ['Всі міста', 'Київ', 'Харків', 'Одеса', 'Дніпро', 'Львів'],
+                              options: _cityOptions,
                               onChanged: (v) {
                                 setState(() {
-                                  _ratingsSelectedCity = v ?? 'Всі міста';
+                                  _ratingsSelectedCity = v ?? I18n.t('all_cities');
                                 });
                               },
                             ),
@@ -1483,7 +1488,7 @@ Widget _buildRatingsTab() {
                       ),
                       Expanded(
                         child: () {
-                          final String? cityFilter = (_ratingsSelectedCity == 'Всі міста') ? null : _ratingsSelectedCity;
+                          final String? cityFilter = (_ratingsSelectedCity == I18n.t('all_cities')) ? null : _ratingsSelectedCity;
                           final list = (cityFilter == null)
                               ? all
                               : all.where((p) => cityMatches((p['city'] ?? '').toString(), cityFilter)).toList();
@@ -1583,11 +1588,11 @@ Widget _buildRatingsTab() {
                           return ListView(
                             padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                             children: [
-                              _statTile('Поточний рейтинг', current),
+                              _statTile(I18n.t('current_rating'), current),
                               const SizedBox(height: 8),
-                              _statTile('Рейтинг з матчів (70%)', m),
+                              _statTile(I18n.t('match_rating_70'), m),
                               const SizedBox(height: 8),
-                              _statTile('Рейтинг з відео/челенджів (30%)', v),
+                              _statTile(I18n.t('video_rating_30'), v),
                               const SizedBox(height: 16),
                               Row(
                                 children: [
@@ -1745,7 +1750,7 @@ Widget _buildMatchDetails(Match match) {
           Icon(Icons.star, color: Colors.amber, size: 16),
           SizedBox(width: 8),
           Text(
-            'Рівень: ${_getLevelText(match.level)}',
+            '${I18n.t('level_colon')} ${_getLevelText(match.level)}',
             style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
@@ -1763,7 +1768,7 @@ Widget _buildMatchDetails(Match match) {
               Icon(Icons.star, color: Color(0xFFFFD54F), size: 16),
               SizedBox(width: 8),
               Text(
-                'Середній рейтинг: $avg',
+                '${I18n.t('average_rating')}: $avg',
                 style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
@@ -1780,7 +1785,7 @@ Row(
     Icon(Icons.people, color: Colors.white70, size: 16),
     SizedBox(width: 8),
     Text(
-      '${match.participants.length}/${match.maxPlayers} учасників',
+      '${match.participants.length}/${match.maxPlayers} ${I18n.t('participants')}',
       style: TextStyle(color: Colors.white70, fontSize: 14),
     ),
     Spacer(),
@@ -1826,7 +1831,7 @@ SingleChildScrollView(
           Icon(Icons.person, color: Colors.white70, size: 16),
           SizedBox(width: 8),
           Text(
-            'Організатор: ${match.organizerName}',
+            '${I18n.t('organizer')}: ${match.organizerName}',
             style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
@@ -1890,7 +1895,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
     final detailsBtn = OutlinedButton.icon(
       onPressed: () => Navigator.pushNamed(context, '/match-details', arguments: match),
       icon: const Icon(Icons.info_outline, size: 16),
-      label: const Text('Деталі', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      label: Text(I18n.t('details'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
       style: OutlinedButton.styleFrom(
         foregroundColor: Colors.white,
         side: BorderSide(color: Colors.white.withOpacity(0.3)),
@@ -1955,8 +1960,8 @@ Widget _buildActionButtons(Match match, String currentUserId) {
             onPressed: () {
               Navigator.pushNamed(context, '/match-details', arguments: match);
             },
-            child: const Text(
-              'Деталі',
+            child: Text(
+              I18n.t('details'),
               style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
             ),
           ),
@@ -1993,11 +1998,11 @@ Widget _buildActionButtons(Match match, String currentUserId) {
     return _matchService.getAvailableMatches().map((matches) {
     final filtered = matches.where((match) {
         // Фільтр по місту
-      if (_selectedCity != 'Всі міста' && match.city != _selectedCity) return false;
+      if (_selectedCity != I18n.t('all_cities') && match.city != _selectedCity) return false;
         // Фільтр по рівню
-      if (_selectedLevel != 'Всі рівні' && _getLevelText(match.level) != _selectedLevel) return false;
+      if (_selectedLevel != I18n.t('all_levels') && _getLevelText(match.level) != _selectedLevel) return false;
         // Фільтр по часу
-        if (_selectedTime != 'Будь-коли') {
+        if (_selectedTime != I18n.t('anytime')) {
         final now = DateTime.now();
         final matchDate = match.date;
           switch (_selectedTime) {
@@ -2123,15 +2128,15 @@ IconData _getStatusIcon(MatchStatus status) {
   String _getLevelText(MatchLevel level) {
     switch (level) {
       case MatchLevel.beginner:
-        return 'Початковий';
+        return I18n.t('beginner');
       case MatchLevel.intermediate:
-        return 'Середній';
+        return I18n.t('intermediate');
       case MatchLevel.advanced:
-        return 'Високий';
+        return I18n.t('advanced');
       case MatchLevel.professional:
-        return 'Професійний';
+        return I18n.t('professional');
       default:
-        return 'Невідомо';
+        return I18n.t('unknown');
     }
   }
 
@@ -2365,7 +2370,7 @@ Column(
                 onPressed: _isLeaving
                     ? null
                     : () async {
-                        final sure = await _confirm('Вийти з матчу?', 'Ви впевнені, що хочете вийти?');
+                        final sure = await _confirm(I18n.t('leave_match_confirm'), I18n.t('leave_match_sure'));
                         if (sure != true) return;
                         setState(() => _isLeaving = true);
                         await _onLeaveMatch(match);
@@ -2377,7 +2382,7 @@ Column(
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 child: Text(
-                  _isLeaving ? 'Вихід…' : 'Вийти з матчу',
+                  _isLeaving ? I18n.t('leaving') : I18n.t('leave_match'),
                   style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -2753,7 +2758,7 @@ Future<void> _onLeaveMatch(Match match) async {
                   Icon(Icons.sports_soccer, color: Colors.white70, size: 16),
                   const SizedBox(width: 8),
                   Text(
-                    'Рахунок: ${match.teamAScore}:${match.teamBScore}',
+                    '${I18n.t('score')} ${match.teamAScore}:${match.teamBScore}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -2775,7 +2780,7 @@ Future<void> _onLeaveMatch(Match match) async {
                     Icon(Icons.star, color: const Color(0xFFFFD700), size: 16),
                     const SizedBox(width: 8),
                     Text(
-                      'Ваш рейтинг: ${rating.toStringAsFixed(2)}',
+                      '${I18n.t('your_rating')} ${rating.toStringAsFixed(2)}',
                       style: const TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                   ],
@@ -2791,8 +2796,8 @@ Future<void> _onLeaveMatch(Match match) async {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pushNamed(context, '/match-details', arguments: match),
-                  child: const Text(
-                    'Деталі матчу',
+                  child: Text(
+                    I18n.t('match_details'),
                     style: TextStyle(
                       color: Color(0xFF4caf50),
                       fontSize: 14,
@@ -2811,8 +2816,8 @@ Future<void> _onLeaveMatch(Match match) async {
                         arguments: match,
                       );
                     },
-                    child: const Text(
-                      'Оцінити гравців',
+                    child: Text(
+                      I18n.t('rate_players'),
                       style: TextStyle(
                         color: Color(0xFF4caf50),
                         fontSize: 14,

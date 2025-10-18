@@ -10,6 +10,7 @@ import '../widgets/user_chip.dart';
 import '../services/notification_service.dart';
 import '../services/friends_service.dart';
 import '../models/friend_request.dart' show Friend;
+import '../utils/i18n.dart';
 
 class VideosScreen extends StatefulWidget {
   final bool showOnlyMyVideos;
@@ -28,27 +29,27 @@ class _VideosScreenState extends State<VideosScreen> {
   bool _showOnlyMyVideos = false;
   String _selectedSort = 'Нові'; // Нові, Рейтинг, Перегляди
 
-  final List<String> _cities = [
-    'Всі міста',
-    'Київ',
-    'Львів',
-    'Одеса',
-    'Харків',
-    'Дніпро',
+  List<String> get _cities => [
+    I18n.t('all_cities'),
+    I18n.t('kyiv'),
+    I18n.t('lviv'),
+    I18n.t('odesa'),
+    I18n.t('kharkiv'),
+    I18n.t('dnipro'),
   ];
 
-  final List<String> _categories = [
-    'Всі категорії',
-    'Техніка',
-    'Фізика',
-    'Тактика',
-    'Командна гра',
-    'Фрістайл',
-    'Інше',
+  List<String> get _categories => [
+    I18n.t('all_categories'),
+    I18n.t('technique'),
+    I18n.t('physics'),
+    I18n.t('tactics'),
+    I18n.t('teamplay'),
+    I18n.t('freestyle'),
+    I18n.t('other'),
   ];
 
-  final List<String> _ratings = [
-    'Всі рейтинги',
+  List<String> get _ratings => [
+    I18n.t('all_ratings'),
     '4.0+',
     '3.0+',
     '2.0+',
@@ -74,9 +75,9 @@ class _VideosScreenState extends State<VideosScreen> {
             ),
             child: Row(
               children: [
-                _buildTab('Всі', 'all'),
-                _buildTab('Тренди', 'trending'),
-                _buildTab('Мої', 'my'),
+                _buildTab(I18n.t('all_tab'), 'all'),
+                _buildTab(I18n.t('trending'), 'trending'),
+                _buildTab(I18n.t('my'), 'my'),
               ],
             ),
           ),
@@ -97,7 +98,7 @@ class _VideosScreenState extends State<VideosScreen> {
                       final isSelected = _selectedCategories.contains(category);
                       return GestureDetector(
                         onTap: () => setState(() {
-                          if (category == 'Всі категорії') {
+                          if (category == I18n.t('all_categories')) {
                             _selectedCategories.clear();
                           } else {
                             if (isSelected) {
@@ -199,7 +200,7 @@ class _VideosScreenState extends State<VideosScreen> {
                   if ((_selectedTab == 'my' || widget.showOnlyMyVideos) && currentUser != null) {
                     if ((data['userId'] ?? '') != currentUser.uid) return false;
                   }
-                  if (_selectedCity.isNotEmpty && _selectedCity != 'Всі міста') {
+                  if (_selectedCity.isNotEmpty && _selectedCity != I18n.t('all_cities')) {
                     if ((data['city'] ?? '') != _selectedCity) return false;
                   }
                   if (_selectedCategories.isNotEmpty) {
@@ -945,8 +946,8 @@ class _VideosScreenState extends State<VideosScreen> {
                           ),
                         );
                       },
+                      ),
                     ),
-                  ),
                   
                   // Duration (if available)
                   if (videoData['duration'] != null)
@@ -1093,7 +1094,7 @@ class _VideosScreenState extends State<VideosScreen> {
                             tooltip: 'Запросити оцінку',
                             onPressed: () => _requestRatingForVideo(videoId, title),
                             icon: const Icon(Icons.notifications_active, color: Colors.white70, size: 20),
-                          ),
+                        ),
                       ],
                     ),
                   ],

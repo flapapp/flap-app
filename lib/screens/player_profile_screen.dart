@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import '../services/friends_service.dart';
 import 'video_player_screen.dart';
 import '../services/notification_service.dart';
+import '../utils/i18n.dart';
 
 class PlayerProfileScreen extends StatefulWidget {
   final String playerId;
@@ -704,7 +705,7 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
             if (playerVideos.isNotEmpty) ...[
               Align(
                 alignment: Alignment.centerLeft,
-                child: const Text('Відео', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                child: Text(I18n.t('videos'), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
               ),
               const SizedBox(height: 8),
               SizedBox(

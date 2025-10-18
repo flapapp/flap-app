@@ -7,6 +7,7 @@ import 'badges_store_screen.dart';
 import '../services/friends_service.dart';
 import 'friends_screen.dart';
 import 'subscription_screen.dart';
+import '../utils/i18n.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
@@ -83,7 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileContent(Map<String, dynamic> userData) {
-    final displayName = userData['name'] ?? userData['displayName'] ?? 'Гравець';
+    final displayName = userData['name'] ?? userData['displayName'] ?? I18n.t('player');
     final avatarUrl = userData['avatar'] ?? userData['avatarUrl'];
     final rating = (userData['rating'] ?? 0.0).toDouble();
     final coins = userData['coins'] ?? 0;
@@ -534,26 +535,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
             () => _openMyChallenges(),
           ),
           _buildActionItem(
-            '📊 Статистика',
-            'Детальна статистика гравця',
+            I18n.t('statistics_title'),
+            I18n.t('detailed_statistics'),
             Icons.analytics,
             () => _openStats(),
           ),
           _buildActionItem(
-            '👑 Підписки',
-            'Керувати підпискою та планами',
+            I18n.t('subscriptions_title'),
+            I18n.t('manage_subscription'),
             Icons.workspace_premium,
             () => _openSubscriptions(),
           ),
           _buildActionItem(
-            '⚙️ Налаштування',
-            'Налаштування профілю',
+            I18n.t('settings_title'),
+            I18n.t('profile_settings'),
             Icons.settings,
             () => _showSettings(),
           ),
           _buildActionItem(
-            '🚪 Вийти',
-            'Вийти з акаунту',
+            I18n.t('logout_title'),
+            I18n.t('logout_from_account'),
             Icons.logout,
             () => _signOut(),
             isDestructive: true,
@@ -651,7 +652,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case 'forward':
         return '🎯 Нападник';
       default:
-        return '⚽ Гравець';
+        return '⚽ ${I18n.t('player')}';
     }
   }
 
@@ -686,7 +687,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _openStats() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Статистика (буде реалізовано)')),
+      SnackBar(content: Text('${I18n.t('stats')} (буде реалізовано)')),
     );
   }
 
@@ -713,7 +714,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showSettings() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Налаштування (буде реалізовано)')),
+      SnackBar(content: Text('${I18n.t('settings')} (буде реалізовано)')),
     );
   }
 
@@ -723,7 +724,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
         title: const Text(
-          'Вийти з акаунту?',
+          I18n.t('logout_confirm'),
           style: TextStyle(color: Colors.white),
         ),
         content: const Text(
@@ -740,7 +741,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               await _auth.signOut();
               Navigator.of(context).pushReplacementNamed('/login');
             },
-            child: const Text('Вийти', style: TextStyle(color: Colors.red)),
+            child: Text(I18n.t('logout'), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
