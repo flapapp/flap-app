@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/friend_request.dart';
 import '../services/friends_service.dart';
 import 'dart:async';
+import '../utils/i18n.dart';
 
 class FriendsScreen extends StatefulWidget {
   @override
@@ -173,7 +174,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ElevatedButton.icon(
               onPressed: _showAddFriendDialog,
               icon: const Icon(Icons.person_add),
-              label: const Text('Додати друга'),
+              label: Text(I18n.t('add_friend')),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4caf50),
                 foregroundColor: Colors.white,
@@ -330,33 +331,33 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'profile',
                 child: Row(
                   children: [
                     Icon(Icons.person, color: Colors.white70, size: 20),
                     SizedBox(width: 8),
-                    Text('Профіль', style: TextStyle(color: Colors.white)),
+                    Text(I18n.t('profile'), style: TextStyle(color: Colors.white)),
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'invite',
                 child: Row(
                   children: [
                     Icon(Icons.sports_soccer, color: Colors.white70, size: 20),
                     SizedBox(width: 8),
-                    Text('Запросити на матч', style: TextStyle(color: Colors.white)),
+                    Text(I18n.t('invite_to_match'), style: TextStyle(color: Colors.white)),
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'remove',
                 child: Row(
                   children: [
                     Icon(Icons.person_remove, color: Colors.red, size: 20),
                     SizedBox(width: 8),
-                    Text('Видалити з друзів', style: TextStyle(color: Colors.red)),
+                    Text(I18n.t('remove_friend'), style: TextStyle(color: Colors.red)),
                   ],
                 ),
               ),
@@ -561,7 +562,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       foregroundColor: Colors.red,
                       side: const BorderSide(color: Colors.red),
                     ),
-                    child: const Text('Відхилити'),
+                    child: Text(I18n.t('reject')),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -572,7 +573,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       backgroundColor: const Color(0xFF4caf50),
                       foregroundColor: Colors.white,
                     ),
-                    child: const Text('Прийняти'),
+                    child: Text(I18n.t('accept')),
                   ),
                 ),
               ] else ...[
@@ -584,7 +585,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       foregroundColor: Colors.white70,
                       side: BorderSide(color: Colors.white.withOpacity(0.3)),
                     ),
-                    child: const Text('Скасувати'),
+                    child: Text(I18n.t('cancel')),
                   ),
                 ),
               ],
@@ -750,7 +751,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                     ),
                   )
                 else if (!_isSearching && _searchController.text.length >= 2)
-                  const Text('Користувачів не знайдено', style: TextStyle(color: Colors.white70)),
+                  Text(I18n.t('no_users_found'), style: const TextStyle(color: Colors.white70)),
               ],
             ),
           ),
@@ -819,7 +820,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка: $e')),
+        SnackBar(content: Text('${I18n.t('error')}: $e')),
       );
     }
   }
@@ -840,7 +841,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка: $e')),
+        SnackBar(content: Text('${I18n.t('error')}: $e')),
       );
     }
   }
@@ -856,7 +857,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка: $e')),
+        SnackBar(content: Text('${I18n.t('error')}: $e')),
       );
     }
   }
@@ -899,7 +900,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               Navigator.of(context).pop();
               _removeFriend(friend);
             },
-            child: const Text('Видалити', style: TextStyle(color: Colors.red)),
+            child: Text(I18n.t('delete'), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -916,7 +917,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка: $e')),
+        SnackBar(content: Text('${I18n.t('error')}: $e')),
       );
     }
   }

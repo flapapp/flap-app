@@ -11,6 +11,7 @@ import 'challenge_details_screen.dart';
 import 'video_player_screen.dart';
 import 'challenge_video_player_screen.dart';
 import '../widgets/user_chip.dart';
+import '../utils/i18n.dart';
 
 class ChallengesScreen extends StatefulWidget {
   final bool showOnlyMyChallenges;
@@ -42,13 +43,13 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildFilterChip('Всі', 'all'),
+                  _buildFilterChip(I18n.t('all'), 'all'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Активні', 'active'),
+                  _buildFilterChip(I18n.t('active_challenges'), 'active'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Мої', 'my'),
+                  _buildFilterChip(I18n.t('my_challenges'), 'my'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Завершені', 'completed'),
+                  _buildFilterChip(I18n.t('completed_challenges'), 'completed'),
                   const SizedBox(width: 12),
                   Container(
                     height: 32,
@@ -652,7 +653,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text('Прийняти участь', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    child: Text(I18n.t('join'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -684,7 +685,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text('Завершити', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                      child: Text(I18n.t('finish_match'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                     ),
                   ),
                 ],
@@ -732,7 +733,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Відео творця не завантажено. URL: "$videoUrl"'),
+          content: Text('${I18n.t('video_upload_failed')}: "$videoUrl"'),
           backgroundColor: Colors.orange,
           duration: const Duration(seconds: 3),
         ),
@@ -820,7 +821,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                   backgroundColor: const Color(0xFF4caf50),
                   foregroundColor: Colors.white,
                 ),
-                child: Text('Оплатити $entryFee монет'),
+                child: Text('${I18n.t('pay')} $entryFee ${I18n.t('coins')}'),
               ),
             ],
           );
@@ -926,7 +927,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     } catch (e) {
       print('Error creating Challenge object: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Помилка відкриття челенджу')),
+        SnackBar(content: Text(I18n.t('error'))),
       );
     }
   }
@@ -1007,12 +1008,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                 .get(),
                             builder: (context, snapshot) {
                               if (!snapshot.hasData) {
-                                return const ListTile(
+                                return ListTile(
                                   leading: CircleAvatar(
                                     backgroundColor: Color(0xFF4caf50),
                                     child: Icon(Icons.person, color: Colors.white),
                                   ),
-                                  title: Text('Завантаження...', style: TextStyle(color: Colors.white)),
+                                  title: Text(I18n.t('loading'), style: TextStyle(color: Colors.white)),
                                 );
                               }
 
@@ -1226,8 +1227,8 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Відео учасника не завантажено'),
+        SnackBar(
+          content: Text(I18n.t('video_upload_failed')),
           backgroundColor: Colors.orange,
         ),
       );
@@ -1283,7 +1284,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Готово'),
+                  child: Text(I18n.t('done')),
                 )
               ],
             ),

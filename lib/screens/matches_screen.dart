@@ -94,23 +94,23 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   String _ratingsSelectedPosition = 'Всі позиції';
   Future<List<Map<String, dynamic>>>? _ratingsTopPlayersFuture;
 
-    @override
+  @override
   void initState() {
     super.initState();
     _tabController = TabController(
       length: _tabKeys.length,
       vsync: this,
     );
-    
+
     // Завантажуємо топ гравців один раз
     _ratingsTopPlayersFuture = _ratingService.getTopPlayers(limit: 300);
   }
   @override
-void dispose() {
+  void dispose() {
   _searchDebounce?.cancel();
-  _tabController.dispose();
-  super.dispose();
-}
+    _tabController.dispose();
+    super.dispose();
+  }
 
 @override
   void didChangeDependencies() {
@@ -132,28 +132,28 @@ void _resetFindFilters() {
     _searchQuery = '';
   });
 }
-// Метод для створення фільтрів
-Widget _buildFilters() {
-  return Container(
+  // Метод для створення фільтрів
+  Widget _buildFilters() {
+    return Container(
     margin: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-    padding: EdgeInsets.all(20),
-    decoration: BoxDecoration(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
       color: Colors.white.withOpacity(0.05),
-      borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(15),
       border: Border.all(color: Colors.white.withOpacity(0.1)),
-    ),
-    child: Column(
-      children: [
+      ),
+      child: Column(
+        children: [
         LayoutBuilder(
   builder: (context, constraints) {
     final bool narrow = constraints.maxWidth < 380;
     final city = SizedBox(
               width: double.infinity,
-              child: DropdownButtonFormField<String>(
-                value: _selectedCity,
-                decoration: InputDecoration(
-                  labelText: '🏙️ Місто',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedCity,
+                    decoration: InputDecoration(
+                      labelText: '🏙️ Місто',
+                      labelStyle: TextStyle(color: Colors.white70),
                   prefixIcon: Icon(Icons.location_city, color: Colors.white70, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -167,29 +167,29 @@ Widget _buildFilters() {
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: Color(0xFF4caf50)),
                   ),
-                ),
-                dropdownColor: Color(0xFF1a1a2e),
-                style: TextStyle(color: Colors.white),
-                items: _cityOptions.map((city) =>
-                  DropdownMenuItem(
-                    value: city,
+                    ),
+                    dropdownColor: Color(0xFF1a1a2e),
+                    style: TextStyle(color: Colors.white),
+                    items: _cityOptions.map((city) =>
+                      DropdownMenuItem(
+                        value: city,
                     child: Text(city, style: TextStyle(color: Colors.white)),
-                  )
-                ).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCity = value ?? 'Всі міста';
-                  });
-                },
-              ),
+                      )
+                    ).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedCity = value ?? 'Всі міста';
+                      });
+                    },
+                  ),
             );
     final level = SizedBox(
               width: double.infinity,
-              child: DropdownButtonFormField<String>(
-                value: _selectedLevel,
-                decoration: InputDecoration(
-                  labelText: '📊 Рівень',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedLevel,
+                    decoration: InputDecoration(
+                      labelText: '📊 Рівень',
+                      labelStyle: TextStyle(color: Colors.white70),
                   prefixIcon: Icon(Icons.star, color: Colors.white70, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -203,38 +203,38 @@ Widget _buildFilters() {
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: Color(0xFF4caf50)),
                   ),
-                ),
-                dropdownColor: Color(0xFF1a1a2e),
-                style: TextStyle(color: Colors.white),
-                items: _levelOptions.map((level) =>
-                  DropdownMenuItem(
-                    value: level,
+                    ),
+                    dropdownColor: Color(0xFF1a1a2e),
+                    style: TextStyle(color: Colors.white),
+                    items: _levelOptions.map((level) =>
+                      DropdownMenuItem(
+                        value: level,
                     child: Text(level, style: TextStyle(color: Colors.white)),
-                  )
-                ).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedLevel = value ?? 'Всі рівні';
-                  });
-                },
-              ),
+                      )
+                    ).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedLevel = value ?? 'Всі рівні';
+                      });
+                    },
+                  ),
             );
     return narrow
       ? Column(children: [city, SizedBox(height: 12), level])
       : Row(children: [Expanded(child: city), SizedBox(width: 16), Expanded(child: level)]);
   },
-),
-        SizedBox(height: 16),
+          ),
+          SizedBox(height: 16),
         LayoutBuilder(
   builder: (context, constraints) {
     final bool narrow = constraints.maxWidth < 380;
     final time = SizedBox(
               width: double.infinity,
-              child: DropdownButtonFormField<String>(
-                value: _selectedTime,
-                decoration: InputDecoration(
-                  labelText: '⏰ Час',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedTime,
+                    decoration: InputDecoration(
+                      labelText: '⏰ Час',
+                      labelStyle: TextStyle(color: Colors.white70),
                   prefixIcon: Icon(Icons.access_time, color: Colors.white70, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -248,28 +248,28 @@ Widget _buildFilters() {
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: Color(0xFF4caf50)),
                   ),
-                ),
-                dropdownColor: Color(0xFF1a1a2e),
-                style: TextStyle(color: Colors.white),
-                items: _timeOptions.map((time) =>
-                  DropdownMenuItem(
-                    value: time,
+                    ),
+                    dropdownColor: Color(0xFF1a1a2e),
+                    style: TextStyle(color: Colors.white),
+                    items: _timeOptions.map((time) =>
+                      DropdownMenuItem(
+                        value: time,
                     child: Text(time, style: TextStyle(color: Colors.white)),
-                  )
-                ).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedTime = value ?? 'Будь-коли';
-                  });
-                },
-              ),
+                      )
+                    ).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedTime = value ?? 'Будь-коли';
+                      });
+                    },
+                  ),
             );
     final search = SizedBox(
               width: double.infinity,
-              child: TextField(
-                decoration: InputDecoration(
-                  labelText: '🔍 Пошук',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      labelText: '🔍 Пошук',
+                      labelStyle: TextStyle(color: Colors.white70),
                   hintText: 'Пошук матчів...',
                   hintStyle: TextStyle(color: Colors.white54),
                   prefixIcon: Icon(Icons.search, color: Colors.white70, size: 20),
@@ -285,17 +285,17 @@ Widget _buildFilters() {
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: Color(0xFF4caf50)),
                   ),
-                ),
-                style: TextStyle(color: Colors.white),
-                onChanged: (value) {
+                    ),
+                    style: TextStyle(color: Colors.white),
+                    onChanged: (value) {
                   _searchDebounce?.cancel();
-                  _searchQuery = value;
+                        _searchQuery = value;
                   _searchDebounce = Timer(const Duration(milliseconds: 300), () {
                     if (!mounted) return;
                     setState(() {});
-                  });
-                },
-              ),
+                      });
+                    },
+                  ),
             );
     return narrow
       ? Column(children: [time, SizedBox(height: 12), search])
@@ -315,10 +315,10 @@ Widget _buildFilters() {
             ),
           ],
         )
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -326,13 +326,13 @@ Widget _buildFilters() {
     return Scaffold(
       backgroundColor: const Color(0xFF1a1a2e),
       appBar: AppBar(
-  backgroundColor: Colors.transparent,
-  elevation: 0,
-  flexibleSpace: Container(
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
         colors: [Color(0xFF1a1a2e), Color(0xFF16213e)],
       ),
     ),
@@ -355,16 +355,16 @@ Widget _buildFilters() {
       const Text('FLAP', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1)),
     ],
   ),
-  actions: [
-    IconButton(
+        actions: [
+          IconButton(
       tooltip: 'Відео',
       icon: const Icon(Icons.videocam, color: Colors.white, size: 20),
-      onPressed: () => Navigator.pushNamed(context, '/video-main'),
+            onPressed: () => Navigator.pushNamed(context, '/video-main'),
       padding: EdgeInsets.zero,
     ),
     StreamBuilder<int>(
       stream: _notificationService.getUnreadCount(),
-      builder: (context, snapshot) {
+            builder: (context, snapshot) {
         final unreadCount = snapshot.data ?? 0;
         return Stack(
           children: [
@@ -390,8 +390,8 @@ Widget _buildFilters() {
           ],
         );
       },
-    ),
-    IconButton(
+          ),
+          IconButton(
       icon: const Icon(Icons.add_circle_outline, color: Colors.white, size: 22),
       onPressed: () => Navigator.pushNamed(context, '/create-match'),
       padding: EdgeInsets.zero,
@@ -415,51 +415,51 @@ Widget _buildFilters() {
             backgroundColor: const Color(0xFF4caf50),
             backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
             child: avatarUrl.isEmpty ? Text(displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)) : null,
+                ),
+              );
+            },
           ),
-        );
-      },
-    ),
     const SizedBox(width: 6),
-  ],
+        ],
   
-  bottom: PreferredSize(
+        bottom: PreferredSize(
     preferredSize: Size.fromHeight(70),
     child: ClipRRect(
   borderRadius: BorderRadius.circular(16),
-  child: Container(
-    decoration: BoxDecoration(
+          child: Container(
+            decoration: BoxDecoration(
       color: Colors.white.withOpacity(0.05),
       border: Border.all(color: Colors.white.withOpacity(0.1)),
-    ),
-    child: TabBar(
-      controller: _tabController,
+            ),
+            child: TabBar(
+              controller: _tabController,
       isScrollable: true,
       labelPadding: const EdgeInsets.symmetric(horizontal: 8),
       tabs: _tabKeys.map((key) => Tab(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: isCompact ? 6 : 8),
-          child: Text(
+                child: Text(
             I18n.t(key),
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
               fontSize: isCompact ? 13 : 14,
             ),
-          ),
-        ),
-      )).toList(),
-      labelColor: Colors.white,
-      unselectedLabelColor: Colors.white70,
+                  ),
+                ),
+              )).toList(),
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white70,
       indicator: BoxDecoration(
         color: const Color(0xFF4caf50),
         borderRadius: BorderRadius.circular(12),
       ),
-      indicatorSize: TabBarIndicatorSize.tab,
+              indicatorSize: TabBarIndicatorSize.tab,
       indicatorPadding: const EdgeInsets.all(4),
     ),
-  ),
-),
-  ),
-),
+            ),
+          ),
+        ),
+      ),
       body: TabBarView(
         controller: _tabController,
         children: [
@@ -519,33 +519,33 @@ Widget _buildFilters() {
           
           // Основна FAB кнопка створення матчу
           Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF4caf50),
-                  Color(0xFF66bb6a),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: Color(0xFF4caf50).withOpacity(0.4),
-                  blurRadius: 20,
-                  offset: Offset(0, 6),
-                ),
-              ],
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF4caf50),
+              Color(0xFF66bb6a),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0xFF4caf50).withOpacity(0.4),
+              blurRadius: 20,
+              offset: Offset(0, 6),
             ),
-            child: FloatingActionButton(
-              onPressed: () {
-                Navigator.pushNamed(context, '/create-match');
-              },
-              child: Icon(Icons.add, color: Colors.white),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              tooltip: 'Створити матч',
-            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: () {
+            Navigator.pushNamed(context, '/create-match');
+          },
+          child: Icon(Icons.add, color: Colors.white),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          tooltip: 'Створити матч',
+        ),
           ),
         ],
       ),
@@ -1052,16 +1052,16 @@ return Column(
       ),
     ),
     ListView.builder(
-      shrinkWrap: true,
+                shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: items.length,
-      itemBuilder: (context, index) {
+                itemBuilder: (context, index) {
         final match = items[index];
-        return _buildMatchCard(match);
-      },
+                  return _buildMatchCard(match);
+                },
     ),
   ],
-);
+              );
             },
           ),
         ],
@@ -1082,19 +1082,19 @@ return Column(
           child: Row(
             children: [
               ChoiceChip(
-                label: const Text('Всі'),
+                label: Text(I18n.t('all')),
                 selected: _selectedMyMatchesFilter == 'Всі',
                 onSelected: (_) => setState(() => _selectedMyMatchesFilter = 'Всі'),
               ),
               const SizedBox(width: 8),
               ChoiceChip(
-                label: const Text('Організовані'),
+                label: Text(I18n.t('organized')),
                 selected: _selectedMyMatchesFilter == 'Організовані',
                 onSelected: (_) => setState(() => _selectedMyMatchesFilter = 'Організовані'),
               ),
               const SizedBox(width: 8),
               ChoiceChip(
-                label: const Text('Участь'),
+                label: Text(I18n.t('participation')),
                 selected: _selectedMyMatchesFilter == 'Участь',
                 onSelected: (_) => setState(() => _selectedMyMatchesFilter = 'Участь'),
               ),
@@ -1227,9 +1227,9 @@ return Column(
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: matches.length,
-                itemBuilder: (context, index) {
-                  final m = matches[index];
+          itemCount: matches.length,
+          itemBuilder: (context, index) {
+            final m = matches[index];
                   return _buildHistoryMatchCard(m);
                 },
               ),
@@ -1315,7 +1315,7 @@ Widget _buildRatingsTab() {
           filled: true,
           fillColor: Colors.white.withOpacity(0.06),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
           ),
           enabledBorder: OutlineInputBorder(
@@ -1640,7 +1640,7 @@ void _shareMatch(Match match) {
   }
 
   // Метод для створення картки матчу
-  Widget _buildMatchCard(Match match) {
+    Widget _buildMatchCard(Match match) {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return SizedBox.shrink();
 
@@ -1649,10 +1649,10 @@ void _shareMatch(Match match) {
     final isParticipant = userStatus == 'participant';
     final isFinished = match.status == MatchStatus.finished;
 
-    return Container(
+  return Container(
       margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
+    decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.white.withOpacity(0.1)),
@@ -1662,19 +1662,19 @@ void _shareMatch(Match match) {
         children: [
           Column(
   crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
+            children: [
     Text(
-      match.title,
+                  match.title,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: Colors.white,
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-  ],
-),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
           
           SizedBox(height: 12),
           
@@ -1701,45 +1701,45 @@ Widget _buildMatchDetails(Match match) {
   return Column(
     children: [
       // Дата та час
-      Row(
-        children: [
+          Row(
+            children: [
           Icon(Icons.calendar_today, color: Colors.white70, size: 16),
-          SizedBox(width: 8),
-          Text(
+              SizedBox(width: 8),
+              Text(
             '${match.date.day}.${match.date.month}.${match.date.year}',
-            style: TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-          SizedBox(width: 16),
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              SizedBox(width: 16),
           Icon(Icons.access_time, color: Colors.white70, size: 16),
-          SizedBox(width: 8),
-          Text(
+              SizedBox(width: 8),
+              Text(
             match.time,
-            style: TextStyle(color: Colors.white70, fontSize: 14),
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
           ),
-        ],
-      ),
-      
+          
       SizedBox(height: 6),
-      
+          
       // Локація
-      Row(
-  children: [
+          Row(
+            children: [
     Icon(Icons.location_city, color: Colors.white70, size: 16),
-    SizedBox(width: 8),
+              SizedBox(width: 8),
     Expanded(
       child: Text(
         match.location,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: Colors.white70, fontSize: 14),
-      ),
-    ),
-  ],
-),
-      
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              ),
+            ],
+          ),
+          
       SizedBox(height: 6),
-      
-      // Рівень складності
+          
+          // Рівень складності
       Row(
         children: [
           Icon(Icons.star, color: Colors.amber, size: 16),
@@ -1789,19 +1789,19 @@ Row(
       decoration: BoxDecoration(
         color: _getStatusColor(match.status),
         borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
+                  ),
+                  child: Text(
         _getStatusText(match.status),
         style: const TextStyle(
-          color: Colors.white,
+                      color: Colors.white,
           fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    ),
-  ],
-),
-
+                      fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
 const SizedBox(height: 8),
 
 // Аватарки окремим рядком, щоб не було переповнення
@@ -1855,7 +1855,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.white.withOpacity(0.15)),
       ),
       child: const Row(
@@ -1878,7 +1878,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
       onPressed: () => _applyForMatch(match.id),
       icon: const Icon(Icons.person_add_alt_1, size: 16),
       label: const Text('Приєднатися', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-      style: ElevatedButton.styleFrom(
+        style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF4caf50),
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1989,46 +1989,46 @@ Widget _buildActionButtons(Match match, String currentUserId) {
 
 
 
- Stream<List<Match>> _getFilteredMatches() {
-  return _matchService.getAvailableMatches().map((matches) {
+  Stream<List<Match>> _getFilteredMatches() {
+    return _matchService.getAvailableMatches().map((matches) {
     final filtered = matches.where((match) {
-      // Фільтр по місту
+        // Фільтр по місту
       if (_selectedCity != 'Всі міста' && match.city != _selectedCity) return false;
-      // Фільтр по рівню
+        // Фільтр по рівню
       if (_selectedLevel != 'Всі рівні' && _getLevelText(match.level) != _selectedLevel) return false;
-      // Фільтр по часу
-      if (_selectedTime != 'Будь-коли') {
+        // Фільтр по часу
+        if (_selectedTime != 'Будь-коли') {
         final now = DateTime.now();
         final matchDate = match.date;
-        switch (_selectedTime) {
-          case 'Сьогодні':
-            if (!_isSameDay(matchDate, now)) return false;
-            break;
-          case 'Завтра':
+          switch (_selectedTime) {
+            case 'Сьогодні':
+              if (!_isSameDay(matchDate, now)) return false;
+              break;
+            case 'Завтра':
             final tomorrow = now.add(const Duration(days: 1));
-            if (!_isSameDay(matchDate, tomorrow)) return false;
-            break;
-          case 'Цього тижня':
+              if (!_isSameDay(matchDate, tomorrow)) return false;
+              break;
+            case 'Цього тижня':
             final weekEnd = now.add(const Duration(days: 7));
-            if (matchDate.isBefore(now) || matchDate.isAfter(weekEnd)) return false;
-            break;
+              if (matchDate.isBefore(now) || matchDate.isAfter(weekEnd)) return false;
+              break;
+          }
         }
-      }
-      // Фільтр по пошуку
-      if (_searchQuery.isNotEmpty) {
+        // Фільтр по пошуку
+        if (_searchQuery.isNotEmpty) {
         final q = _searchQuery.toLowerCase();
         return match.title.toLowerCase().contains(q) ||
                match.description.toLowerCase().contains(q) ||
                match.location.toLowerCase().contains(q) ||
                match.city.toLowerCase().contains(q);
       }
-      return true;
-    }).toList();
+        return true;
+      }).toList();
     // Сортування: найближчі матчі зверху
     filtered.sort((a, b) => a.date.compareTo(b.date));
     return filtered;
-  });
-}
+    });
+  }
   // Метод для отримання матчів користувача
   Stream<List<Match>> _getUserMatches() {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -2048,37 +2048,37 @@ Widget _buildActionButtons(Match match, String currentUserId) {
   }
 
   // Метод для отримання кольору статусу
-Color _getStatusColor(MatchStatus status) {
-  switch (status) {
-    case MatchStatus.open:
+  Color _getStatusColor(MatchStatus status) {
+    switch (status) {
+      case MatchStatus.open:
       return Color(0xFF4caf50); // Зелений як в MVP
-    case MatchStatus.full:
+      case MatchStatus.full:
       return Colors.blue;
-    case MatchStatus.inProgress:
+      case MatchStatus.inProgress:
       return Colors.orange;
-    case MatchStatus.finished:
+      case MatchStatus.finished:
       return Colors.grey;
-    case MatchStatus.cancelled:
+      case MatchStatus.cancelled:
       return Colors.red;
     default:
       return Colors.grey;
+    }
   }
-}
 
-String _getStatusText(MatchStatus status) {
-  switch (status) {
-    case MatchStatus.open:
-      return 'Відкрито';
-    case MatchStatus.full:
-      return 'Заповнено';
-    case MatchStatus.inProgress:
-      return 'В процесі';
-    case MatchStatus.finished:
-      return 'Завершено';
-    case MatchStatus.cancelled:
-      return 'Скасовано';
+  String _getStatusText(MatchStatus status) {
+    switch (status) {
+      case MatchStatus.open:
+        return I18n.t('status_open');
+      case MatchStatus.full:
+        return I18n.t('status_full');
+      case MatchStatus.inProgress:
+        return I18n.t('status_in_progress');
+      case MatchStatus.finished:
+        return I18n.t('status_finished');
+      case MatchStatus.cancelled:
+        return I18n.t('status_cancelled');
     default:
-      return 'Невідомо';
+      return I18n.t('unknown');
   }
 }
 
@@ -2096,8 +2096,8 @@ IconData _getStatusIcon(MatchStatus status) {
       return Icons.cancel;
     default:
       return Icons.help;
+    }
   }
-}
 
   // Метод для форматування дати та часу
   String _formatDateTime(DateTime dateTime) {
@@ -2143,7 +2143,7 @@ IconData _getStatusIcon(MatchStatus status) {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            '⚽ Мої матчі',
+            I18n.t('my_matches'),
             style: TextStyle(
               color: Colors.white,
               fontSize: 20,
@@ -2160,7 +2160,7 @@ IconData _getStatusIcon(MatchStatus status) {
               ),
             ),
             child: Text(
-              'Створити матч',
+              I18n.t('create_match'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 12,
@@ -2194,10 +2194,10 @@ Widget _buildMyMatchCard(Match match) {
       children: [
         // Шапка картки: статус окремим рядком, щоб уникнути overflow
 Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    Text(
-      match.title,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    match.title,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
@@ -2208,13 +2208,13 @@ Column(
       spacing: 8,
       runSpacing: 4,
       crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
+                    children: [
         const Icon(Icons.calendar_today, color: Colors.white70, size: 16),
         const SizedBox(width: 4),
         ConstrainedBox(
           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 140),
           child: Text(
-            '${match.date.day}.${match.date.month} о ${match.time}',
+                        '${match.date.day}.${match.date.month} о ${match.time}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Colors.white70, fontSize: 14),
@@ -2225,14 +2225,14 @@ Column(
         ConstrainedBox(
           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 160),
           child: Text(
-            match.location,
+                        match.location,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
-        ),
-      ],
-    ),
+                      ),
+                    ],
+                  ),
     const SizedBox(height: 6),
     Row(
       children: [
@@ -2257,23 +2257,23 @@ Column(
       style: TextStyle(color: Colors.white70, fontSize: 14),
     ),
     Spacer(),
-    Container(
+            Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: _getStatusColor(match.status),
-        borderRadius: BorderRadius.circular(20),
-      ),
+              decoration: BoxDecoration(
+                color: _getStatusColor(match.status),
+                borderRadius: BorderRadius.circular(20),
+              ),
       child: Text(
-        _getStatusText(match.status),
+                    _getStatusText(match.status),
         style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
         ),
       ),
-    ),
-  ],
-),
+            ),
+          ],
+        ),
 
         const SizedBox(height: 8),
 
@@ -2283,15 +2283,15 @@ Column(
           padding: const EdgeInsets.only(top: 4, bottom: 4),
           child: Row(
             children: match.participants.take(10).map((id) {
-  return Container(
-    margin: const EdgeInsets.only(right: 6),
+              return Container(
+                margin: const EdgeInsets.only(right: 6),
     child: UserChip(
       userId: id,
       size: 24, // ≈ радіус 12
       showName: false,
-    ),
-  );
-}).toList(),
+                ),
+              );
+            }).toList(),
           ),
         ),
 
@@ -2299,32 +2299,32 @@ Column(
 
         // Кнопки дій
         Row(
-  children: [
+          children: [
     if (isOrganizer && match.status != MatchStatus.finished)
-      ElevatedButton(
-        onPressed: () {
-          Navigator.pushNamed(
-            context,
-            '/match_management',
-            arguments: match,
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFF4caf50),
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        child: Text(
-          'Управління',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/match_management',
+                    arguments: match,
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF4caf50),
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  I18n.t('manage'),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
     if (isOrganizer && match.status != MatchStatus.finished) SizedBox(width: 8),
     ElevatedButton(
       onPressed: () {
@@ -2342,7 +2342,7 @@ Column(
         ),
       ),
       child: Text(
-        'Деталі',
+        I18n.t('details'),
         style: TextStyle(
           color: Colors.white70,
           fontSize: 12,
@@ -2350,8 +2350,8 @@ Column(
         ),
       ),
     ),
-  ],
-),
+          ],
+        ),
 
         // Кнопка "Вийти з матчу" (учасник, не організатор, відкритий матч)
         if (!isOrganizer &&
@@ -2490,7 +2490,7 @@ Column(
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Потрібно увійти в систему'), backgroundColor: Colors.red),
+          SnackBar(content: Text(I18n.t('need_sign_in')), backgroundColor: Colors.red),
         );
         return;
       }
@@ -2500,14 +2500,14 @@ Column(
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Заявку подано! Очікуйте відповіді організатора.'),
+            content: Text(I18n.t('applied_wait')),
             backgroundColor: Color(0xFF4caf50),
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ви вже подали заявку на участь у цьому матчі.'),
+            content: Text(I18n.t('already_applied')),
             backgroundColor: Colors.red,
           ),
         );
@@ -2515,7 +2515,7 @@ Column(
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Помилка: $e'),
+          content: Text('${I18n.t('error')}: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -2534,13 +2534,13 @@ Future<void> _onLeaveMatch(Match match) async {
 
     final ok = await _matchService.leaveMatch(match.id, currentUser.uid);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Ви вийшли з матчу' : 'Не вдалося вийти з матчу'),
+      content: Text(ok ? I18n.t('left_match') : I18n.t('leave_failed')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
     ));
     if (ok) setState(() {});
   } catch (e) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Помилка: $e'), backgroundColor: Colors.red),
+      SnackBar(content: Text('${I18n.t('error')}: $e'), backgroundColor: Colors.red),
     );
   }
 }
@@ -2548,7 +2548,7 @@ Future<void> _onLeaveMatch(Match match) async {
   Future<void> _onAutoBalance(Match match) async {
     final ok = await _matchService.autoBalanceTeams(match.id);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Команди сформовано' : 'Не вдалося сформувати команди'),
+      content: Text(ok ? I18n.t('teams_balanced') : I18n.t('teams_balance_failed')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
     ));
     if (ok) setState(() {});
@@ -2557,7 +2557,7 @@ Future<void> _onLeaveMatch(Match match) async {
   Future<void> _onStartMatch(Match match) async {
     final ok = await _matchService.startMatch(match.id);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Матч розпочато' : 'Не вдалося розпочати матч'),
+      content: Text(ok ? I18n.t('match_started') : I18n.t('match_start_failed')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
     ));
     if (ok) setState(() {});
@@ -2573,7 +2573,7 @@ Future<void> _onLeaveMatch(Match match) async {
 
     final ok = await _matchService.finishMatch(match.id, result, a, b);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Матч завершено' : 'Не вдалося завершити матч'),
+      content: Text(ok ? I18n.t('match_finished') : I18n.t('match_finish_failed')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
     ));
     if (ok) setState(() {});
@@ -2585,27 +2585,27 @@ Future<void> _onLeaveMatch(Match match) async {
     return showDialog<Map<String, int>>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Завершити матч'),
+        title: Text(I18n.t('finish_match')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: aCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Голи команди A')),
-            TextField(controller: bCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Голи команди B')),
+            TextField(controller: aCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: I18n.t('goals_team_a'))),
+            TextField(controller: bCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: I18n.t('goals_team_b'))),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Скасувати')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(I18n.t('cancel'))),
           ElevatedButton(
             onPressed: () {
               final int? a = int.tryParse(aCtrl.text);
               final int? b = int.tryParse(bCtrl.text);
               if (a == null || b == null || a < 0 || b < 0) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введіть коректні рахунки'), backgroundColor: Colors.red));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(I18n.t('enter_valid_scores')), backgroundColor: Colors.red));
                 return;
               }
               Navigator.pop(ctx, {'teamAScore': a, 'teamBScore': b});
             },
-            child: const Text('Підтвердити'),
+            child: Text(I18n.t('confirm')),
           ),
         ],
       ),
@@ -2641,7 +2641,7 @@ Future<void> _onLeaveMatch(Match match) async {
     default:
       return 'Подати заявку';
   }
-}
+} 
 
   // Картка матчу для історії (детальна як у MVP)
   Widget _buildHistoryMatchCard(Match match) {
