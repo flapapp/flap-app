@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/challenge.dart';
+import '../models/notification.dart';
 import 'notification_service.dart';
 
 class ChallengeService {
@@ -631,6 +632,163 @@ class ChallengeService {
     } catch (e) {
       print('Error sending challenge invitations: $e');
       // Не кидаємо помилку, щоб не зупинити створення челенджу
+    }
+  }
+
+  // Автоматичне завершення челенджів та відправка нотифікацій
+  Future<void> checkAndFinishChallenges() async {
+    try {
+      final now = DateTime.now();
+      
+      // Знаходимо челенджі, які закінчилися, але ще не завершені
+      final expiredChallengesSnapshot = await _challengesCollection
+          .where('isActive', isEqualTo: true)
+          .where('status', isNotEqualTo: 'finished')
+          .get();
+      
+      for (final doc in expiredChallengesSnapshot.docs) {
+        final challenge = Challenge.fromFirestore(doc);
+        
+        // Перевіряємо чи челендж закінчився
+        if (challenge.endDate.isBefore(now)) {
+          await _finishChallenge(challenge);
+        }
+      }
+    } catch (e) {
+      print('Error checking and finishing challenges: $e');
+    }
+  }
+
+  Future<void> _finishChallenge(Challenge challenge) async {
+    try {
+      // Визначаємо переможців
+      final submissionsSnapshot = await _challengesCollection
+          .doc(challenge.id)
+          .collection('submissions')
+          .orderBy('averageRating', descending: true)
+          .limit(3)
+          .get();
+      
+      final winners = <Map<String, dynamic>>[];
+      final totalPrize = challenge.prizePool;
+      
+      for (int i = 0; i < submissionsSnapshot.docs.length; i++) {
+        final doc = submissionsSnapshot.docs[i];
+        final data = doc.data();
+        final userId = data['userId'];
+        final prize = _calculatePrize(i + 1, totalPrize, submissionsSnapshot.docs.length);
+        
+        winners.add({
+          'userId': userId,
+          'position': i + 1,
+          'prize': prize,
+        });
+        
+        // Нараховуємо монети
+        await _awardPrize(userId, prize, i + 1, challenge.title);
+      }
+      
+      // Оновлюємо статус челенджу
+      await _challengesCollection.doc(challenge.id).update({
+        'status': 'finished',
+        'winners': winners.map((w) => w['userId']).toList(),
+        'finishedAt': FieldValue.serverTimestamp(),
+      });
+      
+      // Відправляємо нотифікації всім учасникам
+      for (final participantId in challenge.participants) {
+        await _notificationService.sendNotification(
+          AppNotification(
+            id: '',
+            userId: participantId,
+            type: NotificationType.challengeCompleted,
+            title: 'Челендж завершено!',
+            message: 'Челендж "${challenge.title}" завершено. Переглянь результати!',
+            data: {'challengeId': challenge.id},
+            actionUrl: '/challenge/${challenge.id}/results',
+            createdAt: DateTime.now(),
+          ),
+        );
+      }
+      
+      print('Challenge ${challenge.id} finished successfully');
+    } catch (e) {
+      print('Error finishing challenge: $e');
+    }
+  }
+
+  double _calculatePrize(int position, double totalPrize, int totalWinners) {
+    if (totalWinners < 3) {
+      // Якщо менше 3 учасників
+      if (position == 1) return totalPrize * 0.7;
+      if (position == 2) return totalPrize * 0.3;
+    }
+    
+    // Стандартний розподіл
+    switch (position) {
+      case 1: return totalPrize * 0.5; // 50%
+      case 2: return totalPrize * 0.3; // 30%
+      case 3: return totalPrize * 0.2; // 20%
+      default: return 0.0;
+    }
+  }
+
+  Future<void> _awardPrize(String userId, double prize, int position, String challengeTitle) async {
+    try {
+      final userRef = _firestore.collection('users').doc(userId);
+      await _firestore.runTransaction((transaction) async {
+        final userDoc = await transaction.get(userRef);
+        final currentCoins = (userDoc.data()?['coins'] ?? 0) as num;
+        transaction.update(userRef, {
+          'coins': currentCoins + prize.toInt(),
+        });
+      });
+      
+      // Додаємо запис в історію транзакцій
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('coin_transactions')
+          .add({
+        'amount': prize.toInt(),
+        'type': 'challenge_prize',
+        'description': 'Приз за ${position}-е місце в челенджі "$challengeTitle"',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error awarding prize: $e');
+    }
+  }
+
+  // Видалення завершених челенджів через 2 дні
+  Future<void> deleteOldFinishedChallenges() async {
+    try {
+      final twoDaysAgo = DateTime.now().subtract(const Duration(days: 2));
+      
+      final oldChallengesSnapshot = await _challengesCollection
+          .where('status', isEqualTo: 'finished')
+          .where('finishedAt', isLessThan: Timestamp.fromDate(twoDaysAgo))
+          .get();
+      
+      for (final doc in oldChallengesSnapshot.docs) {
+        // Видаляємо submissions
+        final submissionsSnapshot = await doc.reference.collection('submissions').get();
+        for (final subDoc in submissionsSnapshot.docs) {
+          await subDoc.reference.delete();
+        }
+        
+        // Видаляємо votes
+        final votesSnapshot = await doc.reference.collection('votes').get();
+        for (final voteDoc in votesSnapshot.docs) {
+          await voteDoc.reference.delete();
+        }
+        
+        // Видаляємо сам челендж
+        await doc.reference.delete();
+        print('Deleted old challenge: ${doc.id}');
+      }
+    } catch (e) {
+      print('Error deleting old challenges: $e');
     }
   }
 }

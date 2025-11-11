@@ -25,6 +25,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   double _cost = 0.0;
   bool _autoBalance = true;
   bool _isPrivate = false;
+  int _numberOfTeams = 2; // 2, 3 або 4 команди
   final Set<String> _selectedInviteFriendIds = <String>{};
   
   final List<String> _cities = ['Київ', 'Харків', 'Одеса', 'Дніпро', 'Львів'];
@@ -341,6 +342,57 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                 ),
               ],
             ),
+            
+            // Вибір кількості команд
+            if (_autoBalance) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Кількість команд:', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                    SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [2, 3, 4].map((num) {
+                        final isSelected = _numberOfTeams == num;
+                        return GestureDetector(
+                          onTap: () => setState(() => _numberOfTeams = num),
+                          child: Container(
+                            width: 70,
+                            height: 70,
+                            decoration: BoxDecoration(
+                              color: isSelected ? Color(0xFF4caf50) : Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected ? Color(0xFF4caf50) : Colors.white.withOpacity(0.3),
+                                width: 2,
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                num.toString(),
+                                style: TextStyle(
+                                  color: isSelected ? Colors.white : Colors.white70,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
 
             const SizedBox(height: 20),
 // Запросити друзів

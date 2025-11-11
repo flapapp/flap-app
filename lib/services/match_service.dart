@@ -611,13 +611,47 @@ if (currentUserId == null || currentUserId != match.organizerId) {
 }
         
         // Перевіряємо чи можна почати матч
+        // Дозволяємо старт, якщо щонайменше 2 учасники. Якщо команди відсутні — формуємо 2 команди автоматично
         if (!match.hasTeams) {
-          throw Exception('Спочатку потрібно сформувати команди');
+          final participants = List<String>.from(match.participants);
+          if (participants.length < 2) {
+            throw Exception('Потрібно щонайменше 2 учасники');
+          }
+
+          // Просте розбиття на 2 команди (щоб не блокувати старт)
+          final half = (participants.length / 2).ceil();
+          final teamAPlayers = participants.take(half).toList();
+          final teamBPlayers = participants.skip(half).toList();
+
+          final existingNameA = match.teamA?.name ?? '';
+          final existingNameB = match.teamB?.name ?? '';
+          final fun = ['Леви', 'Сови', 'Тигри', 'Орли', 'Вовки'];
+          final seed = DateTime.now().millisecondsSinceEpoch % fun.length;
+          final funA = fun[seed];
+          final funB = fun[(seed + 1) % fun.length];
+          final nameA = existingNameA.isNotEmpty ? existingNameA : funA;
+          final nameB = existingNameB.isNotEmpty ? existingNameB : (funB == nameA ? fun[(seed + 2) % fun.length] : funB);
+
+          // Оновлюємо документ матчa з сформованими командами
+          tx.update(docRef, {
+            'teamA': {
+              'name': nameA,
+              'playerIds': teamAPlayers,
+              'averageRating': 0.0,
+            },
+            'teamB': {
+              'name': nameB,
+              'playerIds': teamBPlayers,
+              'averageRating': 0.0,
+            },
+          });
         }
-        
+
         if (match.isInProgress) {
           throw Exception('Матч вже почався');
         }
+        
+        // Дозволяємо початок матчу навіть якщо не набралася повна кількість гравців
         
         // Оновлюємо статус матчу
         tx.update(docRef, {

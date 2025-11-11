@@ -6,9 +6,12 @@ enum NotificationType {
   challengeInvitation,
   challengeUpdate,
   challengeResult,
+  challengeCompleted,
   videoVote,
   matchInvite,
+  matchFinished,
   badgeEarned,
+  badgeEndorsed,
   coinsEarned,
   ratingRequest,
   ratingChanged,
@@ -115,12 +118,18 @@ class AppNotification {
         return '📹';
       case NotificationType.challengeResult:
         return '🏆';
+      case NotificationType.challengeCompleted:
+        return '🎉';
       case NotificationType.videoVote:
         return '⭐';
       case NotificationType.matchInvite:
         return '⚽';
+      case NotificationType.matchFinished:
+        return '🏁';
       case NotificationType.badgeEarned:
         return '🏅';
+      case NotificationType.badgeEndorsed:
+        return '👍';
       case NotificationType.coinsEarned:
         return '💰';
       case NotificationType.ratingRequest:
@@ -142,12 +151,18 @@ class AppNotification {
         return 0xFF2196F3; // Blue
       case NotificationType.challengeResult:
         return 0xFFFFD700; // Gold
+      case NotificationType.challengeCompleted:
+        return 0xFF4CAF50; // Green
       case NotificationType.videoVote:
         return 0xFF9C27B0; // Purple
       case NotificationType.matchInvite:
         return 0xFF4CAF50; // Green
+      case NotificationType.matchFinished:
+        return 0xFF2196F3; // Blue
       case NotificationType.badgeEarned:
         return 0xFFE91E63; // Pink
+      case NotificationType.badgeEndorsed:
+        return 0xFFFFD700; // Gold
       case NotificationType.coinsEarned:
         return 0xFFFFD700; // Gold
       case NotificationType.ratingRequest:

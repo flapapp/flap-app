@@ -50,6 +50,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   double _quality = 2.50;
   bool _hasVoted = false;
   bool _isSubmittingVote = false;
+  bool _isAdvancedVoting = false; // Простий (false) або Розширений (true)
   String? _videoAuthorId;
   String? _videoAuthorName;
   String? _videoAuthorAvatar;
@@ -675,9 +676,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 children: [
                   // Video player with fixed aspect ratio
                   AspectRatio(
-                    aspectRatio: _videoPlayerController.value.isInitialized
-                        ? _videoPlayerController.value.aspectRatio
-                        : 16 / 9,
+                    aspectRatio: 9 / 16, // Фіксоване співвідношення для всіх відео
                     child: Chewie(controller: _chewieController!),
                   ),
                   
@@ -1019,16 +1018,78 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                
+                // Вибір режиму голосування
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setModalState(() => _isAdvancedVoting = false),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: !_isAdvancedVoting ? const Color(0xFF4caf50) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'Простий',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: !_isAdvancedVoting ? Colors.white : Colors.white54,
+                                fontWeight: !_isAdvancedVoting ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setModalState(() => _isAdvancedVoting = true),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _isAdvancedVoting ? const Color(0xFF4caf50) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'Розширений',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _isAdvancedVoting ? Colors.white : Colors.white54,
+                                fontWeight: _isAdvancedVoting ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
                 
                 // Rating sliders
-                _buildSliderRow('Техніка', _technical, (v) => setModalState(() => _technical = v)),
-                const SizedBox(height: 16),
-                _buildSliderRow('Креативність', _creativity, (v) => setModalState(() => _creativity = v)),
-                const SizedBox(height: 16),
-                _buildSliderRow('Складність', _difficulty, (v) => setModalState(() => _difficulty = v)),
-                const SizedBox(height: 16),
-                _buildSliderRow('Якість відео', _quality, (v) => setModalState(() => _quality = v)),
+                if (_isAdvancedVoting) ...[
+                  _buildSliderRow('Техніка', _technical, (v) => setModalState(() => _technical = v)),
+                  const SizedBox(height: 16),
+                  _buildSliderRow('Креативність', _creativity, (v) => setModalState(() => _creativity = v)),
+                  const SizedBox(height: 16),
+                  _buildSliderRow('Складність', _difficulty, (v) => setModalState(() => _difficulty = v)),
+                  const SizedBox(height: 16),
+                  _buildSliderRow('Якість відео', _quality, (v) => setModalState(() => _quality = v)),
+                ] else ...[
+                  _buildSliderRow('Загальна оцінка', _technical, (v) => setModalState(() {
+                    _technical = v;
+                    _creativity = v;
+                    _difficulty = v;
+                    _quality = v;
+                  })),
+                ],
                 const SizedBox(height: 24),
                 
                 // Submit button

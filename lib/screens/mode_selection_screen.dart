@@ -29,17 +29,17 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
     {
       'greeting': '',
       'rating': '',
-      'instruction': 'Що сьогодні будемо робити?'
+      'instruction': I18n.t('what_today')
     },
     {
-      'greeting': 'Доброго дня, майстре! ⚡',
-      'rating': 'Твої досягнення: 4.2 • Ти на правильному шляху',
-      'instruction': 'Вибери напрямок для розвитку'
+      'greeting': I18n.t('good_day_master'),
+      'rating': I18n.t('your_achievements'),
+      'instruction': I18n.t('choose_direction')
     },
     {
-      'greeting': 'З поверненням, легендо! 🌟',
-      'rating': 'Статистика: 4.2 рейтинг • 45 ігор',
-      'instruction': 'Куди спрямуємо твою енергію?'
+      'greeting': I18n.t('welcome_back_legend'),
+      'rating': I18n.t('statistics_rating'),
+      'instruction': I18n.t('where_direct_energy')
     },
   ];
 

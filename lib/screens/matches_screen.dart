@@ -64,7 +64,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   ];
 
   // Змінні для "Мої матчі"
-  String _selectedMyMatchesFilter = 'Всі';
+  String _selectedMyMatchesFilter = I18n.t('all');
   List<String> get _myMatchesFilters => [I18n.t('all'), I18n.t('organized'), I18n.t('participation')];
 
   // TabController для керування вкладками
@@ -79,8 +79,8 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
         title: Text(title),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Скасувати')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Підтвердити')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(I18n.t('cancel'))),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: Text(I18n.t('confirm'))),
         ],
       ),
     );
@@ -90,8 +90,8 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   final RatingService _ratingService = RatingService();
   final NotificationService _notificationService = NotificationService();
   // Стан фільтрів рейтингів (замість ValueNotifier використовуємо звичайний state)
-  String _ratingsSelectedCity = 'Всі міста';
-  String _ratingsSelectedPosition = 'Всі позиції';
+  String _ratingsSelectedCity = I18n.t('all_cities');
+  String _ratingsSelectedPosition = I18n.t('all_positions');
   Future<List<Map<String, dynamic>>>? _ratingsTopPlayersFuture;
 
   @override
@@ -362,7 +362,7 @@ void _resetFindFilters() {
   ),
         actions: [
           IconButton(
-      tooltip: 'Відео',
+      tooltip: I18n.t('videos'),
       icon: const Icon(Icons.videocam, color: Colors.white, size: 20),
             onPressed: () => Navigator.pushNamed(context, '/video-main'),
       padding: EdgeInsets.zero,
@@ -377,7 +377,7 @@ void _resetFindFilters() {
               icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 20),
               onPressed: () => Navigator.pushNamed(context, '/notifications'),
               padding: EdgeInsets.zero,
-              tooltip: 'Сповіщення',
+              tooltip: I18n.t('notifications'),
             ),
             if (unreadCount > 0)
               Positioned(
@@ -549,7 +549,7 @@ void _resetFindFilters() {
           child: Icon(Icons.add, color: Colors.white),
           backgroundColor: Colors.transparent,
           elevation: 0,
-          tooltip: 'Створити матч',
+          tooltip: I18n.t('create_match'),
         ),
           ),
         ],

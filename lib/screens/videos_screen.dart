@@ -27,7 +27,7 @@ class _VideosScreenState extends State<VideosScreen> {
   String _selectedRating = '';
   String _selectedTab = 'all'; // all, trending, my
   bool _showOnlyMyVideos = false;
-  String _selectedSort = 'Нові'; // Нові, Рейтинг, Перегляди
+  String _selectedSortKey = 'new'; // new, rating, views
 
   List<String> get _cities => [
     I18n.t('all_cities'),
@@ -157,16 +157,20 @@ class _VideosScreenState extends State<VideosScreen> {
                           border: Border.all(color: Colors.white.withOpacity(0.3)),
                         ),
                         child: DropdownButton<String>(
-                          value: _selectedSort,
+                          value: _selectedSortKey,
                           isExpanded: true,
                           underline: const SizedBox(),
                           dropdownColor: const Color(0xFF1a1a2e),
                           style: const TextStyle(color: Colors.white, fontSize: 12),
                           icon: const Icon(Icons.sort, color: Colors.white70),
-                          items: ['Нові', 'Рейтинг', 'Перегляди']
-                              .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                          items: [
+                                {'key': 'new', 'label': I18n.t('new')},
+                                {'key': 'rating', 'label': I18n.t('rating')},
+                                {'key': 'views', 'label': I18n.t('views')},
+                              ]
+                              .map((m) => DropdownMenuItem<String>(value: m['key'] as String, child: Text(m['label'] as String)))
                               .toList(),
-                          onChanged: (v) => setState(() => _selectedSort = v ?? 'Нові'),
+                          onChanged: (v) => setState(() => _selectedSortKey = v ?? 'new'),
                         ),
                       ),
                     ),
@@ -214,16 +218,16 @@ class _VideosScreenState extends State<VideosScreen> {
                 docs.sort((a, b) {
                   final ad = a.data() as Map<String, dynamic>;
                   final bd = b.data() as Map<String, dynamic>;
-                  switch (_selectedSort) {
-                    case 'Рейтинг':
+                  switch (_selectedSortKey) {
+                    case 'rating':
                       final ar = (ad['rating'] ?? 0.0) as num;
                       final br = (bd['rating'] ?? 0.0) as num;
                       return br.compareTo(ar);
-                    case 'Перегляди':
+                    case 'views':
                       final av = (ad['views'] ?? 0) as num;
                       final bv = (bd['views'] ?? 0) as num;
                       return bv.compareTo(av);
-                    case 'Нові':
+                    case 'new':
                     default:
                       final at = ad['createdAt'];
                       final bt = bd['createdAt'];

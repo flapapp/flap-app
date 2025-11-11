@@ -8,7 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
 import '../services/notification_service.dart';
-import '../services/thumbnail_service.dart';
+import '../utils/i18n.dart';
 
 class ChallengeCreateScreen extends StatefulWidget {
   @override
@@ -24,11 +24,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   
   ChallengeType _selectedType = ChallengeType.technical;
   ChallengeAudience _selectedAudience = ChallengeAudience.city;
-  String _selectedCity = 'Київ';
+  String _selectedCity = I18n.t('kyiv_city');
   int _selectedEntryFee = 10;
-  int _recruitmentDays = 7;
-  int _submissionDays = 7;
-  int _votingDays = 5;
+  int _recruitmentHours = 24; // 1 доба за замовчуванням
+  int _submissionHours = 24;
+  int _votingHours = 24;
   bool _isCreating = false;
   XFile? _selectedVideoFile;
   
@@ -37,17 +37,17 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   final Set<String> _selectedInviteFriendIds = <String>{};
 
   final List<String> _cities = [
-    'Київ',
-    'Харків',
-    'Одеса',
-    'Дніпро',
-    'Львів',
-    'Запоріжжя',
-    'Кривий Ріг',
-    'Миколаїв',
-    'Вінниця',
-    'Полтава',
-    'Черкаси',
+    I18n.t('kyiv_city'),
+    I18n.t('kharkiv_city'),
+    I18n.t('odesa_city'),
+    I18n.t('dnipro_city'),
+    I18n.t('lviv_city'),
+    I18n.t('zaporizhzhia'),
+    I18n.t('kryvyi_rih'),
+    I18n.t('mykolaiv'),
+    I18n.t('vinnytsia'),
+    I18n.t('poltava'),
+    I18n.t('cherkasy'),
     'Суми',
     'Хмельницький',
     'Чернівці',
@@ -60,7 +60,13 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   ];
 
   final List<int> _entryFees = [5, 10, 15, 20, 25];
-  final List<int> _durations = [1, 3, 7, 14];
+  final List<Map<String, dynamic>> _durations = [
+    {'hours': 1, 'label': '1 година'},
+    {'hours': 6, 'label': '6 годин'},
+    {'hours': 24, 'label': '1 доба'},
+    {'hours': 72, 'label': '3 доби'},
+    {'hours': 168, 'label': '1 тиждень'},
+  ];
 
   @override
   void initState() {
@@ -307,7 +313,16 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 const SizedBox(height: 20),
 
                 // Окремі друзі для запрошення (мульти-вибір)
-                _buildSectionTitle(Icons.person_add_alt_1, 'Окремі друзі'),
+                Row(
+                  children: [
+                    Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Запросити друзів',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 10),
                 FutureBuilder<List<Map<String, dynamic>>>(
                   future: _loadMyFriends(),
@@ -316,38 +331,95 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     if (friends.isEmpty) {
                       return Text('Немає друзів для запрошення', style: TextStyle(color: Colors.white.withOpacity(0.7)));
                     }
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: friends
-                          .where((f) => ((f['displayName'] ?? f['name'] ?? '').toString().trim()).isNotEmpty)
-                          .map((f) {
-                        final id = f['id'] as String;
-                        final name = (f['displayName'] ?? f['name']).toString().trim();
-                        final selected = _selectedInviteFriendIds.contains(id);
-                        return FilterChip(
-                          label: ConstrainedBox(
-                            constraints: const BoxConstraints(minHeight: 20, minWidth: 40),
-                            child: Text(
+                    return Container(
+                      constraints: const BoxConstraints(maxHeight: 300),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      ),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: friends.length,
+                        itemBuilder: (context, index) {
+                          final f = friends[index];
+                          final id = f['id'] as String;
+                          final name = (f['displayName'] ?? f['name'] ?? 'Користувач').toString();
+                          final photoUrl = (f['avatarUrl'] ?? f['photoUrl'] ?? '').toString();
+                          final position = (f['position'] ?? f['role'] ?? '').toString();
+                          final rating = ((f['rating'] ?? f['averageRating'] ?? 0) as num).toDouble();
+                          final selected = _selectedInviteFriendIds.contains(id);
+
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                            leading: CircleAvatar(
+                              radius: 18,
+                              backgroundColor: const Color(0xFF4caf50),
+                              backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                              child: photoUrl.isEmpty
+                                  ? Text(
+                                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                    )
+                                  : null,
+                            ),
+                            title: Text(
                               name,
+                              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: Colors.black87),
                             ),
-                          ),
-                          selected: selected,
-                          backgroundColor: Colors.white,
-                          selectedColor: const Color(0xFF4caf50).withOpacity(0.15),
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: StadiumBorder(
-                            side: BorderSide(color: selected ? const Color(0xFF4caf50) : Colors.black26),
-                          ),
-                          onSelected: (val) => setState(() {
-                            val ? _selectedInviteFriendIds.add(id) : _selectedInviteFriendIds.remove(id);
-                          }),
-                        );
-                      }).toList(),
+                            subtitle: Row(
+                              children: [
+                                if (position.isNotEmpty) ...[
+                                  Icon(Icons.sports_soccer, color: Colors.white54, size: 12),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      position,
+                                      style: TextStyle(color: Colors.white54, fontSize: 11),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                if (rating > 0) ...[
+                                  Icon(Icons.star, color: Colors.amber, size: 12),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    rating.toStringAsFixed(1),
+                                    style: TextStyle(color: Colors.white54, fontSize: 11),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            trailing: Checkbox(
+                              value: selected,
+                              onChanged: (val) {
+                                setState(() {
+                                  if (val == true) {
+                                    _selectedInviteFriendIds.add(id);
+                                  } else {
+                                    _selectedInviteFriendIds.remove(id);
+                                  }
+                                });
+                              },
+                              activeColor: const Color(0xFF4caf50),
+                              checkColor: Colors.white,
+                            ),
+                            onTap: () {
+                              setState(() {
+                                if (selected) {
+                                  _selectedInviteFriendIds.remove(id);
+                                } else {
+                                  _selectedInviteFriendIds.add(id);
+                                }
+                              });
+                            },
+                          );
+                        },
+                      ),
                     );
                   },
                 ),
@@ -372,53 +444,58 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 _buildSectionTitle(Icons.schedule, 'Тривалості етапів'),
                 const SizedBox(height: 15),
                 
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildDropdownField(
-                        label: 'Збір учасників *',
-                        value: _recruitmentDays,
-                        items: _durations,
-                        onChanged: (value) {
-                          setState(() {
-                            _recruitmentDays = value!;
-                          });
-                        },
-                        itemBuilder: (days) => Text('$days дн.'),
-                        icon: Icons.people,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildDropdownField(
-                        label: 'Подання відео *',
-                        value: _submissionDays,
-                        items: _durations,
-                        onChanged: (value) {
-                          setState(() {
-                            _submissionDays = value!;
-                          });
-                        },
-                        itemBuilder: (days) => Text('$days дн.'),
-                        icon: Icons.video_library,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildDropdownField(
-                        label: 'Голосування *',
-                        value: _votingDays,
-                        items: [3, 5, 7],
-                        onChanged: (value) {
-                          setState(() {
-                            _votingDays = value!;
-                          });
-                        },
-                        itemBuilder: (days) => Text('$days дн.'),
-                        icon: Icons.how_to_vote,
-                      ),
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final double maxWidth = constraints.maxWidth;
+                    // На вузьких екранах елементи переносяться на новий рядок
+                    final double itemWidth = (maxWidth - 10 - 10) / 3; // з урахуванням відступів
+
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        SizedBox(
+                          width: itemWidth,
+                          child: _buildDurationDropdown(
+                            label: 'Збір учасників *',
+                            value: _recruitmentHours,
+                            onChanged: (value) {
+                              setState(() {
+                                _recruitmentHours = value!;
+                              });
+                            },
+                            icon: Icons.people,
+                          ),
+                        ),
+                        SizedBox(
+                          width: itemWidth,
+                          child: _buildDurationDropdown(
+                            label: 'Подання відео *',
+                            value: _submissionHours,
+                            onChanged: (value) {
+                              setState(() {
+                                _submissionHours = value!;
+                              });
+                            },
+                            icon: Icons.video_library,
+                          ),
+                        ),
+                        SizedBox(
+                          width: itemWidth,
+                          child: _buildDurationDropdown(
+                            label: 'Голосування *',
+                            value: _votingHours,
+                            onChanged: (value) {
+                              setState(() {
+                                _votingHours = value!;
+                              });
+                            },
+                            icon: Icons.how_to_vote,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 
                 const SizedBox(height: 25),
@@ -718,11 +795,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       ),
       child: Column(
         children: [
-          _buildStageItem(Icons.people, 'Збір учасників', '$_recruitmentDays днів', Colors.green),
+          _buildStageItem(Icons.people, I18n.t('participant_recruitment'), _formatDuration(_recruitmentHours), Colors.green),
           const Divider(color: Colors.white24, height: 20),
-          _buildStageItem(Icons.video_library, 'Подання відео', '$_submissionDays днів', Colors.orange),
+          _buildStageItem(Icons.video_library, I18n.t('video_submission_stage'), _formatDuration(_submissionHours), Colors.orange),
           const Divider(color: Colors.white24, height: 20),
-          _buildStageItem(Icons.how_to_vote, 'Голосування', '$_votingDays днів', Colors.blue),
+          _buildStageItem(Icons.how_to_vote, I18n.t('voting'), _formatDuration(_votingHours), Colors.blue),
           const Divider(color: Colors.white24, height: 20),
           _buildStageItem(Icons.emoji_events, 'Оголошення переможців', 'Автоматично', Colors.purple),
         ],
@@ -860,6 +937,67 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     );
   }
 
+  Widget _buildDurationDropdown({
+    required String label,
+    required int value,
+    required ValueChanged<int?> onChanged,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: Colors.white, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<int>(
+            value: value,
+            decoration: const InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              border: InputBorder.none,
+            ),
+            dropdownColor: const Color(0xFF1a1a2e),
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            items: _durations.map((d) {
+              return DropdownMenuItem<int>(
+                value: d['hours'] as int,
+                child: Text(
+                  d['label'] as String,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              );
+            }).toList(),
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(int hours) {
+    if (hours == 1) return '1 година';
+    if (hours == 6) return '6 годин';
+    if (hours == 24) return '1 доба';
+    if (hours == 72) return '3 доби';
+    if (hours == 168) return '1 тиждень';
+    return '$hours год';
+  }
+
   Future<void> _createChallenge() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -917,9 +1055,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       // Розрахунок дат з окремими тривалостями
       final now = DateTime.now();
       final startDate = now;
-      final submissionDeadline = now.add(Duration(days: _recruitmentDays));
-      final votingDeadline = submissionDeadline.add(Duration(days: _submissionDays));
-      final endDate = votingDeadline.add(Duration(days: _votingDays));
+      final submissionDeadline = now.add(Duration(hours: _recruitmentHours));
+      final votingDeadline = submissionDeadline.add(Duration(hours: _submissionHours));
+      final endDate = votingDeadline.add(Duration(hours: _votingHours));
 
       // Розрахунок призового фонду
       final prizePool = _selectedEntryFee * 20; // Призовий фонд = ставка × 20
@@ -936,7 +1074,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         creatorVideoUrl: null, // Буде оновлено після завантаження відео
         city: userCity,
         entryFee: _selectedEntryFee,
-        duration: _recruitmentDays,
+        duration: (_recruitmentHours / 24).ceil(), // Зберігаємо в днях для сумісності
         createdAt: now,
         startDate: startDate,
         submissionDeadline: submissionDeadline,
@@ -1312,18 +1450,18 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       try {
         print('🎬 Starting creator thumbnail generation for challenge: $challengeId');
         
-        final thumbnailService = ThumbnailService();
-        final thumbnailUrl = await thumbnailService.generateChallengeThumbnail(
-          videoUrl: videoUrl,
-          challengeId: challengeId,
-          userId: userId,
-        );
+        // final thumbnailService = ThumbnailService();
+        // final thumbnailUrl = await thumbnailService.generateChallengeThumbnail(
+        //   videoUrl: videoUrl,
+        //   challengeId: challengeId,
+        //   userId: userId,
+        // );
 
-        if (thumbnailUrl != null) {
-          print('✅ Creator thumbnail generated successfully: $thumbnailUrl');
-        } else {
-          print('⚠️ Creator thumbnail generation failed, but video upload was successful');
-        }
+        // if (thumbnailUrl != null) {
+        //   print('✅ Creator thumbnail generated successfully: $thumbnailUrl');
+        // } else {
+        //   print('⚠️ Creator thumbnail generation failed, but video upload was successful');
+        // }
       } catch (e) {
         print('❌ Background creator thumbnail generation error: $e');
         // Не показуємо помилку користувачу, оскільки челендж вже створено

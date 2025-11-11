@@ -705,10 +705,11 @@ Future<bool> sendMatchFinished({
   return sendNotification(AppNotification(
     id: '',
     userId: toUserId,
-    type: NotificationType.ratingRequest,
+    type: NotificationType.matchFinished,
     title: 'Матч завершено',
     message: 'Матч завершено: $score. Поставте оцінки гравцям.',
     data: {'type': 'match_finished', 'matchId': matchId},
+    actionUrl: '/match/$matchId/rate',
     createdAt: DateTime.now(),
   ));
 }

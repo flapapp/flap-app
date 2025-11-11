@@ -324,6 +324,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ],
           ),
+          const SizedBox(height: 16),
+          
+          // Win rate and recent matches
+          FutureBuilder<Map<String, dynamic>>(
+            future: _loadMatchStats(userData['uid'] ?? _auth.currentUser?.uid ?? ''),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const SizedBox.shrink();
+              
+              final stats = snapshot.data!;
+              final winRate = stats['winRate'] as double;
+              final recentResults = stats['recentResults'] as List<String>;
+              
+              return Column(
+                children: [
+                  // Win rate
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.percent, color: Colors.white70, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Win Rate: ${winRate.toStringAsFixed(0)}%',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  // Recent matches (W/D/L)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: recentResults.map((result) {
+                      Color color;
+                      if (result == 'W') {
+                        color = const Color(0xFF4CAF50);
+                      } else if (result == 'D') {
+                        color = Colors.grey;
+                      } else {
+                        color = Colors.red;
+                      }
+                      
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: color, width: 1.5),
+                        ),
+                        child: Center(
+                          child: Text(
+                            result,
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
@@ -473,35 +552,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 itemCount: _userBadges.length,
                 itemBuilder: (context, index) {
                   final badge = _userBadges[index];
-                  return Container(
-                    margin: const EdgeInsets.only(right: 12),
-                    width: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Color(badge.categoryColor).withOpacity(0.3)),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          badge.emoji,
-                          style: const TextStyle(fontSize: 24),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          badge.name,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
+                  return FutureBuilder<int>(
+                    future: _getBadgeEndorsementCount(userData['uid'] ?? _auth.currentUser?.uid ?? '', badge.id),
+                    builder: (context, endorsementSnapshot) {
+                      final endorsementCount = endorsementSnapshot.data ?? 0;
+                      
+                      return GestureDetector(
+                        onTap: () => _endorseBadge(userData['uid'] ?? _auth.currentUser?.uid ?? '', badge),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 12),
+                          width: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Color(badge.categoryColor).withOpacity(0.3)),
                           ),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                badge.emoji,
+                                style: const TextStyle(fontSize: 24),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                badge.name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (endorsementCount > 0) ...[
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Color(badge.categoryColor),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '$endorsementCount',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               ),
@@ -656,10 +763,182 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<Map<String, dynamic>> _loadMatchStats(String userId) async {
+    try {
+      // Завантажуємо всі завершені матчі користувача
+      final matchesSnapshot = await FirebaseFirestore.instance
+          .collection('matches')
+          .where('participants', arrayContains: userId)
+          .where('status', isEqualTo: 'finished')
+          .orderBy('updatedAt', descending: true)
+          .limit(20)
+          .get();
+      
+      int wins = 0;
+      int draws = 0;
+      int losses = 0;
+      final List<String> recentResults = [];
+      
+      for (final doc in matchesSnapshot.docs) {
+        final data = doc.data();
+        final score = data['score'] as String?;
+        
+        if (score == null || !score.contains(':')) continue;
+        
+        final parts = score.split(':');
+        if (parts.length != 2) continue;
+        
+        final score1 = int.tryParse(parts[0].trim()) ?? 0;
+        final score2 = int.tryParse(parts[1].trim()) ?? 0;
+        
+        // Визначаємо команду користувача
+        final teamA = List<String>.from(data['teamA'] ?? []);
+        final teamB = List<String>.from(data['teamB'] ?? []);
+        final isTeamA = teamA.contains(userId);
+        
+        String result;
+        if (score1 == score2) {
+          draws++;
+          result = 'D';
+        } else if ((isTeamA && score1 > score2) || (!isTeamA && score2 > score1)) {
+          wins++;
+          result = 'W';
+        } else {
+          losses++;
+          result = 'L';
+        }
+        
+        if (recentResults.length < 5) {
+          recentResults.add(result);
+        }
+      }
+      
+      final totalMatches = wins + draws + losses;
+      final winRate = totalMatches > 0 ? (wins / totalMatches) * 100 : 0.0;
+      
+      // Додаємо пусті слоти якщо матчів менше 5
+      while (recentResults.length < 5) {
+        recentResults.add('-');
+      }
+      
+      return {
+        'winRate': winRate,
+        'recentResults': recentResults,
+        'wins': wins,
+        'draws': draws,
+        'losses': losses,
+      };
+    } catch (e) {
+      print('Error loading match stats: $e');
+      return {
+        'winRate': 0.0,
+        'recentResults': ['-', '-', '-', '-', '-'],
+        'wins': 0,
+        'draws': 0,
+        'losses': 0,
+      };
+    }
+  }
+
   void _editProfile() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Редагування профілю (буде реалізовано)')),
     );
+  }
+
+  Future<int> _getBadgeEndorsementCount(String userId, String badgeId) async {
+    try {
+      final endorsementsSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('badge_endorsements')
+          .doc(badgeId)
+          .get();
+      
+      if (endorsementsSnapshot.exists) {
+        final data = endorsementsSnapshot.data() as Map<String, dynamic>;
+        final endorsers = List<String>.from(data['endorsers'] ?? []);
+        return endorsers.length;
+      }
+      return 0;
+    } catch (e) {
+      print('Error getting badge endorsement count: $e');
+      return 0;
+    }
+  }
+
+  Future<void> _endorseBadge(String userId, app_badge.Badge badge) async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) return;
+    
+    // Не можна підтверджувати свої бейджі
+    if (currentUserId == userId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не можна підтверджувати свої бейджі')),
+      );
+      return;
+    }
+    
+    try {
+      final endorsementRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('badge_endorsements')
+          .doc(badge.id);
+      
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final endorsementDoc = await transaction.get(endorsementRef);
+        
+        List<String> endorsers = [];
+        if (endorsementDoc.exists) {
+          endorsers = List<String>.from(endorsementDoc.data()?['endorsers'] ?? []);
+        }
+        
+        if (endorsers.contains(currentUserId)) {
+          throw Exception('Ви вже підтвердили цей бейдж');
+        }
+        
+        endorsers.add(currentUserId);
+        
+        transaction.set(endorsementRef, {
+          'endorsers': endorsers,
+          'lastEndorsedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      });
+      
+      // Відправляємо нотифікацію власнику бейджу
+      final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserId).get();
+      final currentUserName = currentUserDoc.data()?['displayName'] ?? currentUserDoc.data()?['name'] ?? 'Користувач';
+      
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'userId': userId,
+        'type': 'badgeEndorsed',
+        'title': 'Підтвердження бейджу',
+        'message': '$currentUserName підтвердив ваш бейдж "${badge.name}"',
+        'data': {'badgeId': badge.id},
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Бейдж "${badge.name}" підтверджено!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      
+      // Оновлюємо UI
+      setState(() {});
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().contains('вже підтвердили') 
+              ? 'Ви вже підтвердили цей бейдж' 
+              : 'Помилка підтвердження'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
   }
 
   void _openFriends() {

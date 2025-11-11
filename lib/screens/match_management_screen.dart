@@ -390,23 +390,27 @@ Widget _buildTeamsTab() {
                         const Spacer(),
                         TextButton.icon(
                           onPressed: () async {
-                            // швидке перемішування поверх існуючих складів
-                            final ratings = _ratingsCache.isEmpty
-                                ? await _fetchRatings([...m.teamA!.playerIds, ...m.teamB!.playerIds])
-                                : _ratingsCache;
-                            setState(() {
-                                _ratingsCache = ratings;
-                                _editingTeamA = List<String>.from(m.teamA!.playerIds);
-                                _editingTeamB = List<String>.from(m.teamB!.playerIds);
-                                _autoDistributeEditingPlayers(ratings);
-                              });
+                            // Підтверджуємо перемішування
                             final ok = await _confirm('Перемішати команди?', 'Переформувати склади на основі рейтингу');
                             if (ok == true) {
-                              await _matchService.updateTeams(widget.match.id, _editingTeamA, _editingTeamB);
+                              // Завантажуємо рейтинги
+                              final ratings = _ratingsCache.isEmpty
+                                  ? await _fetchRatings([...m.teamA!.playerIds, ...m.teamB!.playerIds])
+                                  : _ratingsCache;
+                              
                               setState(() {
-                                _editingTeamA = [];
-                                _editingTeamB = [];
-                              });
+                                  _ratingsCache = ratings;
+                                  _editingTeamA = List<String>.from(m.teamA!.playerIds);
+                                  _editingTeamB = List<String>.from(m.teamB!.playerIds);
+                                  _autoDistributeEditingPlayers(ratings);
+                                });
+                              
+                              // Зберігаємо нові склади
+                              await _matchService.updateTeams(widget.match.id, _editingTeamA, _editingTeamB);
+                              
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Команди перемішано!'), backgroundColor: Color(0xFF4caf50)),
+                              );
                             }
                           },
                           icon: const Icon(Icons.shuffle, color: Colors.white),
@@ -707,10 +711,21 @@ void _autoDistributeEditingPlayers(Map<String, double> ratings) {
   _editingTeamA.clear();
   _editingTeamB.clear();
 
+  // Сортуємо гравців за рейтингом від найвищого до найнижчого
   all.sort((a, b) => (ratings[b] ?? 0.0).compareTo(ratings[a] ?? 0.0));
 
-  for (int i = 0; i < all.length; i++) {
-    (i % 2 == 0 ? _editingTeamA : _editingTeamB).add(all[i]);
+  // Балансуємо команди по сумі рейтингів
+  for (final playerId in all) {
+    final playerRating = ratings[playerId] ?? 0.0;
+    final teamARating = _editingTeamA.fold<double>(0.0, (sum, id) => sum + (ratings[id] ?? 0.0));
+    final teamBRating = _editingTeamB.fold<double>(0.0, (sum, id) => sum + (ratings[id] ?? 0.0));
+    
+    // Додаємо гравця до команди з меншим сумарним рейтингом
+    if (teamARating <= teamBRating) {
+      _editingTeamA.add(playerId);
+    } else {
+      _editingTeamB.add(playerId);
+    }
   }
 
   setState(() {});

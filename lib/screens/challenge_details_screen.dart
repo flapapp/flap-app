@@ -9,6 +9,7 @@ import 'video_upload_screen.dart';
 import 'video_player_screen.dart';
 import 'challenge_video_player_screen.dart';
 import '../services/rating_service.dart';
+import 'challenge_completion_screen.dart';
 
 class ChallengeDetailsScreen extends StatefulWidget {
   final Challenge challenge;
@@ -86,40 +87,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             const SizedBox(height: 16),
 
             // Action buttons - exactly like MVP
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _uploadVideo,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4caf50),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text('📤 Завантажити відео', style: TextStyle(fontWeight: FontWeight.w600)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _showChallengeVideos,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white.withOpacity(0.1),
-                      foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text('📹 Переглянути (${widget.challenge.submissions.length})', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  ),
-                ),
-              ],
-            ),
+            _buildActionButtons(),
             const SizedBox(height: 24),
 
             // Videos list (like MVP)
@@ -481,6 +449,74 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   }
 
   // Показати список учасників
+  Widget _buildActionButtons() {
+    final now = DateTime.now();
+    final isFinished = widget.challenge.endDate.isBefore(now);
+    
+    if (isFinished) {
+      // Показуємо кнопку результатів для завершених челенджів
+      return ElevatedButton.icon(
+        onPressed: _showResults,
+        icon: const Icon(Icons.emoji_events),
+        label: const Text('🏆 Результати', style: TextStyle(fontWeight: FontWeight.w600)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFFFD700),
+          foregroundColor: Colors.black,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          minimumSize: const Size(double.infinity, 48),
+        ),
+      );
+    }
+    
+    // Для активних челенджів - звичайні кнопки
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton(
+            onPressed: _uploadVideo,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4caf50),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('📤 Завантажити відео', style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: _showChallengeVideos,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white.withOpacity(0.1),
+              foregroundColor: Colors.white,
+              side: BorderSide(color: Colors.white.withOpacity(0.2)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text('📹 Переглянути (${widget.challenge.submissions.length})', style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showResults() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChallengeCompletionScreen(challengeId: widget.challenge.id),
+      ),
+    );
+  }
+
   void _showParticipants() {
     showModalBottomSheet(
       context: context,
