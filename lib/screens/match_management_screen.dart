@@ -30,10 +30,18 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
   // Редактор команд (Drag&Drop)
   bool _editMode = false;
   List<String> _editingTeamA = [];
-  List<String> _editingTeamB = [];
-  final Set<String> _locked = {};
-  bool _isSavingTeams = false;
-  Map<String, double> _ratingsCache = {};
+List<String> _editingTeamB = [];
+final Set<String> _locked = {};
+bool _isSavingTeams = false;
+Map<String, double> _ratingsCache = {};
+int _teamCount = 2;
+final List<Color> _teamColors = [
+  const Color(0xFF1976D2),
+  const Color(0xFF8E24AA),
+  const Color(0xFF43A047),
+  const Color(0xFFFF7043),
+];
+List<List<String>> _editingTeams = [[], []];
 
     // Кеш профілів користувачів (ім'я та аватар)
   final Map<String, Map<String, dynamic>> _userCache = {};

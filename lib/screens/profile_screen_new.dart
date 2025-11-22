@@ -93,7 +93,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       slivers: [
         // App bar with gradient
         SliverAppBar(
-          expandedHeight: 300,
+          expandedHeight: 420,
           floating: false,
           pinned: true,
           backgroundColor: const Color(0xFF0f0f23),
@@ -125,11 +125,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         SliverToBoxAdapter(
           child: Column(
             children: [
-              _buildStatsCards(userData),
-              _buildBadgesSection(),
-              _buildActionsMenu(),
-              const SizedBox(height: 20),
-            ],
+  _buildStatsCards(userData),
+  _buildBadgesSection(userData),
+  _buildActionsMenu(),
+  const SizedBox(height: 20),
+],
           ),
         ),
       ],
@@ -139,8 +139,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildProfileHeader(Map<String, dynamic> userData, String displayName, 
                            String? avatarUrl, double rating, int coins) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 80, 20, 20),
-      child: Column(
+  padding: const EdgeInsets.fromLTRB(20, 56, 20, 20),
+  child: Column(
         children: [
           // Avatar with glow effect
           Stack(
@@ -324,7 +324,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 6),
           
           // Win rate and recent matches
           FutureBuilder<Map<String, dynamic>>(
@@ -340,7 +340,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   // Win rate
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.05),
                       borderRadius: BorderRadius.circular(20),
@@ -362,7 +362,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   
                   // Recent matches (W/D/L)
                   Row(
@@ -370,17 +370,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: recentResults.map((result) {
                       Color color;
                       if (result == 'W') {
-                        color = const Color(0xFF4CAF50);
-                      } else if (result == 'D') {
-                        color = Colors.grey;
-                      } else {
-                        color = Colors.red;
-                      }
+  color = const Color(0xFF4CAF50);
+} else if (result == 'D') {
+  color = Colors.grey;
+} else if (result == 'L') {
+  color = Colors.red;
+} else {
+  color = Colors.grey; // плейсхолдер '-'
+}
                       
                       return Container(
                         margin: const EdgeInsets.symmetric(horizontal: 3),
-                        width: 32,
-                        height: 32,
+                        width: 28,
+                        height: 28,
                         decoration: BoxDecoration(
                           color: color.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(6),
@@ -489,8 +491,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildBadgesSection() {
-    return Padding(
+  Widget _buildBadgesSection(Map<String, dynamic> userData) {
+  final String userId = userData['uid'] ?? _auth.currentUser?.uid ?? '';
+  return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -553,12 +556,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 itemBuilder: (context, index) {
                   final badge = _userBadges[index];
                   return FutureBuilder<int>(
-                    future: _getBadgeEndorsementCount(userData['uid'] ?? _auth.currentUser?.uid ?? '', badge.id),
+                    future: _getBadgeEndorsementCount(userId, badge.id),
                     builder: (context, endorsementSnapshot) {
                       final endorsementCount = endorsementSnapshot.data ?? 0;
                       
                       return GestureDetector(
-                        onTap: () => _endorseBadge(userData['uid'] ?? _auth.currentUser?.uid ?? '', badge),
+                        onTap: () => _endorseBadge(userId, badge),
                         child: Container(
                           margin: const EdgeInsets.only(right: 12),
                           width: 80,
@@ -764,81 +767,123 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<Map<String, dynamic>> _loadMatchStats(String userId) async {
+  try {
+    // Базовий запит + безпечні fallback-и (щоб не впиратись у композитний індекс)
+    final base = FirebaseFirestore.instance
+        .collection('matches')
+        .where('participants', arrayContains: userId);
+
+    QuerySnapshot<Map<String, dynamic>> matchesSnapshot;
+
     try {
-      // Завантажуємо всі завершені матчі користувача
-      final matchesSnapshot = await FirebaseFirestore.instance
-          .collection('matches')
-          .where('participants', arrayContains: userId)
+      matchesSnapshot = await base
           .where('status', isEqualTo: 'finished')
           .orderBy('updatedAt', descending: true)
           .limit(20)
           .get();
-      
-      int wins = 0;
-      int draws = 0;
-      int losses = 0;
-      final List<String> recentResults = [];
-      
-      for (final doc in matchesSnapshot.docs) {
-        final data = doc.data();
-        final score = data['score'] as String?;
-        
-        if (score == null || !score.contains(':')) continue;
-        
-        final parts = score.split(':');
-        if (parts.length != 2) continue;
-        
-        final score1 = int.tryParse(parts[0].trim()) ?? 0;
-        final score2 = int.tryParse(parts[1].trim()) ?? 0;
-        
-        // Визначаємо команду користувача
-        final teamA = List<String>.from(data['teamA'] ?? []);
-        final teamB = List<String>.from(data['teamB'] ?? []);
-        final isTeamA = teamA.contains(userId);
-        
-        String result;
-        if (score1 == score2) {
-          draws++;
-          result = 'D';
-        } else if ((isTeamA && score1 > score2) || (!isTeamA && score2 > score1)) {
-          wins++;
-          result = 'W';
-        } else {
-          losses++;
-          result = 'L';
-        }
-        
-        if (recentResults.length < 5) {
-          recentResults.add(result);
-        }
+    } catch (_) {
+      try {
+        matchesSnapshot = await base
+            .where('status', isEqualTo: 'finished')
+            .limit(20)
+            .get();
+      } catch (_) {
+        matchesSnapshot = await base
+            .limit(20)
+            .get();
       }
-      
-      final totalMatches = wins + draws + losses;
-      final winRate = totalMatches > 0 ? (wins / totalMatches) * 100 : 0.0;
-      
-      // Додаємо пусті слоти якщо матчів менше 5
-      while (recentResults.length < 5) {
-        recentResults.add('-');
-      }
-      
-      return {
-        'winRate': winRate,
-        'recentResults': recentResults,
-        'wins': wins,
-        'draws': draws,
-        'losses': losses,
-      };
-    } catch (e) {
-      print('Error loading match stats: $e');
-      return {
-        'winRate': 0.0,
-        'recentResults': ['-', '-', '-', '-', '-'],
-        'wins': 0,
-        'draws': 0,
-        'losses': 0,
-      };
     }
+
+    int wins = 0;
+    int draws = 0;
+    int losses = 0;
+    final List<String> recentResults = [];
+
+    for (final doc in matchesSnapshot.docs) {
+      final data = doc.data();
+
+      // 1) Зчитуємо рахунок із числових полів, інакше з текстового result
+      final int? score1Opt = data['teamAScore'] as int?;
+      final int? score2Opt = data['teamBScore'] as int?;
+      int score1 = score1Opt ?? 0;
+      int score2 = score2Opt ?? 0;
+
+      if (score1Opt == null || score2Opt == null) {
+        final String resultStr = (data['result'] as String?) ?? '';
+        if (resultStr == 'teamAWins') {
+          score1 = 1; score2 = 0;
+        } else if (resultStr == 'teamBWins') {
+          score1 = 0; score2 = 1;
+        } else if (resultStr == 'draw') {
+          score1 = 0; score2 = 0;
+        } else {
+          // немає жодної інформації про результат — пропускаємо
+          continue;
+        }
+      }
+
+      // 2) Визначаємо, у якій команді був користувач
+      final List<String> teamAPlayers =
+          List<String>.from((data['teamA']?['playerIds'] ?? const []));
+      final List<String> teamBPlayers =
+          List<String>.from((data['teamB']?['playerIds'] ?? const []));
+      bool isTeamA = teamAPlayers.contains(userId);
+
+      // Fallback: якщо команд немає, але є учасники — вважаємо, що перша половина = А
+      if (!isTeamA && teamBPlayers.isEmpty && teamAPlayers.isEmpty) {
+        final List<String> participants =
+            List<String>.from(data['participants'] ?? const []);
+        if (participants.isNotEmpty) {
+          final half = (participants.length / 2).ceil();
+          final a = participants.take(half).toList();
+          isTeamA = a.contains(userId);
+        }
+      }
+
+      // 3) Рахуємо W/D/L
+      String playedResult;
+      if (score1 == score2) {
+        draws++;
+        playedResult = 'D';
+      } else if ((isTeamA && score1 > score2) || (!isTeamA && score2 > score1)) {
+        wins++;
+        playedResult = 'W';
+      } else {
+        losses++;
+        playedResult = 'L';
+      }
+
+      if (recentResults.length < 5) {
+        recentResults.add(playedResult);
+      }
+    }
+
+    final total = wins + draws + losses;
+    final winRate = total > 0 ? (wins / total) * 100 : 0.0;
+
+    // Доповнюємо до 5 елементів плейсхолдерами
+    while (recentResults.length < 5) {
+      recentResults.add('-');
+    }
+
+    return {
+      'winRate': winRate,
+      'recentResults': recentResults,
+      'wins': wins,
+      'draws': draws,
+      'losses': losses,
+    };
+  } catch (e) {
+    print('Error loading match stats: $e');
+    return {
+      'winRate': 0.0,
+      'recentResults': ['-', '-', '-', '-', '-'],
+      'wins': 0,
+      'draws': 0,
+      'losses': 0,
+    };
   }
+}
 
   void _editProfile() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1002,10 +1047,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
-        title: const Text(
-          I18n.t('logout_confirm'),
-          style: TextStyle(color: Colors.white),
-        ),
+        title: Text(
+  I18n.t('logout_confirm'),
+  style: TextStyle(color: Colors.white),
+),
         content: const Text(
           'Ви впевнені, що хочете вийти?',
           style: TextStyle(color: Colors.white70),

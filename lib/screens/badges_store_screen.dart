@@ -182,7 +182,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 0.70,
+        childAspectRatio: 0.68,
       ),
       itemCount: badges.length,
       itemBuilder: (context, index) {
@@ -250,7 +250,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                   if (isOwned) ...[
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: const Color(0xFF4caf50),
                         borderRadius: BorderRadius.circular(12),
@@ -259,7 +259,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                         'МАЄТЕ',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 10,
+                          fontSize: 9,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -355,7 +355,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
               ] else ...[
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4caf50).withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
@@ -365,7 +365,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                     '✓ КУПЛЕНО',
                     style: TextStyle(
                       color: Color(0xFF4caf50),
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
                     textAlign: TextAlign.center,

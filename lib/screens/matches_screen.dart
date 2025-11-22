@@ -91,7 +91,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   final NotificationService _notificationService = NotificationService();
   // Стан фільтрів рейтингів (замість ValueNotifier використовуємо звичайний state)
   String _ratingsSelectedCity = I18n.t('all_cities');
-  String _ratingsSelectedPosition = I18n.t('all_positions');
+  String _ratingsSelectedPosition = 'Всі позиції';
   Future<List<Map<String, dynamic>>>? _ratingsTopPlayersFuture;
 
   @override
@@ -1291,19 +1291,19 @@ Widget _buildRatingsTab() {
     }
   }
 
-  // Побудова вузького дропдауна без підпису
     // Побудова вузького дропдауна без підпису
-  Widget narrowDropdown({
-    required String value,
-    required List<String> options,
-    required ValueChanged<String?> onChanged,
-    Key? key,
-  }) {
-    return SizedBox(
-      width: 160,
-      child: DropdownButtonFormField<String>(
-        key: key,
-        value: value,
+     Widget narrowDropdown({
+     required String value,
+     required List<String> options,
+     required ValueChanged<String?> onChanged,
+     Key? key,
+   }) {
+     final String safeValue = options.contains(value) ? value : (options.isNotEmpty ? options.first : '');
+     return SizedBox(
+       width: 160,
+       child: DropdownButtonFormField<String>(
+         key: key,
+         value: options.isNotEmpty ? safeValue : null,
         items: options
             .map((v) => DropdownMenuItem<String>(
                   value: v,

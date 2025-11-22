@@ -34,7 +34,7 @@ import 'services/badge_service.dart';
 import 'screens/match_management_screen.dart';
 import 'utils/i18n.dart';
 import 'utils/app_navigator.dart';
-
+import 'screens/profile_screen_new.dart' as new_profile;
 
 
 @pragma('vm:entry-point')
@@ -126,7 +126,7 @@ class MyApp extends StatelessWidget {
         '/': (context) => const WelcomeScreen(),
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
-        '/profile': (context) => ProfileScreen(),
+        '/profile': (context) => new_profile.ProfileScreen(),
         '/profile-creation': (context) => ProfileCreationScreen(),
         '/profile-edit': (context) => ProfileCreationScreen(isEditing: true),
         '/mode': (context) => ModeSelectionScreen(),

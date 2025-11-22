@@ -10,6 +10,8 @@ import '../services/friends_service.dart';
 import 'video_player_screen.dart';
 import '../services/notification_service.dart';
 import '../utils/i18n.dart';
+import '../services/badge_service.dart';
+import '../models/badge.dart' as app_badge;
 
 class PlayerProfileScreen extends StatefulWidget {
   final String playerId;
@@ -26,6 +28,7 @@ class PlayerProfileScreen extends StatefulWidget {
 }
 
 class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   Map<String, dynamic>? playerData;
   List<Map<String, dynamic>> playerVideos = [];
   bool isLoading = true;
@@ -38,7 +41,12 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   final NotificationService _notificationService = NotificationService();
   List<String> _myVideoIds = [];
   bool _loadingMyVideos = false;
-
+  final BadgeService _badgeService = BadgeService();
+  double _winRate = 0.0;
+  List<String> _recentResults = const ['-', '-', '-', '-', '-'];
+  List<String> _userBadgeIds = [];
+  List<app_badge.Badge> _userBadges = [];
+  int _badgeEndorseVersion = 0;
   // Опції як у реєстрації
   final List<String> _positions = ['Воротар', 'Захисник', 'Півзахисник', 'Нападник', 'Універсал'];
   final List<String> _experiences = ['Початківець', 'Аматор', 'Досвідчений', 'Професіонал'];
@@ -60,6 +68,19 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       if (userDoc.exists) {
         playerData = userDoc.data();
       }
+      // Win Rate + останні 5 результатів
+      final stats = await _loadMatchStats(widget.playerId);
+      _winRate = stats['winRate'] as double? ?? 0.0;
+      _recentResults = List<String>.from(
+        stats['recentResults'] ?? const ['-', '-', '-', '-', '-'],
+      );
+
+            // Бейджі гравця
+      try {
+        final badgeObjects = await _badgeService.getUserBadgeObjects(widget.playerId);
+        _userBadges = badgeObjects;
+        _userBadgeIds = badgeObjects.map((b) => b.id).toList();
+      } catch (_) {}
 
       // Завантажити відео гравця (simplified query to avoid index issues)
       final videosQuery = await FirebaseFirestore.instance
@@ -92,6 +113,77 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       });
     }
   }
+
+  Future<Map<String, dynamic>> _loadMatchStats(String userId) async {
+  try {
+    final base = FirebaseFirestore.instance
+        .collection('matches')
+        .where('participants', arrayContains: userId);
+
+    QuerySnapshot<Map<String, dynamic>> snap;
+    try {
+      snap = await base
+          .where('status', isEqualTo: 'finished')
+          .orderBy('updatedAt', descending: true)
+          .limit(20)
+          .get();
+    } catch (_) {
+      try {
+        snap = await base
+            .where('status', isEqualTo: 'finished')
+            .limit(20)
+            .get();
+      } catch (_) {
+        snap = await base.limit(20).get();
+      }
+    }
+
+    int wins = 0, draws = 0, losses = 0;
+    final List<String> recent = [];
+
+    for (final d in snap.docs) {
+      final data = d.data();
+
+      int? aOpt = data['teamAScore'] as int?;
+      int? bOpt = data['teamBScore'] as int?;
+      int a = aOpt ?? 0, b = bOpt ?? 0;
+
+      if (aOpt == null || bOpt == null) {
+        final r = (data['result'] ?? '').toString();
+        if (r == 'teamAWins') { a = 1; b = 0; }
+        else if (r == 'teamBWins') { a = 0; b = 1; }
+        else if (r == 'draw') { a = 0; b = 0; }
+        else { continue; }
+      }
+
+      final teamA = List<String>.from((data['teamA']?['playerIds'] ?? const []));
+      final teamB = List<String>.from((data['teamB']?['playerIds'] ?? const []));
+      bool isA = teamA.contains(userId);
+      if (!isA && teamA.isEmpty && teamB.isEmpty) {
+        final parts = List<String>.from(data['participants'] ?? const []);
+        if (parts.isNotEmpty) {
+          final half = (parts.length / 2).ceil();
+          isA = parts.take(half).contains(userId);
+        }
+      }
+
+      String res;
+      if (a == b) { draws++; res = 'D'; }
+      else if ((isA && a > b) || (!isA && b > a)) { wins++; res = 'W'; }
+      else { losses++; res = 'L'; }
+
+      if (recent.length < 5) recent.add(res);
+    }
+
+    final total = wins + draws + losses;
+    final rate = total > 0 ? (wins / total) * 100 : 0.0;
+    while (recent.length < 5) recent.add('-');
+
+    return {'winRate': rate, 'recentResults': recent};
+  } catch (_) {
+    return {'winRate': 0.0, 'recentResults': const ['-', '-', '-', '-', '-']};
+  }
+}
 
   Future<void> _loadMyVideosForRequest() async {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -176,8 +268,8 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                     itemCount: videos.length,
                     itemBuilder: (context, index) {
                       final v = videos[index];
-                      final id = v['id'] as String;
-                      final title = (v['title'] ?? 'Відео') as String;
+                      final id = (v['id'] ?? '').toString();
+                      final title = (v['title'] ?? 'Відео').toString();
                       final isSel = selected.contains(id);
                       return CheckboxListTile(
                         value: isSel,
@@ -298,8 +390,8 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
     final phoneCtrl = TextEditingController(text: (data['phone'] ?? '').toString());
     final cityCtrl = TextEditingController(text: (data['city'] ?? '').toString());
     final ageCtrl = TextEditingController(text: (data['age'] ?? '').toString());
-    String? selectedPosition = (data['position'] as String?)?.trim().isNotEmpty == true ? (data['position'] as String) : null;
-    String? selectedExperience = (data['experience'] as String?)?.trim().isNotEmpty == true ? (data['experience'] as String) : null;
+    String? selectedPosition = (data['position']?.toString().trim().isNotEmpty == true) ? data['position'].toString() : null;
+    String? selectedExperience = (data['experience']?.toString().trim().isNotEmpty == true) ? data['experience'].toString() : null;
     final avatarUrlCtrl = TextEditingController(text: (data['avatarUrl'] ?? '').toString());
     final formKey = GlobalKey<FormState>();
     bool saving = false;
@@ -631,6 +723,51 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
             ]),
             const SizedBox(height: 20),
 
+            // Win Rate + останні 5
+Container(
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+  decoration: BoxDecoration(
+    color: Colors.white.withOpacity(0.06),
+    borderRadius: BorderRadius.circular(12),
+  ),
+  child: Column(
+    children: [
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.percent, color: Colors.white70, size: 16),
+          const SizedBox(width: 6),
+          Text('Win Rate: ${_winRate.toStringAsFixed(0)}%',
+              style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+        ],
+      ),
+      const SizedBox(height: 8),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: _recentResults.map((r) {
+          Color c;
+          if (r == 'W') c = const Color(0xFF4CAF50);
+          else if (r == 'D') c = Colors.grey;
+          else if (r == 'L') c = Colors.red;
+          else c = Colors.grey;
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            width: 28, height: 28,
+            decoration: BoxDecoration(
+              color: c.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: c, width: 1.5),
+            ),
+            child: Center(child: Text(r, style: TextStyle(color: c, fontWeight: FontWeight.bold))),
+          );
+        }).toList(),
+      ),
+    ],
+  ),
+),
+const SizedBox(height: 12),
+
             // Кнопки (приховані на власному профілі)
             Builder(
               builder: (context) {
@@ -699,6 +836,132 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
               },
             ),
 
+            // Бейджі
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Бейджі', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  if (_userBadges.isEmpty)
+                    const Text('Бейджів поки немає', style: TextStyle(color: Colors.white54))
+                  else
+                    SizedBox(
+                      height: 82,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _userBadges.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (ctx, i) {
+                          final badge = _userBadges[i];
+                          final catColor = Color(badge.categoryColor);
+                          return GestureDetector(
+                            onTap: () => _endorseBadge(widget.playerId, badge),
+                            child: Container(
+                              width: 160,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: catColor.withOpacity(0.2),
+                                      border: Border.all(color: catColor.withOpacity(0.5), width: 1.5),
+                                    ),
+                                    child: Center(child: Text(badge.emoji, style: const TextStyle(fontSize: 24))),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          badge.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: catColor.withOpacity(0.18),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: catColor.withOpacity(0.45)),
+                                          ),
+                                          child: Text(
+                                            badge.rarityText,
+                                            style: TextStyle(color: catColor, fontSize: 9, fontWeight: FontWeight.w600),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        FutureBuilder<Map<String, dynamic>>(
+                                          key: ValueKey('endorse-${badge.id}-$_badgeEndorseVersion'),
+                                          future: _getBadgeEndorsementInfo(widget.playerId, badge.id),
+                                          builder: (context, snapshot) {
+                                            final count = snapshot.data?['count'] as int? ?? 0;
+                                            final endorsed = snapshot.data?['endorsed'] as bool? ?? false;
+                                            return Row(
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                                                  decoration: BoxDecoration(
+                                                    color: endorsed ? catColor.withOpacity(0.25) : Colors.white.withOpacity(0.12),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(color: endorsed ? catColor : Colors.white24),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(Icons.thumb_up, size: 11, color: endorsed ? catColor : Colors.white70),
+                                                      const SizedBox(width: 3),
+                                                      Text(
+                                                        count.toString(),
+                                                        style: TextStyle(
+                                                          color: endorsed ? catColor : Colors.white,
+                                                          fontWeight: FontWeight.w600,
+                                                          fontSize: 10,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                if (endorsed) ...[
+                                                  const SizedBox(width: 3),
+                                                  const Icon(Icons.check_circle, color: Colors.greenAccent, size: 13),
+                                                ],
+                                              ],
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
             const SizedBox(height: 12),
 
             // Відео гравця
@@ -715,9 +978,9 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
                   itemCount: playerVideos.length,
                   itemBuilder: (context, index) {
                     final v = playerVideos[index];
-                    final thumb = (v['thumbnailUrl'] ?? '') as String;
-                    final vUrl = (v['videoUrl'] ?? '') as String;
-                    final title = (v['title'] ?? 'Відео') as String;
+                    final thumb = (v['thumbnailUrl'] ?? '').toString();
+                    final vUrl = (v['videoUrl'] ?? '').toString();
+                    final title = (v['title'] ?? 'Відео').toString();
                     return GestureDetector(
                       onTap: () {
                         if (vUrl.isEmpty) return;
@@ -728,7 +991,7 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
                               videoUrl: vUrl,
                               title: title,
                               authorName: displayName,
-                              videoId: (v['id'] ?? '') as String,
+                              videoId: (v['id'] ?? '').toString(),
                             ),
                           ),
                         );
@@ -923,10 +1186,10 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
                           final selected = all[selectedIndex];
                           final ok = await _notificationService.sendChallengeInvitation(
                             toUserId: widget.playerId,
-                            challengeId: selected['id'] as String,
-                            challengeTitle: (selected['title'] ?? 'Челендж') as String,
-                            creatorName: (playerData?['displayName'] ?? 'Користувач') as String,
-                            challengeType: (selected['type'] ?? 'technical') as String,
+                            challengeId: (selected['id'] ?? '').toString(),
+                            challengeTitle: (selected['title'] ?? 'Челендж').toString(),
+                            creatorName: (playerData?['displayName'] ?? 'Користувач').toString(),
+                            challengeType: (selected['type'] ?? 'technical').toString(),
                           );
                           if (!mounted) return;
                           Navigator.pop(context, true);
@@ -973,5 +1236,99 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
       ),
       validator: requiredField ? (v) => (v == null || v.trim().isEmpty) ? 'Обов’язкове поле' : null : null,
     );
+  }
+
+  Future<Map<String, dynamic>> _getBadgeEndorsementInfo(String userId, String badgeId) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('badge_endorsements')
+          .doc(badgeId)
+          .get();
+      final currentUid = _auth.currentUser?.uid;
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        final endorsers = List<String>.from(data['endorsers'] ?? []);
+        final endorsed = currentUid != null && endorsers.contains(currentUid);
+        return {'count': endorsers.length, 'endorsed': endorsed};
+      }
+      return {'count': 0, 'endorsed': false};
+    } catch (_) {
+      return {'count': 0, 'endorsed': false};
+    }
+  }
+
+  Future<void> _endorseBadge(String ownerId, app_badge.Badge badge) async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Увійдіть, щоб підтверджувати бейджі')),
+      );
+      return;
+    }
+    if (currentUserId == ownerId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не можна підтверджувати власні бейджі')),
+      );
+      return;
+    }
+
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(ownerId)
+        .collection('badge_endorsements')
+        .doc(badge.id);
+
+    try {
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        List<String> endorsers = [];
+        if (snap.exists) {
+          endorsers = List<String>.from(snap.data()?['endorsers'] ?? []);
+        }
+        if (endorsers.contains(currentUserId)) {
+          throw Exception('already-endorsed');
+        }
+        endorsers.add(currentUserId);
+        tx.set(
+          ref,
+          {
+            'endorsers': endorsers,
+            'lastEndorsedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      });
+
+      final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserId).get();
+      final currentName = currentUserDoc.data()?['displayName'] ?? currentUserDoc.data()?['name'] ?? 'Користувач';
+
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'userId': ownerId,
+        'type': 'badgeEndorsed',
+        'title': 'Підтвердження бейджу',
+        'message': '$currentName підтвердив ваш бейдж "${badge.name}"',
+        'data': {'badgeId': badge.id},
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('✅ Ви підтвердили бейдж "${badge.name}"')),
+      );
+      setState(() {
+        _badgeEndorseVersion++;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      final message = e.toString().contains('already-endorsed')
+          ? 'Ви вже підтвердили цей бейдж'
+          : 'Помилка підтвердження';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
   }
 }

@@ -447,8 +447,8 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final double maxWidth = constraints.maxWidth;
-                    // На вузьких екранах елементи переносяться на новий рядок
-                    final double itemWidth = (maxWidth - 10 - 10) / 3; // з урахуванням відступів
+                    final int columns = maxWidth >= 900 ? 3 : maxWidth >= 600 ? 2 : 1;
+                    final double itemWidth = (maxWidth - 10 * (columns - 1)) / columns;
 
                     return Wrap(
                       spacing: 10,
@@ -954,15 +954,20 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: [
-              Icon(icon, color: Colors.white, size: 16),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-            ],
-          ),
+  children: [
+    Icon(icon, color: Colors.white, size: 16),
+    const SizedBox(width: 8),
+    Expanded(
+      child: Text(
+        label,
+        style: const TextStyle(color: Colors.white70, fontSize: 14),
+        maxLines: 2,
+        softWrap: true,
+        overflow: TextOverflow.ellipsis,
+      ),
+    ),
+  ],
+),
           const SizedBox(height: 8),
           DropdownButtonFormField<int>(
             value: value,
