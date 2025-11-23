@@ -206,6 +206,245 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
+  // Окремий метод для модального вікна з повноширінними прев'ю
+  Widget _buildVideosListForModal() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(widget.challenge.id)
+          .collection('submissions')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.videocam_off, size: 64, color: Colors.white54),
+                const SizedBox(height: 12),
+                Text(
+                  I18n.inline('Поки що немає відео', 'No videos yet'),
+                  style: const TextStyle(color: Colors.white54, fontSize: 16),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final videos = snapshot.data!.docs;
+        
+        // Сортуємо клієнтською стороною: відео створювача першим
+        final sortedVideos = videos.toList()
+          ..sort((a, b) {
+            final aData = a.data() as Map<String, dynamic>;
+            final bData = b.data() as Map<String, dynamic>;
+            final aIsCreator = aData['isCreatorVideo'] ?? false;
+            final bIsCreator = bData['isCreatorVideo'] ?? false;
+            
+            if (aIsCreator && !bIsCreator) return -1;
+            if (!aIsCreator && bIsCreator) return 1;
+            return 0;
+          });
+        
+        return Column(
+          children: sortedVideos.map((doc) => _buildModalVideoCard(doc)).toList(),
+        );
+      },
+    );
+  }
+
+  // Відео картка для модального вікна з повноширінним прев'ю
+  Widget _buildModalVideoCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final videoId = doc.id;
+    final title = data['title'] ?? I18n.inline('Без назви', 'Untitled');
+    final userId = data['userId'] ?? '';
+    final videoUrl = data['videoUrl'] ?? '';
+    final isCreatorVideo = data['isCreatorVideo'] ?? false;
+    final rating = (data['averageRating'] ?? 0.0).toDouble();
+    final likesCount = data['voteCount'] ?? 0;
+    String thumb = (data['thumbnailUrl'] ?? '') as String;
+    final videoDocId = data['videoId'] ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Прев'ю відео - займає весь простір (як на YouTube)
+          FutureBuilder<String?>(
+            future: _getThumbnailUrl(thumb, videoDocId, videoUrl),
+            builder: (context, snapshot) {
+              final effectiveThumb = snapshot.data ?? thumb;
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ChallengeVideoPlayerScreen(
+                        videoUrl: videoUrl,
+                        title: title,
+                        authorName: 'Автор відео',
+                        challengeId: widget.challenge.id,
+                        submissionId: videoId,
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.black87,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9, // YouTube aspect ratio
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          kIsWeb
+                              ? _WebVideoPreview(url: videoUrl, placeholder: _previewPlaceholder(title))
+                              : ((effectiveThumb.isNotEmpty)
+                                  ? Image.network(
+                                      effectiveThumb,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stack) => _previewPlaceholder(title),
+                                    )
+                                  : _previewPlaceholder(title)),
+                          Center(
+                            child: Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.7),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow,
+                                color: Colors.white,
+                                size: 36,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          
+          // Інформація про відео
+          Row(
+            children: [
+              FutureBuilder<DocumentSnapshot>(
+                future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+                builder: (context, userSnapshot) {
+                  if (!userSnapshot.hasData) {
+                    return const CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Color(0xFF4caf50),
+                      child: Icon(Icons.person, color: Colors.white, size: 20),
+                    );
+                  }
+                  
+                  final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
+                  final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
+                  final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? I18n.inline('Користувач', 'User');
+                  
+                  return CircleAvatar(
+                    radius: 20,
+                    backgroundColor: const Color(0xFF4caf50),
+                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                    child: avatarUrl.isEmpty ? Text(
+                      userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                    ) : null,
+                  );
+                },
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isCreatorVideo)
+                          Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4caf50),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              I18n.inline('АВТОР', 'CREATOR'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        _buildStars(rating),
+                        const SizedBox(width: 6),
+                        Text(
+                          rating.toStringAsFixed(2),
+                          style: const TextStyle(
+                            color: Color(0xFF66bb6a),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          I18n.inline(' (${likesCount} оцінок)', ' (${likesCount} votes)'),
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.5),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildVideoCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final videoId = doc.id;
@@ -362,7 +601,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           ),
           const SizedBox(height: 8),
 
-          // Voting section - exactly like MVP
+          // Voting section - exactly like MVP (video preview comes first, then voting controls)
           FutureBuilder<String?>(
             future: _getThumbnailUrl(thumb, videoDocId, videoUrl),
             builder: (context, snapshot) {
@@ -754,7 +993,6 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                   }
                 },
                 child: Container(
-                  height: 120,
                   width: double.infinity,
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
@@ -762,38 +1000,42 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.white.withOpacity(0.2)),
                   ),
-                  child: Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: kIsWeb
-                            ? _WebVideoPreview(url: videoUrl, placeholder: _previewPlaceholder(title))
-                            : ((thumbnailUrl != null && thumbnailUrl.isNotEmpty)
-                                ? Image.network(
-                                    thumbnailUrl,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stack) => _previewPlaceholder(title),
-                                  )
-                                : _previewPlaceholder(title)),
-                      ),
-                      Center(
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(25),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9, // YouTube aspect ratio - займає весь простір
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          kIsWeb
+                              ? _WebVideoPreview(url: videoUrl, placeholder: _previewPlaceholder(title))
+                              : ((thumbnailUrl != null && thumbnailUrl.isNotEmpty)
+                                  ? Image.network(
+                                      thumbnailUrl,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stack) => _previewPlaceholder(title),
+                                    )
+                                  : _previewPlaceholder(title)),
+                          Center(
+                            child: Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.7),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow,
+                                color: Colors.white,
+                                size: 36,
+                              ),
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.play_arrow,
-                            color: Colors.white,
-                            size: 30,
-                          ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -1127,7 +1369,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildVideosList(),
+                child: _buildVideosListForModal(),
               ),
             ),
           ],

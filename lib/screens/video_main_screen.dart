@@ -529,6 +529,15 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         final docs = snapshot.data!.docs.where((d) {
           final data = d.data() as Map<String, dynamic>;
           
+          // Виключаємо відео з челенджів
+          final title = (data['title'] ?? '').toString();
+          final description = (data['description'] ?? '').toString();
+          if (title == 'Відео створювача' || 
+              title == 'Відео челенджу' ||
+              description == 'Відео челенджу') {
+            return false; // Виключаємо відео з челенджів
+          }
+          
           // Фільтр рейтингу
           if (_selectedRating.isNotEmpty) {
             final minRating = double.parse(_selectedRating.replaceAll('+', ''));

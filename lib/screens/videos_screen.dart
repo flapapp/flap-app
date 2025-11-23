@@ -201,6 +201,16 @@ class _VideosScreenState extends State<VideosScreen> {
                 // Клієнтська фільтрація для стабільності без індексів
                 var docs = allDocs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
+                  
+                  // Виключаємо відео з челенджів
+                  final title = (data['title'] ?? '').toString();
+                  final description = (data['description'] ?? '').toString();
+                  if (title == 'Відео створювача' || 
+                      title == 'Відео челенджу' ||
+                      description == 'Відео челенджу') {
+                    return false; // Виключаємо відео з челенджів
+                  }
+                  
                   if ((_selectedTab == 'my' || widget.showOnlyMyVideos) && currentUser != null) {
                     if ((data['userId'] ?? '') != currentUser.uid) return false;
                   }
