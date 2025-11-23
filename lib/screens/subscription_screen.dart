@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/subscription.dart';
 import '../services/subscription_service.dart';
+import '../utils/i18n.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   @override
@@ -43,9 +44,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0f0f23),
         elevation: 0,
-        title: const Text(
-          'Підписки',
-          style: TextStyle(
+        title: Text(
+          I18n.inline('Підписки', 'Subscriptions'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w600,
           ),
@@ -71,9 +72,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ],
                   
                   // Available plans
-                  const Text(
-                    'Доступні плани',
-                    style: TextStyle(
+                  Text(
+                    I18n.inline('Доступні плани', 'Available plans'),
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -177,19 +178,22 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isInTrial ? 'Пробний період' : 'Поточна підписка',
+                      isInTrial ? I18n.inline('Пробний період', 'Trial period') : I18n.inline('Поточна підписка', 'Current subscription'),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    Text(
-                      subscription.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                    ValueListenableBuilder<String>(
+                      valueListenable: I18n.language,
+                      builder: (context, _, __) => Text(
+                        subscription.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -202,7 +206,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  isActive ? 'АКТИВНА' : 'НЕАКТИВНА',
+                  isActive ? I18n.inline('АКТИВНА', 'ACTIVE') : I18n.inline('НЕАКТИВНА', 'INACTIVE'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -221,7 +225,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 const Icon(Icons.schedule, color: Colors.white, size: 16),
                 const SizedBox(width: 6),
                 Text(
-                  'Залишилось: ${subscription.daysLeft} днів',
+                  I18n.inline('Залишилось: ${subscription.daysLeft} днів', 'Days left: ${subscription.daysLeft}'),
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                 ),
               ],
@@ -229,11 +233,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             const SizedBox(height: 8),
           ],
           
-          Text(
-            subscription.description,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
+          ValueListenableBuilder<String>(
+            valueListenable: I18n.language,
+            builder: (context, _, __) => Text(
+              subscription.description,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+              ),
             ),
           ),
           
@@ -249,7 +256,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: Colors.white),
                     ),
-                    child: const Text('Скасувати підписку'),
+                    child: Text(I18n.inline('Скасувати підписку', 'Cancel subscription')),
                   ),
                 ),
               ],
@@ -313,19 +320,25 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      subscription.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                    ValueListenableBuilder<String>(
+                      valueListenable: I18n.language,
+                      builder: (context, _, __) => Text(
+                        subscription.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    Text(
-                      subscription.description,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
+                    ValueListenableBuilder<String>(
+                      valueListenable: I18n.language,
+                      builder: (context, _, __) => Text(
+                        subscription.description,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ],
@@ -343,9 +356,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const Text(
-                      'на місяць',
-                      style: TextStyle(
+                    Text(
+                      I18n.inline('на місяць', 'per month'),
+                      style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
                       ),
@@ -360,9 +373,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFF4caf50)),
                   ),
-                  child: const Text(
-                    'БЕЗКОШТОВНО',
-                    style: TextStyle(
+                  child: Text(
+                    I18n.inline('БЕЗКОШТОВНО', 'FREE'),
+                    style: const TextStyle(
                       color: Color(0xFF4caf50),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -388,11 +401,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      feature,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
+                    child: ValueListenableBuilder<String>(
+                      valueListenable: I18n.language,
+                      builder: (context, _, __) => Text(
+                        feature,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ),
@@ -413,9 +429,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFF4caf50)),
               ),
-              child: const Text(
-                'ПОТОЧНИЙ ПЛАН',
-                style: TextStyle(
+              child: Text(
+                I18n.inline('ПОТОЧНИЙ ПЛАН', 'CURRENT PLAN'),
+                style: const TextStyle(
                   color: Color(0xFF4caf50),
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -439,9 +455,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text(
-                      'СПРОБУВАТИ 30 ДНІВ БЕЗКОШТОВНО',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    child: Text(
+                      I18n.inline('СПРОБУВАТИ 30 ДНІВ БЕЗКОШТОВНО', 'TRY 30 DAYS FREE'),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -458,9 +474,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text(
-                      'ПРИДБАТИ ЗАРАЗ',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    child: Text(
+                      I18n.inline('ПРИДБАТИ ЗАРАЗ', 'BUY NOW'),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -478,7 +494,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     child: Text(
-                      canUpgrade ? 'ОНОВИТИ ПЛАН' : 'ОБРАТИ ПЛАН',
+                      canUpgrade ? I18n.inline('ОНОВИТИ ПЛАН', 'UPGRADE PLAN') : I18n.inline('ОБРАТИ ПЛАН', 'CHOOSE PLAN'),
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -530,9 +546,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       await _loadCurrentSubscription();
       
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🎉 Пробний період Champions League активовано на 30 днів!'),
-          backgroundColor: Color(0xFF4caf50),
+        SnackBar(
+          content: Text(I18n.inline('🎉 Пробний період Champions League активовано на 30 днів!', '🎉 Champions League trial activated for 30 days!')),
+          backgroundColor: const Color(0xFF4caf50),
         ),
       );
     } catch (e) {
@@ -540,7 +556,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Помилка: ${e.toString()}'),
+          content: Text(I18n.inline('Помилка: ${e.toString()}', 'Error: ${e.toString()}')),
           backgroundColor: Colors.red,
         ),
       );
@@ -570,7 +586,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('🎉 Підписку ${subscription.name} успішно активовано!'),
+          content: ValueListenableBuilder<String>(
+            valueListenable: I18n.language,
+            builder: (context, _, __) => Text(I18n.inline('🎉 Підписку ${subscription.name} успішно активовано!', '🎉 ${subscription.name} subscription activated successfully!')),
+          ),
           backgroundColor: const Color(0xFF4caf50),
         ),
       );
@@ -579,7 +598,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Помилка: ${e.toString()}'),
+          content: Text(I18n.inline('Помилка: ${e.toString()}', 'Error: ${e.toString()}')),
           backgroundColor: Colors.red,
         ),
       );
@@ -591,23 +610,23 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
-        title: const Text(
-          'Скасувати підписку?',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          I18n.inline('Скасувати підписку?', 'Cancel subscription?'),
+          style: const TextStyle(color: Colors.white),
         ),
-        content: const Text(
-          'Ви впевнені, що хочете скасувати підписку? Ви втратите всі переваги преміум плану.',
-          style: TextStyle(color: Colors.white70),
+        content: Text(
+          I18n.inline('Ви впевнені, що хочете скасувати підписку? Ви втратите всі переваги преміум плану.', 'Are you sure you want to cancel the subscription? You will lose all premium plan benefits.'),
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Ні', style: TextStyle(color: Colors.white54)),
+            child: Text(I18n.inline('Ні', 'No'), style: const TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Так, скасувати', style: TextStyle(color: Colors.white)),
+            child: Text(I18n.inline('Так, скасувати', 'Yes, cancel'), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -630,9 +649,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         await _loadCurrentSubscription();
         
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Підписку успішно скасовано'),
-            backgroundColor: Color(0xFF4caf50),
+          SnackBar(
+            content: Text(I18n.inline('Підписку успішно скасовано', 'Subscription cancelled successfully')),
+            backgroundColor: const Color(0xFF4caf50),
           ),
         );
       } catch (e) {
@@ -640,7 +659,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Помилка: ${e.toString()}'),
+            content: Text(I18n.inline('Помилка: ${e.toString()}', 'Error: ${e.toString()}')),
             backgroundColor: Colors.red,
           ),
         );

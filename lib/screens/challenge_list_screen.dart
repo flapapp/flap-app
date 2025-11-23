@@ -4,6 +4,7 @@ import '../models/challenge.dart';
 import '../services/challenge_service.dart';
 import 'challenge_create_screen.dart';
 import 'challenge_details_screen.dart';
+import '../utils/i18n.dart';
 
 class ChallengeListScreen extends StatefulWidget {
   @override
@@ -33,13 +34,13 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     'positional'
   ];
 
-  final List<String> _cities = [
-    'Всі міста',
-    'Київ',
-    'Харків',
-    'Одеса',
-    'Дніпро',
-    'Львів',
+  List<String> get _cities => [
+    I18n.t('all_cities'),
+    I18n.t('kyiv'),
+    I18n.t('kharkiv'),
+    I18n.t('odesa'),
+    I18n.t('dnipro'),
+    I18n.t('lviv'),
   ];
 
   @override
@@ -49,9 +50,9 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          '🏆 Челенджі',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          I18n.inline('🏆 Челенджі', '🏆 Challenges'),
+          style: const TextStyle(color: Colors.white),
         ),
         actions: [
           IconButton(
@@ -77,7 +78,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         onPressed: () => _showCreateChallenge(),
         backgroundColor: const Color(0xFFFF9800),
         child: const Icon(Icons.add, color: Colors.white),
-        tooltip: 'Створити челендж',
+        tooltip: I18n.inline('Створити челендж', 'Create challenge'),
       ),
     );
   }
@@ -100,7 +101,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                 });
               },
               decoration: InputDecoration(
-                hintText: '🔍 Пошук челенджів...',
+                hintText: I18n.inline('🔍 Пошук челенджів...', '🔍 Search challenges...'),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                 suffixIcon: Icon(Icons.search, color: Colors.grey[600]),
@@ -148,7 +149,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
           // Фільтр по місту
           _buildFilterDropdown(
             _cities,
-            _cities.map((c) => c == 'Всі міста' ? '' : c).toList(),
+            _cities.map((c) => c == I18n.t('all_cities') ? '' : c).toList(),
             _selectedCity,
             (value) {
               setState(() {
@@ -186,7 +187,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
             children: [
               Text(icon),
               const SizedBox(width: 8),
-              const Expanded(child: Text('Всі')),
+              Expanded(child: Text(I18n.t('all'))),
             ],
           ),
           items: displayItems.asMap().entries.map((entry) {
@@ -230,7 +231,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              'Помилка завантаження: ${snapshot.error}',
+              I18n.inline('Помилка завантаження: ${snapshot.error}', 'Error loading: ${snapshot.error}'),
               style: const TextStyle(color: Colors.white),
             ),
           );
@@ -249,9 +250,9 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                   size: 64,
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Поки що немає челенджів',
-                  style: TextStyle(
+                Text(
+                  I18n.inline('Поки що немає челенджів', 'No challenges yet'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -259,7 +260,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Створіть перший челендж!',
+                  I18n.inline('Створіть перший челендж!', 'Create the first challenge!'),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 14,
@@ -274,9 +275,9 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                       borderRadius: BorderRadius.circular(25),
                     ),
                   ),
-                  child: const Text(
-                    'Створити челендж',
-                    style: TextStyle(color: Colors.white),
+                  child: Text(
+                    I18n.inline('Створити челендж', 'Create challenge'),
+                    style: const TextStyle(color: Colors.white),
                   ),
                 ),
               ],
@@ -395,7 +396,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                     const SizedBox(width: 20),
                     _buildStatItem('🎬', '${challenge.submissions.length}'),
                     const SizedBox(width: 20),
-                    _buildStatItem('💰', '${challenge.prizePool.toInt()} монет'),
+                    _buildStatItem('💰', '${challenge.prizePool.toInt()} ${I18n.inline('монет', 'coins')}'),
                   ],
                 ),
                 
@@ -406,9 +407,9 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                   children: [
                     _buildStatItem(challenge.audienceIcon, challenge.audienceText),
                     const SizedBox(width: 20),
-                    _buildStatItem('💸', 'Вхід: ${challenge.entryFee} монет'),
+                    _buildStatItem('💸', '${I18n.inline('Вхід:', 'Entry:')} ${challenge.entryFee} ${I18n.inline('монет', 'coins')}'),
                     const SizedBox(width: 20),
-                    _buildStatItem('⏰', '${challenge.duration} дн.'),
+                    _buildStatItem('⏰', '${challenge.duration} ${I18n.inline('дн.', 'days')}'),
                   ],
                 ),
                 
@@ -493,19 +494,19 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     switch (challenge.status) {
       case ChallengeStatus.recruiting:
         progress = challenge.recruitmentProgress;
-        progressText = 'Збір учасників';
+        progressText = I18n.inline('Збір учасників', 'Recruiting');
         break;
       case ChallengeStatus.submission:
         progress = challenge.submissionProgress;
-        progressText = 'Подання відео';
+        progressText = I18n.inline('Подання відео', 'Video submission');
         break;
       case ChallengeStatus.voting:
         progress = challenge.votingProgress;
-        progressText = 'Голосування';
+        progressText = I18n.inline('Голосування', 'Voting');
         break;
       case ChallengeStatus.completed:
         progress = 1.0;
-        progressText = 'Завершено';
+        progressText = I18n.inline('Завершено', 'Completed');
         break;
     }
 
@@ -554,17 +555,17 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     switch (challenge.status) {
       case ChallengeStatus.recruiting:
         timeRemaining = challenge.timeUntilSubmission;
-        timeText = 'До подання відео';
+        timeText = I18n.inline('До подання відео', 'Until video submission');
         timeColor = Colors.orange;
         break;
       case ChallengeStatus.submission:
         timeRemaining = challenge.timeUntilVoting;
-        timeText = 'До голосування';
+        timeText = I18n.inline('До голосування', 'Until voting');
         timeColor = Colors.blue;
         break;
       case ChallengeStatus.voting:
         timeRemaining = challenge.timeUntilEnd;
-        timeText = 'До завершення';
+        timeText = I18n.inline('До завершення', 'Until completion');
         timeColor = Colors.green;
         break;
       case ChallengeStatus.completed:
@@ -575,7 +576,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
-            'Завершено',
+            I18n.inline('Завершено', 'Completed'),
             style: TextStyle(
               color: Colors.grey[700],
               fontSize: 10,
@@ -586,17 +587,17 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     }
 
     if (timeRemaining.isNegative) {
-      timeText = 'Завершено';
+      timeText = I18n.inline('Завершено', 'Completed');
       timeColor = Colors.red;
     } else {
       if (timeRemaining.inDays > 0) {
-        timeText = '${timeRemaining.inDays} дн.';
+        timeText = '${timeRemaining.inDays} ${I18n.inline('дн.', 'd')}';
       } else if (timeRemaining.inHours > 0) {
-        timeText = '${timeRemaining.inHours} год.';
+        timeText = '${timeRemaining.inHours} ${I18n.inline('год.', 'h')}';
       } else if (timeRemaining.inMinutes > 0) {
-        timeText = '${timeRemaining.inMinutes} хв.';
+        timeText = '${timeRemaining.inMinutes} ${I18n.inline('хв.', 'min')}';
       } else {
-        timeText = 'Майже час!';
+        timeText = I18n.inline('Майже час!', 'Almost time!');
         timeColor = Colors.red;
       }
     }
@@ -663,15 +664,15 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   String _getStatusText(String status) {
     switch (status) {
       case 'all':
-        return 'Всі статуси';
+        return I18n.inline('Всі статуси', 'All statuses');
       case 'recruiting':
-        return 'Збір учасників';
+        return I18n.inline('Збір учасників', 'Recruiting');
       case 'submission':
-        return 'Подання відео';
+        return I18n.inline('Подання відео', 'Video submission');
       case 'voting':
-        return 'Голосування';
+        return I18n.inline('Голосування', 'Voting');
       case 'completed':
-        return 'Завершено';
+        return I18n.inline('Завершено', 'Completed');
       default:
         return status;
     }
@@ -680,11 +681,11 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   String _getTypeText(String type) {
     switch (type) {
       case 'all':
-        return 'Всі типи';
+        return I18n.inline('Всі типи', 'All types');
       case 'technical':
-        return 'Технічні навички';
+        return I18n.inline('Технічні навички', 'Technical skills');
       case 'positional':
-        return 'Позиційні челенджі';
+        return I18n.inline('Позиційні челенджі', 'Positional challenges');
       default:
         return type;
     }
@@ -695,13 +696,13 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     final difference = now.difference(date);
     
     if (difference.inDays > 0) {
-      return '${difference.inDays} дн. тому';
+      return '${difference.inDays} ${I18n.inline('дн. тому', 'd ago')}';
     } else if (difference.inHours > 0) {
-      return '${difference.inHours} год. тому';
+      return '${difference.inHours} ${I18n.inline('год. тому', 'h ago')}';
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} хв. тому';
+      return '${difference.inMinutes} ${I18n.inline('хв. тому', 'min ago')}';
     } else {
-      return 'Щойно';
+      return I18n.inline('Щойно', 'Just now');
     }
   }
 

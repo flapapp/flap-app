@@ -58,13 +58,13 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
 
   List<String> get _timeOptions => [
     I18n.t('anytime'),
-    'Сьогодні',
-    'Завтра',
-    'Цього тижня',
+    I18n.inline('Сьогодні', 'Today'),
+    I18n.inline('Завтра', 'Tomorrow'),
+    I18n.inline('Цього тижня', 'This week'),
   ];
 
   // Змінні для "Мої матчі"
-  String _selectedMyMatchesFilter = I18n.t('all');
+  String _selectedMyMatchesFilter = 'all'; // 'all' | 'organized' | 'participation'
   List<String> get _myMatchesFilters => [I18n.t('all'), I18n.t('organized'), I18n.t('participation')];
 
   // TabController для керування вкладками
@@ -91,7 +91,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   final NotificationService _notificationService = NotificationService();
   // Стан фільтрів рейтингів (замість ValueNotifier використовуємо звичайний state)
   String _ratingsSelectedCity = I18n.t('all_cities');
-  String _ratingsSelectedPosition = 'Всі позиції';
+  String _ratingsSelectedPosition = I18n.inline('Всі позиції', 'All positions');
   Future<List<Map<String, dynamic>>>? _ratingsTopPlayersFuture;
 
   @override
@@ -400,7 +400,7 @@ void _resetFindFilters() {
       icon: const Icon(Icons.add_circle_outline, color: Colors.white, size: 22),
       onPressed: () => Navigator.pushNamed(context, '/create-match'),
       padding: EdgeInsets.zero,
-      tooltip: 'Створити матч',
+      tooltip: I18n.t('create_match'),
     ),
     StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).snapshots(),
@@ -410,7 +410,7 @@ void _resetFindFilters() {
         if (snapshot.hasData && snapshot.data!.exists) {
           final d = snapshot.data!.data()!;
           avatarUrl = (d['avatarUrl'] ?? d['avatar'] ?? d['photoUrl'] ?? '').toString();
-          displayName = (d['displayName'] ?? d['name'] ?? d['authorName'] ?? d['email']?.toString().split('@').first ?? 'Г').toString();
+          displayName = (d['displayName'] ?? d['name'] ?? d['authorName'] ?? d['email']?.toString().split('@').first ?? I18n.inline('Г', 'U')).toString();
         }
         return IconButton(
           padding: EdgeInsets.zero,
@@ -604,10 +604,10 @@ void _resetFindFilters() {
       child: const Icon(Icons.star, color: Colors.white, size: 18),
     ),
     const SizedBox(width: 12),
-    const Expanded(
+    Expanded(
       child: Text(
-        'Мій рейтинг',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+        I18n.t('my_rating'),
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
       ),
     ),
     IconButton(
@@ -636,9 +636,9 @@ void _resetFindFilters() {
                         return RichText(
                           text: TextSpan(
                             children: [
-                              const TextSpan(
-                                text: 'Поточний рейтинг: ',
-                                style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                              TextSpan(
+                                text: '${I18n.t('current_rating')}: ',
+                                style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
                               ),
                               TextSpan(
                                 text: rating.toStringAsFixed(2),
@@ -674,60 +674,76 @@ void _resetFindFilters() {
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
+                    children: [
                       Center(
                         child: Text(
-                          'Як формується рейтинг?',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                          I18n.t('how_rating_formed'),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
                         ),
                       ),
-                      SizedBox(height: 10),
+                      const SizedBox(height: 10),
 
                       // Формула
-                      Text('Формула', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-                      SizedBox(height: 4),
+                      Text(I18n.t('formula'), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
                       Text(
-                        'Загальний рейтинг = (Рейтинг матчів × 0.7) + (Рейтинг відео × 0.3)',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                        I18n.t('rating_formula'),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
                       ),
 
-                      SizedBox(height: 10),
+                      const SizedBox(height: 10),
                       // Ваги
-                      Text('Ваги', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-                      SizedBox(height: 4),
-                      Text('• Матчі — 70%', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                      Text('• Відео/Челенджі — 30%', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      Text(I18n.t('weights'), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text(I18n.inline('• Матчі — 70%', '• Matches — 70%'), style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      Text(I18n.inline('• Відео/Челенджі — 30%', '• Videos/Challenges — 30%'), style: const TextStyle(color: Colors.white70, fontSize: 13)),
 
-                      SizedBox(height: 10),
+                      const SizedBox(height: 10),
                       // Матчі
-                      Text('Рейтинг матчів', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-                      SizedBox(height: 4),
-                      Text('• Критерії (по 25%): Техніка, Фізика, Тактика, Командна гра', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                      Text('• Після матчу гравці оцінюють один одного', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                      Text('• Самооцінка заборонена', style: TextStyle(color: Colors.white70, fontSize: 13)),
-
-                      SizedBox(height: 10),
-                      // Відео/челенджі
-                      Text('Рейтинг відео', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-                      SizedBox(height: 4),
+                      Text(I18n.inline('Рейтинг матчів', 'Match rating'), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
                       Text(
-                        '• Критерії: Технічне виконання (40%), Креативність (30%), Складність (20%), Якість відео (10%)',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                        I18n.inline('• Критерії (по 25%): Техніка, Фізика, Тактика, Командна гра',
+                            '• Criteria (25% each): Technique, Physicality, Tactics, Teamplay'),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                      Text(
+                        I18n.inline('• Після матчу гравці оцінюють один одного', '• Players rate each other after the match'),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                      Text(
+                        I18n.inline('• Самооцінка заборонена', '• Self-rating is prohibited'),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
                       ),
 
-                      SizedBox(height: 10),
-                      // Захист
-                      Text('Захист від накручувань', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-                      SizedBox(height: 4),
-                      Text('• Діапазон 0.0–5.0, валідація та перевірка аномалій', style: TextStyle(color: Colors.white70, fontSize: 13)),
-
-                      SizedBox(height: 10),
-                      // Рівні гравців
-                      Text('Рівні гравців', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 10),
+                      // Відео/челенджі
+                      Text(I18n.inline('Рейтинг відео', 'Video rating'), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
                       Text(
-                        '0.0–1.5 Новачок • 1.5–2.5 Початковий • 2.5–3.5 Середній • 3.5–4.5 Високий • 4.5–5.0 Професійний',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                        I18n.inline('• Критерії: Технічне виконання (40%), Креативність (30%), Складність (20%), Якість відео (10%)',
+                            '• Criteria: Technical execution (40%), Creativity (30%), Difficulty (20%), Video quality (10%)'),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+
+                      const SizedBox(height: 10),
+                      // Захист
+                      Text(I18n.inline('Захист від накручувань', 'Anti-cheat protection'), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text(
+                        I18n.inline('• Діапазон 0.0–5.0, валідація та перевірка аномалій', '• Range 0.0–5.0, validation and anomaly checks'),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+
+                      const SizedBox(height: 10),
+                      // Рівні гравців
+                      Text(I18n.inline('Рівні гравців', 'Player levels'), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text(
+                        I18n.inline(
+                            '0.0–1.5 Новачок • 1.5–2.5 Початковий • 2.5–3.5 Середній • 3.5–4.5 Високий • 4.5–5.0 Професійний',
+                            '0.0–1.5 Rookie • 1.5–2.5 Beginner • 2.5–3.5 Intermediate • 3.5–4.5 Advanced • 4.5–5.0 Professional'),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
                       ),
                     ],
                   ),
@@ -793,7 +809,8 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Оцінка після матчу', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    Text(I18n.inline('Оцінка після матчу', 'Post-match rating'),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 4),
                     Text(
                       '${prev?.toStringAsFixed(2) ?? overall.toStringAsFixed(2)} → ${overall.toStringAsFixed(2)}'
@@ -847,10 +864,12 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Мої монети',
-                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                          Text(
+                            I18n.t('my_coins'),
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
                           ),
-                          Text('Поточний баланс: $currentCoins монет',
+                          Text(
+                            I18n.inline('Поточний баланс: $currentCoins монет', 'Current balance: $currentCoins coins'),
                             style: const TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.w500),
                           ),
                         ],
@@ -863,12 +882,13 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                 ),
               ),
               const Divider(color: Colors.white24, height: 1),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Історія транзакцій',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                  child: Text(
+                    I18n.inline('Історія транзакцій', 'Transaction history'),
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -895,8 +915,9 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                       return bt.compareTo(at);
                     });
                     if (txDocs.isEmpty) {
-                      return const Center(
-                        child: Text('Поки немає транзакцій', style: TextStyle(color: Colors.white70)),
+                      return Center(
+                        child: Text('Поки немає транзакцій'.i18n('No transactions yet'),
+                            style: const TextStyle(color: Colors.white70)),
                       );
                     }
                     return ListView.builder(
@@ -962,16 +983,18 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
     final now = DateTime.now();
     final difference = now.difference(dateTime);
     if (difference.inDays > 7) {
-      const months = ['січ','лют','бер','квіт','трав','черв','лип','серп','вер','жовт','лист','груд'];
+      final months = I18n.language.value == 'en'
+          ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+          : ['січ', 'лют', 'бер', 'квіт', 'трав', 'черв', 'лип', 'серп', 'вер', 'жовт', 'лист', 'груд'];
       return '${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}';
     } else if (difference.inDays > 0) {
-      return '${difference.inDays} дн. тому';
+      return I18n.inline('${difference.inDays} дн. тому', '${difference.inDays} d ago');
     } else if (difference.inHours > 0) {
-      return '${difference.inHours} год. тому';
+      return I18n.inline('${difference.inHours} год. тому', '${difference.inHours} h ago');
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} хв. тому';
+      return I18n.inline('${difference.inMinutes} хв. тому', '${difference.inMinutes} min ago');
     } else {
-      return 'Щойно';
+      return I18n.inline('Щойно', 'Just now');
     }
   }
 
@@ -990,8 +1013,8 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               if (snapshot.hasError) {
                 return Center(
                   child: Text(
-                    'Помилка завантаження: ${snapshot.error}',
-                    style: TextStyle(color: Colors.red),
+                    I18n.inline('Помилка завантаження: ${snapshot.error}', 'Load error: ${snapshot.error}'),
+                    style: const TextStyle(color: Colors.red),
                   ),
                 );
               }
@@ -1009,23 +1032,23 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.sports_soccer,
                         size: 64,
                         color: Colors.white54,
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       Text(
-                        'Немає доступних матчів',
-                        style: TextStyle(
+                        'Немає доступних матчів'.i18n('No matches available'),
+                        style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 18,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        'Створіть новий матч або зачекайте',
-                        style: TextStyle(
+                        'Створіть новий матч або зачекайте'.i18n('Create a new match or check back later'),
+                        style: const TextStyle(
                           color: Colors.white54,
                           fontSize: 14,
                         ),
@@ -1046,12 +1069,13 @@ return Column(
         children: [
           const Icon(Icons.filter_alt, color: Colors.white70, size: 18),
           const SizedBox(width: 8),
-          Text('Знайдено: ${items.length}',
+          Text(
+              I18n.inline('Знайдено: ${items.length}', 'Found: ${items.length}'),
               style: const TextStyle(color: Colors.white70, fontSize: 14)),
           const Spacer(),
           TextButton(
             onPressed: _resetFindFilters,
-            child: const Text('Скинути', style: TextStyle(color: Colors.white70)),
+            child: Text(I18n.t('reset_filters'), style: const TextStyle(color: Colors.white70)),
           ),
         ],
       ),
@@ -1088,20 +1112,20 @@ return Column(
             children: [
               ChoiceChip(
                 label: Text(I18n.t('all')),
-                selected: _selectedMyMatchesFilter == 'Всі',
-                onSelected: (_) => setState(() => _selectedMyMatchesFilter = 'Всі'),
+                selected: _selectedMyMatchesFilter == 'all',
+                onSelected: (_) => setState(() => _selectedMyMatchesFilter = 'all'),
               ),
               const SizedBox(width: 8),
               ChoiceChip(
                 label: Text(I18n.t('organized')),
-                selected: _selectedMyMatchesFilter == 'Організовані',
-                onSelected: (_) => setState(() => _selectedMyMatchesFilter = 'Організовані'),
+                selected: _selectedMyMatchesFilter == 'organized',
+                onSelected: (_) => setState(() => _selectedMyMatchesFilter = 'organized'),
               ),
               const SizedBox(width: 8),
               ChoiceChip(
                 label: Text(I18n.t('participation')),
-                selected: _selectedMyMatchesFilter == 'Участь',
-                onSelected: (_) => setState(() => _selectedMyMatchesFilter = 'Участь'),
+                selected: _selectedMyMatchesFilter == 'participation',
+                onSelected: (_) => setState(() => _selectedMyMatchesFilter = 'participation'),
               ),
             ],
           ),
@@ -1116,8 +1140,8 @@ return Column(
               if (snapshot.hasError) {
                 return Center(
                   child: Text(
-                    'Помилка завантаження: ${snapshot.error}',
-                    style: TextStyle(color: Colors.red),
+                    I18n.inline('Помилка завантаження: ${snapshot.error}', 'Load error: ${snapshot.error}'),
+                    style: const TextStyle(color: Colors.red),
                   ),
                 );
               }
@@ -1144,16 +1168,17 @@ return Column(
                       ),
                       SizedBox(height: 16),
                       Text(
-                        'У вас поки немає матчів',
-                        style: TextStyle(
+                        'У вас поки немає матчів'.i18n('You don’t have any matches yet'),
+                        style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 18,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        'Створіть новий матч або приєднайтеся до існуючого',
-                        style: TextStyle(
+                        'Створіть новий матч або приєднайтеся до існуючого'
+                            .i18n('Create a new match or join an existing one'),
+                        style: const TextStyle(
                           color: Colors.white54,
                           fontSize: 14,
                         ),
@@ -1167,9 +1192,9 @@ return Column(
               final all = snapshot.data!;
               final currentUserId = FirebaseAuth.instance.currentUser?.uid;
               List<Match> filtered = all;
-              if (_selectedMyMatchesFilter == 'Організовані' && currentUserId != null) {
+              if (_selectedMyMatchesFilter == 'organized' && currentUserId != null) {
                 filtered = all.where((m) => m.organizerId == currentUserId).toList();
-              } else if (_selectedMyMatchesFilter == 'Участь' && currentUserId != null) {
+              } else if (_selectedMyMatchesFilter == 'participation' && currentUserId != null) {
                 filtered = all.where((m) => m.participants.contains(currentUserId) && m.organizerId != currentUserId).toList();
               }
               // Найближчі зверху
@@ -1196,7 +1221,9 @@ return Column(
       stream: _getHistoryMatches(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Помилка: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+          return Center(
+              child: Text(I18n.inline('Помилка: ${snapshot.error}', 'Error: ${snapshot.error}'),
+                  style: const TextStyle(color: Colors.red)));
         }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
@@ -1447,10 +1474,10 @@ Widget _buildRatingsTab() {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(20, 8, 20, 6),
-                        child: Text('🏆 Топ гравці',
-                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+                        child: Text(I18n.inline('🏆 Топ гравці', '🏆 Top players'),
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
                       ),
                       Expanded(
                         child: ListView.builder(
@@ -1481,10 +1508,10 @@ Widget _buildRatingsTab() {
                           ],
                         ),
                       ),
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(20, 8, 20, 6),
-                        child: Text('🏆 Топ гравці',
-                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+                        child: Text(I18n.inline('🏆 Топ гравці', '🏆 Top players'),
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
                       ),
                       Expanded(
                         child: () {
@@ -1517,20 +1544,26 @@ Widget _buildRatingsTab() {
                           children: [
                             narrowDropdown(
                               value: _ratingsSelectedPosition,
-                              options: const ['Всі позиції', 'Воротар', 'Захисник', 'Півзахисник', 'Нападник'],
+                              options: [
+                                I18n.inline('Всі позиції', 'All positions'),
+                                I18n.inline('Воротар', 'Goalkeeper'),
+                                I18n.inline('Захисник', 'Defender'),
+                                I18n.inline('Півзахисник', 'Midfielder'),
+                                I18n.inline('Нападник', 'Forward'),
+                              ],
                               onChanged: (v) {
                                 setState(() {
-                                  _ratingsSelectedPosition = v ?? 'Всі позиції';
+                                  _ratingsSelectedPosition = v ?? I18n.inline('Всі позиції', 'All positions');
                                 });
                               },
                             ),
                           ],
                         ),
                       ),
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(20, 8, 20, 6),
-                        child: Text('🏆 Топ гравці',
-                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+                        child: Text(I18n.inline('🏆 Топ гравці', '🏆 Top players'),
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
                       ),
                       Expanded(
                         child: () {
@@ -1621,7 +1654,7 @@ Widget _buildRatingsTab() {
 
 void _shareMatch(Match match) {
   final url = 'https://flap.app/match/${match.id}';
-  Share.share('Приєднуйся до матчу: $url');
+  Share.share(I18n.inline('Приєднуйся до матчу: ', 'Join the match: ') + url);
 }
   // Метод для розрахунку середнього рейтингу учасників
   Future<double> _calculateAverageRating(List<String> participantIds) async {
@@ -1882,7 +1915,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
     final joinBtn = ElevatedButton.icon(
       onPressed: () => _applyForMatch(match.id),
       icon: const Icon(Icons.person_add_alt_1, size: 16),
-      label: const Text('Приєднатися', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      label: Text(I18n.t('join'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
         style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF4caf50),
         foregroundColor: Colors.white,
@@ -1979,7 +2012,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
           child: TextButton(
             onPressed: () {
               final url = 'https://flap.app/match/${match.id}';
-              Share.share('Приєднуйся до матчу: $url');
+              Share.share(I18n.inline('Приєднуйся до матчу: ', 'Join the match: ') + url);
             },
             child: const Text(
               'Поділитися',
@@ -2005,18 +2038,15 @@ Widget _buildActionButtons(Match match, String currentUserId) {
         if (_selectedTime != I18n.t('anytime')) {
         final now = DateTime.now();
         final matchDate = match.date;
-          switch (_selectedTime) {
-            case 'Сьогодні':
-              if (!_isSameDay(matchDate, now)) return false;
-              break;
-            case 'Завтра':
+          final timeValue = _selectedTime;
+          if (timeValue == I18n.inline('Сьогодні', 'Today')) {
+            if (!_isSameDay(matchDate, now)) return false;
+          } else if (timeValue == I18n.inline('Завтра', 'Tomorrow')) {
             final tomorrow = now.add(const Duration(days: 1));
-              if (!_isSameDay(matchDate, tomorrow)) return false;
-              break;
-            case 'Цього тижня':
+            if (!_isSameDay(matchDate, tomorrow)) return false;
+          } else if (timeValue == I18n.inline('Цього тижня', 'This week')) {
             final weekEnd = now.add(const Duration(days: 7));
-              if (matchDate.isBefore(now) || matchDate.isAfter(weekEnd)) return false;
-              break;
+            if (matchDate.isBefore(now) || matchDate.isAfter(weekEnd)) return false;
           }
         }
         // Фільтр по пошуку
@@ -2110,9 +2140,9 @@ IconData _getStatusIcon(MatchStatus status) {
     final difference = dateTime.difference(now);
 
     if (difference.inDays == 0) {
-      return 'Сьогодні ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+      return I18n.inline('Сьогодні', 'Today') + ' ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
     } else if (difference.inDays == 1) {
-      return 'Завтра ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+      return I18n.inline('Завтра', 'Tomorrow') + ' ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
     } else {
       return '${dateTime.day}.${dateTime.month} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
     }
@@ -2184,7 +2214,7 @@ IconData _getStatusIcon(MatchStatus status) {
 Widget _buildMyMatchCard(Match match) {
   final currentUser = FirebaseAuth.instance.currentUser;
   final isOrganizer = currentUser?.uid == match.organizerId;
-  final role = isOrganizer ? 'Організатор' : 'Учасник';
+  final role = isOrganizer ? I18n.t('organizer') : I18n.t('participant');
 
   return Container(
     margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -2430,9 +2460,9 @@ Column(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: const Text(
-                    'Почати матч',
-                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  child: Text(
+                    I18n.t('start_match'),
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ),
               if (match.status != MatchStatus.inProgress && match.hasTeams)
@@ -2440,7 +2470,7 @@ Column(
               if (match.status == MatchStatus.inProgress)
                 ElevatedButton(
                   onPressed: () async {
-                    final sure = await _confirm('Завершити матч?', 'Потрібно ввести рахунок команд.');
+                    final sure = await _confirm(I18n.t('finish_match') + '?', I18n.inline('Потрібно ввести рахунок команд.', 'Need to enter team scores.'));
                     if (sure != true) return;
                     await _onFinishMatch(match);
                   },
@@ -2449,9 +2479,9 @@ Column(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: const Text(
-                    'Завершити',
-                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  child: Text(
+                    I18n.t('finish_match'),
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ),
             ],
@@ -2468,7 +2498,7 @@ Column(
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Лише організатор може формувати команди, розпочати або завершити матч.',
+                  I18n.inline('Лише організатор може формувати команди, розпочати або завершити матч.', 'Only organizer can form teams, start or finish match.'),
                   style: TextStyle(color: Colors.white60, fontSize: 12),
                 ),
               ),
@@ -2634,17 +2664,17 @@ Future<void> _onLeaveMatch(Match match) async {
   String _convertUserStatus(String status) {
   switch (status) {
     case 'organizer':
-      return 'Управління';
+      return I18n.t('manage');
     case 'participant':
-      return 'Учасник';
+      return I18n.t('participant');
     case 'pending':
-      return 'Заявка подана';
+      return I18n.inline('Заявка подана', 'Application sent');
     case 'rejected':
-      return 'Відхилено';
+      return I18n.t('reject');
     case 'none':
-      return 'Подати заявку';
+      return I18n.t('apply');
     default:
-      return 'Подати заявку';
+      return I18n.t('apply');
   }
 } 
 
@@ -2740,7 +2770,7 @@ Future<void> _onLeaveMatch(Match match) async {
     const SizedBox(width: 8),
     Expanded(
       child: Text(
-        '${match.teamA?.name ?? 'Команда A'} vs ${match.teamB?.name ?? 'Команда B'}',
+        '${match.teamA?.name ?? I18n.inline('Команда A', 'Team A')} vs ${match.teamB?.name ?? I18n.inline('Команда B', 'Team B')}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
@@ -2873,13 +2903,13 @@ Future<void> _onLeaveMatch(Match match) async {
   String _getResultText(String result) {
     switch (result) {
       case 'win':
-        return 'Перемога';
+        return I18n.inline('Перемога', 'Victory');
       case 'loss':
-        return 'Поразка';
+        return I18n.inline('Поразка', 'Loss');
       case 'draw':
-        return 'Нічия';
+        return I18n.t('draw');
       default:
-        return 'Завершено';
+        return I18n.t('status_finished');
     }
   }
 
@@ -2920,12 +2950,12 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
         ?? ((p['firstName'] != null || p['lastName'] != null)
             ? '${p['firstName'] ?? ''} ${p['lastName'] ?? ''}'.trim()
             : null)
-        ?? 'Невідомий').toString();
+        ?? I18n.inline('Невідомий', 'Unknown')).toString();
 
   final double rating = ((p['rating'] ?? 0) as num).toDouble();
   final String rawPosition = (p['position'] ?? '').toString();
   final String position = _humanPosition(rawPosition);
-  final String city = (p['city'] ?? 'Невідомо').toString();
+  final String city = (p['city'] ?? I18n.t('unknown')).toString();
   final String avatar = (p['avatarUrl'] ?? p['photoUrl'] ?? '').toString();
   final _Level lvl = _levelFor(rating);
   final int matchesCount = ((p['totalMatches'] ?? p['matches'] ?? p['matchesPlayed'] ?? 0) as num).toInt();
@@ -3006,7 +3036,7 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
                   runSpacing: 2,
                   children: [
                     Text(
-                      position.isNotEmpty ? position : 'Невідомо',
+                      position.isNotEmpty ? position : I18n.t('unknown'),
                       style: const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                     const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
@@ -3131,24 +3161,24 @@ Widget _chipStat(IconData icon, String label, String value) {
 class _Level {
   final String label;
   final int color;
-  const _Level(this.label, this.color);
+  _Level(this.label, this.color);
 }
 
 _Level _levelFor(double rating) {
-  if (rating >= 4.5) return const _Level('Професійний', 0xFF9C27B0);
-  if (rating >= 3.5) return const _Level('Високий', 0xFFFF9800);
-  if (rating >= 2.5) return const _Level('Середній', 0xFF2196F3);
-  if (rating >= 1.5) return const _Level('Початковий', 0xFF4CAF50);
-  return const _Level('Новачок', 0xFF9E9E9E);
+  if (rating >= 4.5) return _Level(I18n.t('professional'), 0xFF9C27B0);
+  if (rating >= 3.5) return _Level(I18n.inline('Високий', 'Advanced'), 0xFFFF9800);
+  if (rating >= 2.5) return _Level(I18n.inline('Середній', 'Intermediate'), 0xFF2196F3);
+  if (rating >= 1.5) return _Level(I18n.t('beginner'), 0xFF4CAF50);
+  return _Level(I18n.inline('Новачок', 'Rookie'), 0xFF9E9E9E);
 }
 
 String _humanPosition(String raw) {
   switch (raw) {
-    case 'goalkeeper': return 'Воротар';
-    case 'defender':   return 'Захисник';
-    case 'midfielder': return 'Півзахисник';
-    case 'forward':    return 'Нападник';
-    default:           return raw.isEmpty ? 'Невідомо' : raw;
+    case 'goalkeeper': return I18n.inline('Воротар', 'Goalkeeper');
+    case 'defender':   return I18n.inline('Захисник', 'Defender');
+    case 'midfielder': return I18n.inline('Півзахисник', 'Midfielder');
+    case 'forward':    return I18n.inline('Нападник', 'Forward');
+    default:           return raw.isEmpty ? I18n.t('unknown') : raw;
   }
 }
 String _positionCodeFromUi(String ui) {

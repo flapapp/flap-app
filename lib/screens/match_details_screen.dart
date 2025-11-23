@@ -5,6 +5,7 @@ import '../models/match.dart';
 import '../services/match_service.dart';
 import '../services/rating_service.dart';
 import 'package:share_plus/share_plus.dart';
+import '../utils/i18n.dart';
 
 class MatchDetailsScreen extends StatefulWidget {
   final Match match;
@@ -32,13 +33,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           .get();
       final data = snap.data() as Map<String, dynamic>? ?? const {};
       final profile = <String, dynamic>{
-        'displayName': (data['displayName'] ?? data['authorName'] ?? 'Гравець').toString(),
+        'displayName': (data['displayName'] ?? data['authorName'] ?? I18n.t('player')).toString(),
         'avatarUrl': (data['avatarUrl'] ?? '').toString(),
       };
       _profileCache[userId] = profile;
       return profile;
     } catch (_) {
-      final fallback = <String, dynamic>{'displayName': 'Гравець', 'avatarUrl': ''};
+      final fallback = <String, dynamic>{'displayName': I18n.t('player'), 'avatarUrl': ''};
       _profileCache[userId] = fallback;
       return fallback;
     }
@@ -50,7 +51,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       backgroundColor: const Color(0xFF1a1a2e),
       appBar: AppBar(
         title: Text(
-          '⚽ Деталі матчу',
+          I18n.inline('⚽ Деталі матчу', '⚽ Match Details'),
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         backgroundColor: Colors.transparent,
@@ -177,7 +178,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '📋 Інформація про матч',
+            I18n.inline('📋 Інформація про матч', '📋 Match Information'),
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -193,7 +194,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                   '🗓️',
                   '${widget.match.date.day}.${widget.match.date.month}.${widget.match.date.year}',
-                  'Дата',
+                  I18n.inline('Дата', 'Date'),
                 ),
               ),
               SizedBox(width: 12),
@@ -201,7 +202,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                   '⏰',
                   widget.match.time,
-                  'Час',
+                  I18n.inline('Час', 'Time'),
                 ),
               ),
             ],
@@ -213,7 +214,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                   '👥',
                   '${widget.match.participants.length}/${widget.match.maxPlayers}',
-                  'Гравці',
+                  I18n.inline('Гравці', 'Players'),
                 ),
               ),
               SizedBox(width: 12),
@@ -221,7 +222,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                   '💰',
                   '${widget.match.cost} грн',
-                  'Вартість',
+                  I18n.inline('Вартість', 'Cost'),
                 ),
               ),
             ],
@@ -233,7 +234,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                   '⭐',
                   _getLevelText(widget.match.level),
-                  'Рівень',
+                  I18n.inline('Рівень', 'Level'),
                 ),
               ),
               SizedBox(width: 12),
@@ -241,7 +242,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                    '🏙️',
                   widget.match.city,
-                  'Місто',
+                  I18n.inline('Місто', 'City'),
                 ),
               ),
             ],
@@ -339,7 +340,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '👥 Учасники (${widget.match.participants.length})',
+                I18n.inline('👥 Учасники (${widget.match.participants.length})', '👥 Participants (${widget.match.participants.length})'),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -374,7 +375,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ),
               child: Center(
                 child: Text(
-                  'Поки що немає учасників',
+                  I18n.inline('Поки що немає учасників', 'No participants yet'),
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 16,
@@ -409,7 +410,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       final userData = snapshot.data!.data()!;
       final isOrganizer = participantId == widget.match.organizerId;
       final displayName =
-          (userData['displayName'] ?? userData['authorName'] ?? 'Гравець')
+          (userData['displayName'] ?? userData['authorName'] ?? I18n.t('player'))
               .toString()
               .trim();
 
@@ -483,7 +484,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       children: [
                         Flexible(
                           child: Text(
-                            displayName.isNotEmpty ? displayName : 'Гравець',
+                            displayName.isNotEmpty ? displayName : I18n.t('player'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -502,7 +503,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              'Організатор',
+                              I18n.t('organizer'),
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
@@ -515,7 +516,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      '${userData['position'] ?? 'Позиція не вказана'} • ${userData['city'] ?? 'Місто не вказано'}',
+                      '${userData['position'] ?? I18n.inline('Позиція не вказана', 'Position not specified')} • ${userData['city'] ?? I18n.inline('Місто не вказано', 'City not specified')}',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 14,
@@ -537,7 +538,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                     ),
                   ),
                   Text(
-                    'РЕЙТИНГ',
+                    I18n.inline('РЕЙТИНГ', 'RATING'),
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 10,
@@ -591,7 +592,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 Row(
                   children: [
                     Text(
-                      'Гравець ${participantId.length > 8 ? '${participantId.substring(0, 8)}...' : participantId}',
+                      '${I18n.t('player')} ${participantId.length > 8 ? '${participantId.substring(0, 8)}...' : participantId}',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -607,7 +608,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          'Організатор',
+                          I18n.t('organizer'),
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 10,
@@ -620,7 +621,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Позиція не вказана • Місто не вказано',
+                  '${I18n.inline('Позиція не вказана', 'Position not specified')} • ${I18n.inline('Місто не вказано', 'City not specified')}',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
@@ -676,7 +677,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Матч заповнений. Нових учасників не приймають.',
+                I18n.inline('Матч заповнений. Нових учасників не приймають.', 'Match is full. No new participants accepted.'),
                 style: TextStyle(
                   color: Colors.red,
                   fontSize: 16,
@@ -709,8 +710,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 Expanded(
                   child: Text(
                     value > 0 ?
-                      'Ваша оцінка за матч: ${value.toStringAsFixed(2)}' :
-                      'Ще немає оцінок',
+                      I18n.inline('Ваша оцінка за матч: ${value.toStringAsFixed(2)}', 'Your match rating: ${value.toStringAsFixed(2)}') :
+                      I18n.inline('Ще немає оцінок', 'No ratings yet'),
                     style: TextStyle(
                       color: Color(0xFF4CAF50),
                       fontSize: 16,
@@ -739,7 +740,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Ви вже приєднані до цього матчу!',
+                I18n.inline('Ви вже приєднані до цього матчу!', 'You are already joined to this match!'),
                 style: TextStyle(
                   color: Colors.green,
                   fontSize: 16,
@@ -785,7 +786,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                             Icon(Icons.add, color: Colors.white, size: 20),
                             SizedBox(width: 8),
                             Text(
-                              'Приєднатися',
+                              I18n.t('join'),
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -828,7 +829,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   Icon(Icons.share, color: Colors.white, size: 20),
                   SizedBox(width: 8),
                   Text(
-                    'Поділитися',
+                    I18n.t('share'),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -857,7 +858,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Заявку подано! Очікуйте відповіді організатора.'),
+            content: Text(I18n.t('applied_wait')),
             backgroundColor: Color(0xFF4caf50),
           ),
         );
@@ -865,7 +866,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ви вже подали заявку на участь у цьому матчі.'),
+            content: Text(I18n.t('already_applied')),
             backgroundColor: Colors.red,
           ),
         );
@@ -873,7 +874,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Помилка: $e'),
+          content: Text(I18n.inline('Помилка: $e', 'Error: $e')),
           backgroundColor: Colors.red,
         ),
       );
@@ -884,21 +885,21 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
   void _shareMatch() {
     final url = 'https://flap.app/match/${widget.match.id}';
-    Share.share('Приєднуйся до матчу "${widget.match.title}": $url');
+    Share.share(I18n.inline('Приєднуйся до матчу "${widget.match.title}": ', 'Join the match "${widget.match.title}": ') + url);
   }
 
   String _getLevelText(MatchLevel level) {
     switch (level) {
       case MatchLevel.beginner:
-        return 'Початковий';
+        return I18n.t('beginner');
       case MatchLevel.intermediate:
-        return 'Середній';
+        return I18n.inline('Середній', 'Intermediate');
       case MatchLevel.advanced:
-        return 'Високий';
+        return I18n.inline('Високий', 'Advanced');
       case MatchLevel.professional:
-        return 'Професійний';
+        return I18n.t('professional');
       default:
-        return 'Невідомо';
+        return I18n.t('unknown');
     }
   }
 

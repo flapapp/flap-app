@@ -150,7 +150,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
         winners.add({
           'position': i + 1,
           'userId': data['userId'],
-          'userName': userData['displayName'] ?? userData['name'] ?? 'Unknown',
+          'userName': userData['displayName'] ?? userData['name'] ?? I18n.inline('Невідомий', 'Unknown'),
           'userAvatar': userData['avatarUrl'] ?? userData['photoUrl'] ?? '',
           'rating': data['averageRating'] ?? 0.0,
           'prize': prize,
@@ -187,7 +187,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
           .add({
         'amount': prize.toInt(),
         'type': 'challenge_prize',
-        'description': 'Приз за ${position}-е місце в челенджі "${_challenge?.title}"',
+        'description': I18n.inline('Приз за ${position}-е місце в челенджі "${_challenge?.title}"', 'Prize for ${position}${position == 1 ? 'st' : position == 2 ? 'nd' : position == 3 ? 'rd' : 'th'} place in challenge "${_challenge?.title}"'),
         'timestamp': FieldValue.serverTimestamp(),
       });
     } catch (e) {

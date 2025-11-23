@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../utils/i18n.dart';
 
 class RegisterScreen extends StatefulWidget {
   @override
@@ -30,19 +31,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
   
-  final List<String> _positions = [
-    'Воротар',
-    'Захисник',
-    'Півзахисник',
-    'Нападник',
-    'Універсал',
+  List<String> get _positions => [
+    I18n.inline('Воротар', 'Goalkeeper'),
+    I18n.inline('Захисник', 'Defender'),
+    I18n.inline('Півзахисник', 'Midfielder'),
+    I18n.inline('Нападник', 'Forward'),
+    I18n.inline('Універсал', 'Universal'),
   ];
   
-  final List<String> _experiences = [
-    'Початківець',
-    'Аматор',
-    'Досвідчений',
-    'Професіонал',
+  List<String> get _experiences => [
+    I18n.inline('Початківець', 'Beginner'),
+    I18n.inline('Аматор', 'Amateur'),
+    I18n.inline('Досвідчений', 'Experienced'),
+    I18n.inline('Професіонал', 'Professional'),
   ];
 
   Future<void> _pickImage() async {
@@ -68,7 +69,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка вибору фото: $e')),
+        SnackBar(content: Text(I18n.inline('Помилка вибору фото: $e', 'Error selecting photo: $e'))),
       );
     }
   }
@@ -110,14 +111,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: TextButton.icon(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    label: const Text('Назад', style: TextStyle(color: Colors.white)),
+                    label: Text(I18n.t('back'), style: const TextStyle(color: Colors.white)),
                   ),
                 ),
                 const SizedBox(height: 10),
 
-                const Text(
-                  'Реєстрація',
-                  style: TextStyle(
+                Text(
+                  I18n.t('register'),
+                  style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
@@ -125,7 +126,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Приєднуйтесь до футбольної спільноти',
+                  I18n.inline('Приєднуйтесь до футбольної спільноти', 'Join the football community'),
                   style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
                   textAlign: TextAlign.center,
                 ),
@@ -172,7 +173,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Додати фото',
+                                I18n.inline('Додати фото', 'Add photo'),
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.7),
                                   fontSize: 12,
@@ -194,12 +195,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _nameController,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: 'Ім\'я',
+                      labelText: I18n.inline('Ім\'я', 'Name'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
-                    validator: (value) => (value == null || value.isEmpty) ? 'Введіть ваше ім\'я' : null,
+                    validator: (value) => (value == null || value.isEmpty) ? I18n.inline('Введіть ваше ім\'я', 'Enter your name') : null,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -219,7 +220,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
-                    validator: (value) => (value == null || value.isEmpty) ? 'Введіть email' : null,
+                    validator: (value) => (value == null || value.isEmpty) ? I18n.t('enter_email') : null,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -234,12 +235,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _phoneController,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: 'Телефон',
+                      labelText: I18n.inline('Телефон', 'Phone'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
-                    validator: (value) => (value == null || value.isEmpty) ? 'Введіть номер телефону' : null,
+                    validator: (value) => (value == null || value.isEmpty) ? I18n.inline('Введіть номер телефону', 'Enter phone number') : null,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -255,12 +256,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _surnameController,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: 'Прізвище',
+                      labelText: I18n.inline('Прізвище', 'Surname'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
-                    validator: (value) => (value == null || value.isEmpty) ? 'Введіть ваше прізвище' : null,
+                    validator: (value) => (value == null || value.isEmpty) ? I18n.inline('Введіть ваше прізвище', 'Enter your surname') : null,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -276,12 +277,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _cityController,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: 'Місто',
+                      labelText: I18n.t('city'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
-                    validator: (value) => (value == null || value.isEmpty) ? 'Введіть ваше місто' : null,
+                    validator: (value) => (value == null || value.isEmpty) ? I18n.inline('Введіть ваше місто', 'Enter your city') : null,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -298,12 +299,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     style: const TextStyle(color: Colors.white),
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      labelText: 'Вік',
+                      labelText: I18n.inline('Вік', 'Age'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
-                    validator: (value) => (value == null || value.isEmpty) ? 'Введіть ваш вік' : null,
+                    validator: (value) => (value == null || value.isEmpty) ? I18n.inline('Введіть ваш вік', 'Enter your age') : null,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -320,7 +321,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     style: const TextStyle(color: Colors.white),
                     dropdownColor: const Color(0xFF1e7d32),
                     decoration: InputDecoration(
-                      labelText: 'Позиція на полі',
+                      labelText: I18n.inline('Позиція на полі', 'Position on field'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
@@ -336,7 +337,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _selectedPosition = newValue;
                       });
                     },
-                    validator: (value) => value == null ? 'Оберіть позицію' : null,
+                    validator: (value) => value == null ? I18n.inline('Оберіть позицію', 'Select position') : null,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -353,7 +354,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     style: const TextStyle(color: Colors.white),
                     dropdownColor: const Color(0xFF1e7d32),
                     decoration: InputDecoration(
-                      labelText: 'Рівень досвіду',
+                      labelText: I18n.inline('Рівень досвіду', 'Experience level'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
@@ -369,7 +370,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _selectedExperience = newValue;
                       });
                     },
-                    validator: (value) => value == null ? 'Оберіть рівень досвіду' : null,
+                    validator: (value) => value == null ? I18n.inline('Оберіть рівень досвіду', 'Select experience level') : null,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -385,14 +386,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     obscureText: true,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: 'Пароль',
+                      labelText: I18n.t('password'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) return 'Введіть пароль';
-                      if (value.length < 6) return 'Пароль має бути не менше 6 символів';
+                      if (value == null || value.isEmpty) return I18n.t('enter_password');
+                      if (value.length < 6) return I18n.inline('Пароль має бути не менше 6 символів', 'Password must be at least 6 characters');
                       return null;
                     },
                   ),
@@ -484,25 +485,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           });
                           
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('🎉 Вітаємо! Ви отримали 2 тижні Champions League преміум!'),
-                              duration: Duration(seconds: 3),
-                              backgroundColor: Color(0xFF4caf50),
+                            SnackBar(
+                              content: Text(I18n.inline('🎉 Вітаємо! Ви отримали 2 тижні Champions League преміум!', '🎉 Congratulations! You received 2 weeks of Champions League premium!')),
+                              duration: const Duration(seconds: 3),
+                              backgroundColor: const Color(0xFF4caf50),
                             ),
                           );
                           Navigator.pushReplacementNamed(context, '/mode');
                         } on FirebaseAuthException catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(e.message ?? 'Помилка реєстрації')),
+                            SnackBar(content: Text(e.message ?? I18n.inline('Помилка реєстрації', 'Registration error'))),
                           );
                         }
                       }
                     },
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                            'Створити профіль',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                        : Text(
+                            I18n.inline('Створити профіль', 'Create profile'),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                   ),
                 ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/i18n.dart';
 
 class UserChip extends StatelessWidget {
   final String userId;
@@ -22,7 +23,7 @@ class UserChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (userId.isEmpty) {
-      return _buildContent(context, displayName: name ?? 'Користувач', resolvedAvatarUrl: avatarUrl ?? '');
+      return _buildContent(context, displayName: name ?? I18n.inline('Користувач', 'User'), resolvedAvatarUrl: avatarUrl ?? '');
     }
 
     if (name != null && avatarUrl != null) {
@@ -33,7 +34,7 @@ class UserChip extends StatelessWidget {
       future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
       builder: (context, snapshot) {
         final data = snapshot.data?.data() ?? <String, dynamic>{};
-        final displayName = name ?? (data['displayName'] ?? data['name'] ?? data['email']?.toString().split('@').first ?? 'Користувач');
+        final displayName = name ?? (data['displayName'] ?? data['name'] ?? data['email']?.toString().split('@').first ?? I18n.inline('Користувач', 'User'));
         final resolvedAvatarUrl = avatarUrl ?? (data['avatarUrl'] ?? data['avatar'] ?? '');
         return _buildContent(context, displayName: displayName, resolvedAvatarUrl: resolvedAvatarUrl);
       },

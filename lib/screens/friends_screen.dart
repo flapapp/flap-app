@@ -111,14 +111,14 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             Tab(
               icon: const Icon(Icons.person_add, size: 20),
               child: Text(
-                'Запрошення (${_incomingRequests.length})',
+                I18n.inline('Запрошення (${_incomingRequests.length})', 'Invites (${_incomingRequests.length})'),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             Tab(
               icon: const Icon(Icons.send, size: 20),
               child: Text(
-                'Надіслані (${_outgoingRequests.length})',
+                I18n.inline('Надіслані (${_outgoingRequests.length})', 'Sent (${_outgoingRequests.length})'),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -154,9 +154,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               color: Colors.white54,
             ),
             const SizedBox(height: 16),
-            const Text(
-              'У вас поки немає друзів',
-              style: TextStyle(
+            Text(
+              'У вас поки немає друзів'.i18n('You have no friends yet'),
+              style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -164,7 +164,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 8),
             Text(
-              'Додайте друзів, щоб грати разом!',
+              'Додайте друзів, щоб грати разом!'.i18n('Add friends to play together!'),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 14,
@@ -280,11 +280,14 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      friend.positionDisplay,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
-                        fontSize: 12,
+                    ValueListenableBuilder<String>(
+                      valueListenable: I18n.language,
+                      builder: (context, _, __) => Text(
+                        friend.positionDisplay,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ],
@@ -292,20 +295,26 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Text(
-                      '📍 ${friend.city}',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
-                        fontSize: 12,
+                    ValueListenableBuilder<String>(
+                      valueListenable: I18n.language,
+                      builder: (context, _, __) => Text(
+                        '📍 ${I18n.localizeCity(friend.city)}',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Text(
-                      friend.onlineStatus,
-                      style: TextStyle(
-                        color: Color(friend.onlineStatusColor),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    ValueListenableBuilder<String>(
+                      valueListenable: I18n.language,
+                      builder: (context, _, __) => Text(
+                        friend.onlineStatus,
+                        style: TextStyle(
+                          color: Color(friend.onlineStatusColor),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -380,9 +389,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               color: Colors.white54,
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Немає нових запрошень',
-              style: TextStyle(
+            Text(
+              'Немає нових запрошень'.i18n('No new requests'),
+              style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -390,7 +399,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 8),
             Text(
-              'Тут з\'являться запрошення в друзі',
+              'Тут з\'являться запрошення в друзі'.i18n('Friend requests will appear here'),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 14,
@@ -423,9 +432,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               color: Colors.white54,
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Немає надісланих запрошень',
-              style: TextStyle(
+            Text(
+              'Немає надісланих запрошень'.i18n('No sent requests'),
+              style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -433,7 +442,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 8),
             Text(
-              'Тут з\'являться ваші запрошення',
+              'Тут з\'являться ваші запрошення'.i18n('Your invitations will appear here'),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 14,
@@ -508,8 +517,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                     const SizedBox(height: 4),
                     Text(
                       isIncoming 
-                          ? 'Хоче додати вас у друзі'
-                          : 'Запрошення надіслано',
+                          ? 'Хоче додати вас у друзі'.i18n('Wants to add you as a friend')
+                          : 'Запрошення надіслано'.i18n('Invitation sent'),
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.7),
                         fontSize: 14,
@@ -618,9 +627,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           backgroundColor: const Color(0xFF1a1a2e),
-          title: const Text(
-            'Додати друга',
-            style: TextStyle(color: Colors.white),
+          title: Text(
+            I18n.t('add_friend'),
+            style: const TextStyle(color: Colors.white),
           ),
           content: Container(
             width: MediaQuery.of(context).size.width * 0.9,
@@ -635,7 +644,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                   controller: _searchController,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: 'Введіть ім\'я користувача',
+                    hintText: I18n.inline('Введіть ім\'я користувача', 'Enter a username'),
                     hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                     border: OutlineInputBorder(
                       borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
@@ -680,7 +689,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Debug: ${_searchResults.length} результатів, пошук: $_isSearching',
+                  I18n.inline('Debug: ${_searchResults.length} результатів, пошук: $_isSearching',
+                      'Debug: ${_searchResults.length} results, searching: $_isSearching'),
                   style: const TextStyle(color: Colors.orange, fontSize: 10),
                 ),
                 const SizedBox(height: 8),
@@ -739,9 +749,11 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                                 },
                               );
                             },
-                            child: Text(user['name'] ?? 'Невідомий', style: const TextStyle(color: Colors.white)),
+                            child: Text(user['name'] ?? 'Невідомий'.i18n('Unknown'), style: const TextStyle(color: Colors.white)),
                           ),
-                          subtitle: Text('📍 ${user['city'] ?? 'Невідоме місто'}', style: TextStyle(color: Colors.white.withOpacity(0.7))),
+                          subtitle: Text(
+                              I18n.inline('📍 ${user['city'] ?? 'Невідоме місто'}', '📍 ${user['city'] ?? 'Unknown city'}'),
+                              style: TextStyle(color: Colors.white.withOpacity(0.7))),
                           trailing: IconButton(
                             icon: const Icon(Icons.person_add, color: Color(0xFF4caf50)),
                             onPressed: () => _sendFriendRequest(user['id']),
@@ -758,7 +770,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+              child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
             ),
           ],
         ),
@@ -813,8 +825,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       await _friendsService.sendFriendRequest(userId);
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Запрошення надіслано!'),
+        SnackBar(
+          content: Text('✅ Запрошення надіслано!'.i18n('✅ Invitation sent!')),
           backgroundColor: Colors.green,
         ),
       );
@@ -835,7 +847,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(accept ? '✅ Запрошення прийнято!' : '❌ Запрошення відхилено'),
+          content: Text(accept
+              ? '✅ Запрошення прийнято!'.i18n('✅ Invitation accepted!')
+              : '❌ Запрошення відхилено'.i18n('❌ Invitation declined')),
           backgroundColor: accept ? Colors.green : Colors.red,
         ),
       );
@@ -850,8 +864,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
     try {
       await _friendsService.cancelFriendRequest(requestId);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Запрошення скасовано'),
+        SnackBar(
+          content: Text('✅ Запрошення скасовано'.i18n('✅ Invitation cancelled')),
           backgroundColor: Colors.orange,
         ),
       );
@@ -873,7 +887,11 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   void _inviteToMatch(Friend friend) {
     // Navigate to create match with friend pre-selected
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Запрошення на матч для ${friend.name} (буде реалізовано)')),
+      SnackBar(
+        content: Text(
+          I18n.inline('Запрошення на матч для ${friend.name} (буде реалізовано)', 'Match invite for ${friend.name} (coming soon)'),
+        ),
+      ),
     );
   }
 
@@ -882,18 +900,19 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
-        title: const Text(
-          'Видалити з друзів?',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          'Видалити з друзів?'.i18n('Remove from friends?'),
+          style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          'Ви впевнені, що хочете видалити ${friend.name} з друзів?',
+          I18n.inline('Ви впевнені, що хочете видалити ${friend.name} з друзів?',
+              'Are you sure you want to remove ${friend.name} from friends?'),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+            child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () {
@@ -913,7 +932,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       _loadFriends(); // Refresh friends list
       
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${friend.name} видалено з друзів')),
+        SnackBar(content: Text(I18n.inline('${friend.name} видалено з друзів', '${friend.name} removed from friends'))),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -948,9 +967,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             'firstName': 'Leo',
             'lastName': 'Messi',
             'email': 'leo.messi@example.com',
-            'city': 'Київ',
-            'country': 'Україна',
-            'position': 'Нападник',
+            'city': 'Kyiv',
+            'country': 'Ukraine',
+            'position': 'Forward',
             'rating': 4.8,
             'coins': 250,
             'avatarUrl': '',
@@ -962,9 +981,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             'firstName': 'Vinnie',
             'lastName': 'Jr',
             'email': 'vinnie.jr@example.com',
-            'city': 'Львів',
-            'country': 'Україна',
-            'position': 'Півзахисник',
+            'city': 'Lviv',
+            'country': 'Ukraine',
+            'position': 'Midfielder',
             'rating': 4.2,
             'coins': 180,
             'avatarUrl': '',
@@ -976,9 +995,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             'firstName': 'Cristiano',
             'lastName': 'Ronaldo',
             'email': 'cristiano@example.com',
-            'city': 'Одеса',
-            'country': 'Україна',
-            'position': 'Нападник',
+            'city': 'Odesa',
+            'country': 'Ukraine',
+            'position': 'Forward',
             'rating': 4.9,
             'coins': 320,
             'avatarUrl': '',
@@ -990,9 +1009,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             'firstName': 'Neymar',
             'lastName': 'Jr',
             'email': 'neymar@example.com',
-            'city': 'Харків',
-            'country': 'Україна',
-            'position': 'Вінгер',
+            'city': 'Kharkiv',
+            'country': 'Ukraine',
+            'position': 'Winger',
             'rating': 4.3,
             'coins': 200,
             'avatarUrl': '',

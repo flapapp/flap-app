@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'notification_service.dart';
 import 'rating_tracking_service.dart';
+import '../utils/i18n.dart';
 
 class RatingService {
   static const double _matchWeight = 0.7; // 70% ваги для матчів
@@ -643,12 +644,12 @@ if (teamsExist) {
 
   // Отримати рівень гравця за рейтингом
   String getPlayerLevel(double rating) {
-    if (rating >= 0.0 && rating < 1.5) return 'Новачок';
-    if (rating >= 1.5 && rating < 2.5) return 'Початковий';
-    if (rating >= 2.5 && rating < 3.5) return 'Середній';
-    if (rating >= 3.5 && rating < 4.5) return 'Високий';
-    if (rating >= 4.5 && rating <= 5.0) return 'Професійний';
-    return 'Невідомо';
+    if (rating >= 0.0 && rating < 1.5) return I18n.inline('Новачок', 'Beginner');
+    if (rating >= 1.5 && rating < 2.5) return I18n.inline('Початковий', 'Novice');
+    if (rating >= 2.5 && rating < 3.5) return I18n.inline('Середній', 'Intermediate');
+    if (rating >= 3.5 && rating < 4.5) return I18n.inline('Високий', 'Advanced');
+    if (rating >= 4.5 && rating <= 5.0) return I18n.inline('Професійний', 'Professional');
+    return I18n.inline('Невідомо', 'Unknown');
   }
 
   // Отримати кольір рівня

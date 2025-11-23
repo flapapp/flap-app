@@ -5,6 +5,7 @@ import '../models/match.dart';
 import '../services/match_service.dart';
 import '../services/notification_service.dart';
 import '../models/notification.dart';
+import '../utils/i18n.dart';
 
 class CreateMatchScreen extends StatefulWidget {
   @override
@@ -19,17 +20,17 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   
   DateTime _selectedDate = DateTime.now().add(Duration(days: 1));
   TimeOfDay _selectedTime = TimeOfDay.now();
-  String _selectedCity = 'Київ';
-  String _selectedLevel = 'Середній';
+  String _selectedCity = I18n.t('kyiv');
+  String _selectedLevel = I18n.inline('Середній', 'Intermediate');
   int _selectedPlayers = 10;
   double _cost = 0.0;
   bool _autoBalance = true;
   bool _isPrivate = false;
-  int _numberOfTeams = 2; // 2, 3 або 4 команди
+  int _numberOfTeams = 2; // 2, 3 or 4 teams
   final Set<String> _selectedInviteFriendIds = <String>{};
   
-  final List<String> _cities = ['Київ', 'Харків', 'Одеса', 'Дніпро', 'Львів'];
-  final List<String> _levels = ['Початковий', 'Середній', 'Високий', 'Професійний'];
+  List<String> get _cities => [I18n.t('kyiv'), I18n.t('kharkiv'), I18n.t('odesa'), I18n.t('dnipro'), I18n.t('lviv')];
+  List<String> get _levels => [I18n.t('beginner'), I18n.inline('Середній', 'Intermediate'), I18n.inline('Високий', 'Advanced'), I18n.t('professional')];
   final List<int> _playerOptions = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
   final ScrollController _friendsScrollController = ScrollController();
 
@@ -38,7 +39,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF1a1a2e),
       appBar: AppBar(
-        title: Text('Створити матч', style: TextStyle(color: Colors.white)),
+        title: Text(I18n.t('create_match'), style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.white,
@@ -53,7 +54,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
             TextFormField(
               controller: _titleController,
               decoration: InputDecoration(
-                labelText: 'Назва матчу *',
+                labelText: I18n.inline('Назва матчу *', 'Match name *'),
                 labelStyle: TextStyle(color: Colors.white70),
                 border: OutlineInputBorder(),
                 enabledBorder: OutlineInputBorder(
@@ -65,7 +66,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               ),
               style: TextStyle(color: Colors.white),
               validator: (value) {
-                if (value?.isEmpty ?? true) return 'Введіть назву матчу';
+                if (value?.isEmpty ?? true) return I18n.inline('Введіть назву матчу', 'Enter match name');
                 return null;
               },
             ),
@@ -75,7 +76,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
             TextFormField(
               controller: _descriptionController,
               decoration: InputDecoration(
-                labelText: 'Опис матчу',
+                labelText: I18n.inline('Опис матчу', 'Match description'),
                 labelStyle: TextStyle(color: Colors.white70),
                 border: OutlineInputBorder(),
                 enabledBorder: OutlineInputBorder(
@@ -126,7 +127,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Дата *', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          Text(I18n.inline('Дата *', 'Date *'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
                           Text(
                             '${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}',
                             style: TextStyle(color: Colors.white, fontSize: 16),
@@ -168,7 +169,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Час *', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          Text(I18n.inline('Час *', 'Time *'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
                           Text(
                             '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
                             style: TextStyle(color: Colors.white, fontSize: 16),
@@ -186,7 +187,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
             TextFormField(
               controller: _locationController,
               decoration: InputDecoration(
-                labelText: 'Локація *',
+                labelText: I18n.inline('Локація *', 'Location *'),
                 labelStyle: TextStyle(color: Colors.white70),
                 border: OutlineInputBorder(),
                 enabledBorder: OutlineInputBorder(
@@ -198,7 +199,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               ),
               style: TextStyle(color: Colors.white),
               validator: (value) {
-                if (value?.isEmpty ?? true) return 'Введіть локацію';
+                if (value?.isEmpty ?? true) return I18n.inline('Введіть локацію', 'Enter location');
                 return null;
               },
             ),
@@ -211,7 +212,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                   child: DropdownButtonFormField<String>(
                     value: _selectedCity,
                     decoration: InputDecoration(
-                      labelText: 'Місто *',
+                      labelText: I18n.inline('Місто *', 'City *'),
                       labelStyle: TextStyle(color: Colors.white70),
                       border: OutlineInputBorder(),
                       enabledBorder: OutlineInputBorder(
@@ -236,7 +237,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                   child: DropdownButtonFormField<String>(
                     value: _selectedLevel,
                     decoration: InputDecoration(
-                      labelText: 'Рівень *',
+                      labelText: I18n.inline('Рівень *', 'Level *'),
                       labelStyle: TextStyle(color: Colors.white70),
                       border: OutlineInputBorder(),
                       enabledBorder: OutlineInputBorder(
@@ -267,7 +268,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                   child: DropdownButtonFormField<int>(
                     value: _selectedPlayers,
                     decoration: InputDecoration(
-                      labelText: 'Гравці *',
+                      labelText: I18n.inline('Гравці *', 'Players *'),
                       labelStyle: TextStyle(color: Colors.white70),
                       border: OutlineInputBorder(),
                       enabledBorder: OutlineInputBorder(
@@ -282,7 +283,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                     items: _playerOptions.map((players) => 
                       DropdownMenuItem(
                         value: players, 
-                        child: Text('$players гравців')
+                        child: Text(I18n.inline('$players гравців', '$players players'))
                       )
                     ).toList(),
                     onChanged: (value) {
@@ -294,7 +295,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                 Expanded(
                   child: TextFormField(
                     decoration: InputDecoration(
-                      labelText: 'Вартість (грн)',
+                      labelText: I18n.inline('Вартість (грн)', 'Cost (UAH)'),
                       labelStyle: TextStyle(color: Colors.white70),
                       border: OutlineInputBorder(),
                       enabledBorder: OutlineInputBorder(
@@ -320,7 +321,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               children: [
                 Expanded(
                   child: CheckboxListTile(
-                    title: Text('Автобаланс команд', style: TextStyle(color: Colors.white)),
+                    title: Text(I18n.inline('Автобаланс команд', 'Auto-balance teams'), style: const TextStyle(color: Colors.white)),
                     value: _autoBalance,
                     onChanged: (value) {
                       setState(() => _autoBalance = value!);
@@ -331,7 +332,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                 ),
                 Expanded(
                   child: CheckboxListTile(
-                    title: Text('Приватний матч', style: TextStyle(color: Colors.white)),
+                    title: Text(I18n.inline('Приватний матч', 'Private match'), style: const TextStyle(color: Colors.white)),
                     value: _isPrivate,
                     onChanged: (value) {
                       setState(() => _isPrivate = value!);
@@ -356,7 +357,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Кількість команд:', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text(I18n.inline('Кількість команд:', 'Number of teams:'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                     SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -400,9 +401,9 @@ Row(
   children: [
     Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
     const SizedBox(width: 8),
-    const Text(
-      'Запросити друзів',
-      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+    Text(
+      I18n.inline('Запросити друзів', 'Invite friends'),
+      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
     ),
   ],
 ),
@@ -413,7 +414,7 @@ FutureBuilder<List<Map<String, dynamic>>>(
     final friends = snapshot.data ?? const <Map<String, dynamic>>[];
     if (friends.isEmpty) {
       return Text(
-        'Немає друзів для запрошення',
+        I18n.inline('Немає друзів для запрошення', 'No friends to invite'),
         style: TextStyle(color: Colors.white.withOpacity(0.75)),
       );
     }
@@ -443,7 +444,7 @@ FutureBuilder<List<Map<String, dynamic>>>(
       itemBuilder: (context, i) {
               final f = friends[i];
               final id = f['id'] as String;
-              final name = (f['displayName'] ?? f['name'] ?? 'Користувач').toString();
+              final name = (f['displayName'] ?? f['name'] ?? I18n.inline('Користувач', 'User')).toString();
               final photoUrl = (f['avatarUrl'] ?? f['photoUrl'] ?? '').toString();
               final position = (f['position'] ?? f['role'] ?? '').toString();
               final rating = ((f['rating'] ?? f['averageRating'] ?? 0) as num).toDouble();
@@ -534,7 +535,7 @@ FutureBuilder<List<Map<String, dynamic>>>(
                 ),
               ),
               child: Text(
-                'Створити матч',
+                I18n.t('create_match'),
                 style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
@@ -564,7 +565,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
        userData['authorName'] ??
        userData['name'] ??
        emailPrefix ??
-       'Невідомий').toString();
+       I18n.inline('Невідомий', 'Unknown')).toString();
       
       final match = Match(
         id: '', // Firestore згенерує ID

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/i18n.dart';
 
 enum SubscriptionType {
   free,
@@ -91,24 +92,32 @@ class Subscription {
 
   // Subscription info
   String get name {
+    return _getLocalizedName(type);
+  }
+
+  static String _getLocalizedName(SubscriptionType type) {
     switch (type) {
       case SubscriptionType.europa:
         return 'Europa League';
       case SubscriptionType.champions:
         return 'Champions League';
       default:
-        return 'Безкоштовна';
+        return I18n.inline('Безкоштовна', 'Free');
     }
   }
 
   String get description {
+    return _getLocalizedDescription(type);
+  }
+
+  static String _getLocalizedDescription(SubscriptionType type) {
     switch (type) {
       case SubscriptionType.europa:
-        return 'Розширені можливості для серйозних гравців';
+        return I18n.inline('Розширені можливості для серйозних гравців', 'Extended features for serious players');
       case SubscriptionType.champions:
-        return 'Преміум досвід для справжніх чемпіонів';
+        return I18n.inline('Преміум досвід для справжніх чемпіонів', 'Premium experience for true champions');
       default:
-        return 'Базові можливості FLAP';
+        return I18n.inline('Базові можливості FLAP', 'Basic FLAP features');
     }
   }
 
@@ -124,33 +133,37 @@ class Subscription {
   }
 
   List<String> get featuresList {
+    return _getLocalizedFeaturesList(type);
+  }
+
+  static List<String> _getLocalizedFeaturesList(SubscriptionType type) {
     switch (type) {
       case SubscriptionType.europa:
         return [
-          'Видимий рейтинг всіх гравців',
-          '5 челенджів на місяць',
-          '+30 монет щомісяця',
-          'Коментарі до відео',
-          'Додаткові фільтри пошуку',
-          'Синя позначка біля імені',
+          I18n.inline('Видимий рейтинг всіх гравців', 'Visible ratings of all players'),
+          I18n.inline('5 челенджів на місяць', '5 challenges per month'),
+          I18n.inline('+30 монет щомісяця', '+30 coins monthly'),
+          I18n.inline('Коментарі до відео', 'Video comments'),
+          I18n.inline('Додаткові фільтри пошуку', 'Additional search filters'),
+          I18n.inline('Синя позначка біля імені', 'Blue badge next to name'),
         ];
       case SubscriptionType.champions:
         return [
-          'Все з Europa League',
-          'Необмежені челенджі',
-          '+60 монет щомісяця',
-          'Знижка 20% на монети',
-          'Приватні матчі',
-          'Детальна статистика',
-          'Золота позначка біля імені',
-          'VIP підтримка',
+          I18n.inline('Все з Europa League', 'Everything from Europa League'),
+          I18n.inline('Необмежені челенджі', 'Unlimited challenges'),
+          I18n.inline('+60 монет щомісяця', '+60 coins monthly'),
+          I18n.inline('Знижка 20% на монети', '20% discount on coins'),
+          I18n.inline('Приватні матчі', 'Private matches'),
+          I18n.inline('Детальна статистика', 'Detailed statistics'),
+          I18n.inline('Золота позначка біля імені', 'Gold badge next to name'),
+          I18n.inline('VIP підтримка', 'VIP support'),
         ];
       default:
         return [
-          'Базовий функціонал',
-          '1 челендж на місяць',
-          'Рейтинги інших гравців приховані',
-          'Обмежені фільтри',
+          I18n.inline('Базовий функціонал', 'Basic functionality'),
+          I18n.inline('1 челендж на місяць', '1 challenge per month'),
+          I18n.inline('Рейтинги інших гравців приховані', 'Other players ratings are hidden'),
+          I18n.inline('Обмежені фільтри', 'Limited filters'),
         ];
     }
   }

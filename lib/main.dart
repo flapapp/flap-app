@@ -160,7 +160,7 @@ class MyApp extends StatelessWidget {
   final match = ModalRoute.of(context)?.settings.arguments as app_models.Match?;
   if (match == null) {
     return Scaffold(
-      body: Center(child: Text('Помилка: матч не знайдено')),
+      body: Center(child: Text(I18n.inline('Помилка: матч не знайдено', 'Error: match not found'))),
     );
   }
   return MatchRatingScreen(match: match);
@@ -272,9 +272,9 @@ class WelcomeScreen extends StatelessWidget {
                       dropdownColor: const Color(0xFF1e7d32),
                       icon: const Icon(Icons.language, color: Colors.white),
                       style: const TextStyle(color: Colors.white),
-                      items: const [
-                        DropdownMenuItem(value: 'uk', child: Text('Українська')),
-                        DropdownMenuItem(value: 'en', child: Text('English')),
+                      items: [
+                        DropdownMenuItem(value: 'uk', child: Text(I18n.inline('Українська', 'Ukrainian'))),
+                        const DropdownMenuItem(value: 'en', child: Text('English')),
                       ],
                       onChanged: (v) { if (v != null) I18n.setLanguage(v); },
                     ),

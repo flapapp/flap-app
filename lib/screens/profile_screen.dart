@@ -584,7 +584,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          badge.name,
+                          badge.localizedName,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,

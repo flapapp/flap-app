@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/challenge.dart';
 import 'video_player_screen.dart';
 import '../models/match.dart';
+import '../utils/i18n.dart';
 
 class NotificationsScreen extends StatefulWidget {
   @override
@@ -21,9 +22,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0f0f23),
         elevation: 0,
-        title: const Text(
-          '🔔 Сповіщення',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        title: Text(
+          I18n.inline('🔔 Сповіщення', '🔔 Notifications'),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -33,7 +34,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           IconButton(
             icon: const Icon(Icons.mark_email_read, color: Colors.white),
             onPressed: _markAllAsRead,
-            tooltip: 'Позначити все як прочитане',
+            tooltip: I18n.inline('Позначити все як прочитане', 'Mark all as read'),
           ),
         ],
       ),
@@ -58,7 +59,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Помилка завантаження',
+                    I18n.inline('Помилка завантаження', 'Error loading'),
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 16,
@@ -77,7 +78,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ElevatedButton.icon(
                     onPressed: () => setState(() {}),
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Спробувати знову'),
+                    label: Text(I18n.inline('Спробувати знову', 'Try again')),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF4caf50),
                       foregroundColor: Colors.white,
@@ -119,9 +120,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
-            'Немає сповіщень',
-            style: TextStyle(
+          Text(
+            I18n.inline('Немає сповіщень', 'No notifications'),
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -129,7 +130,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Тут з\'являться ваші сповіщення\nпро друзів, челенджі та відео',
+            I18n.inline('Тут з\'являться ваші сповіщення\nпро друзів, челенджі та відео', 'Your notifications about friends, challenges and videos will appear here'),
             style: TextStyle(
               color: Colors.white.withOpacity(0.7),
               fontSize: 14,
@@ -284,7 +285,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      'Позначити',
+                                      I18n.inline('Позначити', 'Mark as read'),
                                       style: TextStyle(
                                         color: Color(notification.typeColor),
                                         fontSize: 11,
@@ -335,11 +336,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       String dateKey;
       
       if (_isSameDay(date, now)) {
-        dateKey = 'Сьогодні';
+        dateKey = I18n.inline('Сьогодні', 'Today');
       } else if (_isSameDay(date, now.subtract(const Duration(days: 1)))) {
-        dateKey = 'Вчора';
+        dateKey = I18n.inline('Вчора', 'Yesterday');
       } else if (now.difference(date).inDays < 7) {
-        final weekdays = ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота'];
+        final weekdays = I18n.language.value == 'en' 
+            ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+            : ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота'];
         dateKey = weekdays[date.weekday % 7];
       } else {
         dateKey = '${date.day}.${date.month.toString().padLeft(2, '0')}.${date.year}';
@@ -353,7 +356,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     
     // Convert to list and maintain order
     final sortedKeys = dateGroups.keys.toList();
-    final priorityOrder = ['Сьогодні', 'Вчора'];
+    final priorityOrder = [I18n.inline('Сьогодні', 'Today'), I18n.inline('Вчора', 'Yesterday')];
     
     sortedKeys.sort((a, b) {
       final aIndex = priorityOrder.indexOf(a);
@@ -449,7 +452,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!doc.exists) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Челендж не знайдено')),
+          SnackBar(content: Text(I18n.inline('Челендж не знайдено', 'Challenge not found'))),
         );
         return;
       }
@@ -459,7 +462,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка відкриття челенджу: $e')),
+        SnackBar(content: Text(I18n.inline('Помилка відкриття челенджу: $e', 'Error opening challenge: $e'))),
       );
     }
   }
@@ -473,7 +476,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!doc.exists) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Матч не знайдено: $matchId')),
+          SnackBar(content: Text(I18n.inline('Матч не знайдено: $matchId', 'Match not found: $matchId'))),
         );
         return;
       }
@@ -487,7 +490,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       print('❌ NOTIFICATION: Error opening match: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка відкриття матчу: $e')),
+        SnackBar(content: Text(I18n.inline('Помилка відкриття матчу: $e', 'Error opening match: $e'))),
       );
     }
   }
@@ -515,17 +518,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!doc.exists) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Відео не знайдено')),
+          SnackBar(content: Text(I18n.inline('Відео не знайдено', 'Video not found'))),
         );
         return;
       }
       final data = doc.data() as Map<String, dynamic>;
       final videoUrl = (data['videoUrl'] ?? '').toString();
-      final title = (data['title'] ?? 'Відео').toString();
+      final title = (data['title'] ?? I18n.inline('Відео', 'Video')).toString();
       if (videoUrl.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Посилання на відео відсутнє')),
+          SnackBar(content: Text(I18n.inline('Посилання на відео відсутнє', 'Video link missing'))),
         );
         return;
       }
@@ -544,7 +547,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка відкриття відео: $e')),
+        SnackBar(content: Text(I18n.inline('Помилка відкриття відео: $e', 'Error opening video: $e'))),
       );
     }
   }
@@ -552,9 +555,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void _markAsRead(AppNotification notification) async {
     await _notificationService.markAsRead(notification.id);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Позначено як прочитане'),
-        duration: Duration(seconds: 1),
+      SnackBar(
+        content: Text(I18n.inline('Позначено як прочитане', 'Marked as read')),
+        duration: const Duration(seconds: 1),
       ),
     );
   }
@@ -563,8 +566,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final success = await _notificationService.markAllAsRead();
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Всі сповіщення позначені як прочитані'),
+        SnackBar(
+          content: Text(I18n.inline('Всі сповіщення позначені як прочитані', 'All notifications marked as read')),
           backgroundColor: Colors.green,
         ),
       );
@@ -575,9 +578,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final success = await _notificationService.deleteNotification(notification.id);
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Сповіщення видалено'),
-          duration: Duration(seconds: 1),
+        SnackBar(
+          content: Text(I18n.inline('Сповіщення видалено', 'Notification deleted')),
+          duration: const Duration(seconds: 1),
         ),
       );
     }

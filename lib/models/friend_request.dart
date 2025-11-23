@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/i18n.dart';
 
 enum FriendRequestStatus {
   pending,
@@ -183,10 +184,10 @@ class Friend {
   factory Friend.fromUserData(Map<String, dynamic> userData, DateTime friendsSince) {
     return Friend(
       userId: userData['id'] ?? '',
-      name: userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? 'Користувач',
+      name: userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? I18n.inline('Користувач', 'User'),
       avatar: userData['avatarUrl'] ?? userData['avatar'] ?? '', // Спочатку перевіряємо avatarUrl, потім avatar
       rating: (userData['rating'] ?? 0.0).toDouble(),
-      city: userData['city'] ?? 'Невідоме місто',
+      city: userData['city'] ?? I18n.inline('Невідоме місто', 'Unknown city'),
       position: userData['position'] ?? 'player',
       friendsSince: friendsSince,
       isOnline: userData['isOnline'] ?? false,
@@ -212,37 +213,44 @@ class Friend {
 
   // Position display
   String get positionDisplay {
+    return _getLocalizedPosition(position);
+  }
+
+  static String _getLocalizedPosition(String position) {
     switch (position.toLowerCase()) {
       case 'goalkeeper':
-        return '🥅 Воротар';
+        return I18n.inline('🥅 Воротар', '🥅 Goalkeeper');
       case 'defender':
-        return '🛡️ Захисник';
+        return I18n.inline('🛡️ Захисник', '🛡️ Defender');
       case 'midfielder':
-        return '⚽ Півзахисник';
+        return I18n.inline('⚽ Півзахисник', '⚽ Midfielder');
       case 'forward':
-        return '🎯 Нападник';
+        return I18n.inline('🎯 Нападник', '🎯 Forward');
       default:
-        return '⚽ Гравець';
+        return I18n.inline('⚽ Гравець', '⚽ Player');
     }
   }
 
   // Online status
   String get onlineStatus {
-    if (isOnline) return 'Онлайн';
+    if (isOnline) return I18n.inline('Онлайн', 'Online');
     
-    if (lastSeen == null) return 'Давно не був';
+    if (lastSeen == null) return I18n.inline('Давно не був', 'Long time ago');
     
     final now = DateTime.now();
     final difference = now.difference(lastSeen!);
     
     if (difference.inDays > 0) {
-      return 'Був ${difference.inDays} дн. тому';
+      final days = difference.inDays;
+      return I18n.inline('Був $days дн. тому', 'Was $days days ago');
     } else if (difference.inHours > 0) {
-      return 'Був ${difference.inHours} год. тому';
+      final hours = difference.inHours;
+      return I18n.inline('Був $hours год. тому', 'Was $hours hours ago');
     } else if (difference.inMinutes > 0) {
-      return 'Був ${difference.inMinutes} хв. тому';
+      final minutes = difference.inMinutes;
+      return I18n.inline('Був $minutes хв. тому', 'Was $minutes minutes ago');
     } else {
-      return 'Щойно був';
+      return I18n.inline('Щойно був', 'Just now');
     }
   }
 

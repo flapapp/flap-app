@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/i18n.dart';
 
 class AdminScreen extends StatefulWidget {
   @override
@@ -36,15 +37,15 @@ class _AdminScreenState extends State<AdminScreen> {
       await challengeBatch.commit();
       
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Всі челенджі видалено!'),
+        SnackBar(
+          content: Text(I18n.inline('✅ Всі челенджі видалено!', '✅ All challenges deleted!')),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Помилка: $e'),
+          content: Text(I18n.inline('❌ Помилка: $e', '❌ Error: $e')),
           backgroundColor: Colors.red,
         ),
       );
@@ -73,8 +74,8 @@ class _AdminScreenState extends State<AdminScreen> {
                 color: Colors.white,
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Адміністрування',
+              Text(
+                I18n.inline('Адміністрування', 'Administration'),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
@@ -93,7 +94,7 @@ class _AdminScreenState extends State<AdminScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.delete_forever),
-                  label: Text(_isDeleting ? 'Видаляю...' : 'Видалити всі челенджі'),
+                  label: Text(_isDeleting ? I18n.inline('Видаляю...', 'Deleting...') : I18n.inline('Видалити всі челенджі', 'Delete all challenges')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,

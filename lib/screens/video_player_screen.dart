@@ -7,6 +7,7 @@ import '../services/rating_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/rating_display.dart';
 import '../widgets/user_chip.dart';
+import '../utils/i18n.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
@@ -77,7 +78,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           if (userDoc.exists) {
             final ud = userDoc.data() as Map<String, dynamic>;
             setState(() {
-              _videoAuthorName = ud['displayName'] ?? ud['name'] ?? ud['email']?.toString().split('@').first ?? 'Користувач';
+              _videoAuthorName = ud['displayName'] ?? ud['name'] ?? ud['email']?.toString().split('@').first ?? I18n.inline('Користувач', 'User');
               _videoAuthorAvatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
             });
           }
@@ -99,7 +100,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             if (userDoc.exists) {
               final ud = userDoc.data() as Map<String, dynamic>;
               setState(() {
-                _videoAuthorName = ud['displayName'] ?? ud['name'] ?? ud['email']?.toString().split('@').first ?? 'Користувач';
+                _videoAuthorName = ud['displayName'] ?? ud['name'] ?? ud['email']?.toString().split('@').first ?? I18n.inline('Користувач', 'User');
                 _videoAuthorAvatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
               });
             }
@@ -177,7 +178,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     if (_hasVoted) return;
     if (_videoAuthorId != null && _videoAuthorId == currentUser.uid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не можна голосувати за власне відео')),
+        SnackBar(content: Text(I18n.inline('Не можна голосувати за власне відео', 'Cannot vote for own video'))),
       );
       return;
     }
@@ -208,16 +209,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         
         // Показуємо сповіщення про успішне голосування
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Дякуємо за ваш голос! +1 монета'),
+          SnackBar(
+            content: Text(I18n.inline('✅ Дякуємо за ваш голос! +1 монета', '✅ Thank you for your vote! +1 coin')),
             backgroundColor: Colors.green,
           ),
         );
         // Ніяких додаткових сповіщень для того, хто голосує
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ Помилка голосування'),
+          SnackBar(
+            content: Text(I18n.inline('❌ Помилка голосування', '❌ Voting error')),
             backgroundColor: Colors.red,
           ),
         );
@@ -226,7 +227,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       print('Error submitting vote: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Помилка голосування: $e'),
+          content: Text(I18n.inline('Помилка голосування: $e', 'Voting error: $e')),
           backgroundColor: Colors.red,
         ),
       );
@@ -245,7 +246,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     if (_hasVoted) return;
     if (widget.submissionUserId == currentUser.uid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не можна голосувати за власне відео')),
+        SnackBar(content: Text(I18n.inline('Не можна голосувати за власне відео', 'Cannot vote for own video'))),
       );
       return;
     }
@@ -266,7 +267,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           .get();
       if (voteDoc.exists) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ Ви вже голосували за це відео!'), backgroundColor: Colors.red),
+          SnackBar(content: Text(I18n.inline('❌ Ви вже голосували за це відео!', '❌ You already voted for this video!')), backgroundColor: Colors.red),
         );
         return;
       }
@@ -309,7 +310,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
       setState(() { _hasVoted = true; });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('✅ Голос збережено (${weighted.toStringAsFixed(1)} ⭐)')),
+        SnackBar(content: Text(I18n.inline('✅ Голос збережено (${weighted.toStringAsFixed(1)} ⭐)', '✅ Vote saved (${weighted.toStringAsFixed(1)} ⭐)'))),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -335,7 +336,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         comments.add({
           'id': doc.id,
           'text': data['text'] ?? '',
-          'authorName': data['authorName'] ?? 'Невідомий',
+          'authorName': data['authorName'] ?? I18n.inline('Невідомий', 'Unknown'),
           'createdAt': data['createdAt'],
         });
       }
@@ -383,7 +384,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Помилка завантаження відео',
+                  I18n.inline('Помилка завантаження відео', 'Video loading error'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -469,8 +470,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     // Перевірка чи videoId не порожній
     if (widget.videoId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('❌ Помилка: ID відео не знайдено'),
+        SnackBar(
+          content: Text(I18n.inline('❌ Помилка: ID відео не знайдено', '❌ Error: Video ID not found')),
           backgroundColor: Colors.red,
         ),
       );
@@ -509,9 +510,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Коментар додано!'),
-            backgroundColor: Color(0xFF4caf50),
+          SnackBar(
+            content: Text(I18n.inline('✅ Коментар додано!', '✅ Comment added!')),
+            backgroundColor: const Color(0xFF4caf50),
           ),
         );
       }
@@ -538,14 +539,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       if (difference.inDays > 0) {
         return '${difference.inDays} дн. тому';
       } else if (difference.inHours > 0) {
-        return '${difference.inHours} год. тому';
+        return I18n.inline('${difference.inHours} год. тому', '${difference.inHours} h ago');
       } else if (difference.inMinutes > 0) {
-        return '${difference.inMinutes} хв. тому';
+        return I18n.inline('${difference.inMinutes} хв. тому', '${difference.inMinutes} min ago');
       } else {
-        return 'Щойно';
+        return I18n.inline('Щойно', 'Just now');
       }
     } catch (e) {
-      return 'Нещодавно';
+      return I18n.inline('Нещодавно', 'Recently');
     }
   }
 
@@ -832,15 +833,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             ),
             
             // Title
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  Icon(Icons.comment_outlined, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
+                  const Icon(Icons.comment_outlined, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
                   Text(
-                    'Коментарі',
-                    style: TextStyle(
+                    I18n.inline('Коментарі', 'Comments'),
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -861,7 +862,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       controller: _commentController,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        hintText: 'Додати коментар...',
+                        hintText: I18n.inline('Додати коментар...', 'Add a comment...'),
                         hintStyle: const TextStyle(color: Colors.white54),
                         filled: true,
                         fillColor: Colors.white.withOpacity(0.1),
@@ -893,10 +894,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             // Comments list
             Expanded(
               child: _comments.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                        'Поки що немає коментарів',
-                        style: TextStyle(color: Colors.white54, fontSize: 16),
+                        I18n.inline('Поки що немає коментарів', 'No comments yet'),
+                        style: const TextStyle(color: Colors.white54, fontSize: 16),
                       ),
                     )
                   : ListView.builder(
@@ -999,7 +1000,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                         const Icon(Icons.how_to_vote, color: Colors.white, size: 24),
                         const SizedBox(width: 12),
                         Text(
-                          _isChallengeSubmission ? 'Голосування за челендж' : 'Оцініть відео',
+                          _isChallengeSubmission ? I18n.inline('Голосування за челендж', 'Challenge voting') : I18n.inline('Оцініть відео', 'Rate video'),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 20,
@@ -1038,7 +1039,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              'Простий',
+                              I18n.inline('Простий', 'Simple'),
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: !_isAdvancedVoting ? Colors.white : Colors.white54,
@@ -1058,7 +1059,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              'Розширений',
+                              I18n.inline('Розширений', 'Advanced'),
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: _isAdvancedVoting ? Colors.white : Colors.white54,
@@ -1077,13 +1078,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 if (_isAdvancedVoting) ...[
                   _buildSliderRow('Техніка', _technical, (v) => setModalState(() => _technical = v)),
                   const SizedBox(height: 16),
-                  _buildSliderRow('Креативність', _creativity, (v) => setModalState(() => _creativity = v)),
+                  _buildSliderRow(I18n.inline('Креативність', 'Creativity'), _creativity, (v) => setModalState(() => _creativity = v)),
                   const SizedBox(height: 16),
-                  _buildSliderRow('Складність', _difficulty, (v) => setModalState(() => _difficulty = v)),
+                  _buildSliderRow(I18n.inline('Складність', 'Difficulty'), _difficulty, (v) => setModalState(() => _difficulty = v)),
                   const SizedBox(height: 16),
-                  _buildSliderRow('Якість відео', _quality, (v) => setModalState(() => _quality = v)),
+                  _buildSliderRow(I18n.inline('Якість відео', 'Video quality'), _quality, (v) => setModalState(() => _quality = v)),
                 ] else ...[
-                  _buildSliderRow('Загальна оцінка', _technical, (v) => setModalState(() {
+                  _buildSliderRow(I18n.inline('Загальна оцінка', 'Overall rating'), _technical, (v) => setModalState(() {
                     _technical = v;
                     _creativity = v;
                     _difficulty = v;
@@ -1107,7 +1108,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: Text(
-                      _isSubmittingVote ? 'Надсилаємо...' : 'Проголосувати',
+                      _isSubmittingVote ? I18n.inline('Надсилаємо...', 'Submitting...') : I18n.inline('Проголосувати', 'Vote'),
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),

@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../services/challenge_service.dart';
 import '../services/thumbnail_service.dart';
+import '../utils/i18n.dart';
 
 class VideoUploadScreen extends StatefulWidget {
   final String? challengeId;
@@ -33,20 +34,20 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   bool _isUploading = false;
   double _uploadProgress = 0.0;
 
-  final List<String> _categories = [
-    'Техніка',
-    'Фізика',
-    'Тактика',
-    'Командна гра',
-    'Фрістайл',
-    'Інше',
+  List<String> get _categories => [
+    I18n.inline('Техніка', 'Technique'),
+    I18n.inline('Фізика', 'Physics'),
+    I18n.inline('Тактика', 'Tactics'),
+    I18n.inline('Командна гра', 'Teamplay'),
+    I18n.inline('Фрістайл', 'Freestyle'),
+    I18n.inline('Інше', 'Other'),
   ];
 
-  final List<String> _difficulties = [
-    'Легкий',
-    'Середній',
-    'Складний',
-    'Експерт',
+  List<String> get _difficulties => [
+    I18n.inline('Легкий', 'Easy'),
+    I18n.inline('Середній', 'Medium'),
+    I18n.inline('Складний', 'Hard'),
+    I18n.inline('Експерт', 'Expert'),
   ];
 
   Future<void> _pickVideo({bool fromCamera = false}) async {
@@ -59,7 +60,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     if (picked == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Вибір відео скасовано')),
+          SnackBar(content: Text(I18n.inline('Вибір відео скасовано', 'Video selection cancelled'))),
         );
       }
       return;
@@ -71,7 +72,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Відео додано!')),
+        SnackBar(content: Text(I18n.inline('Відео додано!', 'Video added!'))),
       );
     }
   }
@@ -85,8 +86,8 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         elevation: 0,
         title: Text(
           widget.challengeId != null 
-            ? 'Відео для челенджу: ${widget.challengeTitle}'
-            : 'Завантажити відео',
+            ? I18n.inline('Відео для челенджу: ${widget.challengeTitle}', 'Video for challenge: ${widget.challengeTitle}')
+            : I18n.t('upload_video'),
           style: const TextStyle(color: Colors.white),
         ),
         leading: IconButton(
@@ -105,8 +106,8 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                 // Заголовок
                 Text(
                   widget.challengeId != null 
-                    ? 'Подай відео для челенджу!'
-                    : 'Покажи свої навички!',
+                    ? I18n.inline('Подай відео для челенджу!', 'Submit video for challenge!')
+                    : I18n.t('show_skills'),
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -116,8 +117,8 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                 const SizedBox(height: 10),
                 Text(
                   widget.challengeId != null
-                    ? 'Завантаж відео та брати участь у челенджі'
-                    : 'Завантаж відео та отримай оцінки від спільноти',
+                    ? I18n.inline('Завантаж відео та брати участь у челенджі', 'Upload video and participate in challenge')
+                    : I18n.t('upload_get_ratings'),
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.white.withOpacity(0.8),
@@ -149,9 +150,9 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                                 size: 50,
                               ),
                               const SizedBox(height: 10),
-                              const Text(
-                                'Відео вибрано!',
-                                style: TextStyle(
+                              Text(
+                                I18n.inline('Відео вибрано!', 'Video selected!'),
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -159,7 +160,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                               ),
                               const SizedBox(height: 5),
                               Text(
-                                'Натисніть ще раз, щоб змінити',
+                                I18n.inline('Натисніть ще раз, щоб змінити', 'Tap again to change'),
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.7),
                                   fontSize: 14,
@@ -176,9 +177,9 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                                 size: 50,
                               ),
                               const SizedBox(height: 15),
-                              const Text(
-                                'Натисніть, щоб вибрати відео',
-                                style: TextStyle(
+                              Text(
+                                I18n.inline('Натисніть, щоб вибрати відео', 'Tap to select video'),
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
@@ -186,7 +187,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                               ),
                               const SizedBox(height: 5),
                               Text(
-                                'MP4, максимум 5 хвилин',
+                                I18n.inline('MP4, максимум 5 хвилин', 'MP4, max 5 minutes'),
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.7),
                                   fontSize: 14,
@@ -204,7 +205,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                       child: ElevatedButton.icon(
                         onPressed: _isUploading ? null : () => _pickVideo(fromCamera: false),
                         icon: const Icon(Icons.video_library),
-                        label: const Text('Галерея'),
+                        label: Text(I18n.inline('Галерея', 'Gallery')),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white24,
                           foregroundColor: Colors.white,
@@ -216,7 +217,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                       child: ElevatedButton.icon(
                         onPressed: _isUploading ? null : () => _pickVideo(fromCamera: true),
                         icon: const Icon(Icons.videocam),
-                        label: const Text('Камера'),
+                        label: Text(I18n.inline('Камера', 'Camera')),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF4caf50),
                           foregroundColor: Colors.white,
@@ -239,17 +240,17 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                     controller: _titleController,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: 'Назва відео',
+                      labelText: I18n.inline('Назва відео', 'Video title'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Введіть назву відео';
+                        return I18n.inline('Введіть назву відео', 'Enter video title');
                       }
                       if (value.length < 3) {
-                        return 'Назва має бути не менше 3 символів';
+                        return I18n.inline('Назва має бути не менше 3 символів', 'Title must be at least 3 characters');
                       }
                       return null;
                     },
@@ -268,14 +269,14 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                     style: const TextStyle(color: Colors.white),
                     maxLines: 3,
                     decoration: InputDecoration(
-                      labelText: 'Опис',
+                      labelText: I18n.inline('Опис', 'Description'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Введіть опис відео';
+                        return I18n.inline('Введіть опис відео', 'Enter video description');
                       }
                       return null;
                     },
@@ -294,7 +295,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                     style: const TextStyle(color: Colors.white),
                     dropdownColor: const Color(0xFF1e7d32),
                     decoration: InputDecoration(
-                      labelText: 'Категорія',
+                      labelText: I18n.inline('Категорія', 'Category'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
@@ -315,7 +316,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Виберіть категорію';
+                        return I18n.inline('Виберіть категорію', 'Select category');
                       }
                       return null;
                     },
@@ -334,7 +335,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                     style: const TextStyle(color: Colors.white),
                     dropdownColor: const Color(0xFF1e7d32),
                     decoration: InputDecoration(
-                      labelText: 'Складність',
+                      labelText: I18n.inline('Складність', 'Difficulty'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
@@ -355,7 +356,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Виберіть складність';
+                        return I18n.inline('Виберіть складність', 'Select difficulty');
                       }
                       return null;
                     },
@@ -407,10 +408,10 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                     onPressed: _isUploading || _pickedVideo == null ? null : _uploadVideo,
                     child: Text(
                       _isUploading 
-                        ? 'ЗАВАНТАЖЕННЯ...' 
+                        ? I18n.inline('ЗАВАНТАЖЕННЯ...', 'UPLOADING...') 
                         : widget.challengeId != null 
-                          ? 'ПОДАТИ ВІДЕО ДЛЯ ЧЕЛЕНДЖУ'
-                          : 'ЗАВАНТАЖИТИ ВІДЕО',
+                          ? I18n.inline('ПОДАТИ ВІДЕО ДЛЯ ЧЕЛЕНДЖУ', 'SUBMIT VIDEO FOR CHALLENGE')
+                          : I18n.inline('ЗАВАНТАЖИТИ ВІДЕО', 'UPLOAD VIDEO'),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -440,7 +441,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(I18n.inline('Користувач не авторизований', 'User not authorized'));
       }
 
       // Генеруємо унікальні імена файлів
@@ -505,9 +506,9 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       // Показуємо успішне повідомлення
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Відео успішно завантажено!'),
-            backgroundColor: Color(0xFF4caf50),
+          SnackBar(
+            content: Text(I18n.inline('✅ Відео успішно завантажено!', '✅ Video uploaded successfully!')),
+            backgroundColor: const Color(0xFF4caf50),
           ),
         );
 
@@ -521,7 +522,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Помилка завантаження: ${e.toString()}'),
+            content: Text(I18n.inline('❌ Помилка завантаження: ${e.toString()}', '❌ Upload error: ${e.toString()}')),
             backgroundColor: Colors.red,
           ),
         );

@@ -6,6 +6,7 @@ import 'mode_selection_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import '../utils/i18n.dart';
 
 class ProfileCreationScreen extends StatefulWidget {
   final bool isEditing;
@@ -41,11 +42,13 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
             _surnameController.text = userData['surname'] ?? '';
             _cityController.text = userData['city'] ?? '';
             _ageController.text = userData['age']?.toString() ?? '';
-            // Перевіряємо чи значення є в списках
+            // Перевіряємо чи значення є в списках (using Ukrainian values for matching)
             final userPosition = userData['position'];
-            _selectedPosition = _positions.contains(userPosition) ? userPosition : null;
+            final ukPositions = ['Воротар', 'Захисник', 'Півзахисник', 'Нападник'];
+            _selectedPosition = ukPositions.contains(userPosition) ? userPosition : null;
             final userExperience = userData['experience'];
-            _selectedExperience = _experiences.contains(userExperience) ? userExperience : null;
+            final ukExperiences = ['Початківець', 'Любитель', 'Напівпрофесіонал', 'Професіонал'];
+            _selectedExperience = ukExperiences.contains(userExperience) ? userExperience : null;
           });
         }
       }
@@ -64,18 +67,18 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
   File? _imageFile;
   XFile? _pickedImage;
 
-  final List<String> _positions = [
-    'Воротар',
-    'Захисник',
-    'Півзахисник',
-    'Нападник',
+  List<String> get _positions => [
+    I18n.inline('Воротар', 'Goalkeeper'),
+    I18n.inline('Захисник', 'Defender'),
+    I18n.inline('Півзахисник', 'Midfielder'),
+    I18n.inline('Нападник', 'Forward'),
   ];
 
-  final List<String> _experiences = [
-    'Початківець',
-    'Любитель',
-    'Напівпрофесіонал',
-    'Професіонал',
+  List<String> get _experiences => [
+    I18n.inline('Початківець', 'Beginner'),
+    I18n.inline('Любитель', 'Amateur'),
+    I18n.inline('Напівпрофесіонал', 'Semi-professional'),
+    I18n.inline('Професіонал', 'Professional'),
   ];
 
   Future<void> _pickImage() async {
@@ -88,7 +91,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
 
     if (picked == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Вибір фото скасовано')),
+        SnackBar(content: Text(I18n.inline('Вибір фото скасовано', 'Photo selection cancelled'))),
       );
       return;
     }
@@ -101,7 +104,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Фото додано!')),
+      SnackBar(content: Text(I18n.inline('Фото додано!', 'Photo added!'))),
     );
   }
 
@@ -125,7 +128,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
             child: Column(
               children: [
                 Text(
-                  widget.isEditing ? 'Редагувати профіль' : 'Створити профіль',
+                  widget.isEditing ? I18n.inline('Редагувати профіль', 'Edit profile') : I18n.inline('Створити профіль', 'Create profile'),
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -153,10 +156,10 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                           )
                         : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
-                              Icon(Icons.camera_alt, color: Colors.white, size: 40),
-                              SizedBox(height: 8),
-                              Text('Додати фото', style: TextStyle(color: Colors.white, fontSize: 12)),
+                            children: [
+                              const Icon(Icons.camera_alt, color: Colors.white, size: 40),
+                              const SizedBox(height: 8),
+                              Text(I18n.inline('Додати фото', 'Add photo'), style: const TextStyle(color: Colors.white, fontSize: 12)),
                             ],
                           ),
                   ),
@@ -172,14 +175,14 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     controller: _nameController,
                     style: TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: 'Ім\'я',
+                      hintText: I18n.inline('Ім\'я', 'First name'),
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Введіть ім\'я';
+                        return I18n.inline('Введіть ім\'я', 'Enter first name');
                       }
                       return null;
                     },
@@ -196,14 +199,14 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     controller: _surnameController,
                     style: TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: 'Прізвище',
+                      hintText: I18n.inline('Прізвище', 'Last name'),
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Введіть прізвище';
+                        return I18n.inline('Введіть прізвище', 'Enter last name');
                       }
                       return null;
                     },
@@ -221,14 +224,18 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     style: TextStyle(color: Colors.white),
                     dropdownColor: Color(0xFF1e7d32),
                     decoration: InputDecoration(
-                      hintText: 'Позиція',
+                      hintText: I18n.inline('Позиція', 'Position'),
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     ),
-                    items: _positions.map((String position) {
+                    items: _positions.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final position = entry.value;
+                      // Store Ukrainian values (for consistency with database)
+                      final ukValues = ['Воротар', 'Захисник', 'Півзахисник', 'Нападник'];
                       return DropdownMenuItem<String>(
-                        value: position,
+                        value: ukValues[index],
                         child: Text(
                           position,
                           style: TextStyle(color: Colors.white),
@@ -242,7 +249,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Виберіть позицію';
+                        return I18n.inline('Виберіть позицію', 'Select position');
                       }
                       return null;
                     },
@@ -259,14 +266,14 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     controller: _cityController,
                     style: TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: 'Місто',
+                      hintText: I18n.inline('Місто', 'City'),
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Введіть місто';
+                        return I18n.inline('Введіть місто', 'Enter city');
                       }
                       return null;
                     },
@@ -284,14 +291,14 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     keyboardType: TextInputType.number,
                     style: TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: 'Вік',
+                      hintText: I18n.inline('Вік', 'Age'),
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Введіть вік';
+                        return I18n.inline('Введіть вік', 'Enter age');
                       }
                       return null;
                     },
@@ -309,14 +316,18 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     style: TextStyle(color: Colors.white),
                     dropdownColor: Color(0xFF1e7d32),
                     decoration: InputDecoration(
-                      hintText: 'Досвід',
+                      hintText: I18n.inline('Досвід', 'Experience'),
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     ),
-                    items: _experiences.map((String experience) {
+                    items: _experiences.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final experience = entry.value;
+                      // Store Ukrainian values (for consistency with database)
+                      final ukValues = ['Початківець', 'Любитель', 'Напівпрофесіонал', 'Професіонал'];
                       return DropdownMenuItem<String>(
-                        value: experience,
+                        value: ukValues[index],
                         child: Text(
                           experience,
                           style: TextStyle(color: Colors.white),
@@ -330,7 +341,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Виберіть досвід';
+                        return I18n.inline('Виберіть досвід', 'Select experience');
                       }
                       return null;
                     },
@@ -351,7 +362,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                         ),
                         onPressed: () => Navigator.pop(context),
                         child: Text(
-                          'Скасувати',
+                          I18n.inline('Скасувати', 'Cancel'),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -375,7 +386,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Потрібно увійти в акаунт')),
+        SnackBar(content: Text(I18n.inline('Потрібно увійти в акаунт', 'You need to sign in'))),
       );
       return;
     }
@@ -416,7 +427,7 @@ if (_pickedImage != null) {
     }
   } catch (e) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Не вдалося завантажити фото: $e')),
+      SnackBar(content: Text(I18n.inline('Не вдалося завантажити фото: $e', 'Failed to upload photo: $e'))),
     );
   }
 }
@@ -478,7 +489,7 @@ if (_pickedImage != null) {
   }
 },
                         child: Text(
-                          widget.isEditing ? 'Зберегти зміни' : 'Створити профіль',
+                          widget.isEditing ? I18n.inline('Зберегти зміни', 'Save changes') : I18n.inline('Створити профіль', 'Create profile'),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,

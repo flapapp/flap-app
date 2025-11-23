@@ -48,8 +48,19 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   List<app_badge.Badge> _userBadges = [];
   int _badgeEndorseVersion = 0;
   // Опції як у реєстрації
-  final List<String> _positions = ['Воротар', 'Захисник', 'Півзахисник', 'Нападник', 'Універсал'];
-  final List<String> _experiences = ['Початківець', 'Аматор', 'Досвідчений', 'Професіонал'];
+  List<String> get _positions => [
+        'Воротар'.i18n('Goalkeeper'),
+        'Захисник'.i18n('Defender'),
+        'Півзахисник'.i18n('Midfielder'),
+        'Нападник'.i18n('Forward'),
+        'Універсал'.i18n('Utility player'),
+      ];
+  List<String> get _experiences => [
+        'Початківець'.i18n('Beginner'),
+        'Аматор'.i18n('Amateur'),
+        'Досвідчений'.i18n('Experienced'),
+        'Професіонал'.i18n('Professional'),
+      ];
 
   @override
   void initState() {
@@ -212,7 +223,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     }
   } catch (e) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Помилка вибору фото: $e')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(I18n.inline('Помилка вибору фото: $e', 'Photo selection error: $e'))),
+    );
   }
 }
 
@@ -226,7 +239,9 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
     return url;
   } catch (e) {
     if (!mounted) return null;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Помилка завантаження: $e')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(I18n.inline('Помилка завантаження: $e', 'Upload error: $e'))),
+    );
     return null;
   } finally {
     if (mounted) setState(() => _uploadingAvatar = false);
@@ -240,7 +255,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
     if (_myVideoIds.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Немає ваших відео для запиту оцінки')),
+        SnackBar(content: Text('Немає ваших відео для запиту оцінки'.i18n('No videos available for a rating request'))),
       );
       return;
     }
@@ -258,7 +273,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
       builder: (context) => StatefulBuilder(
         builder: (context, setStateDialog) => AlertDialog(
           backgroundColor: const Color(0xFF1a1a2e),
-          title: const Text('Оберіть мої відео для оцінки', style: TextStyle(color: Colors.white)),
+          title: Text('Оберіть мої відео для оцінки'.i18n('Select my videos to rate'), style: const TextStyle(color: Colors.white)),
           content: SizedBox(
             width: double.maxFinite,
             child: _loadingMyVideos
@@ -269,7 +284,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                     itemBuilder: (context, index) {
                       final v = videos[index];
                       final id = (v['id'] ?? '').toString();
-                      final title = (v['title'] ?? 'Відео').toString();
+                      final title = (v['title'] ?? 'Відео'.i18n('Video')).toString();
                       final isSel = selected.contains(id);
                       return CheckboxListTile(
                         value: isSel,
@@ -286,13 +301,13 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                   ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Скасувати', style: TextStyle(color: Colors.white70))),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70))),
             ElevatedButton(
               onPressed: selected.isEmpty
                   ? null
                   : () async {
                       final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
-                      final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач').toString();
+                      final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач'.i18n('User')).toString();
                       await _notificationService.sendRatingRequest(
                         toUserIds: [widget.playerId],
                         fromUserName: myName,
@@ -301,10 +316,10 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                       if (!mounted) return;
                       Navigator.pop(context, true);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('✅ Запит на оцінку надіслано')),
+                        SnackBar(content: Text('✅ Запит на оцінку надіслано'.i18n('✅ Rating request sent'))),
                       );
                     },
-              child: const Text('Надіслати'),
+              child: Text('Надіслати'.i18n('Send')),
             ),
           ],
         ),
@@ -346,8 +361,8 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Запрошення надіслано!'),
+          SnackBar(
+            content: Text('✅ Запрошення надіслано!'.i18n('✅ Invitation sent!')),
             backgroundColor: Colors.green,
           ),
         );
@@ -356,7 +371,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Помилка: $e')),
+          SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
         );
       }
     } finally {
@@ -401,24 +416,24 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setStateDialog) => AlertDialog(
           backgroundColor: const Color(0xFF1a1a2e),
-          title: const Text('Редагувати профіль', style: TextStyle(color: Colors.white)),
+          title: Text(I18n.t('edit_profile'), style: const TextStyle(color: Colors.white)),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _textField('Ім’я', nameCtrl),
+                  _textField('Ім’я'.i18n('First name'), nameCtrl),
                   const SizedBox(height: 8),
-                  _textField('Прізвище', surnameCtrl),
+                  _textField('Прізвище'.i18n('Last name'), surnameCtrl),
                   const SizedBox(height: 8),
                   _textField('Email', emailCtrl, requiredField: false),
                   const SizedBox(height: 8),
-                  _textField('Телефон', phoneCtrl, requiredField: false),
+                  _textField(I18n.t('phone'), phoneCtrl, requiredField: false),
                   const SizedBox(height: 8),
-                  _textField('Місто', cityCtrl),
+                  _textField(I18n.t('city'), cityCtrl),
                   const SizedBox(height: 8),
-                  _textField('Вік', ageCtrl, requiredField: false),
+                  _textField('Вік'.i18n('Age'), ageCtrl, requiredField: false),
                   const SizedBox(height: 8),
 
                   // Позиція (випадаючий список)
@@ -431,7 +446,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                     dropdownColor: const Color(0xFF1a1a2e),
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: 'Позиція',
+                      labelText: I18n.t('position'),
                       labelStyle: const TextStyle(color: Colors.white70),
                       filled: true,
                       fillColor: Colors.white.withOpacity(0.08),
@@ -443,7 +458,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                           borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
                       focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF4caf50))),
                     ),
-                    validator: (v) => (v == null || v.isEmpty) ? 'Оберіть позицію' : null,
+                    validator: (v) => (v == null || v.isEmpty) ? 'Оберіть позицію'.i18n('Select a position') : null,
                   ),
                   const SizedBox(height: 8),
 
@@ -457,7 +472,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                     dropdownColor: const Color(0xFF1a1a2e),
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: 'Досвід',
+                      labelText: 'Досвід'.i18n('Experience'),
                       labelStyle: const TextStyle(color: Colors.white70),
                       filled: true,
                       fillColor: Colors.white.withOpacity(0.08),
@@ -469,14 +484,14 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                           borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
                       focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF4caf50))),
                     ),
-                    validator: (v) => (v == null || v.isEmpty) ? 'Оберіть досвід' : null,
+                    validator: (v) => (v == null || v.isEmpty) ? 'Оберіть досвід'.i18n('Select experience') : null,
                   ),
                   const SizedBox(height: 8),
 
                   // Аватар (вибір файлу)
 Align(
   alignment: Alignment.centerLeft,
-  child: Text('Аватар', style: const TextStyle(color: Colors.white70)),
+  child: Text(I18n.t('avatar'), style: const TextStyle(color: Colors.white70)),
 ),
 const SizedBox(height: 6),
 Row(
@@ -501,7 +516,7 @@ Row(
     ElevatedButton.icon(
       onPressed: _uploadingAvatar ? null : _pickAvatar,
       icon: const Icon(Icons.photo_library, size: 18),
-      label: Text(_pickedAvatar == null ? 'Обрати фото' : 'Змінити'),
+      label: Text(_pickedAvatar == null ? 'Обрати фото'.i18n('Choose photo') : 'Змінити'.i18n('Change')),
     ),
     const SizedBox(width: 12),
     if (_uploadingAvatar) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -515,7 +530,7 @@ const SizedBox(height: 8),
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.pop(ctx),
-              child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+              child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
             ),
             ElevatedButton(
               onPressed: saving
@@ -551,19 +566,19 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
                         _pickedAvatar = null;
                         await _loadPlayerData();
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('✅ Профіль оновлено')),
+                          SnackBar(content: Text('✅ Профіль оновлено'.i18n('✅ Profile updated'))),
                         );
                       } catch (e) {
                         setStateDialog(() => saving = false);
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Помилка збереження: $e')),
+                          SnackBar(content: Text(I18n.inline('Помилка збереження: $e', 'Save error: $e'))),
                         );
                       }
                     },
               child: saving
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Зберегти'),
+                  : Text(I18n.t('save')),
             ),
           ],
         ),
@@ -592,7 +607,7 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            widget.playerName ?? 'Профіль гравця',
+            widget.playerName ?? 'Профіль гравця'.i18n('Player profile'),
             style: const TextStyle(color: Colors.white),
           ),
         ),
@@ -612,15 +627,15 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text(
-            'Профіль не знайдено',
-            style: TextStyle(color: Colors.white),
+          title: Text(
+            I18n.t('profile_not_found'),
+            style: const TextStyle(color: Colors.white),
           ),
         ),
-        body: const Center(
+        body: Center(
           child: Text(
-            'Профіль гравця не знайдено',
-            style: TextStyle(color: Colors.white70, fontSize: 16),
+            'Профіль гравця не знайдено'.i18n('Player profile not found'),
+            style: const TextStyle(color: Colors.white70, fontSize: 16),
           ),
         ),
       );
@@ -630,7 +645,7 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
                          playerData!['name'] ?? 
                          playerData!['authorName'] ?? 
                          playerData!['email']?.toString().split('@').first ?? 
-                         'Гравець').toString();
+                         I18n.t('player')).toString();
     final position = playerData!['position'] ?? '';
     final experience = playerData!['experience'] ?? '';
     final city = playerData!['city'] ?? '';
@@ -654,11 +669,11 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(widget.playerName ?? 'Профіль гравця', style: const TextStyle(color: Colors.white)),
+        title: Text(widget.playerName ?? 'Профіль гравця'.i18n('Player profile'), style: const TextStyle(color: Colors.white)),
         actions: [
           if (isOwnProfile)
             IconButton(
-              tooltip: 'Редагувати профіль',
+              tooltip: I18n.t('edit_profile'),
               icon: const Icon(Icons.edit, color: Colors.white),
               onPressed: _showEditProfileDialog,
             ),
@@ -712,14 +727,14 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
               decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
               child: Column(children: [
                 Text(rating.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
-                const Text('Загальний рейтинг', style: TextStyle(color: Colors.white70)),
+                Text(I18n.t('overall_rating'), style: const TextStyle(color: Colors.white70)),
               ]),
             ),
             const SizedBox(height: 12),
             Row(children: [
-              Expanded(child: _statBox(value: matches.toString(), label: 'Матчі зіграно')),
+              Expanded(child: _statBox(value: matches.toString(), label: 'Матчі зіграно'.i18n('Matches played'))),
               const SizedBox(width: 10),
-              Expanded(child: _statBox(value: averageRating.toStringAsFixed(2), label: 'Середня оцінка')),
+              Expanded(child: _statBox(value: averageRating.toStringAsFixed(2), label: 'Середня оцінка'.i18n('Average rating'))),
             ]),
             const SizedBox(height: 20),
 
@@ -794,12 +809,12 @@ const SizedBox(height: 12),
                                   ? Icons.schedule
                                   : Icons.person_add),
                           label: Text(isFriend
-                              ? 'Друзі'
+                              ? I18n.t('friends')
                               : hasPendingRequest
-                                  ? 'Запрошення надіслано'
+                                  ? 'Запрошення надіслано'.i18n('Invitation sent')
                                   : _isSendingRequest
-                                      ? 'Надсилання...'
-                                      : 'Додати в друзі'),
+                                      ? 'Надсилання...'.i18n('Sending...')
+                                      : 'Додати в друзі'.i18n('Add friend')),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF4caf50),
                             foregroundColor: Colors.white,
@@ -828,7 +843,7 @@ const SizedBox(height: 12),
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                         ),
-                        child: const Text('Оціни мене'),
+                        child: Text('Оціни мене'.i18n('Rate me')),
                       ),
                     ]);
                   },
@@ -847,10 +862,10 @@ const SizedBox(height: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Бейджі', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                  Text(I18n.t('badges'), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   if (_userBadges.isEmpty)
-                    const Text('Бейджів поки немає', style: TextStyle(color: Colors.white54))
+                    Text('Бейджів поки немає'.i18n('No badges yet'), style: const TextStyle(color: Colors.white54))
                   else
                     SizedBox(
                       height: 82,
@@ -890,7 +905,7 @@ const SizedBox(height: 12),
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          badge.name,
+                                          badge.localizedName,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
@@ -980,7 +995,7 @@ const SizedBox(height: 12),
                     final v = playerVideos[index];
                     final thumb = (v['thumbnailUrl'] ?? '').toString();
                     final vUrl = (v['videoUrl'] ?? '').toString();
-                    final title = (v['title'] ?? 'Відео').toString();
+                    final title = (v['title'] ?? 'Відео'.i18n('Video')).toString();
                     return GestureDetector(
                       onTap: () {
                         if (vUrl.isEmpty) return;
@@ -1029,7 +1044,7 @@ const SizedBox(height: 12),
                   color: Colors.white.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text('Поки що немає відео', style: TextStyle(color: Colors.white54)),
+                child: Text('Поки що немає відео'.i18n('No videos yet'), style: const TextStyle(color: Colors.white54)),
               ),
             ],
           ],
@@ -1141,7 +1156,7 @@ const SizedBox(height: 12),
       if (all.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Немає доступних ваших челенджів для запрошення.')),
+          SnackBar(content: Text('Немає доступних ваших челенджів для запрошення.'.i18n('No available challenges to invite.'))),
         );
         return;
       }
@@ -1153,7 +1168,7 @@ const SizedBox(height: 12),
           return StatefulBuilder(
             builder: (context, setStateDialog) => AlertDialog(
               backgroundColor: const Color(0xFF1a1a2e),
-              title: const Text('Запросити до челенджу', style: TextStyle(color: Colors.white)),
+              title: Text('Запросити до челенджу'.i18n('Invite to challenge'), style: const TextStyle(color: Colors.white)),
               content: SizedBox(
                 width: double.maxFinite,
                 child: ListView.builder(
@@ -1165,8 +1180,9 @@ const SizedBox(height: 12),
                       value: index,
                       groupValue: selectedIndex,
                       onChanged: (v) => setStateDialog(() => selectedIndex = v ?? -1),
-                      title: Text(c['title'] ?? 'Челендж', style: const TextStyle(color: Colors.white)),
-                      subtitle: Text('Учасників: ${(c['participants'] as List?)?.length ?? 0}',
+                      title: Text(c['title'] ?? 'Челендж'.i18n('Challenge'), style: const TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                          'Учасників: ${(c['participants'] as List?)?.length ?? 0}'.i18n('Participants: ${(c['participants'] as List?)?.length ?? 0}'),
                           style: const TextStyle(color: Colors.white54, fontSize: 12)),
                     );
                   },
@@ -1175,7 +1191,7 @@ const SizedBox(height: 12),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+                  child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
                 ),
                 ElevatedButton(
                   onPressed: selectedIndex < 0
@@ -1187,17 +1203,17 @@ const SizedBox(height: 12),
                           final ok = await _notificationService.sendChallengeInvitation(
                             toUserId: widget.playerId,
                             challengeId: (selected['id'] ?? '').toString(),
-                            challengeTitle: (selected['title'] ?? 'Челендж').toString(),
-                            creatorName: (playerData?['displayName'] ?? 'Користувач').toString(),
+                            challengeTitle: (selected['title'] ?? 'Челендж'.i18n('Challenge')).toString(),
+                            creatorName: (playerData?['displayName'] ?? 'Користувач'.i18n('User')).toString(),
                             challengeType: (selected['type'] ?? 'technical').toString(),
                           );
                           if (!mounted) return;
                           Navigator.pop(context, true);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(ok ? '✅ Запрошення надіслано' : '❌ Не вдалося надіслати')),
+                            SnackBar(content: Text(ok ? '✅ Запрошення надіслано'.i18n('✅ Invitation sent') : '❌ Не вдалося надіслати'.i18n('❌ Failed to send'))),
                           );
                         },
-                  child: const Text('Запросити'),
+                  child: Text('Запросити'.i18n('Invite')),
                 ),
               ],
             ),
@@ -1207,7 +1223,7 @@ const SizedBox(height: 12),
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка: $e')),
+        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
       );
     }
   }
@@ -1234,7 +1250,9 @@ const SizedBox(height: 12),
           borderSide: BorderSide(color: Color(0xFF4caf50)),
         ),
       ),
-      validator: requiredField ? (v) => (v == null || v.trim().isEmpty) ? 'Обов’язкове поле' : null : null,
+      validator: requiredField
+          ? (v) => (v == null || v.trim().isEmpty) ? 'Обов’язкове поле'.i18n('This field is required') : null
+          : null,
     );
   }
 
@@ -1263,13 +1281,13 @@ const SizedBox(height: 12),
     final currentUserId = _auth.currentUser?.uid;
     if (currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Увійдіть, щоб підтверджувати бейджі')),
+        SnackBar(content: Text('Увійдіть, щоб підтверджувати бейджі'.i18n('Sign in to endorse badges'))),
       );
       return;
     }
     if (currentUserId == ownerId) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не можна підтверджувати власні бейджі')),
+        SnackBar(content: Text('Не можна підтверджувати власні бейджі'.i18n('You cannot endorse your own badges'))),
       );
       return;
     }
@@ -1302,13 +1320,13 @@ const SizedBox(height: 12),
       });
 
       final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserId).get();
-      final currentName = currentUserDoc.data()?['displayName'] ?? currentUserDoc.data()?['name'] ?? 'Користувач';
+      final currentName = currentUserDoc.data()?['displayName'] ?? currentUserDoc.data()?['name'] ?? 'Користувач'.i18n('User');
 
       await FirebaseFirestore.instance.collection('notifications').add({
         'userId': ownerId,
         'type': 'badgeEndorsed',
-        'title': 'Підтвердження бейджу',
-        'message': '$currentName підтвердив ваш бейдж "${badge.name}"',
+        'title': 'Підтвердження бейджу'.i18n('Badge endorsement'),
+        'message': I18n.inline('$currentName підтвердив ваш бейдж "${badge.localizedName}"', '$currentName confirmed your badge "${badge.localizedName}"'),
         'data': {'badgeId': badge.id},
         'createdAt': FieldValue.serverTimestamp(),
         'isRead': false,
@@ -1316,7 +1334,7 @@ const SizedBox(height: 12),
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('✅ Ви підтвердили бейдж "${badge.name}"')),
+        SnackBar(content: Text(I18n.inline('✅ Ви підтвердили бейдж "${badge.localizedName}"', '✅ You endorsed the badge "${badge.localizedName}"'))),
       );
       setState(() {
         _badgeEndorseVersion++;
@@ -1324,8 +1342,8 @@ const SizedBox(height: 12),
     } catch (e) {
       if (!mounted) return;
       final message = e.toString().contains('already-endorsed')
-          ? 'Ви вже підтвердили цей бейдж'
-          : 'Помилка підтвердження';
+          ? 'Ви вже підтвердили цей бейдж'.i18n('You already endorsed this badge')
+          : 'Помилка підтвердження'.i18n('Endorsement error');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );

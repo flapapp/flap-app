@@ -7,6 +7,7 @@ import 'challenge_list_screen.dart';
 import '../models/challenge.dart';
 import '../widgets/rating_display.dart';
 import '../services/notification_service.dart';
+import '../utils/i18n.dart';
 
 class VideoMainScreen extends StatefulWidget {
   @override
@@ -22,31 +23,31 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   bool _showOnlyMyVideos = false;
   bool _showOnlyMyChallenges = false;
 
-  final List<String> _cities = [
-    'Всі міста',
-    'Київ',
-    'Львів',
-    'Одеса',
-    'Харків',
-    'Дніпро',
+  List<String> get _cities => [
+    I18n.t('all_cities'),
+    I18n.t('kyiv'),
+    I18n.t('lviv'),
+    I18n.t('odesa'),
+    I18n.t('kharkiv'),
+    I18n.t('dnipro'),
   ];
 
-  final List<String> _categories = [
-    'Всі категорії',
-    'Техніка',
-    'Фізика',
-    'Тактика',
-    'Командна гра',
-    'Фрістайл',
-    'Дриблінг',
-    'Удари',
-    'Передачі',
-    'Воротарі',
-    'Комбінації',
+  List<String> get _categories => [
+    I18n.inline('Всі категорії', 'All categories'),
+    I18n.inline('Техніка', 'Technique'),
+    I18n.inline('Фізика', 'Physics'),
+    I18n.inline('Тактика', 'Tactics'),
+    I18n.inline('Командна гра', 'Teamplay'),
+    I18n.inline('Фрістайл', 'Freestyle'),
+    I18n.inline('Дриблінг', 'Dribbling'),
+    I18n.inline('Удари', 'Shots'),
+    I18n.inline('Передачі', 'Passes'),
+    I18n.inline('Воротарі', 'Goalkeepers'),
+    I18n.inline('Комбінації', 'Combinations'),
   ];
 
-  final List<String> _ratings = [
-    'Всі рейтинги',
+  List<String> get _ratings => [
+    I18n.inline('Всі рейтинги', 'All ratings'),
     '4.0+',
     '4.5+',
   ];
@@ -68,37 +69,26 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         title: Row(
           children: [
             Container(
-              width: 32,
-              height: 32,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-                ),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                ],
               ),
-              child: const Icon(Icons.video_library, color: Colors.white, size: 18),
+              clipBehavior: Clip.antiAlias,
+              child: Image.asset('assets/logo/flap_logo.jpg', fit: BoxFit.cover, width: 28, height: 28),
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'FLAP Video',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
-                ),
-                Text(
-                  'FEEL LIKE A PRO',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+            const SizedBox(width: 10),
+            const Text(
+              'FLAP',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+              ),
             ),
           ],
         ),
@@ -113,7 +103,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               return Stack(
                 children: [
                   IconButton(
-                    tooltip: 'Сповіщення',
+                    tooltip: I18n.t('notifications'),
                     icon: const Icon(Icons.notifications_outlined, color: Colors.white),
                     onPressed: () => Navigator.pushNamed(context, '/notifications'),
                   ),
@@ -199,9 +189,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               ),
               child: Row(
                 children: [
-                  _buildTab('Всі', 'all'),
-                  _buildTab('Челенджі', 'challenges'),
-                  _buildTab('Тренди', 'trending'),
+                  _buildTab(I18n.t('all'), 'all'),
+                  _buildTab(I18n.t('challenges'), 'challenges'),
+                  _buildTab(I18n.inline('Тренди', 'Trending'), 'trending'),
                 ],
               ),
             ),
@@ -218,7 +208,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       child: ListView(
                         scrollDirection: Axis.horizontal,
                         children: [
-                          ...['Дриблінг','Удари','Передачі','Фрістайл','Воротарі','Комбінації']
+                          ...[I18n.inline('Дриблінг', 'Dribbling'), I18n.inline('Удари', 'Shots'), I18n.inline('Передачі', 'Passes'), I18n.inline('Фрістайл', 'Freestyle'), I18n.inline('Воротарі', 'Goalkeepers'), I18n.inline('Комбінації', 'Combinations')]
                               .map((c) => Padding(
                                     padding: const EdgeInsets.only(right: 8),
                                     child: ChoiceChip(
@@ -246,10 +236,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                           width: (MediaQuery.of(context).size.width - 40) / 2, // 20px паддінг зліва+справа
                           child: _buildFilterDropdown(
                             _cities,
-                            _selectedCity.isEmpty ? 'Всі міста' : _selectedCity,
+                            _selectedCity.isEmpty ? I18n.t('all_cities') : _selectedCity,
                             (value) {
                               setState(() {
-                                _selectedCity = value == 'Всі міста' ? '' : value;
+                                _selectedCity = value == I18n.t('all_cities') ? '' : value;
                               });
                             },
                             '🏙️',
@@ -259,10 +249,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                           width: (MediaQuery.of(context).size.width - 40) / 2,
                           child: _buildFilterDropdown(
                             _categories,
-                            _selectedCategory.isEmpty ? 'Всі категорії' : _selectedCategory,
+                            _selectedCategory.isEmpty ? I18n.inline('Всі категорії', 'All categories') : _selectedCategory,
                             (value) {
                               setState(() {
-                                _selectedCategory = value == 'Всі категорії' ? '' : value;
+                                _selectedCategory = value == I18n.inline('Всі категорії', 'All categories') ? '' : value;
                               });
                             },
                             '⚽',
@@ -274,10 +264,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     // Rating filter
                     _buildFilterDropdown(
                       _ratings,
-                      _selectedRating.isEmpty ? 'Всі рейтинги' : _selectedRating,
+                      _selectedRating.isEmpty ? I18n.inline('Всі рейтинги', 'All ratings') : _selectedRating,
                       (value) {
                         setState(() {
-                          _selectedRating = value == 'Всі рейтинги' ? '' : value;
+                          _selectedRating = value == I18n.inline('Всі рейтинги', 'All ratings') ? '' : value;
                         });
                       },
                       '⭐',
@@ -297,6 +287,42 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Button to switch to matches mode (like in matches screen)
+          Container(
+            width: 48,
+            height: 48,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () {
+                  Navigator.pushNamed(context, '/matches');
+                },
+                child: const Center(
+                  child: Text(
+                    '⚽',
+                    style: TextStyle(fontSize: 24),
+                  ),
+                ),
+              ),
+            ),
+          ),
           // Create Challenge FAB
           AnimatedContainer(
             duration: const Duration(milliseconds: 500),
@@ -309,7 +335,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               backgroundColor: const Color(0xFF4caf50),
               elevation: 8,
               child: const Icon(Icons.emoji_events, color: Colors.white),
-              tooltip: 'Створити челендж',
+              tooltip: I18n.t('create_challenge'),
             ),
           ),
           const SizedBox(height: 12),
@@ -325,7 +351,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               backgroundColor: const Color(0xFFFF6B35),
               elevation: 8,
               child: const Icon(Icons.videocam, color: Colors.white),
-              tooltip: 'Завантажити відео',
+              tooltip: I18n.t('upload_video'),
             ),
           ),
         ],
@@ -447,7 +473,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              'Помилка завантаження: ${snapshot.error}',
+              I18n.inline('Помилка завантаження: ${snapshot.error}', 'Error loading: ${snapshot.error}'),
               style: const TextStyle(color: Colors.white),
             ),
           );
@@ -464,9 +490,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                   size: 64,
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Поки що немає відео',
-                  style: TextStyle(
+                Text(
+                  I18n.inline('Поки що немає відео', 'No videos yet'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -474,7 +500,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Будьте першим, хто завантажить відео!',
+                  I18n.inline('Будьте першим, хто завантажить відео!', 'Be the first to upload a video!'),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 14,
@@ -594,9 +620,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   }
 
   Widget _buildVideoCard(Map<String, dynamic> data, String videoId) {
-    final title = data['title'] ?? 'Без назви';
+    final title = data['title'] ?? I18n.inline('Без назви', 'No title');
     final description = data['description'] ?? '';
-    final category = data['category'] ?? 'Без категорії';
+    final category = data['category'] ?? I18n.inline('Без категорії', 'No category');
     final rating = (data['rating'] ?? 0.0).toDouble();
     final views = data['views'] ?? 0;
     final likes = data['likes'] ?? 0;

@@ -18,6 +18,33 @@ class I18n {
     return map[lang] ?? map['uk'] ?? key;
   }
 
+  /// Quick inline translation helper for screens that still store texts locally.
+  /// Usage: I18n.inline('Українською', 'In English')
+  static String inline(String ukText, String enText) {
+    return language.value == 'en' ? enText : ukText;
+  }
+
+  /// Localize city name from database to current language
+  /// Usage: I18n.localizeCity('Київ') returns 'Kyiv' for English, 'Київ' for Ukrainian
+  static String localizeCity(String cityName) {
+    if (cityName.isEmpty) return I18n.inline('Невідоме місто', 'Unknown city');
+    
+    final cityMap = {
+      'Київ': I18n.inline('Київ', 'Kyiv'),
+      'Харків': I18n.inline('Харків', 'Kharkiv'),
+      'Одеса': I18n.inline('Одеса', 'Odesa'),
+      'Дніпро': I18n.inline('Дніпро', 'Dnipro'),
+      'Львів': I18n.inline('Львів', 'Lviv'),
+      'Kyiv': I18n.inline('Київ', 'Kyiv'),
+      'Kharkiv': I18n.inline('Харків', 'Kharkiv'),
+      'Odesa': I18n.inline('Одеса', 'Odesa'),
+      'Dnipro': I18n.inline('Дніпро', 'Dnipro'),
+      'Lviv': I18n.inline('Львів', 'Lviv'),
+    };
+    
+    return cityMap[cityName] ?? cityName;
+  }
+
   static const Map<String, Map<String, String>> _strings = {
     // General
     'app_name': {'uk': 'FLAP', 'en': 'FLAP'},
@@ -520,6 +547,11 @@ class I18n {
     'my_stats_tab': {'uk': 'Моя статистика', 'en': 'My stats'},
     'view': {'uk': 'Переглянути', 'en': 'View'},
   };
+}
+
+extension I18nInlineExtension on String {
+  /// Allows `'Укр'.i18n('Eng')` syntax inside widgets.
+  String i18n(String enText) => I18n.inline(this, enText);
 }
 
 

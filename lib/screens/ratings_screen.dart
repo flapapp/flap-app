@@ -25,25 +25,25 @@ class _RatingsScreenState extends State<RatingsScreen>
   ];
   
   // Фільтри
-  String _selectedCity = 'Всі міста';
-  String _selectedPosition = 'Всі позиції';
+  String _selectedCity = I18n.t('all_cities');
+  String _selectedPosition = I18n.inline('Всі позиції', 'All positions');
   
-  final List<String> _cityOptions = [
-    'Всі міста',
-    'Київ',
-    'Харків',
-    'Одеса',
-    'Дніпро',
-    'Львів',
-    'Запоріжжя',
+  List<String> get _cityOptions => [
+    I18n.t('all_cities'),
+    I18n.t('kyiv'),
+    I18n.t('kharkiv'),
+    I18n.t('odesa'),
+    I18n.t('dnipro'),
+    I18n.t('lviv'),
+    I18n.inline('Запоріжжя', 'Zaporizhzhia'),
   ];
   
-  final List<String> _positionOptions = [
-    'Всі позиції',
-    'Воротар',
-    'Захисник',
-    'Півзахисник',
-    'Нападник',
+  List<String> get _positionOptions => [
+    I18n.inline('Всі позиції', 'All positions'),
+    I18n.inline('Воротар', 'Goalkeeper'),
+    I18n.inline('Захисник', 'Defender'),
+    I18n.inline('Півзахисник', 'Midfielder'),
+    I18n.inline('Нападник', 'Forward'),
   ];
   
   // Дані
@@ -94,7 +94,7 @@ _topPlayers = await _ratingService.getTopPlayers(limit: 50);
 _topPlayers = _dedupeById(_topPlayers);
 
 // Завантажуємо гравців за містом
-if (_selectedCity != 'Всі міста') {
+if (_selectedCity != I18n.t('all_cities')) {
   _cityPlayers = await _ratingService.getTopPlayers(
     limit: 50,
     city: _selectedCity,
@@ -103,7 +103,7 @@ if (_selectedCity != 'Всі міста') {
 }
       
       // Завантажуємо гравців за позицією
-if (_selectedPosition != 'Всі позиції') {
+if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) {
   _positionPlayers = await _ratingService.getTopPlayers(
     limit: 50,
     position: _selectedPosition,
@@ -117,7 +117,7 @@ if (_selectedPosition != 'Всі позиції') {
     } catch (e) {
       print('Error loading ratings data: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка завантаження даних: $e')),
+        SnackBar(content: Text(I18n.inline('Помилка завантаження даних: $e', 'Error loading data: $e'))),
       );
     } finally {
       setState(() {
@@ -138,7 +138,7 @@ if (_selectedPosition != 'Всі позиції') {
   } catch (e) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Помилка завантаження статистики: $e')),
+      SnackBar(content: Text(I18n.inline('Помилка завантаження статистики: $e', 'Error loading statistics: $e'))),
     );
   }
 }
@@ -185,7 +185,7 @@ if (_selectedPosition != 'Всі позиції') {
                     fontSize: 20,
                   )),
                 Text(
-                  'Топ гравців FLAP',
+                  I18n.inline('Топ гравців FLAP', 'FLAP Top Players'),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 10,
@@ -460,9 +460,9 @@ if (_selectedPosition != 'Всі позиції') {
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
-                    _selectedCity = value ?? 'Всі міста';
+                    _selectedCity = value ?? I18n.t('all_cities');
                   });
-                  if (value != null && value != 'Всі міста') {
+                  if (value != null && value != I18n.t('all_cities')) {
                     _loadCityPlayers(value);
                   }
                 },
@@ -473,7 +473,7 @@ if (_selectedPosition != 'Всі позиції') {
         
         // Список гравців
         Expanded(
-          child: _selectedCity == 'Всі міста'
+          child: _selectedCity == I18n.t('all_cities')
               ? Center(
                   child: Text(
                     'Оберіть місто для перегляду рейтингу',
@@ -559,9 +559,9 @@ if (_selectedPosition != 'Всі позиції') {
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
-                    _selectedPosition = value ?? 'Всі позиції';
+                    _selectedPosition = value ?? I18n.inline('Всі позиції', 'All positions');
                   });
-                  if (value != null && value != 'Всі позиції') {
+                  if (value != null && value != I18n.inline('Всі позиції', 'All positions')) {
                     _loadPositionPlayers(value);
                   }
                 },
@@ -573,7 +573,7 @@ if (_selectedPosition != 'Всі позиції') {
         // Список гравців
                 // Список гравців
         Expanded(
-          child: _selectedPosition == 'Всі позиції'
+          child: _selectedPosition == I18n.inline('Всі позиції', 'All positions')
               ? Center(
                   child: Text(
                     'Оберіть позицію для перегляду рейтингу',
@@ -1010,7 +1010,7 @@ if (_selectedPosition != 'Всі позиції') {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Помилка завантаження: $e'),
+            content: Text(I18n.inline('Помилка завантаження: $e', 'Error loading: $e')),
             backgroundColor: Colors.red,
           ),
         );
@@ -1045,7 +1045,7 @@ if (_selectedPosition != 'Всі позиції') {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Помилка завантаження: $e'),
+            content: Text(I18n.inline('Помилка завантаження: $e', 'Error loading: $e')),
             backgroundColor: Colors.red,
           ),
         );

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/i18n.dart';
 
 class Badge {
   final String id;
@@ -99,18 +100,110 @@ class Badge {
   String get rarityText {
     switch (category) {
       case 'starter':
-        return 'Початковий';
+        return I18n.inline('Початковий', 'Starter');
       case 'skill':
-        return 'Навичка';
+        return I18n.inline('Навичка', 'Skill');
       case 'achievement':
-        return 'Досягнення';
+        return I18n.inline('Досягнення', 'Achievement');
       case 'legendary':
-        return 'Легендарний';
+        return I18n.inline('Легендарний', 'Legendary');
       case 'special':
-        return 'Спеціальний';
+        return I18n.inline('Спеціальний', 'Special');
       default:
-        return 'Звичайний';
+        return I18n.inline('Звичайний', 'Common');
     }
+  }
+
+  // Localized name
+  String get localizedName {
+    return _getLocalizedName(id, name);
+  }
+
+  // Localized description
+  String get localizedDescription {
+    return _getLocalizedDescription(id, description);
+  }
+
+  // Helper method to get localized badge name
+  static String _getLocalizedName(String id, String defaultName) {
+    final Map<String, Map<String, String>> badgeNames = {
+      'rookie': {'uk': 'Новачок', 'en': 'Rookie'},
+      'first_goal': {'uk': 'Перший гол', 'en': 'First Goal'},
+      'striker': {'uk': 'Бомбардир', 'en': 'Striker'},
+      'defender': {'uk': 'Захисник', 'en': 'Defender'},
+      'playmaker': {'uk': 'Плеймейкер', 'en': 'Playmaker'},
+      'goalkeeper': {'uk': 'Воротар', 'en': 'Goalkeeper'},
+      'speedster': {'uk': 'Спідстер', 'en': 'Speedster'},
+      'trickster': {'uk': 'Фінтер', 'en': 'Trickster'},
+      'social': {'uk': 'Соціальний', 'en': 'Social'},
+      'challenger': {'uk': 'Челенджер', 'en': 'Challenger'},
+      'perfectionist': {'uk': 'Перфекціоніст', 'en': 'Perfectionist'},
+      'veteran': {'uk': 'Ветеран', 'en': 'Veteran'},
+      'legend': {'uk': 'Легенда', 'en': 'Legend'},
+      'champion': {'uk': 'Чемпіон', 'en': 'Champion'},
+      'hall_of_fame': {'uk': 'Зала слави', 'en': 'Hall of Fame'},
+      'dribbling_skill': {'uk': 'Дриблінг', 'en': 'Dribbling'},
+      'passing_skill': {'uk': 'Пас', 'en': 'Passing'},
+      'shooting_skill': {'uk': 'Удар', 'en': 'Shooting'},
+      'strength_skill': {'uk': 'Сила', 'en': 'Strength'},
+      'stamina_skill': {'uk': 'Витривалість', 'en': 'Stamina'},
+      'intelligence_skill': {'uk': 'Футбольний інтелект', 'en': 'Football Intelligence'},
+      'defense_skill': {'uk': 'Захист', 'en': 'Defense'},
+      'tackling_skill': {'uk': 'Підкат', 'en': 'Tackling'},
+      'technique_skill': {'uk': 'Техніка', 'en': 'Technique'},
+      'accuracy_skill': {'uk': 'Точність', 'en': 'Accuracy'},
+      'finishing_skill': {'uk': 'Реалізація', 'en': 'Finishing'},
+      'leadership_skill': {'uk': 'Лідерство', 'en': 'Leadership'},
+      'saves_skill': {'uk': 'Сейв', 'en': 'Saves'},
+      'reaction_skill': {'uk': 'Реакція', 'en': 'Reaction'},
+      'penalty_skill': {'uk': 'Пенальті', 'en': 'Penalty'},
+      'freekick_skill': {'uk': 'Штрафні', 'en': 'Free Kick'},
+      'speed_skill': {'uk': 'Швидкість', 'en': 'Speed'},
+    };
+    
+    final lang = I18n.language.value;
+    return badgeNames[id]?[lang] ?? defaultName;
+  }
+
+  // Helper method to get localized badge description
+  static String _getLocalizedDescription(String id, String defaultDescription) {
+    final Map<String, Map<String, String>> badgeDescriptions = {
+      'rookie': {'uk': 'Перший крок у світ FLAP', 'en': 'First step into FLAP world'},
+      'first_goal': {'uk': 'Забили свій перший гол!', 'en': 'Scored your first goal!'},
+      'striker': {'uk': 'Майстер голевих моментів', 'en': 'Master of goal moments'},
+      'defender': {'uk': 'Надійний як скеля', 'en': 'Reliable as a rock'},
+      'playmaker': {'uk': 'Майстер асистів і передач', 'en': 'Master of assists and passes'},
+      'goalkeeper': {'uk': 'Непереможний страж воріт', 'en': 'Invincible gatekeeper'},
+      'speedster': {'uk': 'Швидкий як блискавка', 'en': 'Fast as lightning'},
+      'trickster': {'uk': 'Майстер технічних фінтів', 'en': 'Master of technical skills'},
+      'social': {'uk': 'Душа команди та спільноти', 'en': 'Soul of team and community'},
+      'challenger': {'uk': 'Переможець 10+ челенджів', 'en': 'Winner of 10+ challenges'},
+      'perfectionist': {'uk': 'Середня оцінка відео 4.5+', 'en': 'Average video rating 4.5+'},
+      'veteran': {'uk': 'Досвідчений гравець FLAP', 'en': 'Experienced FLAP player'},
+      'legend': {'uk': 'Легенда футбольного світу', 'en': 'Legend of football world'},
+      'champion': {'uk': 'Найкращий з найкращих', 'en': 'Best of the best'},
+      'hall_of_fame': {'uk': 'Увійшли в залу слави FLAP', 'en': 'Entered FLAP Hall of Fame'},
+      'dribbling_skill': {'uk': 'Майстерність обведення', 'en': 'Dribbling mastery'},
+      'passing_skill': {'uk': 'Точність передач', 'en': 'Passing accuracy'},
+      'shooting_skill': {'uk': 'Потужність удару', 'en': 'Shot power'},
+      'strength_skill': {'uk': 'Фізична сила', 'en': 'Physical strength'},
+      'stamina_skill': {'uk': 'Витривалість на полі', 'en': 'Stamina on the field'},
+      'intelligence_skill': {'uk': 'Тактичне мислення', 'en': 'Tactical thinking'},
+      'defense_skill': {'uk': 'Оборонна майстерність', 'en': 'Defensive mastery'},
+      'tackling_skill': {'uk': 'Майстерність відбору м\'яча', 'en': 'Ball tackling mastery'},
+      'technique_skill': {'uk': 'Технічна майстерність', 'en': 'Technical mastery'},
+      'accuracy_skill': {'uk': 'Точність виконання', 'en': 'Execution accuracy'},
+      'finishing_skill': {'uk': 'Ефективність у завершенні атак', 'en': 'Attack finishing efficiency'},
+      'leadership_skill': {'uk': 'Лідерські якості', 'en': 'Leadership qualities'},
+      'saves_skill': {'uk': 'Майстерність воротаря', 'en': 'Goalkeeper mastery'},
+      'reaction_skill': {'uk': 'Швидкість реакції', 'en': 'Reaction speed'},
+      'penalty_skill': {'uk': 'Майстерність одинадцятиметрових', 'en': 'Penalty kick mastery'},
+      'freekick_skill': {'uk': 'Майстерність штрафних ударів', 'en': 'Free kick mastery'},
+      'speed_skill': {'uk': 'Швидкість пересування', 'en': 'Movement speed'},
+    };
+    
+    final lang = I18n.language.value;
+    return badgeDescriptions[id]?[lang] ?? defaultDescription;
   }
 
   // Default badges list

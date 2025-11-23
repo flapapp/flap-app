@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
 import '../services/match_service.dart';
+import '../utils/i18n.dart';
 
 class MatchManagementScreen extends StatefulWidget {
   final Match match;
@@ -54,13 +55,13 @@ List<List<String>> _editingTeams = [[], []];
       final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
       final data = doc.data() as Map<String, dynamic>? ?? const {};
       final profile = <String, dynamic>{
-  'displayName': (data['displayName'] ?? 'Гравець').toString(),
+  'displayName': (data['displayName'] ?? I18n.t('player')).toString(),
   'avatarUrl': ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toString(),
 };
       _userCache[userId] = profile;
       return profile;
     } catch (_) {
-  final fallback = <String, dynamic>{'displayName': 'Гравець', 'avatarUrl': ''};
+  final fallback = <String, dynamic>{'displayName': I18n.t('player'), 'avatarUrl': ''};
       _userCache[userId] = fallback;
       return fallback;
     }
@@ -96,8 +97,8 @@ List<List<String>> _editingTeams = [[], []];
         title: Text(title),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Скасувати')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Підтвердити')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(I18n.t('cancel'))),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: Text(I18n.t('confirm'))),
         ],
       ),
     );
@@ -122,7 +123,7 @@ List<List<String>> _editingTeams = [[], []];
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка завантаження: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text(I18n.inline('Помилка завантаження: $e', 'Error loading: $e')), backgroundColor: Colors.red),
       );
     } finally {
       setState(() => _isLoading = false);
@@ -137,9 +138,9 @@ List<List<String>> _editingTeams = [[], []];
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Управління матчем',
-              style: TextStyle(
+            Text(
+              I18n.inline('Управління матчем', 'Match Management'),
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
               ),
@@ -153,7 +154,7 @@ List<List<String>> _editingTeams = [[], []];
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '+${_pendingApplications.length} заявок',
+                  I18n.inline('+${_pendingApplications.length} заявок', '+${_pendingApplications.length} applications'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -198,7 +199,7 @@ List<List<String>> _editingTeams = [[], []];
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Заявки'),
+                  Text(I18n.inline('Заявки', 'Applications')),
                   const SizedBox(width: 6),
                   if (pendingCount > 0)
                     Container(
@@ -219,7 +220,7 @@ List<List<String>> _editingTeams = [[], []];
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Команди'),
+                  Text(I18n.inline('Команди', 'Teams')),
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -235,7 +236,7 @@ List<List<String>> _editingTeams = [[], []];
                 ],
               ),
             ),
-            const Tab(text: 'Налаштування'),
+            Tab(text: I18n.t('settings')),
           ],
         );
       },
@@ -265,12 +266,12 @@ Widget _buildApplicationsTab() {
         return Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
       }
       if (!snap.data!.exists) {
-        return Center(child: Text('Матч не знайдено', style: TextStyle(color: Colors.white70)));
+        return Center(child: Text(I18n.inline('Матч не знайдено', 'Match not found'), style: const TextStyle(color: Colors.white70)));
       }
       final updated = Match.fromFirestore(snap.data!);
       final pending = updated.pendingApplications;
       if (pending.isEmpty) {
-        return Center(child: Text('Немає заявок', style: TextStyle(color: Colors.white70)));
+        return Center(child: Text(I18n.inline('Немає заявок', 'No applications'), style: const TextStyle(color: Colors.white70)));
       }
       return ListView.builder(
         padding: EdgeInsets.all(16),
@@ -307,9 +308,9 @@ Widget _buildTeamsTab() {
             // Заголовок з бейджем кількості учасників
             Row(
               children: [
-                const Text(
-                  'Команди',
-                  style: TextStyle(
+                Text(
+                  I18n.inline('Команди', 'Teams'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
@@ -320,7 +321,7 @@ Widget _buildTeamsTab() {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(12)),
                   child: Text(
-                    '${m.participants.length} учасників',
+                    I18n.inline('${m.participants.length} учасників', '${m.participants.length} participants'),
                     style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -340,7 +341,7 @@ Widget _buildTeamsTab() {
                       });
                     },
                     icon: Icon(_editMode ? Icons.close : Icons.edit, color: Colors.white70),
-                    label: Text(_editMode ? 'Завершити редагування' : 'Редагувати склади',
+                    label: Text(_editMode ? I18n.inline('Завершити редагування', 'Finish editing') : I18n.inline('Редагувати склади', 'Edit teams'),
                       style: const TextStyle(color: Colors.white70)),
                   ),
                 ],
@@ -361,10 +362,10 @@ Widget _buildTeamsTab() {
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.shuffle, color: Colors.white, size: 20),
-                      SizedBox(width: 12),
-                      Text('Сформувати команди', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                    children: [
+                      const Icon(Icons.shuffle, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Text(I18n.inline('Сформувати команди', 'Form teams'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
@@ -389,7 +390,7 @@ Widget _buildTeamsTab() {
                       children: [
                         Icon(Icons.scale, color: Colors.white70),
                         const SizedBox(width: 8),
-                        const Text('Баланс команд',
+                        Text(I18n.inline('Баланс команд', 'Team Balance'),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -399,7 +400,7 @@ Widget _buildTeamsTab() {
                         TextButton.icon(
                           onPressed: () async {
                             // Підтверджуємо перемішування
-                            final ok = await _confirm('Перемішати команди?', 'Переформувати склади на основі рейтингу');
+                            final ok = await _confirm(I18n.inline('Перемішати команди?', 'Shuffle teams?'), I18n.inline('Переформувати склади на основі рейтингу', 'Reform teams based on ratings'));
                             if (ok == true) {
                               // Завантажуємо рейтинги
                               final ratings = _ratingsCache.isEmpty
@@ -417,12 +418,12 @@ Widget _buildTeamsTab() {
                               await _matchService.updateTeams(widget.match.id, _editingTeamA, _editingTeamB);
                               
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Команди перемішано!'), backgroundColor: Color(0xFF4caf50)),
+                                SnackBar(content: Text(I18n.inline('Команди перемішано!', 'Teams shuffled!')), backgroundColor: const Color(0xFF4caf50)),
                               );
                             }
                           },
                           icon: const Icon(Icons.shuffle, color: Colors.white),
-                          label: const Text('Перемішати', style: TextStyle(color: Colors.white)),
+                          label: Text(I18n.inline('Перемішати', 'Shuffle'), style: const TextStyle(color: Colors.white)),
                         ),
                       ],
                     ),
@@ -434,7 +435,7 @@ Widget _buildTeamsTab() {
                         // A
                         Expanded(
                             child: _mvpTeamCard(
-                            title: (m.teamA?.name?.isNotEmpty == true ? m.teamA!.name : 'Команда A'),
+                            title: (m.teamA?.name?.isNotEmpty == true ? m.teamA!.name : I18n.inline('Команда A', 'Team A')),
                             color: const Color(0xFF1976D2),
                             avg: _localAvgFor(
                               _editingTeamA.isNotEmpty ? _editingTeamA : m.teamA!.playerIds,
@@ -448,7 +449,7 @@ Widget _buildTeamsTab() {
                         // B
                         Expanded(
                             child: _mvpTeamCard(
-                            title: (m.teamB?.name?.isNotEmpty == true ? m.teamB!.name : 'Команда B'),
+                            title: (m.teamB?.name?.isNotEmpty == true ? m.teamB!.name : I18n.inline('Команда B', 'Team B')),
                             color: const Color(0xFF8E24AA),
                             avg: _localAvgFor(
                               _editingTeamB.isNotEmpty ? _editingTeamB : m.teamB!.playerIds,
@@ -462,7 +463,7 @@ Widget _buildTeamsTab() {
                     ),
                     const SizedBox(height: 20),
                     // Управління матчем
-                    const Text('Управління матчем',
+                    Text(I18n.inline('Управління матчем', 'Match Management'),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 18,
@@ -477,7 +478,7 @@ if (m.isInProgress)
     child: ElevatedButton.icon(
       onPressed: _isLoading ? null : _showFinishMatchDialog,
       icon: const Icon(Icons.flag, color: Colors.white),
-      label: const Text('Завершити матч', style: TextStyle(color: Colors.white)),
+      label: Text(I18n.t('finish_match'), style: const TextStyle(color: Colors.white)),
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFFFFA000),
         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -489,7 +490,7 @@ else if (m.isFinished)
     child: ElevatedButton.icon(
       onPressed: null,
       icon: const Icon(Icons.check_circle, color: Colors.white),
-      label: const Text('Матч завершено', style: TextStyle(color: Colors.white)),
+      label: Text(I18n.t('status_finished'), style: const TextStyle(color: Colors.white)),
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.grey,
         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -501,7 +502,7 @@ else if (m.isCancelled)
     child: ElevatedButton.icon(
       onPressed: null,
       icon: const Icon(Icons.cancel, color: Colors.white),
-      label: const Text('Матч скасовано', style: TextStyle(color: Colors.white)),
+      label: Text(I18n.t('status_cancelled'), style: const TextStyle(color: Colors.white)),
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.grey,
         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -513,7 +514,7 @@ else
     child: ElevatedButton.icon(
       onPressed: _startMatch,
       icon: const Icon(Icons.play_arrow, color: Colors.white),
-      label: const Text('Почати матч', style: TextStyle(color: Colors.white)),
+      label: Text(I18n.t('start_match'), style: const TextStyle(color: Colors.white)),
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF4caf50),
         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -525,12 +526,12 @@ else
   Expanded(
     child: ElevatedButton.icon(
       onPressed: () async {
-        final ok = await _confirm('Скасувати матч?', 'Скасувати подію і повідомити учасників');
+        final ok = await _confirm(I18n.inline('Скасувати матч?', 'Cancel match?'), I18n.inline('Скасувати подію і повідомити учасників', 'Cancel event and notify participants'));
         if (ok != true) return;
         await _cancelMatch();
       },
       icon: const Icon(Icons.cancel, color: Colors.white),
-      label: const Text('Скасувати', style: TextStyle(color: Colors.white)),
+      label: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white)),
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFFE53935),
         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -546,7 +547,7 @@ else
         child: ElevatedButton.icon(
           onPressed: () => Navigator.pushNamed(context, '/match_rating', arguments: m),
           icon: const Icon(Icons.star_rate_rounded),
-          label: const Text('Оцінити гравців'),
+          label: Text(I18n.inline('Оцінити гравців', 'Rate players')),
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF4caf50),
             foregroundColor: Colors.white,
@@ -560,7 +561,7 @@ else
                 ),
               ),
             ] else if (!m.hasTeams && m.participants.length < 4) ...[
-              _hintBox(Icons.info_outline, Colors.orange, 'Для формування команд потрібно мінімум 4 гравці'),
+              _hintBox(Icons.info_outline, Colors.orange, I18n.inline('Для формування команд потрібно мінімум 4 гравці', 'Minimum 4 players needed to form teams')),
             ] else if (_editMode) ...[
               // Редактор з Drag&Drop
               FutureBuilder<Map<String, double>>(
@@ -588,7 +589,7 @@ else
                         children: [
                           Icon(Icons.balance, color: Colors.white70, size: 18),
                           const SizedBox(width: 8),
-                          Text('Баланс: A ${avgA().toStringAsFixed(2)} vs B ${avgB().toStringAsFixed(1)}',
+                          Text(I18n.inline('Баланс: A ${avgA().toStringAsFixed(2)} vs B ${avgB().toStringAsFixed(1)}', 'Balance: A ${avgA().toStringAsFixed(2)} vs B ${avgB().toStringAsFixed(1)}'),
                               style: const TextStyle(color: Colors.white70)),
                           const Spacer(),
                           TextButton.icon(
@@ -600,7 +601,7 @@ else
                               });
                             },
                             icon: const Icon(Icons.swap_horiz, color: Colors.white70),
-                            label: const Text('Поміняти місцями', style: TextStyle(color: Colors.white70)),
+                            label: Text(I18n.inline('Поміняти місцями', 'Swap teams'), style: const TextStyle(color: Colors.white70)),
                           ),
                         ],
                       ),
@@ -613,7 +614,7 @@ else
                           // Team A
                           Expanded(
                             child: _dragZone(
-                              title: 'Команда A',
+                              title: I18n.inline('Команда A', 'Team A'),
                               players: _editingTeamA,
                               onRemove: (id) { if (_locked.contains(id)) return; setState(() => _editingTeamA.remove(id)); },
                               onAcceptFromOther: (id) {
@@ -634,7 +635,7 @@ else
                           // Team B
                           Expanded(
                             child: _dragZone(
-                              title: 'Команда B',
+                              title: I18n.inline('Команда B', 'Team B'),
                               players: _editingTeamB,
                               onRemove: (id) { if (_locked.contains(id)) return; setState(() => _editingTeamB.remove(id)); },
                               onAcceptFromOther: (id) {
@@ -658,7 +659,7 @@ else
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: _isSavingTeams ? null : () async {
-                            final ok = await _confirm('Зберегти склади?', 'Оновити команди A/B для цього матчу');
+                            final ok = await _confirm(I18n.inline('Зберегти склади?', 'Save teams?'), I18n.inline('Оновити команди A/B для цього матчу', 'Update teams A/B for this match'));
                             if (ok != true) return;
                             setState(() => _isSavingTeams = true);
                             final success = await _matchService.updateTeams(
@@ -672,14 +673,14 @@ else
                               );
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Не вдалося зберегти склади'), backgroundColor: Colors.red),
+                                SnackBar(content: Text(I18n.inline('Не вдалося зберегти склади', 'Failed to save teams')), backgroundColor: Colors.red),
                               );
                             }
                           },
                           icon: _isSavingTeams
                               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                               : const Icon(Icons.save, color: Colors.white),
-                          label: Text(_isSavingTeams ? 'Збереження…' : 'Зберегти склади',
+                          label: Text(_isSavingTeams ? I18n.inline('Збереження…', 'Saving…') : I18n.inline('Зберегти склади', 'Save teams'),
                               style: const TextStyle(color: Colors.white)),
                           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4caf50), padding: const EdgeInsets.symmetric(vertical: 14)),
                         ),
@@ -689,7 +690,7 @@ else
                 },
               ),
             ] else ...[
-              _hintBox(Icons.people, Colors.blue, 'Натисніть "Сформувати команди" або "Редагувати склади"'),
+              _hintBox(Icons.people, Colors.blue, I18n.inline('Натисніть "Сформувати команди" або "Редагувати склади"', 'Click "Form teams" or "Edit teams"')),
             ],
           ],
         ),
@@ -763,7 +764,7 @@ Widget _buildSettingsTab() {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Керування матчем',
+              I18n.inline('Керування матчем', 'Match Management'),
               style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 20),
@@ -781,10 +782,10 @@ if (m.hasTeams && !m.isInProgress && !m.isFinished && !m.isCancelled)
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.play_arrow, color: Colors.white, size: 20),
-                      SizedBox(width: 12),
-                      Text('Почати матч', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                    children: [
+                      const Icon(Icons.play_arrow, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Text(I18n.t('start_match'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
@@ -805,10 +806,10 @@ if (m.hasTeams && !m.isInProgress && !m.isFinished && !m.isCancelled)
   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.stop, color: Colors.white, size: 20),
-                      SizedBox(width: 12),
-                      Text('Завершити матч', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                    children: [
+                      const Icon(Icons.stop, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Text(I18n.t('finish_match'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
@@ -827,14 +828,14 @@ if (m.hasTeams && !m.isInProgress && !m.isFinished && !m.isCancelled)
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-            Text('Статус: ${m.statusText}', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+            Text(I18n.inline('Статус: ${m.statusText}', 'Status: ${m.statusText}'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   if (m.isInProgress && m.startedAt != null)
                     Text('Почався: ${_formatDateTime(m.startedAt!)}', style: const TextStyle(color: Colors.white70, fontSize: 14)),
                   if (m.isFinished && m.finishedAt != null)
-                    Text('Завершився: ${_formatDateTime(m.finishedAt!)}', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                    Text(I18n.inline('Завершився: ${_formatDateTime(m.finishedAt!)}', 'Finished: ${_formatDateTime(m.finishedAt!)}'), style: const TextStyle(color: Colors.white70, fontSize: 14)),
                   if (m.hasTeams)
-                    const Text('Команди сформовані', style: TextStyle(color: Colors.green, fontSize: 14)),
+                    Text(I18n.inline('Команди сформовані', 'Teams formed'), style: const TextStyle(color: Colors.green, fontSize: 14)),
                 ],
               ),
             ),
@@ -868,7 +869,7 @@ Widget _buildApplicationCard(String userId) {
                 (snap.hasData && snap.data!.exists)
                     ? (snap.data!.data() as Map<String, dynamic>)
                     : const {};
-            final String displayName = (data['displayName'] ?? 'Гравець') as String;
+            final String displayName = (data['displayName'] ?? I18n.t('player')) as String;
 final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toString();
             final double rating = (data['rating'] is num)
                 ? (data['rating'] as num).toDouble()
@@ -954,7 +955,7 @@ final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toStrin
             Expanded(
               child: ElevatedButton(
                 onPressed: _busyUserIds.contains(userId) ? null : () async {
-                  final sure = await _confirm('Прийняти гравця?', 'Додати користувача до учасників матчу');
+                  final sure = await _confirm(I18n.inline('Прийняти гравця?', 'Accept player?'), I18n.inline('Додати користувача до учасників матчу', 'Add user to match participants'));
                   if (sure != true) return;
                   setState(() => _busyUserIds.add(userId));
                   await _acceptApplication(userId);
@@ -965,7 +966,7 @@ final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toStrin
                   padding: EdgeInsets.symmetric(vertical: 12),
                 ),
                 child: Text(
-                  _busyUserIds.contains(userId) ? 'Приймаю…' : 'Прийняти',
+                  _busyUserIds.contains(userId) ? I18n.inline('Приймаю…', 'Accepting…') : I18n.t('accept'),
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
@@ -988,7 +989,7 @@ final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toStrin
                   padding: EdgeInsets.symmetric(vertical: 12),
                 ),
                 child: Text(
-                  _busyUserIds.contains(userId) ? 'Відхиляю…' : 'Відхилити',
+                  _busyUserIds.contains(userId) ? I18n.inline('Відхиляю…', 'Rejecting…') : I18n.t('reject'),
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
@@ -1062,7 +1063,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Гравця прийнято!'),
+            content: Text(I18n.inline('Гравця прийнято!', 'Player accepted!')),
             backgroundColor: Color(0xFF4caf50),
           ),
         );
@@ -1070,7 +1071,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Не вдалося прийняти гравця'),
+            content: Text(I18n.inline('Не вдалося прийняти гравця', 'Failed to accept player')),
             backgroundColor: Colors.red,
           ),
         );
@@ -1093,7 +1094,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Заявку відхилено'),
+            content: Text(I18n.inline('Заявку відхилено', 'Application rejected')),
             backgroundColor: Colors.orange,
           ),
         );
@@ -1101,7 +1102,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Не вдалося відхилити заявку'),
+            content: Text(I18n.inline('Не вдалося відхилити заявку', 'Failed to reject application')),
             backgroundColor: Colors.red,
           ),
         );
@@ -1144,7 +1145,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Рейтинг: ${team.averageRating.toStringAsFixed(2)}',
+                  I18n.inline('Рейтинг: ${team.averageRating.toStringAsFixed(2)}', 'Rating: ${team.averageRating.toStringAsFixed(2)}'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -1156,7 +1157,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
           ),
           SizedBox(height: 12),
           Text(
-            'Гравці (${team.playerIds.length}):',
+            I18n.inline('Гравці (${team.playerIds.length}):', 'Players (${team.playerIds.length}):'),
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 14,
@@ -1385,7 +1386,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Команди успішно сформовані!'),
+            content: Text(I18n.inline('Команди успішно сформовані!', 'Teams successfully formed!')),
             backgroundColor: Color(0xFF4caf50),
           ),
         );
@@ -1420,7 +1421,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Матч розпочато!'),
+          content: Text(I18n.t('match_started')),
           backgroundColor: Color(0xFF4caf50),
         ),
       );
@@ -1457,11 +1458,11 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
     context: context,
     builder: (context) => AlertDialog(
       backgroundColor: const Color(0xFF2a2a2a),
-      title: const Text('Завершити матч', style: TextStyle(color: Colors.white)),
+      title: Text(I18n.t('finish_match'), style: const TextStyle(color: Colors.white)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Введіть рахунок матчу:', style: TextStyle(color: Colors.white70)),
+          Text(I18n.inline('Введіть рахунок матчу:', 'Enter match score:'), style: const TextStyle(color: Colors.white70)),
           const SizedBox(height: 16),
           Row(
   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1480,8 +1481,8 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
           ),
           const SizedBox(height: 6),
           TextField(
-            decoration: const InputDecoration(
-              labelText: 'Голи',
+            decoration: InputDecoration(
+              labelText: I18n.inline('Голи', 'Goals'),
               labelStyle: TextStyle(color: Colors.white70),
               isDense: true,
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1514,8 +1515,8 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
           ),
           const SizedBox(height: 6),
           TextField(
-            decoration: const InputDecoration(
-              labelText: 'Голи',
+            decoration: InputDecoration(
+              labelText: I18n.inline('Голи', 'Goals'),
               labelStyle: TextStyle(color: Colors.white70),
               isDense: true,
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1535,12 +1536,12 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+          child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : () { Navigator.pop(context); _finishMatch(); },
           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFf44336)),
-          child: const Text('Завершити'),
+          child: Text(I18n.t('finish_match')),
         ),
       ],
     ),
@@ -1571,7 +1572,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Матч завершено! Тепер гравці можуть оцінювати один одного.'),
+            content: Text(I18n.inline('Матч завершено! Тепер гравці можуть оцінювати один одного.', 'Match finished! Now players can rate each other.')),
             backgroundColor: Color(0xFF4caf50),
           ),
         );
@@ -1582,7 +1583,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Помилка завершення матчу'),
+            content: Text(I18n.inline('Помилка завершення матчу', 'Error finishing match')),
             backgroundColor: Colors.red,
           ),
         );
@@ -1605,17 +1606,17 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
     final success = await _matchService.cancelMatch(widget.match.id);
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Матч скасовано'), backgroundColor: Colors.redAccent),
+        SnackBar(content: Text(I18n.t('status_cancelled')), backgroundColor: Colors.redAccent),
       );
       await _loadMatchData();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Не вдалося скасувати матч'), backgroundColor: Colors.red),
+        SnackBar(content: Text(I18n.inline('Не вдалося скасувати матч', 'Failed to cancel match')), backgroundColor: Colors.red),
       );
     }
   } catch (e) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Помилка: $e'), backgroundColor: Colors.red),
+      SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e')), backgroundColor: Colors.red),
     );
   } finally {
     setState(() => _isLoading = false);

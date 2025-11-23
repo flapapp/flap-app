@@ -68,10 +68,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
 
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(
+            return Center(
               child: Text(
-                'Профіль не знайдено',
-                style: TextStyle(color: Colors.white),
+                'Профіль не знайдено'.i18n('Profile not found'),
+                style: const TextStyle(color: Colors.white),
               ),
             );
           }
@@ -352,7 +352,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const Icon(Icons.percent, color: Colors.white70, size: 16),
                         const SizedBox(width: 6),
                         Text(
-                          'Win Rate: ${winRate.toStringAsFixed(0)}%',
+                          '${I18n.inline('Win Rate:', 'Win Rate:')} ${winRate.toStringAsFixed(0)}%',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
@@ -417,7 +417,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Expanded(
             child: _buildStatCard(
-              'Матчі',
+              I18n.t('matches'),
               (userData['matchesPlayed'] ?? 0).toString(),
               Icons.sports_soccer,
               const Color(0xFF4caf50),
@@ -426,7 +426,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: _buildStatCard(
-              'Відео',
+              I18n.t('videos'),
               (userData['videosUploaded'] ?? 0).toString(),
               Icons.videocam,
               const Color(0xFFFF6B35),
@@ -435,7 +435,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: _buildStatCard(
-              'Друзі',
+              I18n.t('friends'),
               _friendsCount.toString(),
               Icons.people,
               const Color(0xFF2196F3),
@@ -501,9 +501,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Бейджі',
-                style: TextStyle(
+              Text(
+                I18n.t('badges'),
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -511,9 +511,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               TextButton(
                 onPressed: _openBadgesStore,
-                child: const Text(
-                  'Магазин',
-                  style: TextStyle(color: Color(0xFF4caf50)),
+                child: Text(
+                  'Магазин'.i18n('Store'),
+                  style: const TextStyle(color: Color(0xFF4caf50)),
                 ),
               ),
             ],
@@ -538,7 +538,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Поки немає бейджів',
+                    'Поки немає бейджів'.i18n('No badges yet'),
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 14,
@@ -578,16 +578,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 style: const TextStyle(fontSize: 24),
                               ),
                               const SizedBox(height: 4),
-                              Text(
-                                badge.name,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
+                              ValueListenableBuilder<String>(
+                                valueListenable: I18n.language,
+                                builder: (context, _, __) => Text(
+                                  badge.localizedName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
                               if (endorsementCount > 0) ...[
                                 const SizedBox(height: 4),
@@ -627,20 +630,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           _buildActionItem(
-            '👥 Друзі',
-            'Керування друзями',
+            '👥 Друзі'.i18n('👥 Friends'),
+            I18n.t('manage_friends'),
             Icons.people,
             () => _openFriends(),
           ),
           _buildActionItem(
-            '🏆 Мої відео',
-            'Переглянути завантажені відео',
+            '🏆 Мої відео'.i18n('🏆 My videos'),
+            I18n.t('view_uploaded_videos'),
             Icons.videocam,
             () => _openMyVideos(),
           ),
           _buildActionItem(
-            '⚔️ Мої челенджі',
-            'Переглянути створені челенджі',
+            '⚔️ Мої челенджі'.i18n('⚔️ My challenges'),
+            I18n.t('view_challenges'),
             Icons.emoji_events,
             () => _openMyChallenges(),
           ),
@@ -754,13 +757,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _getPositionDisplay(String? position) {
     switch (position?.toLowerCase()) {
       case 'goalkeeper':
-        return '🥅 Воротар';
+        return '🥅 Воротар'.i18n('🥅 Goalkeeper');
       case 'defender':
-        return '🛡️ Захисник';
+        return '🛡️ Захисник'.i18n('🛡️ Defender');
       case 'midfielder':
-        return '⚽ Півзахисник';
+        return '⚽ Півзахисник'.i18n('⚽ Midfielder');
       case 'forward':
-        return '🎯 Нападник';
+        return '🎯 Нападник'.i18n('🎯 Forward');
       default:
         return '⚽ ${I18n.t('player')}';
     }
@@ -887,7 +890,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _editProfile() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Редагування профілю (буде реалізовано)')),
+      SnackBar(content: Text('Редагування профілю (буде реалізовано)'.i18n('Profile editing (coming soon)'))),
     );
   }
 
@@ -916,10 +919,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final currentUserId = _auth.currentUser?.uid;
     if (currentUserId == null) return;
     
-    // Не можна підтверджувати свої бейджі
     if (currentUserId == userId) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не можна підтверджувати свої бейджі')),
+        SnackBar(content: Text('Не можна підтверджувати свої бейджі'.i18n('You cannot endorse your own badges'))),
       );
       return;
     }
@@ -940,7 +942,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
         
         if (endorsers.contains(currentUserId)) {
-          throw Exception('Ви вже підтвердили цей бейдж');
+          throw Exception('Ви вже підтвердили цей бейдж'.i18n('You already endorsed this badge'));
         }
         
         endorsers.add(currentUserId);
@@ -953,13 +955,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       
       // Відправляємо нотифікацію власнику бейджу
       final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserId).get();
-      final currentUserName = currentUserDoc.data()?['displayName'] ?? currentUserDoc.data()?['name'] ?? 'Користувач';
+      final currentUserName = currentUserDoc.data()?['displayName'] ?? currentUserDoc.data()?['name'] ?? 'Користувач'.i18n('User');
       
       await FirebaseFirestore.instance.collection('notifications').add({
         'userId': userId,
         'type': 'badgeEndorsed',
-        'title': 'Підтвердження бейджу',
-        'message': '$currentUserName підтвердив ваш бейдж "${badge.name}"',
+        'title': 'Підтвердження бейджу'.i18n('Badge endorsement'),
+        'message': I18n.inline('$currentUserName підтвердив ваш бейдж "${badge.localizedName}"', '$currentUserName confirmed your badge "${badge.localizedName}"'),
         'data': {'badgeId': badge.id},
         'createdAt': FieldValue.serverTimestamp(),
         'isRead': false,
@@ -967,7 +969,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ Бейдж "${badge.name}" підтверджено!'),
+          content: Text(I18n.inline('✅ Бейдж "${badge.localizedName}" підтверджено!', '✅ Badge "${badge.localizedName}" verified!')),
           backgroundColor: Colors.green,
         ),
       );
@@ -978,8 +980,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.toString().contains('вже підтвердили') 
-              ? 'Ви вже підтвердили цей бейдж' 
-              : 'Помилка підтвердження'),
+              ? 'Ви вже підтвердили цей бейдж'.i18n('You already endorsed this badge')
+              : 'Помилка підтвердження'.i18n('Endorsement error')),
           backgroundColor: Colors.orange,
         ),
       );
@@ -1011,7 +1013,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _openStats() {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${I18n.t('stats')} (буде реалізовано)')),
+      SnackBar(content: Text(I18n.inline('${I18n.t('stats')} (буде реалізовано)', '${I18n.t('stats')} (coming soon)'))),
     );
   }
 
@@ -1038,7 +1040,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showSettings() {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${I18n.t('settings')} (буде реалізовано)')),
+      SnackBar(content: Text(I18n.inline('${I18n.t('settings')} (буде реалізовано)', '${I18n.t('settings')} (coming soon)'))),
     );
   }
 
@@ -1051,14 +1053,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   I18n.t('logout_confirm'),
   style: TextStyle(color: Colors.white),
 ),
-        content: const Text(
-          'Ви впевнені, що хочете вийти?',
-          style: TextStyle(color: Colors.white70),
+        content: Text(
+          'Ви впевнені, що хочете вийти?'.i18n('Are you sure you want to log out?'),
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+            child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () async {

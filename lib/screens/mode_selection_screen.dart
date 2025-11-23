@@ -76,15 +76,17 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
       final g = _greetings[idx];
       final data = doc.data();
       final name = data != null
-          ? (data['displayName'] ?? data['authorName'] ?? data['name'] ?? 'Гравець')
-          : 'Гравець';
+          ? (data['displayName'] ?? data['authorName'] ?? data['name'] ?? I18n.t('player'))
+          : I18n.t('player');
       final rating = data != null ? (data['rating'] ?? 3.0).toDouble() : 3.0;
       final matches = data != null ? ((data['totalMatches'] ?? data['matches'] ?? data['matchesPlayed'] ?? 0) as num).toInt() : 0;
 setState(() {
-  _currentGreeting = g['greeting']?.replaceAll('Олександр', name) ?? 'Вітаємо, $name!';
-  _currentRatingText = 'Ваш рейтинг: ${rating.toStringAsFixed(2)} • $matches матчів зіграно';
-        _currentInstruction = g['instruction'] ?? 'Оберіть режим роботи для початку гри';
-      });
+  _currentGreeting = g['greeting']?.replaceAll('Олександр', name) ?? I18n.inline('Вітаємо, $name!', 'Welcome, $name!');
+  _currentRatingText = I18n.inline(
+      'Ваш рейтинг: ${rating.toStringAsFixed(2)} • $matches матчів зіграно',
+      'Your rating: ${rating.toStringAsFixed(2)} • $matches matches played');
+  _currentInstruction = g['instruction'] ?? I18n.inline('Оберіть режим роботи для початку гри', 'Choose a mode to start playing');
+});
     });
   }
 
@@ -258,7 +260,7 @@ setState(() {
                       builder: (context, snapshot) {
                                                  if (snapshot.hasData && snapshot.data!.exists) {
                            final data = snapshot.data!.data();
-                           final displayName = data?['displayName'] ?? data?['name'] ?? data?['authorName'] ?? data?['email']?.toString().split('@').first ?? 'Гравець';
+                           final displayName = data?['displayName'] ?? data?['name'] ?? data?['authorName'] ?? data?['email']?.toString().split('@').first ?? I18n.t('player');
                           return Text(
                             displayName,
                             style: const TextStyle(
@@ -354,7 +356,8 @@ setState(() {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          'Створюй контент, приймай челенджі та показуй свої навички',
+                          'Створюй контент, приймай челенджі та показуй свої навички'
+                              .i18n('Create content, join challenges, and show your skills'),
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.white.withOpacity(0.9),
@@ -364,11 +367,11 @@ setState(() {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: const [
-                            _FunctionItem(Icons.cloud_upload, 'Завантаження'),
-                            _FunctionItem(Icons.emoji_events, 'Челенджі'),
-                            _FunctionItem(Icons.how_to_vote, 'Голосування'),
-                            _FunctionItem(Icons.comment, 'Коментарі'),
-                            _FunctionItem(Icons.star, 'Рейтинг'),
+                            _FunctionItem(Icons.cloud_upload, 'Завантаження', 'Uploads'),
+                            _FunctionItem(Icons.emoji_events, 'Челенджі', 'Challenges'),
+                            _FunctionItem(Icons.how_to_vote, 'Голосування', 'Voting'),
+                            _FunctionItem(Icons.comment, 'Коментарі', 'Comments'),
+                            _FunctionItem(Icons.star, 'Рейтинг', 'Rating'),
                           ],
                         ),
                       ],
@@ -421,7 +424,8 @@ setState(() {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          'Знаходь гравців, створюй команди та грай у живому футболі',
+                          'Знаходь гравців, створюй команди та грай у живому футболі'
+                              .i18n('Find players, create teams, and play live football'),
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.white.withOpacity(0.9),
@@ -431,11 +435,11 @@ setState(() {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: const [
-                            _FunctionItem(Icons.search, 'Пошук'),
-                            _FunctionItem(Icons.add, 'Створення'),
-                            _FunctionItem(Icons.balance, 'Баланс'),
-                            _FunctionItem(Icons.bar_chart, 'Рейтинг'),
-                            _FunctionItem(Icons.people, 'Друзі'),
+                            _FunctionItem(Icons.search, 'Пошук', 'Search'),
+                            _FunctionItem(Icons.add, 'Створення', 'Create'),
+                            _FunctionItem(Icons.balance, 'Баланс', 'Balance'),
+                            _FunctionItem(Icons.bar_chart, 'Рейтинг', 'Rating'),
+                            _FunctionItem(Icons.people, 'Друзі', 'Friends'),
                           ],
                         ),
                       ],
@@ -453,8 +457,11 @@ setState(() {
 
 class _FunctionItem extends StatelessWidget {
   final IconData icon;
-  final String label;
-  const _FunctionItem(this.icon, this.label, {Key? key}) : super(key: key);
+  final String ukLabel;
+  final String enLabel;
+  const _FunctionItem(this.icon, this.ukLabel, this.enLabel, {Key? key}) : super(key: key);
+  
+  String get label => I18n.inline(ukLabel, enLabel);
 
   @override
   Widget build(BuildContext context) {

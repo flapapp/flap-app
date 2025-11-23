@@ -25,7 +25,7 @@ class ChallengesScreen extends StatefulWidget {
 class _ChallengesScreenState extends State<ChallengesScreen> {
   final ChallengeService _challengeService = ChallengeService();
   String _selectedFilter = 'all'; // all, active, my, completed
-  String _selectedSort = 'Нові'; // Нові, Рейтинг, Перегляди
+  String _selectedSort = 'new'; // 'new', 'rating', 'views'
   
   @override
   Widget build(BuildContext context) {
@@ -65,10 +65,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       dropdownColor: const Color(0xFF0f0f23),
                       style: const TextStyle(color: Colors.white, fontSize: 12),
                       icon: const Icon(Icons.sort, color: Colors.white70),
-                      items: ['Нові', 'Рейтинг', 'Перегляди']
-                          .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _selectedSort = v ?? 'Нові'),
+                      items: [
+                        DropdownMenuItem(value: 'new', child: Text(I18n.inline('Нові', 'New'))),
+                        DropdownMenuItem(value: 'rating', child: Text(I18n.inline('Рейтинг', 'Rating'))),
+                        DropdownMenuItem(value: 'views', child: Text(I18n.inline('Перегляди', 'Views'))),
+                      ],
+                      onChanged: (v) => setState(() => _selectedSort = v ?? 'new'),
                     ),
                   ),
                 ],
@@ -112,15 +114,15 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                   final ad = a.data() as Map<String, dynamic>;
                   final bd = b.data() as Map<String, dynamic>;
                   switch (_selectedSort) {
-                    case 'Рейтинг':
+                    case 'rating':
                       final ar = (ad['averageRating'] ?? 0.0) as num; // якщо є агрегований рейтинг
                       final br = (bd['averageRating'] ?? 0.0) as num;
                       return br.compareTo(ar);
-                    case 'Перегляди':
+                    case 'views':
                       final av = (ad['views'] ?? 0) as num;
                       final bv = (bd['views'] ?? 0) as num;
                       return bv.compareTo(av);
-                    case 'Нові':
+                    case 'new':
                     default:
                       final at = ad['createdAt'];
                       final bt = bd['createdAt'];
@@ -193,7 +195,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            _selectedFilter == 'my' ? 'Ви ще не створили жодного челенджу' : 'Немає челенджів',
+            _selectedFilter == 'my' ? I18n.inline('Ви ще не створили жодного челенджу', 'You haven\'t created any challenges yet') : I18n.inline('Немає челенджів', 'No challenges'),
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 18,
@@ -203,8 +205,8 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           const SizedBox(height: 8),
           Text(
             _selectedFilter == 'my' 
-                ? 'Створіть свій перший челендж!'
-                : 'Зачекайте, поки з\'являться нові челенджі.',
+                ? I18n.inline('Створіть свій перший челендж!', 'Create your first challenge!')
+                : I18n.inline('Зачекайте, поки з\'являться нові челенджі.', 'Wait for new challenges to appear.'),
             style: TextStyle(
               color: Colors.white.withOpacity(0.5),
               fontSize: 14,
@@ -217,9 +219,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
 
   Widget _buildChallengeCard(Map<String, dynamic> challengeData) {
     final challengeId = challengeData['id'];
-    final title = challengeData['title'] ?? 'Челендж';
+    final title = challengeData['title'] ?? I18n.inline('Челендж', 'Challenge');
     final description = challengeData['description'] ?? '';
-    final creatorName = challengeData['creatorName'] ?? 'Невідомий';
+    final creatorName = challengeData['creatorName'] ?? I18n.inline('Невідомий', 'Unknown');
     final creatorVideoUrl = challengeData['creatorVideoUrl'] ?? '';
     final thumbnailUrl = challengeData['creatorThumbnailUrl'] ?? challengeData['thumbnailUrl'];
     final participants = (challengeData['participants'] as List?)?.length ?? 0;
@@ -327,21 +329,21 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       children: [
                         const Icon(Icons.people, color: Colors.white, size: 12),
                         const SizedBox(width: 4),
-                        Text('$participants відео', style: const TextStyle(color: Colors.white, fontSize: 11)),
+                        Text(I18n.inline('$participants відео', '$participants videos'), style: const TextStyle(color: Colors.white, fontSize: 11)),
                       ],
                     ),
                     Row(
                       children: [
                         const Icon(Icons.access_time, color: Colors.white, size: 12),
                         const SizedBox(width: 4),
-                        Text('$daysLeft днів', style: const TextStyle(color: Colors.white, fontSize: 11)),
+                        Text(I18n.inline('$daysLeft днів', '$daysLeft days'), style: const TextStyle(color: Colors.white, fontSize: 11)),
                       ],
                     ),
                     Row(
                       children: [
                         const Icon(Icons.emoji_events, color: Colors.amber, size: 12),
                         const SizedBox(width: 4),
-                        Text('$actualPrizePool банк', style: const TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w600)),
+                        Text(I18n.inline('$actualPrizePool банк', '$actualPrizePool bank'), style: const TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ],
@@ -440,7 +442,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          'Відео від $creatorName',
+                          I18n.inline('Відео від $creatorName', 'Video from $creatorName'),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
@@ -458,9 +460,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
 
                 // Нижня половина: слайдер з відео учасників
             if (submissions > 0) ...[
-              const Text(
-                'Відео учасників:',
-                style: TextStyle(
+              Text(
+                I18n.inline('Відео учасників:', 'Participant videos:'),
+                style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -492,10 +494,10 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: Colors.white.withOpacity(0.1)),
                             ),
-                            child: const Center(
+                              child: Center(
                               child: Text(
-                                'Поки немає відео учасників',
-                                style: TextStyle(color: Colors.white54, fontSize: 12),
+                                I18n.inline('Поки немає відео учасників', 'No participant videos yet'),
+                                style: const TextStyle(color: Colors.white54, fontSize: 12),
                               ),
                             ),
                           );
@@ -507,7 +509,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       itemBuilder: (context, index) {
                             if (index < submissionDocs.length) {
                         final submissionData = submissionDocs[index].data() as Map<String, dynamic>;
-                              final authorName = submissionData['authorName'] ?? 'Учасник';
+                              final authorName = submissionData['authorName'] ?? I18n.t('participant');
                               final submissionUserId = submissionData['userId'] ?? '';
                               final videoUrl = submissionData['videoUrl'] ?? '';
                               final submissionId = submissionDocs[index].id;
@@ -515,7 +517,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                         return GestureDetector(
                           onTap: () => _playParticipantVideo(
                             videoUrl: videoUrl,
-                            title: submissionData['title'] ?? 'Відео учасника',
+                            title: submissionData['title'] ?? I18n.inline('Відео учасника', 'Participant video'),
                             authorName: authorName,
                             challengeId: challengeId,
                             submissionId: submissionId,
@@ -628,10 +630,10 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.white.withOpacity(0.1)),
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Text(
-                        'Поки немає відео учасників',
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                        I18n.inline('Поки немає відео учасників', 'No participant videos yet'),
+                        style: const TextStyle(color: Colors.white54, fontSize: 12),
                       ),
                     ),
                   ),
@@ -669,7 +671,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: Text('📹 Переглянути ($submissions)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    child: Text(I18n.inline('📹 Переглянути ($submissions)', '📹 View ($submissions)'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
                 if (FirebaseAuth.instance.currentUser?.uid == creatorId && status == 'voting') ...[
@@ -702,15 +704,15 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
   String _getStatusText(String status) {
     switch (status) {
       case 'recruiting':
-        return 'Набір';
+        return I18n.inline('Набір', 'Recruitment');
       case 'submission':
-        return 'Подача відео';
+        return I18n.inline('Подача відео', 'Video Submission');
       case 'voting':
-        return 'Голосування';
+        return I18n.inline('Голосування', 'Voting');
       case 'completed':
-        return 'Завершено';
+        return I18n.t('status_finished');
       default:
-        return 'Активний';
+        return I18n.inline('Активний', 'Active');
     }
   }
 
@@ -723,7 +725,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         MaterialPageRoute(
           builder: (context) => ChallengeVideoPlayerScreen(
             videoUrl: videoUrl,
-            title: 'Відео творця: $title',
+            title: I18n.inline('Відео творця: $title', 'Creator video: $title'),
             authorName: creatorName,
             challengeId: challengeId,
             submissionId: 'creator', // Спеціальний ID для відео творця
@@ -753,12 +755,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           .get();
       
       if (!challengeDoc.exists) {
-        throw Exception('Челендж не знайдено');
+        throw Exception(I18n.inline('Челендж не знайдено', 'Challenge not found'));
       }
       
       final challengeData = challengeDoc.data() as Map<String, dynamic>;
       final entryFee = challengeData['entryFee'] ?? 10;
-      final challengeTitle = challengeData['title'] ?? 'Челендж';
+      final challengeTitle = challengeData['title'] ?? I18n.inline('Челендж', 'Challenge');
 
       // Показуємо діалог підтвердження оплати
       final shouldJoin = await showDialog<bool>(
@@ -770,9 +772,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               children: [
                 const Icon(Icons.monetization_on, color: Colors.amber, size: 24),
                 const SizedBox(width: 8),
-                const Text(
-                  'Підтвердження участі',
-                  style: TextStyle(color: Colors.white, fontSize: 18),
+                Text(
+                  I18n.inline('Підтвердження участі', 'Confirmation of participation'),
+                  style: const TextStyle(color: Colors.white, fontSize: 18),
                 ),
               ],
             ),
@@ -781,7 +783,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Челендж: $challengeTitle',
+                  '${I18n.inline('Челендж', 'Challenge')}: $challengeTitle',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -790,7 +792,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Вартість участі: $entryFee монет',
+                  I18n.inline('Вартість участі: $entryFee монет', 'Participation fee: $entryFee coins'),
                   style: TextStyle(
                     color: Colors.amber,
                     fontSize: 18,
@@ -799,7 +801,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Після оплати ви зможете завантажити своє відео та взяти участь у голосуванні.',
+                  I18n.inline('Після оплати ви зможете завантажити своє відео та взяти участь у голосуванні.', 'After payment you will be able to upload your video and participate in voting.'),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 14,
@@ -810,9 +812,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text(
-                  'Скасувати',
-                  style: TextStyle(color: Colors.white70),
+                child: Text(
+                  I18n.t('cancel'),
+                  style: const TextStyle(color: Colors.white70),
                 ),
               ),
               ElevatedButton(
@@ -839,7 +841,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Text('✅ Ви приєдналися до челенджу! Списано $entryFee монет.'),
+                Expanded(child: Text(I18n.inline('✅ Ви приєдналися до челенджу! Списано $entryFee монет.', '✅ You joined the challenge! $entryFee coins deducted.'))),
               ],
             ),
             backgroundColor: const Color(0xFF4caf50),
