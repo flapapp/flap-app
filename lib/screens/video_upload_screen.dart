@@ -588,6 +588,24 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
 
         if (thumbnailUrl != null) {
           print('✅ Thumbnail generated successfully: $thumbnailUrl');
+          
+          // Якщо це відео для челенджу, оновлюємо submission з thumbnailUrl
+          if (widget.challengeId != null) {
+            try {
+              await FirebaseFirestore.instance
+                  .collection('challenges')
+                  .doc(widget.challengeId!)
+                  .collection('submissions')
+                  .doc(userId)
+                  .update({
+                'thumbnailUrl': thumbnailUrl,
+                'thumbnailGenerated': true,
+              });
+              print('✅ Submission thumbnail updated for challenge: ${widget.challengeId}');
+            } catch (e) {
+              print('⚠️ Failed to update submission thumbnail: $e');
+            }
+          }
         } else {
           print('⚠️ Thumbnail generation failed, but video upload was successful');
         }

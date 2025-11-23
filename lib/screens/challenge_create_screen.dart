@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
 import '../services/notification_service.dart';
+import '../services/thumbnail_service.dart';
 import '../utils/i18n.dart';
 
 class ChallengeCreateScreen extends StatefulWidget {
@@ -1403,6 +1404,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           'averageRating': 0.0,
           'voteCount': 0,
           'votes': <String, dynamic>{},
+          'thumbnailUrl': null, // Буде оновлено після генерації
         });
         print('Creator video saved to submissions collection');
       } catch (e) {
@@ -1455,18 +1457,49 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       try {
         print('🎬 Starting creator thumbnail generation for challenge: $challengeId');
         
-        // final thumbnailService = ThumbnailService();
-        // final thumbnailUrl = await thumbnailService.generateChallengeThumbnail(
-        //   videoUrl: videoUrl,
-        //   challengeId: challengeId,
-        //   userId: userId,
-        // );
-
-        // if (thumbnailUrl != null) {
-        //   print('✅ Creator thumbnail generated successfully: $thumbnailUrl');
-        // } else {
-        //   print('⚠️ Creator thumbnail generation failed, but video upload was successful');
-        // }
+        final thumbnailService = ThumbnailService();
+        // Спочатку генеруємо thumbnail для основного відео документа
+        final videoDoc = await FirebaseFirestore.instance
+            .collection('videos')
+            .where('userId', isEqualTo: userId)
+            .where('videoUrl', isEqualTo: videoUrl)
+            .limit(1)
+            .get();
+        
+        String? videoDocId;
+        if (videoDoc.docs.isNotEmpty) {
+          videoDocId = videoDoc.docs.first.id;
+          final thumbnailUrl = await thumbnailService.generateAndUploadThumbnail(
+            videoUrl: videoUrl,
+            videoId: videoDocId,
+            userId: userId,
+          );
+          
+          if (thumbnailUrl != null) {
+            // Оновлюємо submission з thumbnailUrl
+            await FirebaseFirestore.instance
+                .collection('challenges')
+                .doc(challengeId)
+                .collection('submissions')
+                .doc(userId)
+                .update({
+              'thumbnailUrl': thumbnailUrl,
+              'thumbnailGenerated': true,
+            });
+            print('✅ Creator video thumbnail generated: $thumbnailUrl');
+          }
+        } else {
+          // Якщо не знайшли відео документ, генеруємо thumbnail для submission
+          final thumbnailUrl = await thumbnailService.generateSubmissionThumbnail(
+            videoUrl: videoUrl,
+            challengeId: challengeId,
+            submissionId: userId,
+            userId: userId,
+          );
+          if (thumbnailUrl != null) {
+            print('✅ Creator submission thumbnail generated: $thumbnailUrl');
+          }
+        }
       } catch (e) {
         print('❌ Background creator thumbnail generation error: $e');
         // Не показуємо помилку користувачу, оскільки челендж вже створено

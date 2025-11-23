@@ -9,6 +9,7 @@ import 'video_upload_screen.dart';
 import 'video_player_screen.dart';
 import 'challenge_video_player_screen.dart';
 import '../services/rating_service.dart';
+import '../services/thumbnail_service.dart';
 import 'challenge_completion_screen.dart';
 import '../utils/i18n.dart';
 
@@ -214,7 +215,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     final isCreatorVideo = data['isCreatorVideo'] ?? false;
     final rating = (data['averageRating'] ?? 0.0).toDouble();
     final likesCount = data['voteCount'] ?? 0;
-    final thumb = (data['thumbnailUrl'] ?? '') as String;
+    // Отримуємо thumbnailUrl з submission, якщо немає - спробуємо з основного відео документа
+    String thumb = (data['thumbnailUrl'] ?? '') as String;
+    final videoDocId = data['videoId'] ?? '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -360,7 +363,13 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           const SizedBox(height: 8),
 
           // Voting section - exactly like MVP
-          _buildVotingSection(videoId, videoUrl, title, userId, thumbnailUrl: thumb),
+          FutureBuilder<String?>(
+            future: _getThumbnailUrl(thumb, videoDocId, videoUrl),
+            builder: (context, snapshot) {
+              final effectiveThumb = snapshot.data ?? thumb;
+              return _buildVotingSection(videoId, videoUrl, title, userId, thumbnailUrl: effectiveThumb);
+            },
+          ),
           const SizedBox(height: 8),
 
           // Action buttons
@@ -995,6 +1004,64 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         ),
       ),
     );
+  }
+
+  // Отримує thumbnailUrl: спочатку з submission, потім з основного відео документа, якщо немає - генеруємо
+  Future<String?> _getThumbnailUrl(String submissionThumb, String videoDocId, String videoUrl) async {
+    // Якщо є thumbnail в submission, повертаємо його
+    if (submissionThumb.isNotEmpty) {
+      return submissionThumb;
+    }
+    
+    // Якщо є videoId, спробуємо отримати thumbnail з основного відео документа
+    if (videoDocId.isNotEmpty) {
+      try {
+        final videoDoc = await FirebaseFirestore.instance
+            .collection('videos')
+            .doc(videoDocId)
+            .get();
+        
+        if (videoDoc.exists) {
+          final videoData = videoDoc.data() as Map<String, dynamic>;
+          final videoThumb = (videoData['thumbnailUrl'] ?? '') as String;
+          if (videoThumb.isNotEmpty) {
+            // Оновлюємо submission з thumbnailUrl з основного відео
+            try {
+              await FirebaseFirestore.instance
+                  .collection('challenges')
+                  .doc(widget.challenge.id)
+                  .collection('submissions')
+                  .doc(videoDoc.id)
+                  .update({'thumbnailUrl': videoThumb});
+            } catch (_) {}
+            return videoThumb;
+          }
+        }
+      } catch (e) {
+        print('⚠️ Error getting thumbnail from video doc: $e');
+      }
+    }
+    
+    // Якщо немає thumbnail, спробуємо згенерувати його
+    if (videoUrl.isNotEmpty && videoDocId.isNotEmpty) {
+      try {
+        final thumbnailService = ThumbnailService();
+        final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+        final thumbnailUrl = await thumbnailService.generateSubmissionThumbnail(
+          videoUrl: videoUrl,
+          challengeId: widget.challenge.id,
+          submissionId: videoDocId,
+          userId: userId,
+        );
+        if (thumbnailUrl != null && thumbnailUrl.isNotEmpty) {
+          return thumbnailUrl;
+        }
+      } catch (e) {
+        print('⚠️ Error generating thumbnail: $e');
+      }
+    }
+    
+    return null;
   }
 
   void _shareVideo(String videoId) {
