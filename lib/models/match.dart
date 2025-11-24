@@ -150,7 +150,8 @@ class Match {
   // Команди
   final Team? teamA;
   final Team? teamB;
-  
+  final int? teamCount;
+ 
   // Результат
   final MatchResult? result;
   final int? teamAScore;
@@ -187,6 +188,7 @@ class Match {
     required this.status,
     this.teamA,
     this.teamB,
+    this.teamCount,
     this.result,
     this.teamAScore,
     this.teamBScore,
@@ -246,12 +248,14 @@ class Match {
           (data['teamB']['playerRatings'] ?? const <String, num>{})
             .map((k, v) => MapEntry(k, (v as num).toDouble())),
         ),
-      ) : null,
-      result: data['result'] != null ? MatchResult.values.firstWhere(
-        (e) => e.toString().split('.').last == data['result'],
-        orElse: () => MatchResult.draw,
-      ) : null,
-      teamAScore: data['teamAScore'],
+) : null,
+teamCount: (data['teamCount'] as num?)?.toInt()
+  ?? (data['teams'] is List ? (data['teams'] as List).length : null),
+result: data['result'] != null ? MatchResult.values.firstWhere(
+  (e) => e.toString().split('.').last == data['result'],
+  orElse: () => MatchResult.draw,
+) : null,
+teamAScore: data['teamAScore'],
       teamBScore: data['teamBScore'],
       playerRatings: ((data['playerRatings'] as List?) ?? [])
           .whereType<Map<String, dynamic>>()
@@ -300,6 +304,7 @@ class Match {
       'status': status.toString().split('.').last,
       'teamA': teamA?.toFirestore(),
       'teamB': teamB?.toFirestore(),
+      'teamCount': teamCount,
       'result': result?.toString().split('.').last,
       'teamAScore': teamAScore,
       'teamBScore': teamBScore,
@@ -336,6 +341,7 @@ class Match {
     MatchStatus? status,
     Team? teamA,
     Team? teamB,
+    int? teamCount,
     MatchResult? result,
     int? teamAScore,
     int? teamBScore,
@@ -369,6 +375,7 @@ class Match {
       status: status ?? this.status,
       teamA: teamA ?? this.teamA,
       teamB: teamB ?? this.teamB,
+      teamCount: teamCount ?? this.teamCount,
       result: result ?? this.result,
       teamAScore: teamAScore ?? this.teamAScore,
       teamBScore: teamBScore ?? this.teamBScore,

@@ -109,17 +109,13 @@ final List<String> teamBIds = List<String>.from(widget.match.teamB?.playerIds ??
 
 final bool teamsExist = teamAIds.isNotEmpty || teamBIds.isNotEmpty;
 
-List<String> basePlayers;
+List<String> basePlayers = [];
 if (teamsExist && currentUserId != null && teamAIds.contains(currentUserId)) {
-  // Якщо я в команді А → оцінюю СВОЮ команду А (без себе)
   basePlayers = teamAIds.where((id) => id != currentUserId).toList();
 } else if (teamsExist && currentUserId != null && teamBIds.contains(currentUserId)) {
-  // Якщо я в команді Б → оцінюю СВОЮ команду Б (без себе)
   basePlayers = teamBIds.where((id) => id != currentUserId).toList();
-} else {
-  // Якщо команди не задані → оцінюю всіх учасників (без себе)
-  basePlayers = widget.match.participants.where((id) => id != currentUserId).toList();
 }
+// якщо користувач не знайдений у жодній команді або команд немає — залишаємо basePlayers пустим
 
 final playersToRate = basePlayers.where((id) => participantsSet.contains(id)).toSet().toList();
 final sanitizedPlayers = playersToRate.where((id) =>
@@ -532,33 +528,27 @@ else
       }
 
             for (final playerId in idsToRate) {
-        final ratings = _playerRatings[playerId]!;
-final double simple = _simpleRating[playerId] ?? 2.5;
-final Map<String, double> effectiveCriteria =
-  (_mode == RatingMode.advanced)
-    ? ratings
-    : {'technical': simple, 'physical': simple, 'tactical': simple, 'teamwork': simple};
-        print('💾 SAVING matchId=${widget.match.id}, playerId=$playerId with ratings:');
-        print('   technical: ${ratings['technical']}');
-        print('   physical: ${ratings['physical']}');
-        print('   tactical: ${ratings['tactical']}');
-        print('   teamwork: ${ratings['teamwork']}');
-        final success = await _ratingService.ratePlayerAfterMatch(
-  matchId: widget.match.id,
-  playerId: playerId,
-  ratedBy: FirebaseAuth.instance.currentUser!.uid,
-  criteria: effectiveCriteria,
-);
-        if (success) {
-  print('RATING DEBUG saved playerId=$playerId');
-} else {
-  print('RATING DEBUG FAILED playerId=$playerId');
+  final ratings = _playerRatings[playerId]!;
+  final double simple = _simpleRating[playerId] ?? 2.5;
+  final Map<String, double> effectiveCriteria =
+      (_mode == RatingMode.advanced)
+          ? ratings
+          : {'technical': simple, 'physical': simple, 'tactical': simple, 'teamwork': simple};
+
+  final success = await _ratingService.ratePlayerAfterMatch(
+    matchId: widget.match.id,
+    playerId: playerId,
+    ratedBy: FirebaseAuth.instance.currentUser!.uid,
+    criteria: effectiveCriteria,
+  );
+
+  if (success) {
+    successCount++;
+    _playerRatings.remove(playerId);
+    _simpleRating.remove(playerId);
+  }
 }
-        
-        if (success) {
-          successCount++;
-        }
-      }
+setState(() {});
       
       if (successCount == totalCount) {
         ScaffoldMessenger.of(context).showSnackBar(

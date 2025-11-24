@@ -418,24 +418,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         }
         break;
         case NotificationType.matchInvite:
-        print('🔔 NOTIFICATION: matchInvite clicked');
-        print('🔔 NOTIFICATION: notification.data = ${notification.data}');
-        final matchId = notification.data['matchId'] as String?;
-        print('🔔 NOTIFICATION: extracted matchId = $matchId');
-        if (matchId != null && matchId.isNotEmpty) {
-          print('🔔 NOTIFICATION: Calling _openMatchById...');
-          await _openMatchById(matchId);
-          return;
-        }
-        // Fallback для старих сповіщень без matchId
-        print('⚠️ NOTIFICATION: matchId is null, checking action...');
-        final action = notification.data['action'] as String?;
-        if (action == 'open_matches') {
-          print('🔔 NOTIFICATION: Navigating to /matches (fallback)');
-          Navigator.pushNamed(context, '/matches');
-          return;
-        }
-        break;
+      final matchId = notification.data['matchId'] as String?;
+      if (matchId != null && matchId.isNotEmpty) {
+        await _openMatchById(matchId);
+        return;
+      }
+      break;
+
+    case NotificationType.matchFinished:
+      final matchId = (notification.data['matchId'] ??
+              notification.data['match_id'] ??
+              notification.data['id']) as String?;
+      if (matchId != null && matchId.isNotEmpty) {
+        await _openMatchRatingById(matchId);
+        return;
+      }
+      break;
+
       case NotificationType.friendRequest:
       case NotificationType.friendAccepted:
         _navigateToAction('/friends');
@@ -467,6 +466,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+    Future<void> _openMatchRatingById(String matchId) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('matches').doc(matchId).get();
+      if (!doc.exists) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(I18n.inline('Матч не знайдено: $matchId', 'Match not found: $matchId'))),
+        );
+        return;
+      }
+      final match = Match.fromFirestore(doc);
+      if (!mounted) return;
+      Navigator.pushNamed(context, '/match_rating', arguments: match);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.inline('Помилка відкриття оцінювання: $e', 'Error opening rating: $e'))),
+      );
+    }
+  }
+
   
     Future<void> _openMatchById(String matchId) async {
     print('🔍 NOTIFICATION: Opening match with ID: $matchId');
@@ -494,7 +514,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       );
     }
   }
-  void _navigateToAction(String actionUrl) {
+    void _navigateToAction(String actionUrl) {
     if (actionUrl.startsWith('/')) {
       if (actionUrl == '/friends') {
         Navigator.pushNamed(context, '/friends');
@@ -508,6 +528,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       } else if (actionUrl.startsWith('/challenge-details/')) {
         final challengeId = actionUrl.split('/').last;
         Navigator.pushNamed(context, '/challenge-details', arguments: challengeId);
+      } else if (actionUrl.startsWith('/match/') && actionUrl.endsWith('/rate')) {
+        final segments = actionUrl.split('/');
+        if (segments.length >= 3) {
+          final matchId = segments[2];
+          _openMatchRatingById(matchId);
+        }
       }
     }
   }

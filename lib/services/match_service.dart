@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
@@ -424,8 +425,8 @@ if (currentUserId == null || currentUserId != match.organizerId) {
       final initialMatch = Match.fromFirestore(initialSnap);
 
       // Перевірки до транзакції
-      if (initialMatch.participants.length < 4) {
-        throw Exception('Недостатньо гравців для формування команд (мінімум 4)');
+      if (initialMatch.participants.length < 2) {
+        throw Exception('Недостатньо гравців для формування команд (мінімум 2)');
       }
       if (initialMatch.hasTeams) {
         throw Exception('Команди вже сформовані');
@@ -446,8 +447,8 @@ if (currentUserId == null || currentUserId != match.organizerId) {
 }
 
         // Повторні перевірки всередині транзакції
-        if (match.participants.length < 4) {
-          throw Exception('Недостатньо гравців для формування команд (мінімум 4)');
+        if (match.participants.length < 2) {
+          throw Exception('Недостатньо гравців для формування команд (мінімум 2)');
         }
         if (match.hasTeams) {
           throw Exception('Команди вже сформовані');
@@ -593,6 +594,149 @@ if (currentUserId == null || currentUserId != match.organizerId) {
       return false;
     }
   }
+    Future<bool> updateTeamsFlexible(String matchId, List<List<String>> teams) async {
+    try {
+      final docRef = _firestore.collection('matches').doc(matchId);
+      final allPlayerIds = teams.expand((team) => team).toList();
+      final ratings = await _getPlayerRatings(allPlayerIds);
+
+      final firestoreTeams = <Map<String, dynamic>>[];
+      for (var i = 0; i < teams.length; i++) {
+        final ids = teams[i];
+        firestoreTeams.add({
+          'name': MatchUtils.teamNames[i % MatchUtils.teamNames.length],
+          'playerIds': ids,
+          'averageRating': _calculateTeamAverageRating(ids, ratings),
+        });
+      }
+
+      await docRef.update({
+  'teams': firestoreTeams,
+  'teamCount': teams.length,
+  'teamA': firestoreTeams.isNotEmpty ? firestoreTeams[0] : null,
+  'teamB': firestoreTeams.length > 1 ? firestoreTeams[1] : null,
+  'updatedAt': FieldValue.serverTimestamp(),
+});
+if (teams.length > 2) {
+  final List<Map<String, dynamic>> fixtures = [];
+  for (var i = 0; i < teams.length; i++) {
+    for (var j = i + 1; j < teams.length; j++) {
+      fixtures.add({
+        'teamAIndex': i,
+        'teamBIndex': j,
+        'teamAName': firestoreTeams[i]['name'],
+        'teamBName': firestoreTeams[j]['name'],
+        'scoreA': null,
+        'scoreB': null,
+        'status': 'pending',
+      });
+    }
+  }
+  final fxCol = docRef.collection('fixtures');
+  final old = await fxCol.get();
+  for (final d in old.docs) { await d.reference.delete(); }
+  for (final f in fixtures) { await fxCol.add(f); }
+  await docRef.update({'currentGameIndex': 0});
+}
+
+      return true;
+    } catch (e) {
+      print('Error updateTeamsFlexible: $e');
+      return false;
+    }
+  }
+  // вставити між рядками 618‑629 і 630‑699
+
+  Future<List<Map<String, dynamic>>> getFixtures(String matchId) async {
+  final q = await _firestore.collection('matches').doc(matchId).collection('fixtures')
+      .orderBy(FieldPath.documentId).get();
+  return q.docs.map((d) => {'id': d.id, ...((d.data()) as Map<String, dynamic>)}).toList();
+}
+
+Future<bool> finishGame(String matchId, String fixtureId, int scoreA, int scoreB) async {
+  try {
+    final docRef = _firestore.collection('matches').doc(matchId);
+    final fxRef = docRef.collection('fixtures').doc(fixtureId);
+    await fxRef.update({
+      'scoreA': scoreA,
+      'scoreB': scoreB,
+      'status': 'finished',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    final all = await docRef.collection('fixtures').get();
+    final allFinished = all.docs.every((d) => (d.data()['status'] ?? '') == 'finished');
+    if (allFinished) {
+      await docRef.update({
+        'status': 'finished',
+        'finishedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    return true;
+  } catch (e) {
+    print('Error finishGame: $e');
+    return false;
+  }
+}
+
+Future<void> promptFinishGame(BuildContext context, String matchId, int fixtureIndex, String aName, String bName) async {
+  final fixtures = await getFixtures(matchId);
+  if (fixtureIndex < 0 || fixtureIndex >= fixtures.length) return;
+  final f = fixtures[fixtureIndex];
+  final ctrlA = TextEditingController();
+  final ctrlB = TextEditingController();
+  final ok = await showDialog<bool>(context: context, builder: (ctx) {
+    return AlertDialog(
+      title: Text('Результат: $aName vs $bName'),
+      content: Row(children: [
+        Expanded(child: TextField(controller: ctrlA, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Голи $aName'))),
+        const SizedBox(width: 12),
+        Expanded(child: TextField(controller: ctrlB, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Голи $bName'))),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Скасувати')),
+        ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Зберегти')),
+      ],
+    );
+  });
+  if (ok == true) {
+    final a = int.tryParse(ctrlA.text) ?? 0;
+    final b = int.tryParse(ctrlB.text) ?? 0;
+    await finishGame(matchId, f['id'] as String, a, b);
+  }
+}
+
+/// Створює фікстури для матчу з 3+ командами, якщо їх ще немає
+Future<void> ensureFixtures(String matchId) async {
+  final docRef = _firestore.collection('matches').doc(matchId);
+  final snap = await docRef.get();
+  if (!snap.exists) return;
+  final data = snap.data() as Map<String, dynamic>;
+  final teams = (data['teams'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? const [];
+  if (teams.length <= 2) return;
+
+  final already = await docRef.collection('fixtures').limit(1).get();
+  if (already.docs.isNotEmpty) return;
+
+  final List<Map<String, dynamic>> fixtures = [];
+  for (var i = 0; i < teams.length; i++) {
+    for (var j = i + 1; j < teams.length; j++) {
+      fixtures.add({
+        'teamAIndex': i,
+        'teamBIndex': j,
+        'teamAName': (teams[i]['name'] ?? 'Team A').toString(),
+        'teamBName': (teams[j]['name'] ?? 'Team B').toString(),
+        'scoreA': null,
+        'scoreB': null,
+        'status': 'pending',
+      });
+    }
+  }
+  final fxCol = docRef.collection('fixtures');
+  for (final f in fixtures) {
+    await fxCol.add(f);
+  }
+}
 
     // Почати матч
   Future<bool> startMatch(String matchId) async {
