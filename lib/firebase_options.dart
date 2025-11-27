@@ -64,6 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '68200966561',
     projectId: 'flap-app-5c0c2',
     storageBucket: 'flap-app-5c0c2.firebasestorage.app',
+    iosClientId: '68200966561-4osadh4r9i29p2agr23c865nlncitprn.apps.googleusercontent.com',
     iosBundleId: 'com.example.flapApp',
   );
 
@@ -73,6 +74,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '68200966561',
     projectId: 'flap-app-5c0c2',
     storageBucket: 'flap-app-5c0c2.firebasestorage.app',
+    iosClientId: '68200966561-4osadh4r9i29p2agr23c865nlncitprn.apps.googleusercontent.com',
     iosBundleId: 'com.example.flapApp',
   );
 
@@ -85,4 +87,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'flap-app-5c0c2.firebasestorage.app',
     measurementId: 'G-VEDMN8EKKP',
   );
+
 }

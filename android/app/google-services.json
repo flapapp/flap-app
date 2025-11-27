@@ -12,7 +12,12 @@
           "package_name": "com.example.flap_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "68200966561-jekr5m8r0fthoqbookhkl3hi7eu9o267.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCr0g16THsfy4wmSQ2HYVhOiOB3Jjh974I"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "68200966561-jekr5m8r0fthoqbookhkl3hi7eu9o267.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "68200966561-4osadh4r9i29p2agr23c865nlncitprn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.flapApp"
+              }
+            }
+          ]
         }
       }
     }

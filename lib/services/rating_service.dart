@@ -183,15 +183,39 @@ if (!participants.contains(ratedBy) || !participants.contains(playerId)) {
   throw Exception('Лише учасники можуть оцінювати');
 }
 
-// Нове: оцінювання лише всередині своєї команди (якщо команди задані)
-final teamAIds = List<String>.from((matchData['teamA']?['playerIds']) ?? const <String>[]);
-final teamBIds = List<String>.from((matchData['teamB']?['playerIds']) ?? const <String>[]);
-final bool teamsExist = teamAIds.isNotEmpty || teamBIds.isNotEmpty;
-if (teamsExist) {
-  final sameTeam = (teamAIds.contains(ratedBy) && teamAIds.contains(playerId)) ||
-                   (teamBIds.contains(ratedBy) && teamBIds.contains(playerId));
-  if (!sameTeam) {
+final List<List<String>> multiTeams = [];
+final teamsData = matchData['teams'] as List?;
+if (teamsData != null) {
+  for (final raw in teamsData) {
+    final ids = List<String>.from((raw as Map<String, dynamic>)['playerIds'] ?? const <String>[]);
+    if (ids.isNotEmpty) {
+      multiTeams.add(ids);
+    }
+  }
+}
+
+if (multiTeams.isNotEmpty) {
+  List<String>? ratedByTeam;
+  List<String>? playerTeam;
+
+  for (final ids in multiTeams) {
+    if (ids.contains(ratedBy)) ratedByTeam = ids;
+    if (ids.contains(playerId)) playerTeam = ids;
+  }
+
+  if (ratedByTeam == null || playerTeam == null || ratedByTeam != playerTeam) {
     throw Exception('Оцінювання дозволене лише гравцями своєї команди');
+  }
+} else {
+  final teamAIds = List<String>.from((matchData['teamA']?['playerIds']) ?? const <String>[]);
+  final teamBIds = List<String>.from((matchData['teamB']?['playerIds']) ?? const <String>[]);
+  final bool teamsExist = teamAIds.isNotEmpty || teamBIds.isNotEmpty;
+  if (teamsExist) {
+    final sameTeam = (teamAIds.contains(ratedBy) && teamAIds.contains(playerId)) ||
+                     (teamBIds.contains(ratedBy) && teamBIds.contains(playerId));
+    if (!sameTeam) {
+      throw Exception('Оцінювання дозволене лише гравцями своєї команди');
+    }
   }
 }
 

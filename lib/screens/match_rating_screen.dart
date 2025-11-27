@@ -94,30 +94,35 @@ void initState() {
     // Ініціалізуємо оцінки для всіх гравців
     // Використовуємо participants як fallback, якщо teamA/teamB не існують
     _playerRatings.clear();
-    final List<String> allPlayers = [
-  ...List<String>.from(widget.match.teamA?.playerIds ?? const <String>[]),
-  ...List<String>.from(widget.match.teamB?.playerIds ?? const <String>[]),
-];
-
-// Якщо команди не існують, використовуємо всіх учасників матчу
-
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
 final participantsSet = widget.match.participants.toSet();
-final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-
-final List<String> teamAIds = List<String>.from(widget.match.teamA?.playerIds ?? const <String>[]);
-final List<String> teamBIds = List<String>.from(widget.match.teamB?.playerIds ?? const <String>[]);
-
-final bool teamsExist = teamAIds.isNotEmpty || teamBIds.isNotEmpty;
+final allTeams = widget.match.allTeams;
 
 List<String> basePlayers = [];
-if (teamsExist && currentUserId != null && teamAIds.contains(currentUserId)) {
-  basePlayers = teamAIds.where((id) => id != currentUserId).toList();
-} else if (teamsExist && currentUserId != null && teamBIds.contains(currentUserId)) {
-  basePlayers = teamBIds.where((id) => id != currentUserId).toList();
-}
-// якщо користувач не знайдений у жодній команді або команд немає — залишаємо basePlayers пустим
 
-final playersToRate = basePlayers.where((id) => participantsSet.contains(id)).toSet().toList();
+if (currentUserId != null && allTeams.isNotEmpty) {
+  Team? myTeam;
+  try {
+    myTeam = allTeams.firstWhere((team) => team.playerIds.contains(currentUserId));
+  } catch (_) {
+    myTeam = null;
+  }
+
+  if (myTeam != null) {
+    basePlayers = myTeam.playerIds.where((id) => id != currentUserId).toList();
+  }
+}
+
+if (basePlayers.isEmpty) {
+  basePlayers = widget.match.participants
+      .where((id) => id != currentUserId)
+      .toList();
+}
+
+final playersToRate = basePlayers
+    .where((id) => participantsSet.contains(id))
+    .toSet()
+    .toList();
 final sanitizedPlayers = playersToRate.where((id) =>
   id != 'current_user_i' && id != 'current_user' && !id.startsWith('current_')
 ).toList();
@@ -134,7 +139,6 @@ final alreadyRatedIds = existingSnap.docs
     .toSet();
     print('RATING DEBUG matchId=${widget.match.id}');
     print('RATING DEBUG participants=${widget.match.participants.length}');
-    print('RATING DEBUG allPlayers=${allPlayers.length}');
     print('RATING DEBUG basePlayers=${basePlayers.length}');
     print('RATING DEBUG playersToRate=${playersToRate.length}');
     print('RATING DEBUG sanitizedPlayers=${sanitizedPlayers.length}');

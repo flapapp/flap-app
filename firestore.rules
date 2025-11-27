@@ -10,13 +10,18 @@ service cloud.firestore {
       return isSignedIn() && data.organizerId == request.auth.uid;
     }
 
-   
-
         match /matches/{matchId} {
       allow read: if true;
 
       // Створення дозволено лише авторизованим
       allow create: if isSignedIn();
+
+            // організатор або адмін можуть оновлювати будь-які поля
+      allow update: if isSignedIn() && (
+        resource.data.organizerId == request.auth.uid ||
+        request.resource.data.organizerId == request.auth.uid ||
+        request.auth.token.admin == true
+      );
 
       // Учасник може "вийти" з відкритого матчу (participants зменшується на 1)
       allow update, delete: if
@@ -42,6 +47,19 @@ service cloud.firestore {
         // робота із заявками/учасниками
         (request.resource.data.keys().hasAny(['pendingApplications', 'participants']))
       );
+
+            // дозволити оновлювати таблицю підсумків
+      allow update: if isSignedIn() &&
+        request.resource.data.keys().hasAny(['multiTeamStats']) &&
+        (resource.data.organizerId == request.auth.uid || request.auth.token.admin == true);
+
+      match /fixtures/{fixtureId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && (
+          resource.data.organizerId == request.auth.uid ||
+          request.auth.token.admin == true
+        );
+      }
 
       // Учасники можуть приєднуватися до відкритих матчів
       allow update: if isSignedIn() && 
@@ -101,6 +119,13 @@ service cloud.firestore {
             )
           ) &&
           !exists(/databases/$(database)/documents/matches/$(matchId)/playerRatings/$(docId));
+      }
+            match /fixtures/{fixtureId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && (
+          get(/databases/$(database)/documents/matches/$(matchId)).data.organizerId == request.auth.uid ||
+          request.auth.token.admin == true
+        );
       }
     }
 

@@ -548,69 +548,124 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             )
           else
-            Container(
-              height: 80,
-              child: ListView.builder(
+            SizedBox(
+              height: 150,
+              child: ListView.separated(
                 scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: EdgeInsets.zero,
                 itemCount: _userBadges.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   final badge = _userBadges[index];
                   return FutureBuilder<int>(
                     future: _getBadgeEndorsementCount(userId, badge.id),
                     builder: (context, endorsementSnapshot) {
                       final endorsementCount = endorsementSnapshot.data ?? 0;
-                      
-                      return GestureDetector(
-                        onTap: () => _endorseBadge(userId, badge),
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 12),
-                          width: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Color(badge.categoryColor).withOpacity(0.3)),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                badge.emoji,
-                                style: const TextStyle(fontSize: 24),
-                              ),
-                              const SizedBox(height: 4),
-                              ValueListenableBuilder<String>(
-                                valueListenable: I18n.language,
-                                builder: (context, _, __) => Text(
-                                  badge.localizedName,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (endorsementCount > 0) ...[
-                                const SizedBox(height: 4),
+
+                      return SizedBox(
+                        width: 220,
+                        child: GestureDetector(
+                          onTap: () => _endorseBadge(userId, badge),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.04),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white.withOpacity(0.08)),
+                            ),
+                            child: Row(
+                              children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  width: 54,
+                                  height: 54,
                                   decoration: BoxDecoration(
-                                    color: Color(badge.categoryColor),
-                                    borderRadius: BorderRadius.circular(10),
+                                    shape: BoxShape.circle,
+                                    color: Color(badge.categoryColor).withOpacity(0.15),
+                                    border: Border.all(
+                                      color: Color(badge.categoryColor).withOpacity(0.5),
+                                    ),
                                   ),
-                                  child: Text(
-                                    '$endorsementCount',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
+                                  child: Center(
+                                    child: Text(
+                                      badge.emoji,
+                                      style: const TextStyle(fontSize: 28),
                                     ),
                                   ),
                                 ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      ValueListenableBuilder<String>(
+                                        valueListenable: I18n.language,
+                                        builder: (context, _, __) => Text(
+                                          badge.localizedName,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Color(badge.categoryColor).withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: Color(badge.categoryColor).withOpacity(0.4)),
+                                        ),
+                                        child: Text(
+                                          badge.rarityText,
+                                          style: TextStyle(
+                                            color: Color(badge.categoryColor),
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF1F2A44),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.thumb_up, size: 14, color: Colors.blueAccent.shade100),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  '$endorsementCount',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Icon(
+                                            Icons.check_circle,
+                                            color: Colors.greenAccent.shade200,
+                                            size: 18,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
-                            ],
+                            ),
                           ),
                         ),
                       );

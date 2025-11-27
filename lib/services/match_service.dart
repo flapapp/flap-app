@@ -595,57 +595,64 @@ if (currentUserId == null || currentUserId != match.organizerId) {
     }
   }
     Future<bool> updateTeamsFlexible(String matchId, List<List<String>> teams) async {
-    try {
-      final docRef = _firestore.collection('matches').doc(matchId);
-      final allPlayerIds = teams.expand((team) => team).toList();
-      final ratings = await _getPlayerRatings(allPlayerIds);
+  try {
+    final docRef = _firestore.collection('matches').doc(matchId);
 
-      final firestoreTeams = <Map<String, dynamic>>[];
-      for (var i = 0; i < teams.length; i++) {
-        final ids = teams[i];
-        firestoreTeams.add({
-          'name': MatchUtils.teamNames[i % MatchUtils.teamNames.length],
-          'playerIds': ids,
-          'averageRating': _calculateTeamAverageRating(ids, ratings),
-        });
-      }
+    final allPlayerIds = teams.expand((t) => t).toList();
+    final ratings = await _getPlayerRatings(allPlayerIds);
 
-      await docRef.update({
-  'teams': firestoreTeams,
-  'teamCount': teams.length,
-  'teamA': firestoreTeams.isNotEmpty ? firestoreTeams[0] : null,
-  'teamB': firestoreTeams.length > 1 ? firestoreTeams[1] : null,
-  'updatedAt': FieldValue.serverTimestamp(),
-});
-if (teams.length > 2) {
-  final List<Map<String, dynamic>> fixtures = [];
-  for (var i = 0; i < teams.length; i++) {
-    for (var j = i + 1; j < teams.length; j++) {
-      fixtures.add({
-        'teamAIndex': i,
-        'teamBIndex': j,
-        'teamAName': firestoreTeams[i]['name'],
-        'teamBName': firestoreTeams[j]['name'],
-        'scoreA': null,
-        'scoreB': null,
-        'status': 'pending',
+    final List<Map<String, dynamic>> firestoreTeams = [];
+    for (var i = 0; i < teams.length; i++) {
+      final ids = teams[i];
+      firestoreTeams.add({
+        'name': MatchUtils.teamNames[i % MatchUtils.teamNames.length],
+        'playerIds': ids,
+        'averageRating': _calculateTeamAverageRating(ids, ratings),
       });
     }
-  }
-  final fxCol = docRef.collection('fixtures');
-  final old = await fxCol.get();
-  for (final d in old.docs) { await d.reference.delete(); }
-  for (final f in fixtures) { await fxCol.add(f); }
-  await docRef.update({'currentGameIndex': 0});
-}
 
-      return true;
-    } catch (e) {
-      print('Error updateTeamsFlexible: $e');
-      return false;
+    final batch = _firestore.batch();
+    batch.update(docRef, {
+      'teams': firestoreTeams,
+      'teamCount': teams.length,
+      'teamA': firestoreTeams.isNotEmpty ? firestoreTeams[0] : null,
+      'teamB': firestoreTeams.length > 1 ? firestoreTeams[1] : null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final fxCol = docRef.collection('fixtures');
+    final oldFx = await fxCol.get();
+    for (final d in oldFx.docs) {
+      batch.delete(d.reference);
     }
+
+    if (teams.length > 2) {
+      for (var i = 0; i < teams.length; i++) {
+        for (var j = i + 1; j < teams.length; j++) {
+          final newFxRef = fxCol.doc();
+          batch.set(newFxRef, {
+            'teamAIndex': i,
+            'teamBIndex': j,
+            'teamAName': firestoreTeams[i]['name'],
+            'teamBName': firestoreTeams[j]['name'],
+            'scoreA': null,
+            'scoreB': null,
+            'status': 'pending',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+      batch.update(docRef, {'currentGameIndex': 0});
+    }
+
+    await batch.commit();
+    await docRef.update({'multiTeamStats': []});
+    return true;
+  } catch (e) {
+    print('Error updateTeamsFlexible: $e');
+    return false;
   }
-  // вставити між рядками 618‑629 і 630‑699
+}  
 
   Future<List<Map<String, dynamic>>> getFixtures(String matchId) async {
   final q = await _firestore.collection('matches').doc(matchId).collection('fixtures')
@@ -963,6 +970,23 @@ for (final uid in a) {
       });
     } catch (e) {
       print('Error cancelling match: $e');
+      return false;
+    }
+  }
+
+    Future<bool> saveMultiTeamResults(
+    String matchId,
+    List<Map<String, int>> stats,
+  ) async {
+    try {
+      final docRef = _firestore.collection('matches').doc(matchId);
+      await docRef.update({
+        'multiTeamStats': stats,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      print('Error saveMultiTeamResults: $e');
       return false;
     }
   }

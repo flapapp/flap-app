@@ -150,7 +150,9 @@ class Match {
   // Команди
   final Team? teamA;
   final Team? teamB;
+  final List<Team> teams;
   final int? teamCount;
+  final List<Map<String, dynamic>> multiTeamStats;
  
   // Результат
   final MatchResult? result;
@@ -188,7 +190,10 @@ class Match {
     required this.status,
     this.teamA,
     this.teamB,
+    this.teams = const [],
+
     this.teamCount,
+    this.multiTeamStats = const [],
     this.result,
     this.teamAScore,
     this.teamBScore,
@@ -202,6 +207,8 @@ class Match {
   // Створення з Firestore
   factory Match.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final createdAtTs = data['createdAt'] as Timestamp?;
+    final updatedAtTs = data['updatedAt'] as Timestamp?;
     
     return Match(
       id: doc.id,
@@ -249,6 +256,17 @@ class Match {
             .map((k, v) => MapEntry(k, (v as num).toDouble())),
         ),
 ) : null,
+      multiTeamStats: ((data['multiTeamStats'] as List?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList(),
+teams: ((data['teams'] as List?) ?? const [])
+    .whereType<Map<String, dynamic>>()
+    .map((t) => Team(
+          name: (t['name'] ?? '') as String,
+          playerIds: List<String>.from(t['playerIds'] ?? const []),
+          averageRating: ((t['averageRating'] ?? 0.0) as num).toDouble(),
+        ))
+    .toList(),
 teamCount: (data['teamCount'] as num?)?.toInt()
   ?? (data['teams'] is List ? (data['teams'] as List).length : null),
 result: data['result'] != null ? MatchResult.values.firstWhere(
@@ -272,10 +290,10 @@ teamAScore: data['teamAScore'],
                 ),
               ))
           .toList(),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
-      startedAt: data['startedAt'] != null ? (data['startedAt'] as Timestamp).toDate() : null,
-      finishedAt: data['finishedAt'] != null ? (data['finishedAt'] as Timestamp).toDate() : null,
+createdAt: (createdAtTs ?? Timestamp.now()).toDate(),
+updatedAt: (updatedAtTs ?? Timestamp.now()).toDate(),
+startedAt: (data['startedAt'] as Timestamp?)?.toDate(),
+finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -304,7 +322,9 @@ teamAScore: data['teamAScore'],
       'status': status.toString().split('.').last,
       'teamA': teamA?.toFirestore(),
       'teamB': teamB?.toFirestore(),
+      'teams': teams.map((t) => t.toFirestore()).toList(),
       'teamCount': teamCount,
+      'multiTeamStats': multiTeamStats,
       'result': result?.toString().split('.').last,
       'teamAScore': teamAScore,
       'teamBScore': teamBScore,
@@ -341,7 +361,9 @@ teamAScore: data['teamAScore'],
     MatchStatus? status,
     Team? teamA,
     Team? teamB,
+    List<Team>? teams,
     int? teamCount,
+    List<Map<String, dynamic>>? multiTeamStats,
     MatchResult? result,
     int? teamAScore,
     int? teamBScore,
@@ -375,7 +397,9 @@ teamAScore: data['teamAScore'],
       status: status ?? this.status,
       teamA: teamA ?? this.teamA,
       teamB: teamB ?? this.teamB,
+      teams: teams ?? this.teams,
       teamCount: teamCount ?? this.teamCount,
+      multiTeamStats: multiTeamStats ?? this.multiTeamStats,
       result: result ?? this.result,
       teamAScore: teamAScore ?? this.teamAScore,
       teamBScore: teamBScore ?? this.teamBScore,
@@ -407,6 +431,14 @@ teamAScore: data['teamAScore'],
   
   // Перевірка чи є команди
   bool get hasTeams => teamA != null && teamB != null;
+
+  List<Team> get allTeams {
+  if (teams.isNotEmpty) return teams;
+  final result = <Team>[];
+  if (teamA != null) result.add(teamA!);
+  if (teamB != null) result.add(teamB!);
+  return result;
+}
   
   // Статус для конкретного користувача
   String getUserStatus(String userId) {
