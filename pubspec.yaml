@@ -51,14 +51,13 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
-    
-
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -73,7 +72,8 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/logo/flap_logo.jpg
+    - assets/logo/
+    - assets/videos/intro.mp4
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -92,6 +92,23 @@ flutter:
        - asset: assets/fonts/Roboto-Regular.ttf
        - asset: assets/fonts/Roboto-Bold.ttf
          weight: 700
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: assets/logo/flap_logo.jpg
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: assets/logo/flap_logo.jpg
+    background_color: "#ffffff"
+    theme_color: "#1e7d32"
+  windows:
+    generate: true
+    image_path: assets/logo/flap_logo.jpg
+  macos:
+    generate: true
+    image_path: assets/logo/flap_logo.jpg
   #   - family: Schyler
   #     fonts:
   #       - asset: fonts/Schyler-Regular.ttf

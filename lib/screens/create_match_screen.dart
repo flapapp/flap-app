@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
+import '../models/app_team.dart';
 import '../services/match_service.dart';
 import '../services/notification_service.dart';
+import '../services/team_service.dart';
 import '../models/notification.dart';
 import '../utils/i18n.dart';
 
 class CreateMatchScreen extends StatefulWidget {
+  const CreateMatchScreen({super.key});
+
   @override
-  _CreateMatchScreenState createState() => _CreateMatchScreenState();
+  CreateMatchScreenState createState() => CreateMatchScreenState();
 }
 
-class _CreateMatchScreenState extends State<CreateMatchScreen> {
+class CreateMatchScreenState extends State<CreateMatchScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -33,6 +37,23 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   List<String> get _levels => [I18n.t('beginner'), I18n.inline('Середній', 'Intermediate'), I18n.inline('Високий', 'Advanced'), I18n.t('professional')];
   final List<int> _playerOptions = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
   final ScrollController _friendsScrollController = ScrollController();
+  final TeamService _teamService = TeamService();
+  bool _teamMode = false;
+  bool _loadingTeams = true;
+  List<AppTeam> _myTeams = [];
+  AppTeam? _selectedTeam;
+  List<String> _selectedRoster = [];
+  Map<String, String> _teamMemberNames = {};
+  AppTeam? _opponentTeam;
+  final TextEditingController _opponentSearchCtrl = TextEditingController();
+  List<AppTeam> _opponentResults = [];
+  bool _opponentSearching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMyTeams();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +231,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _selectedCity,
+                    initialValue: _selectedCity,
                     decoration: InputDecoration(
                       labelText: I18n.inline('Місто *', 'City *'),
                       labelStyle: TextStyle(color: Colors.white70),
@@ -235,7 +256,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                 SizedBox(width: 15),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _selectedLevel,
+                    initialValue: _selectedLevel,
                     decoration: InputDecoration(
                       labelText: I18n.inline('Рівень *', 'Level *'),
                       labelStyle: TextStyle(color: Colors.white70),
@@ -266,7 +287,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<int>(
-                    value: _selectedPlayers,
+                    initialValue: _selectedPlayers,
                     decoration: InputDecoration(
                       labelText: I18n.inline('Гравці *', 'Players *'),
                       labelStyle: TextStyle(color: Colors.white70),
@@ -287,7 +308,12 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                       )
                     ).toList(),
                     onChanged: (value) {
-                      setState(() => _selectedPlayers = value!);
+                      setState(() {
+                        _selectedPlayers = value!;
+                        if (_teamMode) {
+                          _ensureRosterLimit();
+                        }
+                      });
                     },
                   ),
                 ),
@@ -350,9 +376,9 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,24 +387,28 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                     SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [2, 3, 4].map((num) {
-                        final isSelected = _numberOfTeams == num;
+                      children: [2, 3, 4].map((teamOption) {
+                        final isSelected = _numberOfTeams == teamOption;
                         return GestureDetector(
-                          onTap: () => setState(() => _numberOfTeams = num),
+                          onTap: () => setState(() => _numberOfTeams = teamOption),
                           child: Container(
                             width: 70,
                             height: 70,
                             decoration: BoxDecoration(
-                              color: isSelected ? Color(0xFF4caf50) : Colors.white.withOpacity(0.1),
+                              color: isSelected
+                                  ? const Color(0xFF4caf50)
+                                  : Colors.white.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: isSelected ? Color(0xFF4caf50) : Colors.white.withOpacity(0.3),
+                                color: isSelected
+                                    ? const Color(0xFF4caf50)
+                                    : Colors.white.withValues(alpha: 0.3),
                                 width: 2,
                               ),
                             ),
                             child: Center(
                               child: Text(
-                                num.toString(),
+                                teamOption.toString(),
                                 style: TextStyle(
                                   color: isSelected ? Colors.white : Colors.white70,
                                   fontSize: 28,
@@ -395,133 +425,223 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               ),
             ],
 
+            const SizedBox(height: 12),
+            SwitchListTile(
+              title: Text(
+                I18n.inline('Матч між командами', 'Team vs team'),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                I18n.inline('Виберіть свою команду та оберіть склад',
+                    'Pick your team and roster'),
+                style: const TextStyle(color: Colors.white70),
+              ),
+              value: _teamMode,
+              activeThumbColor: const Color(0xFF4caf50),
+              onChanged: (value) {
+                setState(() {
+                  _teamMode = value;
+                  if (value) {
+                    _autoBalance = false;
+                    if (_selectedTeam == null && _myTeams.isNotEmpty) {
+                      _selectedTeam = _myTeams.first;
+                      _selectedRoster = _selectedTeam!.memberIds
+                          .take((_selectedPlayers / 2).ceil())
+                          .toList();
+                    }
+                    _ensureRosterLimit();
+                  } else {
+                    _opponentTeam = null;
+                  }
+                });
+              },
+            ),
+            if (_teamMode) _buildTeamModeSection(),
+
             const SizedBox(height: 20),
-// Запросити друзів
-Row(
-  children: [
-    Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
-    const SizedBox(width: 8),
-    Text(
-      I18n.inline('Запросити друзів', 'Invite friends'),
-      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-    ),
-  ],
-),
-const SizedBox(height: 10),
-FutureBuilder<List<Map<String, dynamic>>>(
-  future: _loadMyFriends(),
-  builder: (context, snapshot) {
-    final friends = snapshot.data ?? const <Map<String, dynamic>>[];
-    if (friends.isEmpty) {
-      return Text(
-        I18n.inline('Немає друзів для запрошення', 'No friends to invite'),
-        style: TextStyle(color: Colors.white.withOpacity(0.75)),
-      );
-    }
+            if (!_teamMode) ...[
+              Row(
+                children: [
+                  Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    I18n.inline('Запросити друзів', 'Invite friends'),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _loadMyFriends(),
+                builder: (context, snapshot) {
+                  final friends = snapshot.data ?? const <Map<String, dynamic>>[];
+                  if (friends.isEmpty) {
+                    return Text(
+                      I18n.inline('Немає друзів для запрошення',
+                          'No friends to invite'),
+                      style:
+                          TextStyle(color: Colors.white.withValues(alpha: 0.75)),
+                    );
+                  }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
-      ),
-      padding: const EdgeInsets.all(8),
-      child: SizedBox(
-  height: 240,
-  child: Scrollbar(
-    thumbVisibility: true,
-    controller: _friendsScrollController,
-    child: ListView.separated(
-      controller: _friendsScrollController,
-      primary: false,
-      shrinkWrap: true,
-      physics: const AlwaysScrollableScrollPhysics(),
-      itemCount: friends.length,
-      separatorBuilder: (_, __) => Divider(
-        height: 1,
-        color: Colors.white.withOpacity(0.08),
-      ),
-      itemBuilder: (context, i) {
-              final f = friends[i];
-              final id = f['id'] as String;
-              final name = (f['displayName'] ?? f['name'] ?? I18n.inline('Користувач', 'User')).toString();
-              final photoUrl = (f['avatarUrl'] ?? f['photoUrl'] ?? '').toString();
-              final position = (f['position'] ?? f['role'] ?? '').toString();
-              final rating = ((f['rating'] ?? f['averageRating'] ?? 0) as num).toDouble();
-              final selected = _selectedInviteFriendIds.contains(id);
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12)),
+                    ),
+                    padding: const EdgeInsets.all(8),
+                    child: SizedBox(
+                      height: 240,
+                      child: Scrollbar(
+                        thumbVisibility: true,
+                        controller: _friendsScrollController,
+                        child: ListView.separated(
+                          controller: _friendsScrollController,
+                          primary: false,
+                          shrinkWrap: true,
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: friends.length,
+                          separatorBuilder: (_, __) => Divider(
+                            height: 1,
+                            color: Colors.white.withValues(alpha: 0.08),
+                          ),
+                          itemBuilder: (context, i) {
+                            final f = friends[i];
+                            final id = f['id'] as String;
+                            final name = (f['displayName'] ??
+                                    f['name'] ??
+                                    I18n.inline('Користувач', 'User'))
+                                .toString();
+                            final photoUrl =
+                                (f['avatarUrl'] ?? f['photoUrl'] ?? '').toString();
+                            final position =
+                                (f['position'] ?? f['role'] ?? '').toString();
+                            final rating = ((f['rating'] ??
+                                        f['averageRating'] ??
+                                        0) as num)
+                                    .toDouble();
+                            final selected =
+                                _selectedInviteFriendIds.contains(id);
 
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                leading: CircleAvatar(
-                  radius: 18,
-                  backgroundColor: const Color(0xFF4caf50),
-                  backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                  child: photoUrl.isEmpty
-                      ? Text(
-                          name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                        )
-                      : null,
-                ),
-                title: Text(
-                  name,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Row(
-                  children: [
-                    if (position.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          position,
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            return ListTile(
+                              contentPadding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
+                              leading: CircleAvatar(
+                                radius: 18,
+                                backgroundColor: const Color(0xFF4caf50),
+                                backgroundImage: photoUrl.isNotEmpty
+                                    ? NetworkImage(photoUrl)
+                                    : null,
+                                child: photoUrl.isEmpty
+                                    ? Text(
+                                        name.isNotEmpty
+                                            ? name[0].toUpperCase()
+                                            : 'U',
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700),
+                                      )
+                                    : null,
+                              ),
+                              title: Text(
+                                name,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Row(
+                                children: [
+                                  if (position.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
+                                        borderRadius:
+                                            BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        position,
+                                        style: const TextStyle(
+                                            color: Colors.white70, fontSize: 12),
+                                      ),
+                                    ),
+                                  if (position.isNotEmpty)
+                                    const SizedBox(width: 8),
+                                  const Icon(Icons.star,
+                                      size: 14, color: Color(0xFFFFD700)),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    rating > 0 ? rating.toStringAsFixed(1) : '-',
+                                    style: const TextStyle(
+                                        color: Colors.white70, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                              trailing: Checkbox(
+                                value: selected,
+                                onChanged: (val) {
+                                  setState(() {
+                                    if (val == true) {
+                                      _selectedInviteFriendIds.add(id);
+                                    } else {
+                                      _selectedInviteFriendIds.remove(id);
+                                    }
+                                  });
+                                },
+                                activeColor: const Color(0xFF4caf50),
+                                checkColor: Colors.white,
+                              ),
+                              onTap: () {
+                                setState(() {
+                                  if (selected) {
+                                    _selectedInviteFriendIds.remove(id);
+                                  } else {
+                                    _selectedInviteFriendIds.add(id);
+                                  }
+                                });
+                              },
+                            );
+                          },
                         ),
                       ),
-                    if (position.isNotEmpty) const SizedBox(width: 8),
-                    const Icon(Icons.star, size: 14, color: Color(0xFFFFD700)),
-                    const SizedBox(width: 2),
-                    Text(
-                      rating > 0 ? rating.toStringAsFixed(1) : '-',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  );
+                },
+              ),
+            ] else ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.groups, color: Colors.white70, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        I18n.inline(
+                            'Запрошення друзів вимкнено для командних матчів. Капітани додають гравців зі складу команди.',
+                            'Inviting individual friends is disabled in team mode. Captains manage rosters inside their teams.'),
+                        style:
+                            const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
                     ),
                   ],
                 ),
-                trailing: Checkbox(
-                  value: selected,
-                  onChanged: (val) {
-                    setState(() {
-                      if (val == true) {
-                        _selectedInviteFriendIds.add(id);
-                      } else {
-                        _selectedInviteFriendIds.remove(id);
-                      }
-                    });
-                  },
-                  activeColor: const Color(0xFF4caf50),
-                  checkColor: Colors.white,
-                ),
-                onTap: () {
-                  setState(() {
-                    if (selected) {
-                      _selectedInviteFriendIds.remove(id);
-                    } else {
-                      _selectedInviteFriendIds.add(id);
-                    }
-                  });
-                },
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  },
-),
+              ),
+            ],
             SizedBox(height: 20),
             
             // Кнопка створення
@@ -567,6 +687,50 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
        emailPrefix ??
        I18n.inline('Невідомий', 'Unknown')).toString();
       
+      var participants = <String>[currentUser.uid];
+      var currentPlayers = 1;
+      var autoBalance = _autoBalance;
+      var isTeamMatch = false;
+      Map<String, List<String>> teamRosters = const {};
+      Team? teamAData;
+      Team? teamBData;
+      String? teamAId;
+      String? teamBId;
+      String? teamAStatus;
+      String? teamBStatus;
+
+      if (_teamMode) {
+        if (_selectedTeam == null) {
+          throw Exception(I18n.inline('Оберіть команду', 'Select a team'));
+        }
+        if (_selectedRoster.isEmpty) {
+          throw Exception(I18n.inline(
+              'Оберіть склад команди', 'Choose at least one player'));
+        }
+        participants = List<String>.from(_selectedRoster);
+        currentPlayers = participants.length;
+        autoBalance = false;
+        isTeamMatch = true;
+        teamAId = _selectedTeam!.id;
+        teamAStatus = 'confirmed';
+        teamRosters = {
+          'teamA': _selectedRoster,
+          'teamB': _opponentTeam != null ? [] : [],
+        };
+        teamAData = Team(
+          name: _selectedTeam!.name,
+          playerIds: _selectedRoster,
+        );
+        if (_opponentTeam != null) {
+          teamBId = _opponentTeam!.id;
+          teamBStatus = 'pending';
+          teamBData = Team(
+            name: _opponentTeam!.name,
+            playerIds: const [],
+          );
+        }
+      }
+
       final match = Match(
         id: '', // Firestore згенерує ID
         title: _titleController.text,
@@ -577,14 +741,22 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
         time: '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
         location: _locationController.text,
         city: _selectedCity,
-        currentPlayers: 1, // Тільки організатор
+        currentPlayers: currentPlayers,
         maxPlayers: _selectedPlayers,
-        participants: [currentUser.uid],
+        participants: participants,
         level: _getMatchLevel(_selectedLevel),
         cost: _cost,
-        autoBalance: _autoBalance,
+        autoBalance: autoBalance,
         isPrivate: _isPrivate,
         invitedFriends: _selectedInviteFriendIds.toList(),
+        isTeamMatch: isTeamMatch,
+        teamAId: teamAId,
+        teamBId: teamBId,
+        teamAStatus: teamAStatus,
+        teamBStatus: teamBStatus,
+        teamRosters: teamRosters,
+        teamA: teamAData,
+        teamB: teamBData,
         status: MatchStatus.open,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -618,15 +790,163 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
         } catch (_) {}
       }
       
+      if (_teamMode && _opponentTeam != null) {
+        await _teamService.sendMatchRequest(
+          teamId: _opponentTeam!.id,
+          opponentTeamId: _selectedTeam!.id,
+          opponentName: _selectedTeam!.name,
+          matchId: matchId,
+          proposedRoster: _selectedRoster,
+        );
+      }
+
+      if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Матч створено успішно!')),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Помилка створення: $e'), backgroundColor: Colors.red),
       );
     }
+  }
+
+  Widget _buildTeamModeSection() {
+    if (_loadingTeams) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: LinearProgressIndicator(),
+      );
+    }
+    if (_selectedTeam == null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Text(
+          I18n.inline('У вас немає команд. Створіть команду у профілі.',
+              'You have no teams yet. Create one in profile.'),
+          style: const TextStyle(color: Colors.white70),
+        ),
+      );
+    }
+    final rosterLimit = (_selectedPlayers / 2).ceil();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownButtonFormField<AppTeam>(
+            initialValue: _selectedTeam,
+            decoration: InputDecoration(
+              labelText: I18n.inline('Моя команда', 'My team'),
+            ),
+            items: _myTeams
+                .map((team) => DropdownMenuItem(
+                      value: team,
+                      child: Text(team.name),
+                    ))
+                .toList(),
+            onChanged: (team) => _onSelectTeam(team),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            I18n.inline('Склад (${_selectedRoster.length}/$rosterLimit)',
+                'Roster (${_selectedRoster.length}/$rosterLimit)'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _selectedTeam!.memberIds.map((id) {
+              final name = _teamMemberNames[id] ?? I18n.t('player');
+              final selected = _selectedRoster.contains(id);
+              final disabled =
+                  !selected && _selectedRoster.length >= rosterLimit;
+              return ChoiceChip(
+                selected: selected,
+                label: Text(name),
+                onSelected: disabled ? null : (value) => _toggleRosterMember(id),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            I18n.inline('Запросити суперника', 'Invite opponent team'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _opponentSearchCtrl,
+            decoration: InputDecoration(
+              labelText: I18n.inline('Пошук команди', 'Search team'),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.search),
+                onPressed: _searchOpponentTeams,
+              ),
+            ),
+          ),
+          if (_opponentTeam != null)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                I18n.inline(
+                    'Обрана команда: ${_opponentTeam!.name}',
+                    'Selected team: ${_opponentTeam!.name}'),
+                style: const TextStyle(color: Colors.white),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.clear, color: Colors.white70),
+                onPressed: () => setState(() => _opponentTeam = null),
+              ),
+            ),
+          if (_opponentSearching)
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: LinearProgressIndicator(),
+            )
+          else if (_opponentResults.isNotEmpty)
+            Column(
+              children: _opponentResults.map((team) {
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    team.name,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
+                    '${team.memberIds.length} ${I18n.inline('гравців', 'players')}',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _opponentTeam = team;
+                      _opponentResults = [];
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
   }
 
   MatchLevel _getMatchLevel(String level) {
@@ -664,11 +984,102 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
   }
 }
 
+  Future<void> _loadMyTeams() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    try {
+      final teams = await _teamService.fetchUserTeams(currentUser.uid);
+      AppTeam? team = teams.isNotEmpty ? teams.first : null;
+      Map<String, String> names = {};
+      if (team != null) {
+        names = await _fetchMemberNames(team.memberIds);
+      }
+      if (!mounted) return;
+      setState(() {
+        _myTeams = teams;
+        _selectedTeam = team;
+        _teamMemberNames = names;
+        _selectedRoster = team != null
+            ? team.memberIds.take((_selectedPlayers / 2).ceil()).toList()
+            : [];
+        _loadingTeams = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingTeams = false);
+    }
+  }
+
+  Future<Map<String, String>> _fetchMemberNames(List<String> ids) async {
+    final map = <String, String>{};
+    for (final id in ids) {
+      try {
+        final doc =
+            await FirebaseFirestore.instance.collection('users').doc(id).get();
+        final data = doc.data();
+        map[id] = (data?['displayName'] ??
+                data?['name'] ??
+                data?['authorName'] ??
+                I18n.t('player'))
+            .toString();
+      } catch (_) {
+        map[id] = I18n.t('player');
+      }
+    }
+    return map;
+  }
+
+  void _onSelectTeam(AppTeam? team) async {
+    if (team == null) return;
+    setState(() => _loadingTeams = true);
+    final names = await _fetchMemberNames(team.memberIds);
+    if (!mounted) return;
+    setState(() {
+      _selectedTeam = team;
+      _teamMemberNames = names;
+      _selectedRoster =
+          team.memberIds.take((_selectedPlayers / 2).ceil()).toList();
+      _loadingTeams = false;
+    });
+  }
+
+  void _toggleRosterMember(String id) {
+    final limit = (_selectedPlayers / 2).ceil();
+    setState(() {
+      if (_selectedRoster.contains(id)) {
+        _selectedRoster.remove(id);
+      } else if (_selectedRoster.length < limit) {
+        _selectedRoster.add(id);
+      }
+    });
+  }
+
+  void _ensureRosterLimit() {
+    final limit = (_selectedPlayers / 2).ceil();
+    if (_selectedRoster.length > limit) {
+      _selectedRoster = _selectedRoster.take(limit).toList();
+    }
+  }
+
+  Future<void> _searchOpponentTeams() async {
+    final query = _opponentSearchCtrl.text.trim();
+    if (query.isEmpty) return;
+    setState(() => _opponentSearching = true);
+    final results = await _teamService.searchTeams(query, limit: 5);
+    if (!mounted) return;
+    setState(() {
+      _opponentResults =
+          results.where((team) => team.id != _selectedTeam?.id).toList();
+      _opponentSearching = false;
+    });
+  }
+
 @override
 void dispose() {
   _titleController.dispose();
   _descriptionController.dispose();
   _locationController.dispose();
+  _opponentSearchCtrl.dispose();
   _friendsScrollController.dispose();
   super.dispose();
 }

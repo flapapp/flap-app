@@ -153,6 +153,13 @@ class Match {
   final List<Team> teams;
   final int? teamCount;
   final List<Map<String, dynamic>> multiTeamStats;
+  final bool isTeamMatch;
+  final String? teamAId;
+  final String? teamBId;
+  final String? teamAStatus;
+  final String? teamBStatus;
+  final Map<String, List<String>> teamRosters;
+  final Map<String, int> goalsByPlayer;
  
   // Результат
   final MatchResult? result;
@@ -194,6 +201,13 @@ class Match {
 
     this.teamCount,
     this.multiTeamStats = const [],
+    this.isTeamMatch = false,
+    this.teamAId,
+    this.teamBId,
+    this.teamAStatus,
+    this.teamBStatus,
+    this.teamRosters = const {},
+    this.goalsByPlayer = const {},
     this.result,
     this.teamAScore,
     this.teamBScore,
@@ -259,6 +273,20 @@ class Match {
       multiTeamStats: ((data['multiTeamStats'] as List?) ?? const [])
           .whereType<Map<String, dynamic>>()
           .toList(),
+      isTeamMatch: data['teamMatch'] ?? false,
+      teamAId: data['teamAId'] as String?,
+      teamBId: data['teamBId'] as String?,
+      teamAStatus: data['teamAStatus'] as String?,
+      teamBStatus: data['teamBStatus'] as String?,
+      teamRosters: Map<String, List<String>>.from(
+        ((data['teamRosters'] as Map?) ?? const {})
+            .map((key, value) => MapEntry(key.toString(),
+                value is List ? List<String>.from(value) : const <String>[])),
+      ),
+      goalsByPlayer: Map<String, int>.from(
+        ((data['goalsByPlayer'] as Map?) ?? const {})
+            .map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
+      ),
 teams: ((data['teams'] as List?) ?? const [])
     .whereType<Map<String, dynamic>>()
     .map((t) => Team(
@@ -325,6 +353,13 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
       'teams': teams.map((t) => t.toFirestore()).toList(),
       'teamCount': teamCount,
       'multiTeamStats': multiTeamStats,
+      'teamMatch': isTeamMatch,
+      'teamAId': teamAId,
+      'teamBId': teamBId,
+      'teamAStatus': teamAStatus,
+      'teamBStatus': teamBStatus,
+      'teamRosters': teamRosters,
+      'goalsByPlayer': goalsByPlayer,
       'result': result?.toString().split('.').last,
       'teamAScore': teamAScore,
       'teamBScore': teamBScore,
@@ -364,6 +399,13 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
     List<Team>? teams,
     int? teamCount,
     List<Map<String, dynamic>>? multiTeamStats,
+    bool? isTeamMatch,
+    String? teamAId,
+    String? teamBId,
+    String? teamAStatus,
+    String? teamBStatus,
+    Map<String, List<String>>? teamRosters,
+    Map<String, int>? goalsByPlayer,
     MatchResult? result,
     int? teamAScore,
     int? teamBScore,
@@ -400,6 +442,13 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
       teams: teams ?? this.teams,
       teamCount: teamCount ?? this.teamCount,
       multiTeamStats: multiTeamStats ?? this.multiTeamStats,
+      isTeamMatch: isTeamMatch ?? this.isTeamMatch,
+      teamAId: teamAId ?? this.teamAId,
+      teamBId: teamBId ?? this.teamBId,
+      teamAStatus: teamAStatus ?? this.teamAStatus,
+      teamBStatus: teamBStatus ?? this.teamBStatus,
+      teamRosters: teamRosters ?? this.teamRosters,
+      goalsByPlayer: goalsByPlayer ?? this.goalsByPlayer,
       result: result ?? this.result,
       teamAScore: teamAScore ?? this.teamAScore,
       teamBScore: teamBScore ?? this.teamBScore,

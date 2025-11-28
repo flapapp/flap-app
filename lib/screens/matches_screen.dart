@@ -143,9 +143,9 @@ void _resetFindFilters() {
     margin: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.05),
+      color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(15),
-      border: Border.all(color: Colors.white.withOpacity(0.1)),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
         children: [
@@ -162,11 +162,11 @@ void _resetFindFilters() {
                   prefixIcon: Icon(Icons.location_city, color: Colors.white70, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -198,11 +198,11 @@ void _resetFindFilters() {
                   prefixIcon: Icon(Icons.star, color: Colors.white70, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -243,11 +243,11 @@ void _resetFindFilters() {
                   prefixIcon: Icon(Icons.access_time, color: Colors.white70, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -280,11 +280,11 @@ void _resetFindFilters() {
                   prefixIcon: Icon(Icons.search, color: Colors.white70, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -350,7 +350,7 @@ void _resetFindFilters() {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 6, offset: Offset(0, 2)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 6, offset: Offset(0, 2)),
           ],
         ),
         clipBehavior: Clip.antiAlias,
@@ -433,8 +433,8 @@ void _resetFindFilters() {
   borderRadius: BorderRadius.circular(16),
           child: Container(
             decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.05),
-      border: Border.all(color: Colors.white.withOpacity(0.1)),
+      color: Colors.white.withValues(alpha: 0.05),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
             ),
             child: TabBar(
               controller: _tabController,
@@ -490,15 +490,15 @@ void _resetFindFilters() {
             height: 48,
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -536,7 +536,7 @@ void _resetFindFilters() {
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Color(0xFF4caf50).withOpacity(0.4),
+              color: Color(0xFF4caf50).withValues(alpha: 0.4),
               blurRadius: 20,
               offset: Offset(0, 6),
             ),
@@ -571,7 +571,7 @@ void _resetFindFilters() {
           decoration: BoxDecoration(
             color: const Color(0xFF0f0f23),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.75,
@@ -595,7 +595,7 @@ void _resetFindFilters() {
         border: Border.all(color: Colors.white, width: 1),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4caf50).withOpacity(0.35),
+            color: const Color(0xFF4caf50).withValues(alpha: 0.35),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -660,12 +660,12 @@ void _resetFindFilters() {
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-  color: const Color(0xFF1e7d32).withOpacity(0.20),
+  color: const Color(0xFF1e7d32).withValues(alpha: 0.20),
   borderRadius: BorderRadius.circular(14),
-  border: Border.all(color: const Color(0xFF1e7d32).withOpacity(0.40)),
+  border: Border.all(color: const Color(0xFF1e7d32).withValues(alpha: 0.40)),
   boxShadow: [
     BoxShadow(
-      color: const Color(0xFF4caf50).withOpacity(0.25),
+      color: const Color(0xFF4caf50).withValues(alpha: 0.25),
       blurRadius: 10,
       offset: const Offset(0, 4),
     ),
@@ -789,9 +789,9 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.04),
+            color: Colors.white.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.10)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
           ),
           child: Row(
             children: [
@@ -799,7 +799,7 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha: 0.06),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: color, size: 18),
@@ -932,16 +932,16 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
+                            color: Colors.white.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white.withOpacity(0.1)),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                           ),
                           child: Row(
                             children: [
                               Container(
                                 width: 40, height: 40,
                                 decoration: BoxDecoration(
-                                  color: amount > 0 ? const Color(0xFF4caf50).withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                                  color: amount > 0 ? const Color(0xFF4caf50).withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Icon(amount > 0 ? Icons.add : Icons.remove,
@@ -955,7 +955,7 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                                     Text(description, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
                                     if (timestamp != null)
                                       Text(_formatTransactionTime(timestamp.toDate()),
-                                        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                                        style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
                                       ),
                                   ],
                                 ),
@@ -1345,14 +1345,14 @@ Widget _buildRatingsTab() {
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           filled: true,
-          fillColor: Colors.white.withOpacity(0.06),
+          fillColor: Colors.white.withValues(alpha: 0.06),
           border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
           ),
           focusedBorder: const OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -1385,8 +1385,8 @@ Widget _buildRatingsTab() {
   borderRadius: BorderRadius.circular(12),
   child: Container(
     decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.05),
-      border: Border.all(color: Colors.white.withOpacity(0.1)),
+      color: Colors.white.withValues(alpha: 0.05),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
     ),
     child: SizedBox(
       height: 56, // місце для 2 рядків
@@ -1691,9 +1691,9 @@ void _shareMatch(Match match) {
       margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       padding: EdgeInsets.all(20),
     decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1842,6 +1842,11 @@ Row(
           
 const SizedBox(height: 8),
 
+      if (match.isTeamMatch) ...[
+        const SizedBox(height: 4),
+        _buildTeamMatchBanner(match),
+      ],
+
 // Аватарки окремим рядком, щоб не було переповнення
 SingleChildScrollView(
   scrollDirection: Axis.horizontal,
@@ -1887,14 +1892,63 @@ Widget _buildActionButtons(Match match, String currentUserId) {
   print('DEBUG: Current user: $currentUserId');
   print('DEBUG: Organizer ID: ${match.organizerId}');
 
+  final isOrganizer = match.organizerId == currentUserId;
+  final isParticipant = match.participants.contains(currentUserId);
+  if (match.isTeamMatch && !isOrganizer && !isParticipant) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.shield, color: Colors.white70, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  I18n.inline(
+                      'Це командний матч. Долучитись можна лише через запрошення від капітана.',
+                      'Team-only match. You can join only via a team invite.'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () =>
+              Navigator.pushNamed(context, '/match-details', arguments: match),
+          icon: const Icon(Icons.info_outline, size: 16),
+          label: Text(I18n.t('details'),
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.white,
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            minimumSize: const Size(0, 40),
+          ),
+        ),
+      ],
+    );
+  }
+
   // Приватний матч — лише за запрошенням
   if (match.isPrivate && !match.invitedFriends.contains(currentUserId)) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(0.15)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
       ),
       child: const Row(
         children: [
@@ -1931,7 +1985,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
       label: Text(I18n.t('details'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
       style: OutlinedButton.styleFrom(
         foregroundColor: Colors.white,
-        side: BorderSide(color: Colors.white.withOpacity(0.3)),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         minimumSize: const Size(0, 40),
@@ -1944,7 +1998,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
       label: const Text('Поділитися', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
       style: OutlinedButton.styleFrom(
         foregroundColor: Colors.white,
-        side: BorderSide(color: Colors.white.withOpacity(0.3)),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         minimumSize: const Size(0, 40),
@@ -1985,7 +2039,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
         child: Container(
           height: 40,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.06),
+            color: Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: Colors.white24),
           ),
@@ -2024,6 +2078,137 @@ Widget _buildActionButtons(Match match, String currentUserId) {
     ],
   );
 }
+
+  Widget _buildTeamMatchBanner(Match match) {
+    final teamAName = (match.teamA?.name?.isNotEmpty ?? false)
+        ? match.teamA!.name
+        : I18n.inline('Команда організатора', 'Host team');
+    final teamBName = (match.teamB?.name?.isNotEmpty ?? false)
+        ? match.teamB!.name
+        : (match.teamBId != null
+            ? I18n.inline('Команда суперника', 'Opponent team')
+            : I18n.inline('Очікує суперника', 'Waiting for opponent'));
+    final teamARoster =
+        match.teamRosters['teamA'] ?? match.teamA?.playerIds ?? const <String>[];
+    final teamBRoster =
+        match.teamRosters['teamB'] ?? match.teamB?.playerIds ?? const <String>[];
+
+    final teamAStatus = match.teamAStatus ?? 'confirmed';
+    final teamBStatus =
+        match.teamBStatus ?? (match.teamBId == null ? 'pending' : 'confirmed');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.sports_soccer, color: Colors.white70, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                I18n.inline('Командний матч', 'Team match'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildTeamMatchRow(teamAName, teamAStatus, teamARoster),
+          const SizedBox(height: 8),
+          _buildTeamMatchRow(teamBName, teamBStatus, teamBRoster),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamMatchRow(
+      String teamName, String status, List<String> roster) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                teamName,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            _buildTeamStatusChip(status),
+          ],
+        ),
+        if (roster.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: roster.take(8).map((playerId) {
+                return Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  child: UserChip(userId: playerId, size: 24, showName: false),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTeamStatusChip(String status) {
+    final text = _getTeamStatusText(status);
+    final color = _getTeamStatusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  String _getTeamStatusText(String? status) {
+    switch (status) {
+      case 'confirmed':
+        return I18n.inline('Підтверджено', 'Confirmed');
+      case 'declined':
+        return I18n.inline('Відхилено', 'Declined');
+      default:
+        return I18n.inline('Очікує', 'Pending');
+    }
+  }
+
+  Color _getTeamStatusColor(String? status) {
+    switch (status) {
+      case 'confirmed':
+        return const Color(0xFF4caf50);
+      case 'declined':
+        return const Color(0xFFF44336);
+      default:
+        return const Color(0xFFFFC107);
+    }
+  }
 
 
 
@@ -2220,9 +2405,9 @@ Widget _buildMyMatchCard(Match match) {
     margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
     padding: EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.02),
+      color: Colors.white.withValues(alpha: 0.02),
       borderRadius: BorderRadius.circular(15),
-      border: Border.all(color: Colors.white.withOpacity(0.1)),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2370,7 +2555,7 @@ Column(
         );
       },
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white.withOpacity(0.1),
+        backgroundColor: Colors.white.withValues(alpha: 0.1),
         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
@@ -2605,8 +2790,9 @@ Future<void> _onLeaveMatch(Match match) async {
     final int a = scores['teamAScore']!;
     final int b = scores['teamBScore']!;
     final MatchResult result = (a > b) ? MatchResult.teamAWins : (b > a) ? MatchResult.teamBWins : MatchResult.draw;
-
-    final ok = await _matchService.finishMatch(match.id, result, a, b);
+    final goals = await _collectGoalsForMatch(match);
+    if (goals == null) return;
+    final ok = await _matchService.finishMatch(match.id, result, a, b, goalsByPlayer: goals);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? I18n.t('match_finished') : I18n.t('match_finish_failed')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
@@ -2645,6 +2831,87 @@ Future<void> _onLeaveMatch(Match match) async {
         ],
       ),
     );
+  }
+
+  Future<Map<String, int>?> _collectGoalsForMatch(Match match) async {
+    final ids = match.participants;
+    if (ids.isEmpty) return {};
+    final names = await _loadParticipantNames(ids);
+    final controllers = {
+      for (final id in ids) id: TextEditingController(text: '0')
+    };
+    final map = await showDialog<Map<String, int>?>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(I18n.inline('Голи гравців', 'Player goals')),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: ids.map((id) {
+                final name = names[id] ?? I18n.t('player');
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(name)),
+                      SizedBox(
+                        width: 70,
+                        child: TextField(
+                          controller: controllers[id],
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: I18n.t('goals'),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, null), child: Text(I18n.t('cancel'))),
+            TextButton(onPressed: () => Navigator.pop(ctx, <String, int>{}), child: Text(I18n.inline('Пропустити', 'Skip'))),
+            ElevatedButton(
+              onPressed: () {
+                final result = <String, int>{};
+                controllers.forEach((id, ctrl) {
+                  final val = int.tryParse(ctrl.text) ?? 0;
+                  if (val > 0) result[id] = val;
+                });
+                Navigator.pop(ctx, result);
+              },
+              child: Text(I18n.t('confirm')),
+            ),
+          ],
+        );
+      },
+    );
+    controllers.values.forEach((c) => c.dispose());
+    return map;
+  }
+
+  Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {
+    final names = <String, String>{};
+    for (final id in ids) {
+      try {
+        final doc =
+            await FirebaseFirestore.instance.collection('users').doc(id).get();
+        final data = doc.data();
+        names[id] = (data?['displayName'] ??
+                data?['name'] ??
+                data?['authorName'] ??
+                I18n.t('player'))
+            .toString();
+      } catch (_) {
+        names[id] = I18n.t('player');
+      }
+    }
+    return names;
   }
     // Метод для отримання кольору рівня
   Color _getLevelColor(MatchLevel level) {
@@ -2695,18 +2962,18 @@ Future<void> _onLeaveMatch(Match match) async {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(0.08),
-            Colors.white.withOpacity(0.04),
+            Colors.white.withValues(alpha: 0.08),
+            Colors.white.withValues(alpha: 0.04),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withOpacity(0.15),
+          color: Colors.white.withValues(alpha: 0.15),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -2734,9 +3001,9 @@ Future<void> _onLeaveMatch(Match match) async {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: resultColor.withOpacity(0.2),
+                    color: resultColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: resultColor.withOpacity(0.4)),
+                    border: Border.all(color: resultColor.withValues(alpha: 0.4)),
                   ),
                   child: Text(
                     resultText,
@@ -2926,10 +3193,10 @@ Widget _buildLevelChip(MatchLevel level) {
   return Container(
     padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     decoration: BoxDecoration(
-      color: _getLevelColor(level).withOpacity(0.2),
+      color: _getLevelColor(level).withValues(alpha: 0.2),
       borderRadius: BorderRadius.circular(12),
       border: Border.all(
-        color: _getLevelColor(level).withOpacity(0.5),
+        color: _getLevelColor(level).withValues(alpha: 0.5),
         width: 1,
       ),
     ),
@@ -2970,9 +3237,9 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -3055,8 +3322,8 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Color(lvl.color).withOpacity(0.15),
-                  border: Border.all(color: Color(lvl.color).withOpacity(0.5)),
+                  color: Color(lvl.color).withValues(alpha: 0.15),
+                  border: Border.all(color: Color(lvl.color).withValues(alpha: 0.5)),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -3121,9 +3388,9 @@ Widget _statTile(String title, double val) {
   return Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.06),
+      color: Colors.white.withValues(alpha: 0.06),
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withOpacity(0.12)),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
     ),
     child: Row(
       children: [
@@ -3142,9 +3409,9 @@ Widget _chipStat(IconData icon, String label, String value) {
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.06),
+      color: Colors.white.withValues(alpha: 0.06),
       borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: Colors.white.withOpacity(0.12)),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
@@ -3193,3 +3460,4 @@ String _positionCodeFromUi(String ui) {
 const Set<String> _posCodes = {'goalkeeper', 'defender', 'midfielder', 'forward'};
 
 String _norm(String? s) => (s ?? '').trim().toLowerCase();
+

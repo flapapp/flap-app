@@ -8,6 +8,11 @@ import '../services/friends_service.dart';
 import 'friends_screen.dart';
 import 'subscription_screen.dart';
 import '../utils/i18n.dart';
+import '../models/app_team.dart';
+import '../models/team_invite.dart';
+import '../services/team_service.dart';
+import 'team_details_screen.dart';
+import 'team_create_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
@@ -18,19 +23,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final BadgeService _badgeService = BadgeService();
   final FriendsService _friendsService = FriendsService();
+  final TeamService _teamService = TeamService();
   
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
   List<app_badge.Badge> _userBadges = [];
   int _friendsCount = 0;
+  Stream<List<AppTeam>>? _teamsStream;
+  Stream<List<TeamInvite>>? _teamInvitesStream;
+  String? _userId;
 
   @override
   void initState() {
     super.initState();
     final uid = _auth.currentUser?.uid;
     if (uid != null) {
+      _userId = uid;
       _userStream = FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
       _loadUserBadges();
       _loadFriendsCount();
+      _teamsStream = _teamService.watchUserTeams(uid);
+      _teamInvitesStream = _teamService.watchInvites(uid);
     }
   }
 
@@ -52,6 +64,232 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _friendsCount = friends.length;
       });
     }
+  }
+
+  Widget _buildTeamsSection() {
+    if (_teamsStream == null) return const SizedBox.shrink();
+    return StreamBuilder<List<AppTeam>>(
+      stream: _teamsStream,
+      builder: (context, snapshot) {
+        final teams = snapshot.data ?? const [];
+        final canCreate = teams.length < 3;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Text(
+                    I18n.inline('Мої команди', 'My teams'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: canCreate
+                        ? () async {
+                            if (_userId == null) return;
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    TeamCreateScreen(existingTeams: teams.length),
+                              ),
+                            );
+                          }
+                        : null,
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    label: Text(
+                      I18n.inline('Створити', 'Create'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (snapshot.connectionState == ConnectionState.waiting)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: LinearProgressIndicator(),
+              )
+            else if (teams.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        I18n.inline('У вас немає команд', 'You have no teams yet'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        I18n.inline(
+                            'Створіть першу команду та запросіть друзів',
+                            'Create your first team and invite friends'),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: canCreate
+                            ? () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => TeamCreateScreen(
+                                      existingTeams: teams.length,
+                                    ),
+                                  ),
+                                );
+                              }
+                            : null,
+                        child: Text(I18n.inline('Створити команду', 'Create team')),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              SizedBox(
+                height: 210,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  itemBuilder: (context, index) {
+                    final team = teams[index];
+                    return _TeamCard(
+                      team: team,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => TeamDetailsScreen(teamId: team.id),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemCount: teams.length,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTeamInvitesSection() {
+    if (_teamInvitesStream == null) return const SizedBox.shrink();
+    return StreamBuilder<List<TeamInvite>>(
+      stream: _teamInvitesStream,
+      builder: (context, snapshot) {
+        final invites = snapshot.data ?? const [];
+        if (invites.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                I18n.inline('Запрошення до команд', 'Team invites'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...invites.map((invite) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.groups, color: Colors.white70),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              invite.teamName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              I18n.inline('Вас запросили до команди',
+                                  'You were invited to join'),
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          await _teamService.respondToInvite(
+                            invite: invite,
+                            accept: false,
+                          );
+                        },
+                        child: Text(I18n.t('cancel')),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          try {
+                            await _teamService.respondToInvite(
+                              invite: invite,
+                              accept: true,
+                            );
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(I18n.inline(
+                                    'Команду додано!', 'Joined the team!')),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(e.toString())),
+                            );
+                          }
+                        },
+                        child: Text(I18n.inline('Приєднатись', 'Join')),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -127,6 +365,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
   _buildStatsCards(userData),
   _buildBadgesSection(userData),
+  _buildTeamsSection(),
+  const SizedBox(height: 20),
+  _buildTeamInvitesSection(),
   _buildActionsMenu(),
   const SizedBox(height: 20),
 ],
@@ -1123,6 +1364,116 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.of(context).pushReplacementNamed('/login');
             },
             child: Text(I18n.t('logout'), style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeamCard extends StatelessWidget {
+  final AppTeam team;
+  final VoidCallback? onTap;
+
+  const _TeamCard({required this.team, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final winRate = team.winRate.toStringAsFixed(0);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 220,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: const Color(0xFF4caf50),
+                  backgroundImage:
+                      team.logoUrl != null ? NetworkImage(team.logoUrl!) : null,
+                  child: team.logoUrl == null
+                      ? Text(
+                          team.name.isNotEmpty ? team.name[0].toUpperCase() : 'T',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        team.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        I18n.inline('${team.memberIds.length} гравців',
+                            '${team.memberIds.length} players'),
+                        style:
+                            const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _teamStatChip('W', team.wins, Colors.greenAccent),
+                _teamStatChip('L', team.losses, Colors.redAccent),
+                _teamStatChip('D', team.draws, Colors.orangeAccent),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              I18n.inline('Win rate: $winRate%', 'Win rate: $winRate%'),
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _teamStatChip(String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: color, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            value.toString(),
+            style: TextStyle(color: color, fontWeight: FontWeight.w600),
           ),
         ],
       ),

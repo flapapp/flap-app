@@ -15,6 +15,8 @@ enum NotificationType {
   coinsEarned,
   ratingRequest,
   ratingChanged,
+  teamInvite,
+  teamMatchRequest,
 }
 
 class AppNotification {
@@ -136,6 +138,10 @@ class AppNotification {
         return '⭐';
       case NotificationType.ratingChanged:
         return '📈';
+      case NotificationType.teamInvite:
+        return '🏟️';
+      case NotificationType.teamMatchRequest:
+        return '⚽';
     }
   }
 
@@ -169,6 +175,10 @@ class AppNotification {
         return 0xFF2196F3; // Blue
       case NotificationType.ratingChanged:
         return 0xFFFFD700; // Gold
+      case NotificationType.teamInvite:
+        return 0xFF00BCD4;
+      case NotificationType.teamMatchRequest:
+        return 0xFF4CAF50;
     }
   }
 
@@ -347,6 +357,48 @@ class AppNotification {
       },
       createdAt: DateTime.now(),
       actionUrl: '/profile',
+    );
+  }
+
+  static AppNotification teamInvite({
+    required String userId,
+    required String teamId,
+    required String teamName,
+  }) {
+    return AppNotification(
+      id: '',
+      userId: userId,
+      type: NotificationType.teamInvite,
+      title: 'Запрошення до команди',
+      message: 'Вас запросили до команди "$teamName"',
+      data: {
+        'type': 'team_invite',
+        'teamId': teamId,
+        'teamName': teamName,
+      },
+      createdAt: DateTime.now(),
+      actionUrl: '/profile',
+    );
+  }
+
+  static AppNotification teamMatchRequest({
+    required String userId,
+    required String opponentTeamName,
+    required String matchId,
+  }) {
+    return AppNotification(
+      id: '',
+      userId: userId,
+      type: NotificationType.teamMatchRequest,
+      title: 'Запит на матч',
+      message: 'Команда "$opponentTeamName" пропонує матч',
+      data: {
+        'type': 'team_match_request',
+        'matchId': matchId,
+        'opponentTeamName': opponentTeamName,
+      },
+      createdAt: DateTime.now(),
+      actionUrl: '/match-details/$matchId',
     );
   }
 

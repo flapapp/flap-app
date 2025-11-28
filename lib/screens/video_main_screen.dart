@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'video_upload_screen.dart';
 import 'video_player_screen.dart';
-import 'challenge_list_screen.dart';
 import '../models/challenge.dart';
 import '../widgets/rating_display.dart';
+import '../widgets/video_preview_box.dart';
 import '../services/notification_service.dart';
 import '../utils/i18n.dart';
 
@@ -64,7 +63,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0f0f23), // Темний фон як у HTML MVP
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0f0f23).withOpacity(0.95),
+        backgroundColor: const Color(0xFF0f0f23).withValues(alpha: 0.95),
         elevation: 0,
         title: Row(
           children: [
@@ -74,7 +73,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, 2)),
                 ],
               ),
               clipBehavior: Clip.antiAlias,
@@ -180,10 +179,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   width: 1,
                 ),
               ),
@@ -293,15 +292,15 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             height: 48,
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -360,6 +359,68 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     );
   }
 
+  Widget _buildVideoChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRatingBadge(double rating) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.star, color: Color(0xFFFFD700), size: 14),
+          const SizedBox(width: 4),
+          Text(
+            rating.toStringAsFixed(2),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetaPill(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.75),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   Widget _buildTab(String title, String tab) {
     final isActive = _selectedTab == tab;
     return Expanded(
@@ -385,7 +446,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             borderRadius: BorderRadius.circular(12),
             boxShadow: isActive ? [
               BoxShadow(
-                color: const Color(0xFF4caf50).withOpacity(0.4),
+                color: const Color(0xFF4caf50).withValues(alpha: 0.4),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -414,9 +475,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   ) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -502,7 +563,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 Text(
                   I18n.inline('Будьте першим, хто завантажить відео!', 'Be the first to upload a video!'),
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 14,
                   ),
                 ),
@@ -641,6 +702,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     final city = data['city'] ?? 'Невідомо';
     final createdAt = data['createdAt'] as Timestamp?;
     final isLiked = data['isLikedByCurrentUser'] ?? false;
+    final videoUrl = (data['videoUrl'] ?? '').toString();
+    final thumbnailUrl = data['thumbnailUrl']?.toString();
+    final durationSeconds = data['duration'] is int ? data['duration'] as int : null;
     
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -650,18 +714,18 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(0.1),
-            Colors.white.withOpacity(0.05),
+            Colors.white.withValues(alpha: 0.1),
+            Colors.white.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -670,14 +734,16 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Video thumbnail
-          GestureDetector(
+          VideoPreviewBox(
+            videoUrl: videoUrl,
+            thumbnailUrl: thumbnailUrl,
+            borderRadius: 20,
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => VideoPlayerScreen(
-                    videoUrl: data['videoUrl'] ?? '',
+                    videoUrl: videoUrl,
                     title: title,
                     authorName: authorName,
                     videoId: videoId,
@@ -685,177 +751,17 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 ),
               );
             },
-            child: Container(
-              width: double.infinity,
-              height: 280,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black87,
-                    Colors.black54,
-                  ],
-                ),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
-                ),
-              ),
-              child: Stack(
-                children: [
-                  // Video preview or placeholder
-                  Center(
-                    child: data['videoUrl'] != null && data['videoUrl'].isNotEmpty
-                        ? Container(
-                            width: 120,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-                              ),
-                              borderRadius: BorderRadius.circular(60),
-                              border: Border.all(color: Colors.white, width: 4),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF4caf50).withOpacity(0.4),
-                                  blurRadius: 20,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.play_arrow,
-                              color: Colors.white,
-                              size: 60,
-                            ),
-                          )
-                        : Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                width: 80,
-                                height: 80,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(40),
-                                  border: Border.all(color: Colors.white24, width: 2),
-                                ),
-                                child: const Icon(
-                                Icons.videocam_off,
-                                color: Colors.white54,
-                                  size: 40,
-                              ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Відео недоступне',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                  // Category badge
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF4caf50),
-                            const Color(0xFF66bb6a),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF4caf50).withOpacity(0.4),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        category,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Rating badge
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFFffd700),
-                            const Color(0xFFffa000),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFffd700).withOpacity(0.4),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('⭐', style: TextStyle(fontSize: 12)),
-                          const SizedBox(width: 4),
-                          Text(
-                            rating.toStringAsFixed(2),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // Duration badge (bottom right)
-                  Positioned(
-                    bottom: 12,
-                    right: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.8),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${views > 0 ? "${views} переглядів" : "Новинка"}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            topLeft: _buildVideoChip(category),
+            topRight: rating > 0 ? _buildRatingBadge(rating) : null,
+            bottomRight: _buildMetaPill(
+              durationSeconds != null
+                  ? _formatDuration(durationSeconds)
+                  : (views > 0
+                      ? I18n.inline('$views переглядів', '$views views')
+                      : I18n.inline('Новинка', 'New')),
             ),
           ),
           
-          // Video info
           Padding(
             padding: const EdgeInsets.all(15),
             child: Column(
@@ -880,7 +786,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     description,
                     style: TextStyle(
                       fontSize: 15,
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha: 0.8),
                       height: 1.4,
                     ),
                     maxLines: 2,
@@ -948,7 +854,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                             '$city • ${_formatDate(createdAt)}',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.white.withOpacity(0.7),
+                              color: Colors.white.withValues(alpha: 0.7),
                             ),
                           ),
                           if (authorId != null) ...[
@@ -1019,7 +925,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                         borderRadius: BorderRadius.circular(25),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF4caf50).withOpacity(0.4),
+                            color: const Color(0xFF4caf50).withValues(alpha: 0.4),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                         ),
@@ -1095,6 +1001,12 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     } else {
       return 'Щойно';
     }
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '${minutes.toString().padLeft(1, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
   void _showProfile(BuildContext context) {
@@ -1188,7 +1100,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     Text(
                       email,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 16,
                       ),
                     ),
@@ -1307,7 +1219,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 Icon(
                   Icons.emoji_events,
                   size: 64,
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -1405,18 +1317,18 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF4caf50).withOpacity(0.1),
-            const Color(0xFF66bb6a).withOpacity(0.05),
+            const Color(0xFF4caf50).withValues(alpha: 0.1),
+            const Color(0xFF66bb6a).withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFF4caf50).withOpacity(0.3),
+          color: const Color(0xFF4caf50).withValues(alpha: 0.3),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -1439,7 +1351,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF4caf50).withOpacity(0.3),
+                  color: const Color(0xFF4caf50).withValues(alpha: 0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -1464,10 +1376,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
+                          color: Colors.white.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
@@ -1485,7 +1397,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 Text(
                   challenge['description'] ?? 'Без опису',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 13,
                     height: 1.3,
                   ),
@@ -1500,7 +1412,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       width: 24,
                       height: 24,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -1513,7 +1425,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     Text(
                       challenge['creatorName'] ?? 'Невідомо',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1523,7 +1435,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       width: 24,
                       height: 24,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -1536,7 +1448,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     Text(
                       '$duration днів',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1556,10 +1468,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
+                    color: Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                     ),
                   ),
             child: Column(
@@ -1578,7 +1490,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                           Text(
                             '${((currentParticipants / maxParticipants) * 100).toInt()}%',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 12,
                             ),
                     ),
@@ -1587,7 +1499,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
                         value: currentParticipants / maxParticipants,
-                        backgroundColor: Colors.white.withOpacity(0.2),
+                        backgroundColor: Colors.white.withValues(alpha: 0.2),
                         valueColor: const AlwaysStoppedAnimation<Color>(
                           Color(0xFF66bb6a),
                         ),
@@ -1647,7 +1559,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF2196F3).withOpacity(0.3),
+                              color: const Color(0xFF2196F3).withValues(alpha: 0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -1690,7 +1602,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF4caf50).withOpacity(0.4),
+                              color: const Color(0xFF4caf50).withValues(alpha: 0.4),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -1757,10 +1669,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
         ),
       ),
       child: Column(
@@ -1769,7 +1681,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
+              color: color.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
@@ -1790,7 +1702,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
@@ -1843,7 +1755,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               children: [
                 Icon(
                   Icons.videocam_off,
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                   size: 64,
                 ),
                 const SizedBox(height: 16),
@@ -1920,7 +1832,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               children: [
                 Icon(
                   Icons.trending_up,
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                   size: 64,
                 ),
                 const SizedBox(height: 16),
@@ -2084,10 +1996,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             width: 1,
           ),
         ),
@@ -2166,7 +2078,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               height: 4,
               margin: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -2217,13 +2129,13 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                           Icon(
                             Icons.chat_bubble_outline,
                             size: 64,
-                            color: Colors.white.withOpacity(0.5),
+                            color: Colors.white.withValues(alpha: 0.5),
                           ),
                           const SizedBox(height: 16),
                           Text(
                             'Поки що немає коментарів',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 16,
                             ),
                           ),
@@ -2231,7 +2143,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                           Text(
                             'Будьте першим, хто залишить коментар!',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.6),
+                              color: Colors.white.withValues(alpha: 0.6),
                               fontSize: 14,
                             ),
                           ),
@@ -2270,10 +2182,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                             margin: const EdgeInsets.only(bottom: 16),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
+                              color: Colors.white.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Colors.white.withOpacity(0.1),
+                                color: Colors.white.withValues(alpha: 0.1),
                               ),
                             ),
                             child: Row(
@@ -2300,7 +2212,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                                       ),
                                       borderRadius: BorderRadius.circular(18),
                                       border: Border.all(
-                                        color: Colors.white.withOpacity(0.3),
+                                        color: Colors.white.withValues(alpha: 0.3),
                                         width: 1,
                                       ),
                                     ),
@@ -2350,7 +2262,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                                       Text(
                                         commentText,
                                         style: TextStyle(
-                                          color: Colors.white.withOpacity(0.9),
+                                          color: Colors.white.withValues(alpha: 0.9),
                                           fontSize: 14,
                                         ),
                                       ),
@@ -2360,7 +2272,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                                         Text(
                                           _formatTimestamp(timestamp),
                                           style: TextStyle(
-                                            color: Colors.white.withOpacity(0.5),
+                                            color: Colors.white.withValues(alpha: 0.5),
                                             fontSize: 11,
                                           ),
                                         ),
@@ -2386,10 +2298,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(25),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
+                          color: Colors.white.withValues(alpha: 0.3),
                         ),
                       ),
                       child: TextField(
@@ -2538,7 +2450,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFffc107).withOpacity(0.2),
+                  color: const Color(0xFFffc107).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFffc107), width: 1),
                 ),
@@ -2563,7 +2475,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4caf50).withOpacity(0.2),
+                  color: const Color(0xFF4caf50).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFF4caf50), width: 1),
                 ),
@@ -2590,3 +2502,4 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     );
   }
 }
+

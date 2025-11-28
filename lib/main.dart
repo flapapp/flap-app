@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'screens/intro_video_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/profile_creation_screen.dart';
@@ -35,6 +36,7 @@ import 'screens/match_management_screen.dart';
 import 'utils/i18n.dart';
 import 'utils/app_navigator.dart';
 import 'screens/profile_screen_new.dart' as new_profile;
+import 'screens/team_hub_screen.dart';
 
 
 @pragma('vm:entry-point')
@@ -123,7 +125,8 @@ class MyApp extends StatelessWidget {
         ),
         initialRoute: '/',
         routes: {
-        '/': (context) => const WelcomeScreen(),
+        '/': (context) => const IntroVideoScreen(),
+        '/welcome': (context) => const WelcomeScreen(),
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
         '/profile': (context) => new_profile.ProfileScreen(),
@@ -131,6 +134,7 @@ class MyApp extends StatelessWidget {
         '/profile-edit': (context) => ProfileCreationScreen(isEditing: true),
         '/mode': (context) => ModeSelectionScreen(),
         '/friends': (context) => FriendsScreen(),
+        '/teams': (context) => const TeamHubScreen(),
         '/video-upload': (context) {
               final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
               return VideoUploadScreen(

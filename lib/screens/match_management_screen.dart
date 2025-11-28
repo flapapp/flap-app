@@ -1855,12 +1855,19 @@ setState(() {
       } else {
         result = MatchResult.draw;
       }
+
+      final goalMap = await _collectGoalStats();
+      if (goalMap == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
       
       final success = await _matchService.finishMatch(
         widget.match.id, 
         result, 
         _teamAScore, 
-        _teamBScore
+        _teamBScore,
+        goalsByPlayer: goalMap,
       );
       
       if (success) {
@@ -1892,6 +1899,109 @@ setState(() {
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<Map<String, int>?> _collectGoalStats() async {
+    final ids = _participants.isNotEmpty
+        ? _participants
+        : widget.match.participants;
+    if (ids.isEmpty) return {};
+    final names = await _loadParticipantNames(ids);
+    final controllers = <String, TextEditingController>{
+      for (final id in ids) id: TextEditingController(text: '0')
+    };
+    final result = await showDialog<Map<String, int>?>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1a1a2e),
+          title: Text(
+            I18n.inline('Хто скільки забив?', 'Who scored?'),
+            style: const TextStyle(color: Colors.white),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: ids.map((id) {
+                final name = names[id] ?? I18n.t('player');
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 70,
+                        child: TextField(
+                          controller: controllers[id],
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            labelText: 'Голи',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: Text(I18n.t('cancel')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, <String, int>{}),
+              child: Text(I18n.inline('Пропустити', 'Skip')),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final map = <String, int>{};
+                controllers.forEach((id, ctrl) {
+                  final value = int.tryParse(ctrl.text) ?? 0;
+                  if (value > 0) {
+                    map[id] = value;
+                  }
+                });
+                Navigator.pop(ctx, map);
+              },
+              child: Text(I18n.t('confirm')),
+            ),
+          ],
+        );
+      },
+    );
+    for (final ctrl in controllers.values) {
+      ctrl.dispose();
+    }
+    return result;
+  }
+
+  Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {
+    final names = <String, String>{};
+    for (final id in ids) {
+      try {
+        final doc =
+            await FirebaseFirestore.instance.collection('users').doc(id).get();
+        final data = doc.data();
+        names[id] = (data?['displayName'] ??
+                data?['name'] ??
+                data?['authorName'] ??
+                I18n.t('player'))
+            .toString();
+      } catch (_) {
+        names[id] = I18n.t('player');
+      }
+    }
+    return names;
   }
 
   Future<void> _cancelMatch() async {

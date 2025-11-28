@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:video_player/video_player.dart';
-import '../widgets/web_video_thumbnail.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
@@ -12,6 +10,7 @@ import 'video_player_screen.dart';
 import 'challenge_video_player_screen.dart';
 import '../widgets/user_chip.dart';
 import '../utils/i18n.dart';
+import '../widgets/video_preview_box.dart';
 
 class ChallengesScreen extends StatefulWidget {
   final bool showOnlyMyChallenges;
@@ -223,7 +222,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     final description = challengeData['description'] ?? '';
     final creatorName = challengeData['creatorName'] ?? I18n.inline('Невідомий', 'Unknown');
     final creatorVideoUrl = challengeData['creatorVideoUrl'] ?? '';
-    final thumbnailUrl = challengeData['creatorThumbnailUrl'] ?? challengeData['thumbnailUrl'];
+    final creatorThumbnailUrl = challengeData['creatorThumbnailUrl'] ?? challengeData['thumbnailUrl'];
     final participants = (challengeData['participants'] as List?)?.length ?? 0;
     final submissions = (challengeData['submissions'] as List?)?.length ?? 0;
     final entryFee = challengeData['entryFee'] ?? 10;
@@ -359,102 +358,21 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Верхня половина: відео творця челенджу (займає половину картки)
-            GestureDetector(
-                  onTap: () => _playCreatorVideo(creatorVideoUrl, title, creatorName, challengeId),
-              child: Container(
-                    height: 120,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                      color: Colors.black87,
-                  borderRadius: BorderRadius.circular(12),
+                VideoPreviewBox(
+                  thumbnailUrl: creatorThumbnailUrl,
+                  videoUrl: creatorVideoUrl,
+                  aspectRatio: 16 / 9,
+                  borderRadius: 12,
+                  onTap: () => _playCreatorVideo(
+                    creatorVideoUrl,
+                    title,
+                    creatorName,
+                    challengeId,
+                    thumbnailUrl: creatorThumbnailUrl,
+                  ),
+                  topRight: _buildCreatorRatingBadge(challengeId),
+                  bottomLeft: _buildCreatorLabel(creatorName),
                 ),
-                child: Stack(
-                  children: [
-                                                // Показуємо thumbnail або заглушку
-                        _buildCreatorVideoThumbnail(challengeData),
-                        
-                        // Play button overlay
-                        Center(
-                          child: Container(
-                            width: 50,
-                            height: 50,
-                        decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.6),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.play_arrow,
-                            color: Colors.white,
-                              size: 28,
-                          ),
-                        ),
-                      ),
-                    
-                    // Average rating badge (top-right) — читаємо із submissions творця
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('challenges')
-                            .doc(challengeId)
-                            .collection('submissions')
-                            .where('isCreatorVideo', isEqualTo: true)
-                            .limit(1)
-                            .snapshots(),
-                        builder: (context, snap) {
-                          double avg = 0.0;
-                          if (snap.hasData && snap.data!.docs.isNotEmpty) {
-                            final d = snap.data!.docs.first.data() as Map<String, dynamic>;
-                            avg = (d['averageRating'] ?? d['rating'] ?? 0.0).toDouble();
-                          }
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.7),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.6)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.star, color: Color(0xFFFFD700), size: 14),
-                                const SizedBox(width: 4),
-                                Text(
-                                  avg > 0 ? avg.toStringAsFixed(2) : '—.—',
-                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-
-                    // Video info overlay
-                    Positioned(
-                      bottom: 8,
-                      left: 8,
-                      right: 8,
-                      child: Container(
-                            padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          I18n.inline('Відео від $creatorName', 'Video from $creatorName'),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
             
                 const SizedBox(height: 12),
 
@@ -513,6 +431,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                               final submissionUserId = submissionData['userId'] ?? '';
                               final videoUrl = submissionData['videoUrl'] ?? '';
                               final submissionId = submissionDocs[index].id;
+                              final submissionThumb = (submissionData['thumbnailUrl'] ?? '').toString();
                               
                         return GestureDetector(
                           onTap: () => _playParticipantVideo(
@@ -521,6 +440,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                             authorName: authorName,
                             challengeId: challengeId,
                             submissionId: submissionId,
+                            thumbnailUrl: submissionThumb,
                           ),
                           child: Container(
                           width: 60,
@@ -716,7 +636,13 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     }
   }
 
-  void _playCreatorVideo(String videoUrl, String title, String creatorName, String challengeId) {
+  void _playCreatorVideo(
+    String videoUrl,
+    String title,
+    String creatorName,
+    String challengeId, {
+    String? thumbnailUrl,
+  }) {
     print('Playing creator video: $videoUrl');
     if (videoUrl.isNotEmpty) {
       // Відкриваємо відео творця з голосуванням (як учасника челенджу)
@@ -729,6 +655,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
             authorName: creatorName,
             challengeId: challengeId,
             submissionId: 'creator', // Спеціальний ID для відео творця
+            thumbnailUrl: thumbnailUrl,
           ),
         ),
       );
@@ -1118,100 +1045,13 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     );
   }
 
-  Widget _buildCreatorVideoThumbnail(Map<String, dynamic> challengeData) {
-    final creatorVideoUrl = challengeData['creatorVideoUrl'] ?? '';
-    final creatorThumbnailUrl = challengeData['creatorThumbnailUrl'] ?? '';
-    final title = challengeData['title'] ?? 'Челендж';
-    final creatorName = challengeData['creatorName'] ?? 'Невідомий';
-
-    final effectiveThumb = (creatorThumbnailUrl.isNotEmpty) ? creatorThumbnailUrl : creatorVideoUrl;
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: kIsWeb
-            ? (creatorVideoUrl.isNotEmpty
-                ? WebVideoThumbnail(videoUrl: creatorVideoUrl)
-                : _buildVideoPlaceholder(title, creatorName, false))
-            : (effectiveThumb.isNotEmpty
-                ? Image.network(
-                    effectiveThumb,
-                    width: double.infinity,
-                    height: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return _buildVideoPlaceholder(title, creatorName, creatorVideoUrl.isNotEmpty);
-                    },
-                  )
-                : _buildVideoPlaceholder(title, creatorName, creatorVideoUrl.isNotEmpty)),
-      ),
-    );
-  }
-
-  Widget _buildVideoPlaceholder(String title, String creatorName, bool hasVideo) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        gradient: LinearGradient(
-          colors: hasVideo 
-            ? [
-                const Color(0xFF2196F3).withOpacity(0.8),
-                const Color(0xFF03A9F4).withOpacity(0.6),
-              ]
-            : [
-                const Color(0xFF4caf50).withOpacity(0.8),
-                const Color(0xFF8bc34a).withOpacity(0.6),
-              ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              hasVideo ? Icons.videocam : Icons.videocam_off,
-              color: Colors.white,
-              size: 48,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              hasVideo ? 'Відео готове!' : 'Відео не завантажено',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            if (hasVideo) ...[
-              const SizedBox(height: 4),
-              const Text(
-                'Натисніть для перегляду',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-//
-
   void _playParticipantVideo({
     required String videoUrl,
     required String title,
     required String authorName,
     required String challengeId,
     required String submissionId,
+    String? thumbnailUrl,
   }) {
     if (videoUrl.isNotEmpty) {
       // Відкриваємо відео учасника з голосуванням (1 повзунок)
@@ -1224,6 +1064,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
             authorName: authorName,
             challengeId: challengeId,
             submissionId: submissionId,
+            thumbnailUrl: thumbnailUrl,
           ),
         ),
       );
@@ -1255,6 +1096,67 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCreatorLabel(String creatorName) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.65),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        I18n.inline('Відео від $creatorName', 'Video from $creatorName'),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCreatorRatingBadge(String challengeId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(challengeId)
+          .collection('submissions')
+          .where('isCreatorVideo', isEqualTo: true)
+          .limit(1)
+          .snapshots(),
+      builder: (context, snap) {
+        double avg = 0;
+        if (snap.hasData && snap.data!.docs.isNotEmpty) {
+          final data = snap.data!.docs.first.data() as Map<String, dynamic>;
+          avg = (data['averageRating'] ?? data['rating'] ?? 0.0).toDouble();
+        }
+        if (avg <= 0) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.75),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.6)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.star, color: Color(0xFFFFD700), size: 14),
+              const SizedBox(width: 4),
+              Text(
+                avg.toStringAsFixed(2),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -14,6 +14,7 @@ class ChallengeVideoPlayerScreen extends StatefulWidget {
   final String authorName;
   final String challengeId;
   final String submissionId;
+  final String? thumbnailUrl;
 
   const ChallengeVideoPlayerScreen({
     Key? key,
@@ -22,6 +23,7 @@ class ChallengeVideoPlayerScreen extends StatefulWidget {
     required this.authorName,
     required this.challengeId,
     required this.submissionId,
+    this.thumbnailUrl,
   }) : super(key: key);
 
   @override
@@ -63,13 +65,23 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController,
-        aspectRatio: _videoPlayerController.value.aspectRatio,
+        aspectRatio: _videoPlayerController.value.aspectRatio == 0
+            ? 16 / 9
+            : _videoPlayerController.value.aspectRatio,
         autoPlay: false,
         looping: false,
         showControls: true,
         allowFullScreen: true,
         allowMuting: true,
         showOptions: false,
+        autoInitialize: true,
+        placeholder: _buildVideoPlaceholder(),
+        materialProgressColors: ChewieProgressColors(
+          playedColor: const Color(0xFF4caf50),
+          handleColor: Colors.white,
+          bufferedColor: Colors.white24,
+          backgroundColor: Colors.white10,
+        ),
         errorBuilder: (context, errorMessage) {
           return Container(
             color: Colors.black,
@@ -109,6 +121,52 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         _isLoading = false;
       });
     }
+  }
+
+  Widget _buildVideoPlaceholder() {
+    final thumb = widget.thumbnailUrl ?? '';
+    if (thumb.isNotEmpty) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(
+            thumb,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _placeholderBackdrop(),
+          ),
+          Container(
+            color: Colors.black.withOpacity(0.35),
+          ),
+          const Center(
+            child: Icon(
+              Icons.play_circle_fill,
+              color: Colors.white,
+              size: 72,
+            ),
+          ),
+        ],
+      );
+    }
+    return _placeholderBackdrop();
+  }
+
+  Widget _placeholderBackdrop() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0f0f23), Color(0xFF1b5e20)],
+        ),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.sports_soccer,
+          color: Colors.white24,
+          size: 64,
+        ),
+      ),
+    );
   }
 
   Future<void> _loadSubmissionAggregate() async {

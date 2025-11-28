@@ -91,31 +91,56 @@ if (initial != null) {
 
 Future<void> _navigateFromData(Map<String, dynamic> data) async {
   final type = data['type'] as String? ?? '';
-  final matchId = data['matchId'] as String?;
-  if (matchId == null || type.isEmpty) return;
+  if (type.isEmpty) return;
 
-  try {
-    final doc = await _firestore.collection('matches').doc(matchId).get();
-    if (!doc.exists) return;
+  final matchAwareTypes = <String>{
+    'match_invite',
+    'match_application_accepted',
+    'match_application_rejected',
+    'match_finished',
+    'match_application_submitted',
+    'team_match_request',
+  };
 
-    final match = app_models.Match.fromFirestore(doc);
-    final nav = AppNavigator.navigatorKey.currentState;
-    if (nav == null) return;
-
-    switch (type) {
-      case 'match_invite':
-      case 'match_application_accepted':
-      case 'match_application_rejected':
-        nav.pushNamed('/match-details', arguments: match);
-        break;
-      case 'match_finished':
-        nav.pushNamed('/match_management', arguments: match);
-        break;
-      case 'match_application_submitted':
-        nav.pushNamed('/match_management', arguments: match);
-        break;
+  app_models.Match? match;
+  if (matchAwareTypes.contains(type)) {
+    final matchId = data['matchId'] as String?;
+    if (matchId == null) return;
+    try {
+      final doc = await _firestore.collection('matches').doc(matchId).get();
+      if (!doc.exists) return;
+      match = app_models.Match.fromFirestore(doc);
+    } catch (_) {
+      return;
     }
-  } catch (_) {}
+  }
+
+  final nav = AppNavigator.navigatorKey.currentState;
+  if (nav == null) return;
+
+  switch (type) {
+    case 'match_invite':
+    case 'match_application_accepted':
+    case 'match_application_rejected':
+      if (match != null) {
+        nav.pushNamed('/match-details', arguments: match);
+      }
+      break;
+    case 'match_finished':
+    case 'match_application_submitted':
+      if (match != null) {
+        nav.pushNamed('/match_management', arguments: match);
+      }
+      break;
+    case 'team_match_request':
+      if (match != null) {
+        nav.pushNamed('/match-details', arguments: match);
+      }
+      break;
+    case 'team_invite':
+      nav.pushNamed('/profile');
+      break;
+  }
 }
 
   // Send notification to user

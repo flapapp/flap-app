@@ -6,6 +6,7 @@ import '../services/match_service.dart';
 import '../services/rating_service.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/i18n.dart';
+import '../widgets/user_chip.dart';
 
 class MatchDetailsScreen extends StatefulWidget {
   final Match match;
@@ -71,6 +72,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             // Основна інформація
             _buildInfoSection(),
             SizedBox(height: 20),
+
+            if (widget.match.isTeamMatch) ...[
+              _buildTeamMatchSection(),
+              SizedBox(height: 20),
+            ],
 
             // Склади та рахунок для завершених матчів (MVP-стиль)
             if (widget.match.status == MatchStatus.finished)
@@ -276,6 +282,267 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildTeamMatchSection() {
+    final teamAName = (widget.match.teamA?.name.isNotEmpty ?? false)
+        ? widget.match.teamA!.name
+        : I18n.inline('Команда організатора', 'Host team');
+    final teamBName = (widget.match.teamB?.name.isNotEmpty ?? false)
+        ? widget.match.teamB!.name
+        : (widget.match.teamBId != null
+            ? I18n.inline('Команда суперника', 'Opponent team')
+            : I18n.inline('Очікує суперника', 'Awaiting opponent'));
+
+    final rosterA =
+        widget.match.teamRosters['teamA'] ?? widget.match.teamA?.playerIds ?? const <String>[];
+    final rosterB =
+        widget.match.teamRosters['teamB'] ?? widget.match.teamB?.playerIds ?? const <String>[];
+
+    final hasScore =
+        widget.match.teamAScore != null && widget.match.teamBScore != null;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF283046),
+            Color(0xFF1F2435),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.sports_soccer, color: Colors.white70),
+              const SizedBox(width: 8),
+              Text(
+                I18n.inline('Командний матч', 'Team match'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              _buildTeamStatusChip(),
+            ],
+          ),
+          if (hasScore) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildScorePill(teamAName, widget.match.teamAScore!, Colors.greenAccent),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    ':',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                _buildScorePill(teamBName, widget.match.teamBScore!, Colors.lightBlueAccent),
+              ],
+            ),
+          ],
+          const SizedBox(height: 16),
+          _buildTeamRow(
+            label: teamAName,
+            status: widget.match.teamAStatus ?? 'confirmed',
+            playerIds: rosterA,
+            averageRating: widget.match.teamA?.averageRating,
+            accent: const Color(0xFF4caf50),
+          ),
+          const SizedBox(height: 16),
+          _buildTeamRow(
+            label: teamBName,
+            status: widget.match.teamBStatus ??
+                (widget.match.teamBId == null ? 'pending' : 'confirmed'),
+            playerIds: rosterB,
+            averageRating: widget.match.teamB?.averageRating,
+            accent: const Color(0xFF42a5f5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamRow({
+    required String label,
+    required String status,
+    required List<String> playerIds,
+    required Color accent,
+    double? averageRating,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (averageRating != null && averageRating > 0) ...[
+              Icon(Icons.star, color: accent, size: 16),
+              const SizedBox(width: 4),
+              Text(
+                averageRating.toStringAsFixed(1),
+                style: TextStyle(
+                  color: accent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
+            _buildTeamStatusPill(status),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (playerIds.isEmpty)
+          Text(
+            I18n.inline('Склад ще не визначено', 'Roster not selected yet'),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+          )
+        else
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: playerIds.take(12).map((id) {
+                return Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: accent.withValues(alpha: 0.35)),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: UserChip(
+                    userId: id,
+                    size: 32,
+                    showName: false,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTeamStatusPill(String status) {
+    final color = _teamStatusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        _teamStatusText(status),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScorePill(String name, int score, Color color) {
+    return Column(
+      children: [
+        Text(
+          name,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.4)),
+          ),
+          child: Text(
+            '$score',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTeamStatusChip() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Text(
+        I18n.inline('Склади', 'Rosters'),
+        style: const TextStyle(
+          color: Colors.white70,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  String _teamStatusText(String? status) {
+    switch (status) {
+      case 'confirmed':
+        return I18n.inline('Підтверджено', 'Confirmed');
+      case 'declined':
+        return I18n.inline('Відхилено', 'Declined');
+      default:
+        return I18n.inline('Очікує', 'Pending');
+    }
+  }
+
+  Color _teamStatusColor(String? status) {
+    switch (status) {
+      case 'confirmed':
+        return const Color(0xFF4caf50);
+      case 'declined':
+        return const Color(0xFFF44336);
+      default:
+        return const Color(0xFFFFC107);
+    }
   }
 
   Widget _buildStatCard(String icon, String value, String label) {
@@ -658,27 +925,44 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
   Widget _buildActionButtons() {
     final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return SizedBox.shrink();
+    if (currentUser == null) return const SizedBox.shrink();
 
     final isParticipant = widget.match.participants.contains(currentUser.uid);
     final isFull = widget.match.currentPlayers >= widget.match.maxPlayers;
+    final isOrganizer = widget.match.organizerId == currentUser.uid;
+
+    if (widget.match.isTeamMatch && !isParticipant && !isOrganizer) {
+      return _buildTeamOnlyMessage();
+    }
+
+    if (isOrganizer && widget.match.status != MatchStatus.finished) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildManageMatchButton(),
+          const SizedBox(height: 12),
+          _buildShareButton(expand: false),
+        ],
+      );
+    }
 
     if (isFull && !isParticipant) {
       return Container(
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.1),
+          color: Colors.red.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.red.withOpacity(0.3)),
+          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
-            Icon(Icons.info, color: Colors.red, size: 24),
-            SizedBox(width: 12),
+            const Icon(Icons.info, color: Colors.red, size: 24),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
-                I18n.inline('Матч заповнений. Нових учасників не приймають.', 'Match is full. No new participants accepted.'),
-                style: TextStyle(
+                I18n.inline('Матч заповнений. Нових учасників не приймають.',
+                    'Match is full. No new participants accepted.'),
+                style: const TextStyle(
                   color: Colors.red,
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -690,29 +974,31 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       );
     }
 
-     if (isParticipant && widget.match.status == MatchStatus.finished) {
+    if (isParticipant && widget.match.status == MatchStatus.finished) {
       final userId = currentUser.uid;
       return FutureBuilder<double>(
         future: _getMyMatchAverageRating(widget.match.id, userId),
         builder: (context, snap) {
           final value = (snap.data ?? 0.0);
           return Container(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
+              color: Colors.green.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.green.withOpacity(0.3)),
+              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
-                Icon(Icons.star, color: Color(0xFF4CAF50), size: 24),
-                SizedBox(width: 12),
+                const Icon(Icons.star, color: Color(0xFF4CAF50), size: 24),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    value > 0 ?
-                      I18n.inline('Ваша оцінка за матч: ${value.toStringAsFixed(2)}', 'Your match rating: ${value.toStringAsFixed(2)}') :
-                      I18n.inline('Ще немає оцінок', 'No ratings yet'),
-                    style: TextStyle(
+                    value > 0
+                        ? I18n.inline(
+                            'Ваша оцінка за матч: ${value.toStringAsFixed(2)}',
+                            'Your match rating: ${value.toStringAsFixed(2)}')
+                        : I18n.inline('Ще немає оцінок', 'No ratings yet'),
+                    style: const TextStyle(
                       color: Color(0xFF4CAF50),
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -728,20 +1014,21 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
     if (isParticipant) {
       return Container(
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.green.withOpacity(0.1),
+          color: Colors.green.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.green.withOpacity(0.3)),
+          border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
-            Icon(Icons.check_circle, color: Colors.green, size: 24),
-            SizedBox(width: 12),
+            const Icon(Icons.check_circle, color: Colors.green, size: 24),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
-                I18n.inline('Ви вже приєднані до цього матчу!', 'You are already joined to this match!'),
-                style: TextStyle(
+                I18n.inline('Ви вже приєднані до цього матчу!',
+                    'You are already joined to this match!'),
+                style: const TextStyle(
                   color: Colors.green,
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -755,20 +1042,19 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
     return Row(
       children: [
-        // Кнопка приєднання
         Expanded(
           child: Container(
             height: 50,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
               ),
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Color(0xFF4caf50).withOpacity(0.3),
+                  color: const Color(0xFF4caf50).withValues(alpha: 0.3),
                   blurRadius: 8,
-                  offset: Offset(0, 4),
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -779,15 +1065,16 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 borderRadius: BorderRadius.circular(12),
                 child: Center(
                   child: _isJoining
-                      ? CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                      ? const CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2)
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add, color: Colors.white, size: 20),
-                            SizedBox(width: 8),
+                            const Icon(Icons.add, color: Colors.white, size: 20),
+                            const SizedBox(width: 8),
                             Text(
                               I18n.t('join'),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -800,46 +1087,94 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             ),
           ),
         ),
-        SizedBox(width: 16),
-        
-        // Кнопка поділитися
+        const SizedBox(width: 16),
         _buildShareButton(),
       ],
     );
   }
 
-  Widget _buildShareButton() {
-    return Expanded(
-      child: Container(
-        height: 50,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+  Widget _buildShareButton({bool expand = true}) {
+    final button = Container(
+      height: 50,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _shareMatch,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: _shareMatch,
-            borderRadius: BorderRadius.circular(12),
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.share, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    I18n.t('share'),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+          child: Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.share, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  I18n.t('share'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+        ),
+      ),
+    );
+
+    if (expand) {
+      return Expanded(child: button);
+    }
+    return SizedBox(width: double.infinity, child: button);
+  }
+
+  Widget _buildTeamOnlyMessage() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.shield, color: Colors.white70, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              I18n.inline(
+                  'Це командний матч. Попросіть капітана команди додати вас до складу або зачекайте запрошення.',
+                  'This is a team-only match. Ask a team captain to add you to the roster or wait for an invite.'),
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManageMatchButton() {
+    return SizedBox(
+      height: 50,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          Navigator.pushNamed(
+            context,
+            '/match_management',
+            arguments: widget.match,
+          );
+        },
+        icon: const Icon(Icons.tune),
+        label: Text(I18n.inline('Керувати матчем', 'Manage match')),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF4caf50),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );

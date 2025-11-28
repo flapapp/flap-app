@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:video_player/video_player.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
@@ -12,6 +10,7 @@ import '../services/rating_service.dart';
 import '../services/thumbnail_service.dart';
 import 'challenge_completion_screen.dart';
 import '../utils/i18n.dart';
+import '../widgets/video_preview_box.dart';
 
 class ChallengeDetailsScreen extends StatefulWidget {
   final Challenge challenge;
@@ -281,7 +280,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             future: _getThumbnailUrl(thumb, videoDocId, videoUrl),
             builder: (context, snapshot) {
               final effectiveThumb = snapshot.data ?? thumb;
-              return GestureDetector(
+              return VideoPreviewBox(
+                videoUrl: videoUrl,
+                thumbnailUrl: effectiveThumb,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -292,54 +293,18 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                         authorName: 'Автор відео',
                         challengeId: widget.challenge.id,
                         submissionId: videoId,
+                        thumbnailUrl: effectiveThumb,
                       ),
                     ),
                   );
                 },
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.black87,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white.withOpacity(0.2)),
-                  ),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9, // YouTube aspect ratio
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          kIsWeb
-                              ? _WebVideoPreview(url: videoUrl, placeholder: _previewPlaceholder(title))
-                              : ((effectiveThumb.isNotEmpty)
-                                  ? Image.network(
-                                      effectiveThumb,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stack) => _previewPlaceholder(title),
-                                    )
-                                  : _previewPlaceholder(title)),
-                          Center(
-                            child: Container(
-                              width: 64,
-                              height: 64,
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.7),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.play_arrow,
-                                color: Colors.white,
-                                size: 36,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                borderRadius: 12,
+                topLeft: isCreatorVideo
+                    ? _badge(I18n.inline('Автор', 'Creator'), color: const Color(0xFF4caf50))
+                    : null,
+                bottomRight: _badge(
+                  I18n.inline('${rating.toStringAsFixed(1)}★', '${rating.toStringAsFixed(1)}★'),
+                  color: Colors.black.withOpacity(0.6),
                 ),
               );
             },
@@ -504,6 +469,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                             authorName: userName,
                             challengeId: widget.challenge.id,
                             submissionId: videoId,
+                            thumbnailUrl: thumb,
                           ),
                         ),
                       );
@@ -618,7 +584,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
     final buttons = <Widget>[
       ElevatedButton.icon(
-        onPressed: () => _playVideo(videoUrl, title, videoId, userId),
+        onPressed: () => _playVideo(videoUrl, title, videoId, userId, thumbnailUrl: thumb),
         icon: const Icon(Icons.play_arrow, size: 16),
         label: Text(I18n.inline('Дивитися', 'Watch'), style: const TextStyle(fontSize: 12)),
         style: ElevatedButton.styleFrom(
@@ -975,7 +941,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           child: Column(
             children: [
               // Video preview with thumbnail
-              GestureDetector(
+              VideoPreviewBox(
+                videoUrl: videoUrl,
+                thumbnailUrl: thumbnailUrl,
                 onTap: () {
                   if (videoUrl.isNotEmpty) {
                     Navigator.push(
@@ -987,57 +955,18 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                           authorName: 'Автор відео',
                           challengeId: widget.challenge.id,
                           submissionId: videoId,
+                          thumbnailUrl: thumbnailUrl,
                         ),
                       ),
                     );
                   }
                 },
-                child: Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.black87,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white.withOpacity(0.2)),
-                  ),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9, // YouTube aspect ratio - займає весь простір
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          kIsWeb
-                              ? _WebVideoPreview(url: videoUrl, placeholder: _previewPlaceholder(title))
-                              : ((thumbnailUrl != null && thumbnailUrl.isNotEmpty)
-                                  ? Image.network(
-                                      thumbnailUrl,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stack) => _previewPlaceholder(title),
-                                    )
-                                  : _previewPlaceholder(title)),
-                          Center(
-                            child: Container(
-                              width: 64,
-                              height: 64,
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.7),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.play_arrow,
-                                color: Colors.white,
-                                size: 36,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                aspectRatio: 16 / 9,
+                borderRadius: 12,
+                topRight: hasVoted
+                    ? _badge(I18n.inline('Мій голос', 'My vote'),
+                        color: const Color(0xFF4caf50).withOpacity(0.8))
+                    : null,
               ),
               Row(
                 children: [
@@ -1122,6 +1051,24 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
+  Widget _badge(String label, {Color color = const Color(0x99000000)}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -1225,7 +1172,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     }
   }
 
-  void _playVideo(String videoUrl, String title, String videoId, String userId) {
+  void _playVideo(String videoUrl, String title, String videoId, String userId, {String? thumbnailUrl}) {
     if (videoUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(I18n.inline('❌ Відео недоступне', '❌ Video unavailable'))),
@@ -1243,6 +1190,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           authorName: 'Автор відео',
           challengeId: widget.challenge.id,
           submissionId: videoId,
+          thumbnailUrl: thumbnailUrl,
         ),
       ),
     );
@@ -1374,69 +1322,6 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _WebVideoPreview extends StatefulWidget {
-  final String url;
-  final Widget placeholder;
-  const _WebVideoPreview({required this.url, required this.placeholder});
-
-  @override
-  State<_WebVideoPreview> createState() => _WebVideoPreviewState();
-}
-
-class _WebVideoPreviewState extends State<_WebVideoPreview> {
-  VideoPlayerController? _controller;
-  bool _ready = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _init();
-  }
-
-  Future<void> _init() async {
-    try {
-      if (widget.url.isEmpty) return;
-      final c = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-      await c.initialize();
-      await c.seekTo(const Duration(milliseconds: 700));
-      await c.pause();
-      if (!mounted) {
-        await c.dispose();
-        return;
-      }
-      setState(() {
-        _controller = c;
-        _ready = true;
-      });
-    } catch (_) {
-      setState(() {
-        _ready = false;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_ready || _controller == null) {
-      return widget.placeholder;
-    }
-    return FittedBox(
-      fit: BoxFit.cover,
-      child: SizedBox(
-        width: _controller!.value.size.width,
-        height: _controller!.value.size.height,
-        child: VideoPlayer(_controller!),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
+import '../models/app_team.dart';
 import 'notification_service.dart';
 
 class MatchService {
@@ -172,6 +173,9 @@ if (match.status == MatchStatus.full &&
       if (!doc.exists) return false;
 
       final match = Match.fromFirestore(doc);
+      if (match.isTeamMatch) {
+        return false;
+      }
       // Приватний матч: заявки лише від запрошених
 if (match.isPrivate && !match.invitedFriends.contains(userId)) {
   return false;
@@ -820,7 +824,13 @@ if (currentUserId == null || currentUserId != match.organizerId) {
   }
   
   // Завершити матч
-  Future<bool> finishMatch(String matchId, MatchResult result, int teamAScore, int teamBScore) async {
+  Future<bool> finishMatch(
+    String matchId,
+    MatchResult result,
+    int teamAScore,
+    int teamBScore, {
+    Map<String, int> goalsByPlayer = const {},
+  }) async {
   try {
     final docRef = _firestore.collection('matches').doc(matchId);
 
@@ -842,6 +852,7 @@ if (currentUserId == null || currentUserId != match.organizerId) {
         'result': result.toString().split('.').last,
         'teamAScore': teamAScore,
         'teamBScore': teamBScore,
+        'goalsByPlayer': goalsByPlayer,
         'finishedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -857,13 +868,18 @@ if (currentUserId == null || currentUserId != match.organizerId) {
 
     final WriteBatch batch = _firestore.batch();
     for (final uid in m.participants) {
-  batch.update(_firestore.collection('users').doc(uid), {
-    'totalMatches': FieldValue.increment(1),
-    'matches': FieldValue.increment(1),
-    'matchesPlayed': FieldValue.increment(1),
-    'lastMatchAt': FieldValue.serverTimestamp(),
-  });
-}
+      final playerGoals = goalsByPlayer[uid] ?? 0;
+      final updates = <String, dynamic>{
+        'totalMatches': FieldValue.increment(1),
+        'matches': FieldValue.increment(1),
+        'matchesPlayed': FieldValue.increment(1),
+        'lastMatchAt': FieldValue.serverTimestamp(),
+      };
+      if (playerGoals > 0) {
+        updates['goals'] = FieldValue.increment(playerGoals);
+      }
+      batch.update(_firestore.collection('users').doc(uid), updates);
+    }
 
     // (опційно) перемоги/поразки/нічиї, якщо є склади
     if (m.hasTeams) {
@@ -906,6 +922,7 @@ for (final uid in a) {
     }
 
     await batch.commit();
+    await _updateTeamsAfterMatch(m, teamAScore, teamBScore, goalsByPlayer);
     try {
   final teamAName = m.teamA?.name ?? 'Команда A';
   final teamBName = m.teamB?.name ?? 'Команда B';
@@ -989,5 +1006,89 @@ for (final uid in a) {
       print('Error saveMultiTeamResults: $e');
       return false;
     }
+  }
+
+  Future<void> _updateTeamsAfterMatch(
+    Match match,
+    int teamAScore,
+    int teamBScore,
+    Map<String, int> goalsByPlayer,
+  ) async {
+    if (match.teamAId == null || match.teamBId == null) return;
+    final aRef = _firestore.collection('teams').doc(match.teamAId);
+    final bRef = _firestore.collection('teams').doc(match.teamBId);
+    final aDoc = await aRef.get();
+    final bDoc = await bRef.get();
+    if (!aDoc.exists || !bDoc.exists) return;
+    final teamA = AppTeam.fromDoc(aDoc);
+    final teamB = AppTeam.fromDoc(bDoc);
+    final rosterA =
+        match.teamRosters['teamA'] ?? match.teamA?.playerIds ?? const [];
+    final rosterB =
+        match.teamRosters['teamB'] ?? match.teamB?.playerIds ?? const [];
+    final resultA = teamAScore.compareTo(teamBScore);
+    final now = Timestamp.now();
+    final summaryA = {
+      'matchId': match.id,
+      'opponentTeamId': match.teamBId,
+      'opponentName': teamB.name,
+      'score': '$teamAScore:$teamBScore',
+      'result': resultA > 0
+          ? 'win'
+          : resultA < 0
+              ? 'loss'
+              : 'draw',
+      'playedAt': now,
+    };
+    final summaryB = {
+      'matchId': match.id,
+      'opponentTeamId': match.teamAId,
+      'opponentName': teamA.name,
+      'score': '$teamBScore:$teamAScore',
+      'result': resultA < 0
+          ? 'win'
+          : resultA > 0
+              ? 'loss'
+              : 'draw',
+      'playedAt': now,
+    };
+    final recentA = [summaryA, ...teamA.recentMatches];
+    final recentB = [summaryB, ...teamB.recentMatches];
+    final aPlayerUpdates = <String, dynamic>{};
+    final bPlayerUpdates = <String, dynamic>{};
+    for (final uid in rosterA) {
+      final goals = goalsByPlayer[uid] ?? 0;
+      if (goals > 0) {
+        aPlayerUpdates['playerGoals.$uid'] = FieldValue.increment(goals);
+      }
+    }
+    for (final uid in rosterB) {
+      final goals = goalsByPlayer[uid] ?? 0;
+      if (goals > 0) {
+        bPlayerUpdates['playerGoals.$uid'] = FieldValue.increment(goals);
+      }
+    }
+    final batch = _firestore.batch();
+    batch.update(aRef, {
+      'wins': FieldValue.increment(resultA > 0 ? 1 : 0),
+      'losses': FieldValue.increment(resultA < 0 ? 1 : 0),
+      'draws': FieldValue.increment(resultA == 0 ? 1 : 0),
+      'goalsFor': FieldValue.increment(teamAScore),
+      'goalsAgainst': FieldValue.increment(teamBScore),
+      'recentMatches': recentA.take(5).toList(),
+      'updatedAt': now,
+      ...aPlayerUpdates,
+    });
+    batch.update(bRef, {
+      'wins': FieldValue.increment(resultA < 0 ? 1 : 0),
+      'losses': FieldValue.increment(resultA > 0 ? 1 : 0),
+      'draws': FieldValue.increment(resultA == 0 ? 1 : 0),
+      'goalsFor': FieldValue.increment(teamBScore),
+      'goalsAgainst': FieldValue.increment(teamAScore),
+      'recentMatches': recentB.take(5).toList(),
+      'updatedAt': now,
+      ...bPlayerUpdates,
+    });
+    await batch.commit();
   }
 }
