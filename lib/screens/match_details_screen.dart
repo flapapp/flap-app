@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/match.dart';
 import '../services/match_service.dart';
 import '../services/rating_service.dart';
+import '../widgets/player_avatar_button.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/i18n.dart';
 import '../widgets/user_chip.dart';
@@ -24,6 +25,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
     // Кеш профілів для уникнення повторних запитів
   final Map<String, Map<String, dynamic>> _profileCache = {};
+  bool _isProcessingRosterAction = false;
 
   Future<Map<String, dynamic>> _fetchUserProfile(String userId) async {
     if (_profileCache.containsKey(userId)) return _profileCache[userId]!;
@@ -75,7 +77,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
             if (widget.match.isTeamMatch) ...[
               _buildTeamMatchSection(),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
+              _buildRosterInviteBanner(),
             ],
 
             // Склади та рахунок для завершених матчів (MVP-стиль)
@@ -298,6 +301,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         widget.match.teamRosters['teamA'] ?? widget.match.teamA?.playerIds ?? const <String>[];
     final rosterB =
         widget.match.teamRosters['teamB'] ?? widget.match.teamB?.playerIds ?? const <String>[];
+    final rosterStatusA =
+        widget.match.teamRosterStatus['teamA'] ?? const <String, String>{};
+    final rosterStatusB =
+        widget.match.teamRosterStatus['teamB'] ?? const <String, String>{};
 
     final hasScore =
         widget.match.teamAScore != null && widget.match.teamBScore != null;
@@ -370,6 +377,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             playerIds: rosterA,
             averageRating: widget.match.teamA?.averageRating,
             accent: const Color(0xFF4caf50),
+            rosterStatuses: rosterStatusA,
           ),
           const SizedBox(height: 16),
           _buildTeamRow(
@@ -379,7 +387,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             playerIds: rosterB,
             averageRating: widget.match.teamB?.averageRating,
             accent: const Color(0xFF42a5f5),
+            rosterStatuses: rosterStatusB,
           ),
+          if ((rosterA.isNotEmpty || rosterB.isNotEmpty) &&
+              widget.match.teamRosterStatus.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _buildRosterStatusLegend(),
+          ],
         ],
       ),
     );
@@ -391,6 +405,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     required List<String> playerIds,
     required Color accent,
     double? averageRating,
+    Map<String, String> rosterStatuses = const {},
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,17 +448,31 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: playerIds.take(12).map((id) {
+                final playerStatus = rosterStatuses[id] ?? 'pending';
                 return Container(
                   margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: accent.withValues(alpha: 0.35)),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: UserChip(
-                    userId: id,
-                    size: 32,
-                    showName: false,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          border:
+                              Border.all(color: accent.withValues(alpha: 0.35)),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: UserChip(
+                          userId: id,
+                          size: 32,
+                          showName: false,
+                        ),
+                      ),
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: _buildPlayerStatusIndicator(playerStatus),
+                      ),
+                    ],
                   ),
                 );
               }).toList(),
@@ -470,6 +499,180 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+
+  Widget _buildRosterInviteBanner() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      return const SizedBox.shrink();
+    }
+    return StreamBuilder<
+        DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('matches')
+          .doc(widget.match.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const SizedBox.shrink();
+        }
+        final data = snapshot.data!.data();
+        if (data == null) {
+          return const SizedBox.shrink();
+        }
+        final rawStatus = data['teamRosterStatus'];
+        if (rawStatus is! Map) {
+          return const SizedBox.shrink();
+        }
+
+        String? teamKey;
+        String playerStatus = '';
+        rawStatus.forEach((key, value) {
+          if (teamKey != null) return;
+          if (value is Map && value.containsKey(currentUser.uid)) {
+            teamKey = key.toString();
+            playerStatus = value[currentUser.uid]?.toString() ?? '';
+          }
+        });
+
+        if (teamKey == null) {
+          return const SizedBox.shrink();
+        }
+
+        final teamName = teamKey == 'teamA'
+            ? (data['teamA']?['name']?.toString() ??
+                I18n.inline('Команда А', 'Team A'))
+            : (data['teamB']?['name']?.toString() ??
+                I18n.inline('Команда Б', 'Team B'));
+        final isPending = playerStatus.isEmpty || playerStatus == 'pending';
+        final headline = isPending
+            ? I18n.inline('Підтвердіть участь',
+                'Confirm your spot')
+            : playerStatus == 'confirmed'
+                ? I18n.inline(
+                    'Участь підтверджено', 'Participation confirmed')
+                : I18n.inline('Участь відхилено', 'Participation declined');
+        final description = isPending
+            ? I18n.inline(
+                'Капітан "$teamName" додав вас до складу. Підтвердіть, що ви готові грати.',
+                'Captain of "$teamName" added you to the roster. Confirm you are ready to play.',
+              )
+            : playerStatus == 'confirmed'
+                ? I18n.inline(
+                    'Очікуємо інших гравців. Ви завжди можете змінити рішення.',
+                    'Waiting for other teammates. You can still change your decision.')
+                : I18n.inline(
+                    'Ви відхилили участь. Якщо ситуація зміниться, підтвердіть повторно.',
+                    'You declined the invite. Confirm again if things change.');
+        return Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.04),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.assignment_ind,
+                          color: Colors.white70),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          headline,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _playerStatusColor(
+                                  playerStatus.isEmpty ? 'pending' : playerStatus)
+                              .withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          teamName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed:
+                              (_isProcessingRosterAction || playerStatus == 'confirmed')
+                                  ? null
+                                  : () => _handleRosterResponse(
+                                        teamKey!,
+                                        true,
+                                      ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4caf50),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: Text(
+                            playerStatus == 'confirmed'
+                                ? I18n.inline('Підтверджено', 'Confirmed')
+                                : I18n.inline('Підтвердити', 'Confirm'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed:
+                              (_isProcessingRosterAction || playerStatus == 'declined')
+                                  ? null
+                                  : () => _handleRosterResponse(
+                                        teamKey!,
+                                        false,
+                                      ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.white24),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: Text(
+                            playerStatus == 'declined'
+                                ? I18n.inline('Відхилено', 'Declined')
+                                : I18n.inline('Відхилити', 'Decline'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        );
+      },
     );
   }
 
@@ -543,6 +746,84 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       default:
         return const Color(0xFFFFC107);
     }
+  }
+
+  Widget _buildPlayerStatusIndicator(String status) {
+    final color = _playerStatusColor(status);
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        color: Colors.black87,
+        shape: BoxShape.circle,
+        border: Border.all(color: color, width: 1.5),
+      ),
+      child: Center(
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _playerStatusColor(String? status) {
+    switch (status) {
+      case 'confirmed':
+        return const Color(0xFF4caf50);
+      case 'declined':
+        return const Color(0xFFF44336);
+      default:
+        return const Color(0xFFFFC107);
+    }
+  }
+
+  Widget _buildRosterStatusLegend() {
+    return Row(
+      children: [
+        _legendChip(_playerStatusColor('confirmed'),
+            I18n.inline('Підтверджено', 'Confirmed')),
+        const SizedBox(width: 8),
+        _legendChip(_playerStatusColor('pending'),
+            I18n.inline('Очікує', 'Pending')),
+        const SizedBox(width: 8),
+        _legendChip(_playerStatusColor('declined'),
+            I18n.inline('Відхилено', 'Declined')),
+      ],
+    );
+  }
+
+  Widget _legendChip(Color color, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildStatCard(String icon, String value, String label) {
@@ -980,33 +1261,64 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         future: _getMyMatchAverageRating(widget.match.id, userId),
         builder: (context, snap) {
           final value = (snap.data ?? 0.0);
-          return Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.star, color: Color(0xFF4CAF50), size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    value > 0
-                        ? I18n.inline(
-                            'Ваша оцінка за матч: ${value.toStringAsFixed(2)}',
-                            'Your match rating: ${value.toStringAsFixed(2)}')
-                        : I18n.inline('Ще немає оцінок', 'No ratings yet'),
-                    style: const TextStyle(
-                      color: Color(0xFF4CAF50),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.star, color: Color(0xFF4CAF50), size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        value > 0
+                            ? I18n.inline(
+                                'Ваша оцінка за матч: ${value.toStringAsFixed(2)}',
+                                'Your match rating: ${value.toStringAsFixed(2)}')
+                            : I18n.inline('Ще немає оцінок', 'No ratings yet'),
+                        style: const TextStyle(
+                          color: Color(0xFF4CAF50),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/match_rating',
+                      arguments: widget.match,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4caf50),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
+                  icon: const Icon(Icons.how_to_vote_rounded),
+                  label: Text(I18n.inline('Оцінити гравців', 'Rate teammates')),
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         },
       );
@@ -1158,6 +1470,41 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
+  Future<void> _handleRosterResponse(String teamKey, bool accept) async {
+    if (_isProcessingRosterAction) return;
+    setState(() => _isProcessingRosterAction = true);
+    try {
+      await _matchService.respondToRosterInvite(
+        matchId: widget.match.id,
+        teamKey: teamKey,
+        accept: accept,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            accept
+                ? I18n.inline('Участь підтверджено', 'Participation confirmed')
+                : I18n.inline('Участь відхилено', 'Participation declined'),
+          ),
+          backgroundColor: accept ? const Color(0xFF4caf50) : Colors.orangeAccent,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessingRosterAction = false);
+      }
+    }
+  }
+
   Widget _buildManageMatchButton() {
     return SizedBox(
       height: 50,
@@ -1293,6 +1640,14 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildFinishedTeamsAndScoreSection() {
+    final allTeams = widget.match.allTeams;
+    final isMultiTeamFormat = allTeams.length > 2;
+    final hasCustomStats = widget.match.multiTeamStats.isNotEmpty;
+
+    if (isMultiTeamFormat || hasCustomStats) {
+      return _buildMultiTeamFinishedSection(allTeams);
+    }
+
     final aName = (widget.match.teamA?.name?.isNotEmpty == true)
         ? widget.match.teamA!.name
         : 'Команда A';
@@ -1387,6 +1742,215 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
+  Widget _buildMultiTeamFinishedSection(List<Team> teams) {
+    final palette = [
+      const Color(0xFF4CAF50),
+      const Color(0xFF42A5F5),
+      const Color(0xFFFFB74D),
+      const Color(0xFFAB47BC),
+      const Color(0xFFFF7043),
+    ];
+
+    final statsByIndex = <int, Map<String, dynamic>>{};
+    for (final stat in widget.match.multiTeamStats) {
+      final idx = (stat['teamIndex'] as num?)?.toInt();
+      if (idx != null) {
+        statsByIndex[idx] = stat;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.06),
+            Colors.white.withOpacity(0.03),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            I18n.inline('Підсумки турніру', 'Tournament standings'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.match.multiTeamStats.isEmpty
+                ? I18n.inline(
+                    'Організатор ще не зафіксував рахунки — показуємо склади команд.',
+                    'Organizer has not recorded scores yet — showing the rosters only.',
+                  )
+                : I18n.inline(
+                    'Нижче вказані перемоги та голи кожної команди так, як їх зафіксували в застосунку.',
+                    'Wins and goals below follow what the organizer entered in the app.',
+                  ),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (teams.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.04),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              ),
+              child: Text(
+                I18n.inline(
+                    'Склади багато-командного матчу ще не збережені.',
+                    'Multi-team lineups have not been saved yet.'),
+                style: const TextStyle(color: Colors.white70),
+              ),
+            )
+          else
+            ...teams.asMap().entries.map((entry) {
+              final index = entry.key;
+              final team = entry.value;
+              final stat = statsByIndex[index];
+              final accent = palette[index % palette.length];
+              return _buildMultiTeamTeamCard(team, index, stat, accent);
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMultiTeamTeamCard(
+    Team team,
+    int index,
+    Map<String, dynamic>? stat,
+    Color accent,
+  ) {
+    final wins = (stat?['wins'] ?? 0) as num;
+    final goals = (stat?['goals'] ?? 0) as num;
+    final label = team.name.isNotEmpty
+        ? team.name
+        : I18n.inline('Команда ${index + 1}', 'Team ${index + 1}');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '#${index + 1}',
+                  style: TextStyle(
+                    color: accent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _statPill(
+                label: I18n.inline('Перемоги', 'Wins'),
+                value: wins.toString(),
+                icon: Icons.emoji_events,
+                accent: accent,
+              ),
+              const SizedBox(width: 12),
+              _statPill(
+                label: I18n.inline('Голи', 'Goals'),
+                value: goals.toString(),
+                icon: Icons.sports_soccer,
+                accent: accent,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _teamList(team.playerIds, color: accent),
+        ],
+      ),
+    );
+  }
+
+  Widget _statPill({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color accent,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: accent, size: 18),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _teamList(List<String> ids, {required Color color}) {
   if (ids.isEmpty) {
     return Container(
@@ -1435,20 +1999,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               },
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 14,
-                    backgroundColor: const Color(0xFF4caf50),
-                    backgroundImage: (avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
-                    child: (avatarUrl.isEmpty)
-                        ? Text(
-                            initials,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          )
-                        : null,
+                  PlayerAvatarButton(
+                    userId: id,
+                    displayName: displayName.isNotEmpty ? displayName : initials,
+                    avatarUrl: avatarUrl,
+                    size: 32,
                   ),
                   const SizedBox(width: 8),
                   Expanded(

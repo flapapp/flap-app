@@ -100,6 +100,8 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     'match_finished',
     'match_application_submitted',
     'team_match_request',
+    'team_roster_invite',
+    'team_match_ready',
   };
 
   app_models.Match? match;
@@ -135,6 +137,11 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     case 'team_match_request':
       if (match != null) {
         nav.pushNamed('/match-details', arguments: match);
+      }
+      break;
+    case 'team_match_ready':
+      if (match != null) {
+        nav.pushNamed('/match_management', arguments: match);
       }
       break;
     case 'team_invite':
@@ -651,6 +658,36 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
       print('Error sending bulk challenge invitations: $e');
       return false;
     }
+  }
+
+  Future<bool> sendTeamRosterInvite({
+    required String toUserId,
+    required String matchId,
+    required String teamName,
+    required String teamKey,
+  }) async {
+    final notification = AppNotification.teamRosterInvite(
+      userId: toUserId,
+      matchId: matchId,
+      teamName: teamName,
+      teamKey: teamKey,
+    );
+    return await sendNotification(notification);
+  }
+
+  Future<bool> sendTeamMatchReadyNotification({
+    required String toUserId,
+    required String matchId,
+    required String teamAName,
+    required String teamBName,
+  }) async {
+    final notification = AppNotification.teamMatchReady(
+      userId: toUserId,
+      matchId: matchId,
+      teamAName: teamAName,
+      teamBName: teamBName,
+    );
+    return await sendNotification(notification);
   }
   Future<bool> sendMatchInvite({
   required String toUserId,

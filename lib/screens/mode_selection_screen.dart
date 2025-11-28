@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../utils/i18n.dart';
+import '../widgets/player_avatar_button.dart';
 
 class ModeSelectionScreen extends StatefulWidget {
   const ModeSelectionScreen({super.key});
@@ -123,6 +124,8 @@ setState(() {
         icon: Icons.sports_soccer,
         color: const Color(0xFF4caf50),
         timestamp: _resolveTimestamp(data, const ['updatedAt', 'createdAt']),
+        route: '/matches',
+        ctaLabel: I18n.inline('Відкрити матчі', 'Open matches'),
       );
     } catch (_) {
       return null;
@@ -149,6 +152,8 @@ setState(() {
         icon: Icons.play_circle_fill,
         color: const Color(0xFFFF7043),
         timestamp: _resolveTimestamp(data, const ['createdAt', 'updatedAt']),
+        route: '/video-main',
+        ctaLabel: I18n.inline('Дивитись відео', 'Watch video feed'),
       );
     } catch (_) {
       return null;
@@ -175,6 +180,8 @@ setState(() {
         icon: Icons.groups,
         color: const Color(0xFF42a5f5),
         timestamp: _resolveTimestamp(data, const ['createdAt', 'updatedAt']),
+        route: '/teams',
+        ctaLabel: I18n.inline('Відкрити клуби', 'Open clubs'),
       );
     } catch (_) {
       return null;
@@ -187,6 +194,8 @@ setState(() {
         icon: Icons.flash_on,
         color: const Color(0xFF7e57c2),
         timestamp: DateTime.now(),
+        route: '/matches',
+        ctaLabel: I18n.inline('Дивитись розклад', 'View schedule'),
       );
 
   DateTime _resolveTimestamp(Map<String, dynamic> data, List<String> keys) {
@@ -253,6 +262,8 @@ setState(() {
                   _buildHeroCard(data),
                   const SizedBox(height: 20),
                   _buildNewsCard(),
+                  const SizedBox(height: 18),
+                  _buildQuickShortcuts(),
                   const SizedBox(height: 24),
                   _ModeCard(
                     title: I18n.t('matches'),
@@ -329,25 +340,18 @@ setState(() {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 520;
+        final isWide = constraints.maxWidth > 560;
         final persona = Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            CircleAvatar(
-              radius: 42,
+            PlayerAvatarButton(
+              userId: FirebaseAuth.instance.currentUser?.uid ?? '',
+              displayName: displayName,
+              avatarUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
+              size: 84,
               backgroundColor: Colors.white,
-              backgroundImage:
-                  avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-              child: avatarUrl.isEmpty
-                  ? Text(
-                      displayName[0].toUpperCase(),
-                      style: const TextStyle(
-                        color: Color(0xFF0B1B2C),
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
+              borderColor: Colors.white.withOpacity(0.2),
+              borderWidth: 2,
             ),
             const SizedBox(height: 12),
             Text(
@@ -475,54 +479,61 @@ setState(() {
           ),
         );
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF121F2E), Color(0xFF080E18)],
-            ),
-            borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.35),
-                blurRadius: 32,
-                offset: const Offset(0, 22),
+        final content = isWide
+            ? Row(
+                children: [
+                  Expanded(child: persona),
+                  Container(
+                    width: 1,
+                    height: 160,
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    color: Colors.white.withValues(alpha: 0.06),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        statGrid,
+                        const SizedBox(height: 18),
+                        focusCard,
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  persona,
+                  const SizedBox(height: 18),
+                  statGrid,
+                  const SizedBox(height: 18),
+                  focusCard,
+                ],
+              );
+
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 800),
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 30),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF121F2E), Color(0xFF080E18)],
               ),
-            ],
-          ),
-          child: isWide
-              ? Row(
-                  children: [
-                    Expanded(child: persona),
-                    Container(
-                      width: 1,
-                      height: 160,
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      color: Colors.white.withValues(alpha: 0.08),
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          statGrid,
-                          const SizedBox(height: 18),
-                          focusCard,
-                        ],
-                      ),
-                    ),
-                  ],
-                )
-              : Column(
-                  children: [
-                    persona,
-                    const SizedBox(height: 18),
-                    statGrid,
-                    const SizedBox(height: 18),
-                    focusCard,
-                  ],
+              borderRadius: BorderRadius.circular(36),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 32,
+                  offset: const Offset(0, 22),
                 ),
+              ],
+            ),
+            child: content,
+          ),
         );
       },
     );
@@ -673,8 +684,123 @@ setState(() {
               ),
             ],
           ),
+          if (entry.ctaLabel != null && entry.route != null) ...[
+            const SizedBox(height: 18),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => Navigator.pushNamed(context, entry.route!),
+                icon: const Icon(Icons.open_in_new, color: Colors.white70, size: 18),
+                label: Text(
+                  entry.ctaLabel!,
+                  style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+                ),
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.06),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildQuickShortcuts() {
+    final shortcuts = [
+      _QuickShortcut(
+        icon: Icons.sports_soccer,
+        title: I18n.inline('Матчі', 'Matches'),
+        subtitle: I18n.inline('Шукай або створи гру зараз', 'Find or host a match'),
+        route: '/matches',
+      ),
+      _QuickShortcut(
+        icon: Icons.play_circle_fill,
+        title: I18n.inline('Відео', 'Videos'),
+        subtitle: I18n.inline('Кидай челенджі та збирай рейтинг', 'Launch challenges and earn rating'),
+        route: '/video-main',
+      ),
+      _QuickShortcut(
+        icon: Icons.groups_2,
+        title: I18n.inline('Команди', 'Teams'),
+        subtitle: I18n.inline('Керуйте клубом та запрошуйте друзів', 'Manage your club and invite teammates'),
+        route: '/teams',
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        double itemWidth;
+        if (maxWidth > 780) {
+          itemWidth = (maxWidth - 24) / 3;
+        } else if (maxWidth > 520) {
+          itemWidth = (maxWidth - 12) / 2;
+        } else {
+          itemWidth = maxWidth;
+        }
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: shortcuts.map((shortcut) {
+            return SizedBox(
+              width: itemWidth,
+              child: GestureDetector(
+                onTap: () => Navigator.pushNamed(context, shortcut.route),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(shortcut.icon, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              shortcut.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              shortcut.subtitle,
+                              style: const TextStyle(
+                                color: Colors.white60,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
@@ -773,16 +899,19 @@ class _ModeCard extends StatelessWidget {
                   title,
                   style: GoogleFonts.manrope(
                     color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 28,
+                    height: 1.1,
+                    letterSpacing: -0.2,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
+                  style: GoogleFonts.manrope(
+                    color: Colors.white.withOpacity(0.82),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -990,6 +1119,8 @@ class _NewsEntry {
   final IconData icon;
   final Color color;
   final DateTime timestamp;
+  final String? route;
+  final String? ctaLabel;
 
   const _NewsEntry({
     required this.title,
@@ -997,6 +1128,22 @@ class _NewsEntry {
     required this.icon,
     required this.color,
     required this.timestamp,
+    this.route,
+    this.ctaLabel,
+  });
+}
+
+class _QuickShortcut {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String route;
+
+  const _QuickShortcut({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.route,
   });
 }
 

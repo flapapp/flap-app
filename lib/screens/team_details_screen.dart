@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +11,8 @@ import '../services/team_service.dart';
 import '../services/friends_service.dart';
 import '../models/friend_request.dart';
 import '../utils/i18n.dart';
+import '../widgets/team_logo_button.dart';
+import '../widgets/player_avatar_button.dart';
 import 'create_match_screen.dart';
 
 class TeamDetailsScreen extends StatefulWidget {
@@ -114,21 +117,12 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 36,
-                backgroundColor: Colors.white,
-                backgroundImage:
-                    team.logoUrl != null ? NetworkImage(team.logoUrl!) : null,
-                child: team.logoUrl == null
-                    ? Text(
-                        team.name.isNotEmpty ? team.name[0].toUpperCase() : 'T',
-                        style: const TextStyle(
-                          color: Color(0xFF0c1b2a),
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    : null,
+              TeamLogoButton(
+                teamId: team.id,
+                teamName: team.name,
+                logoUrl: team.logoUrl,
+                size: 72,
+                circular: true,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -643,72 +637,83 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                       ? I18n.inline('Віце', 'Vice')
                       : I18n.inline('Гравець', 'Player');
               final avatarUrl = (data?['avatarUrl'] ?? data?['avatar']) as String?;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.02),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.08)),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundImage:
-                          avatarUrl != null && avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                      child: (avatarUrl == null || avatarUrl.isEmpty)
-                          ? Text(name[0].toUpperCase())
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          _roleBadge(role),
-                        ],
+              return InkWell(
+                onTap: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/player-profile',
+                    arguments: {
+                      'playerId': memberId,
+                      'playerName': name,
+                    },
+                  );
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.02),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  ),
+                  child: Row(
+                    children: [
+                      PlayerAvatarButton(
+                        userId: memberId,
+                        displayName: name,
+                        avatarUrl: avatarUrl,
+                        size: 36,
                       ),
-                    ),
-                    if (canManage && memberId != team.captainId)
-                      PopupMenuButton<String>(
-                        color: const Color(0xFF1a1f2c),
-                        onSelected: (action) =>
-                            _handleMemberAction(action, team, memberId),
-                        itemBuilder: (_) => [
-                          if (!team.viceCaptainIds.contains(memberId))
-                            PopupMenuItem(
-                              value: 'promote',
-                              child: Text(
-                                I18n.inline('Зробити віце', 'Promote to vice'),
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                            )
-                          else
-                            PopupMenuItem(
-                              value: 'demote',
-                              child: Text(
-                                I18n.inline('Зняти віце', 'Remove vice role'),
-                                style: const TextStyle(color: Colors.white),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          PopupMenuItem(
-                            value: 'remove',
-                            child: Text(
-                              I18n.inline('Видалити', 'Remove'),
-                              style: const TextStyle(color: Colors.redAccent),
-                            ),
-                          ),
-                        ],
+                            const SizedBox(height: 2),
+                            _roleBadge(role),
+                          ],
+                        ),
                       ),
-                  ],
+                      if (canManage && memberId != team.captainId)
+                        PopupMenuButton<String>(
+                          color: const Color(0xFF1a1f2c),
+                          onSelected: (action) =>
+                              _handleMemberAction(action, team, memberId),
+                          itemBuilder: (_) => [
+                            if (!team.viceCaptainIds.contains(memberId))
+                              PopupMenuItem(
+                                value: 'promote',
+                                child: Text(
+                                  I18n.inline('Зробити віце', 'Promote to vice'),
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              )
+                            else
+                              PopupMenuItem(
+                                value: 'demote',
+                                child: Text(
+                                  I18n.inline('Зняти віце', 'Remove vice role'),
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            PopupMenuItem(
+                              value: 'remove',
+                              child: Text(
+                                I18n.inline('Видалити', 'Remove'),
+                                style: const TextStyle(color: Colors.redAccent),
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -1072,10 +1077,12 @@ class _InviteSheetState extends State<_InviteSheet> {
   List<Map<String, dynamic>> _searchResults = [];
   final Set<String> _selectedIds = {};
   bool _isSearching = false;
+  Timer? _searchDebounce;
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
@@ -1087,6 +1094,19 @@ class _InviteSheetState extends State<_InviteSheet> {
       _searchResults = results;
       _isSearching = false;
     });
+  }
+
+  void _handleSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    final query = value.trim();
+    if (query.length < 2) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 350), _searchPlayers);
   }
 
   Future<void> _sendInvites() async {
@@ -1128,10 +1148,17 @@ class _InviteSheetState extends State<_InviteSheet> {
             const SizedBox(height: 16),
             TextField(
               controller: _searchCtrl,
+              cursorColor: Colors.white,
+              style: const TextStyle(color: Colors.white),
+              onChanged: _handleSearchChanged,
+              onSubmitted: (_) => _searchPlayers(),
               decoration: InputDecoration(
                 hintText: I18n.inline('Пошук за ім’ям', 'Search by name'),
+                hintStyle: const TextStyle(color: Colors.white54),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.04),
                 suffixIcon: IconButton(
-                  icon: const Icon(Icons.search),
+                  icon: const Icon(Icons.search, color: Colors.white70),
                   onPressed: _searchPlayers,
                 ),
               ),

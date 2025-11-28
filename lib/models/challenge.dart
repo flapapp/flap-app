@@ -1,8 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/i18n.dart';
 
 enum ChallengeType {
-  technical,    // Технічні навички
-  positional   // Позиційні челенджі
+  goal,
+  save,
+  pass,
+  tackle,
+  dribbling,
+  trick,
+  other,
 }
 
 enum ChallengeAudience {
@@ -90,10 +96,7 @@ class Challenge {
       id: doc.id,
       title: data['title'] ?? '',
       description: data['description'] ?? '',
-      type: ChallengeType.values.firstWhere(
-        (e) => e.toString() == 'ChallengeType.${data['type']}',
-        orElse: () => ChallengeType.technical,
-      ),
+      type: parseChallengeType(data['type'] as String?),
       audience: ChallengeAudience.values.firstWhere(
         (e) => e.toString() == 'ChallengeAudience.${data['audience']}',
         orElse: () => ChallengeAudience.city,
@@ -273,10 +276,20 @@ class Challenge {
   // Геттери для типу тексту
   String get typeText {
     switch (type) {
-      case ChallengeType.technical:
-        return 'Технічні навички';
-      case ChallengeType.positional:
-        return 'Позиційні челенджі';
+      case ChallengeType.goal:
+        return I18n.inline('Гол', 'Goal');
+      case ChallengeType.save:
+        return I18n.inline('Сейв', 'Save');
+      case ChallengeType.pass:
+        return I18n.inline('Пас', 'Pass');
+      case ChallengeType.tackle:
+        return I18n.inline('Підкат', 'Tackle');
+      case ChallengeType.dribbling:
+        return I18n.inline('Дриблінг', 'Dribbling');
+      case ChallengeType.trick:
+        return I18n.inline('Трюк', 'Trick');
+      case ChallengeType.other:
+        return I18n.inline('Інше', 'Other');
     }
   }
 
@@ -310,10 +323,20 @@ class Challenge {
   // Геттери для іконок
   String get typeIcon {
     switch (type) {
-      case ChallengeType.technical:
+      case ChallengeType.goal:
         return '⚽';
-      case ChallengeType.positional:
+      case ChallengeType.save:
+        return '🧤';
+      case ChallengeType.pass:
         return '🎯';
+      case ChallengeType.tackle:
+        return '🛡️';
+      case ChallengeType.dribbling:
+        return '🌀';
+      case ChallengeType.trick:
+        return '✨';
+      case ChallengeType.other:
+        return '🎲';
     }
   }
 
@@ -329,5 +352,30 @@ class Challenge {
       case ChallengeStatus.completed:
         return 0xFF9E9E9E; // Сірий
     }
+  }
+}
+
+ChallengeType parseChallengeType(String? raw) {
+  switch (raw) {
+    case 'goal':
+      return ChallengeType.goal;
+    case 'save':
+      return ChallengeType.save;
+    case 'pass':
+      return ChallengeType.pass;
+    case 'tackle':
+      return ChallengeType.tackle;
+    case 'dribbling':
+      return ChallengeType.dribbling;
+    case 'trick':
+      return ChallengeType.trick;
+    case 'other':
+      return ChallengeType.other;
+    case 'technical':
+      return ChallengeType.dribbling;
+    case 'positional':
+      return ChallengeType.other;
+    default:
+      return ChallengeType.other;
   }
 }

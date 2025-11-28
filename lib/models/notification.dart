@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/i18n.dart';
 
 enum NotificationType {
   friendRequest,
@@ -17,6 +18,8 @@ enum NotificationType {
   ratingChanged,
   teamInvite,
   teamMatchRequest,
+  teamMatchReady,
+  teamRosterInvite,
 }
 
 class AppNotification {
@@ -142,6 +145,10 @@ class AppNotification {
         return '🏟️';
       case NotificationType.teamMatchRequest:
         return '⚽';
+      case NotificationType.teamRosterInvite:
+        return '📝';
+      case NotificationType.teamMatchReady:
+        return '🏁';
     }
   }
 
@@ -179,6 +186,10 @@ class AppNotification {
         return 0xFF00BCD4;
       case NotificationType.teamMatchRequest:
         return 0xFF4CAF50;
+      case NotificationType.teamRosterInvite:
+        return 0xFFFFC107;
+      case NotificationType.teamMatchReady:
+        return 0xFF00BCD4;
     }
   }
 
@@ -399,6 +410,56 @@ class AppNotification {
       },
       createdAt: DateTime.now(),
       actionUrl: '/match-details/$matchId',
+    );
+  }
+
+  static AppNotification teamRosterInvite({
+    required String userId,
+    required String matchId,
+    required String teamName,
+    required String teamKey,
+  }) {
+    return AppNotification(
+      id: '',
+      userId: userId,
+      type: NotificationType.teamRosterInvite,
+      title: I18n.inline('Підтвердьте участь', 'Confirm roster spot'),
+      message: I18n.inline(
+          'Команда "$teamName" запрошує вас на матч. Підтвердьте участь у складі.',
+          'Team "$teamName" wants you in the line-up. Confirm participation.'),
+      data: {
+        'type': 'team_roster_invite',
+        'matchId': matchId,
+        'teamName': teamName,
+        'teamKey': teamKey,
+      },
+      createdAt: DateTime.now(),
+      actionUrl: '/match-details/$matchId',
+    );
+  }
+
+  static AppNotification teamMatchReady({
+    required String userId,
+    required String matchId,
+    required String teamAName,
+    required String teamBName,
+  }) {
+    return AppNotification(
+      id: '',
+      userId: userId,
+      type: NotificationType.teamMatchReady,
+      title: I18n.inline('Команди готові', 'Teams are ready'),
+      message: I18n.inline(
+          'Склади $teamAName та $teamBName підтверджені. Можна запускати матч.',
+          '$teamAName and $teamBName locked in. You can start the match.'),
+      data: {
+        'type': 'team_match_ready',
+        'matchId': matchId,
+        'teamAName': teamAName,
+        'teamBName': teamBName,
+      },
+      createdAt: DateTime.now(),
+      actionUrl: '/match_management',
     );
   }
 

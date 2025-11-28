@@ -805,6 +805,23 @@ if (currentUserId == null || currentUserId != match.organizerId) {
         if (match.isInProgress) {
           throw Exception('Матч вже почався');
         }
+
+        if (match.isTeamMatch) {
+          final rosterA = match.teamRosters['teamA'] ??
+              match.teamA?.playerIds ??
+              const <String>[];
+          final rosterB = match.teamRosters['teamB'] ??
+              match.teamB?.playerIds ??
+              const <String>[];
+          final teamAReady = (match.teamAStatus ?? 'pending') == 'confirmed';
+          final teamBReady = (match.teamBStatus ?? 'pending') == 'confirmed';
+          if (!teamAReady || !teamBReady) {
+            throw Exception('Команди ще не підтвердили склади');
+          }
+          if (rosterA.isEmpty || rosterB.isEmpty) {
+            throw Exception('Склади команд не заповнені');
+          }
+        }
         
         // Дозволяємо початок матчу навіть якщо не набралася повна кількість гравців
         
@@ -1090,5 +1107,105 @@ for (final uid in a) {
       ...bPlayerUpdates,
     });
     await batch.commit();
+  }
+
+  Future<void> respondToRosterInvite({
+    required String matchId,
+    required String teamKey,
+    required bool accept,
+  }) async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) {
+      throw Exception('Потрібна авторизація');
+    }
+    final matchRef = _firestore.collection('matches').doc(matchId);
+
+    bool notifyOrganizer = false;
+    String organizerId = '';
+    String readyTeamAName = 'Team A';
+    String readyTeamBName = 'Team B';
+
+    await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(matchRef);
+      if (!snap.exists) {
+        throw Exception('Матч не знайдено');
+      }
+
+      final data = snap.data() as Map<String, dynamic>;
+      organizerId = (data['organizerId'] ?? '').toString();
+      final rosterStatusRaw =
+          Map<String, dynamic>.from(data['teamRosterStatus'] ?? {});
+      if (!rosterStatusRaw.containsKey(teamKey)) {
+        throw Exception('Склад не знайдено');
+      }
+      final teamStatusMap =
+          Map<String, dynamic>.from(rosterStatusRaw[teamKey] ?? {});
+      if (!teamStatusMap.containsKey(currentUserId)) {
+        throw Exception('Вас не заявлено на цей матч');
+      }
+
+      teamStatusMap[currentUserId] = accept ? 'confirmed' : 'declined';
+      rosterStatusRaw[teamKey] = teamStatusMap;
+
+      final participants =
+          List<String>.from(data['participants'] ?? const <String>[]);
+      if (accept) {
+        if (!participants.contains(currentUserId)) {
+          participants.add(currentUserId);
+        }
+      } else {
+        participants.remove(currentUserId);
+      }
+
+      final updates = <String, dynamic>{
+        'teamRosterStatus': rosterStatusRaw,
+        'participants': participants,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      final allConfirmed = teamStatusMap.values
+          .every((status) => status == 'confirmed');
+      bool currentTeamConfirmed = false;
+      if (allConfirmed) {
+        updates[teamKey == 'teamA' ? 'teamAStatus' : 'teamBStatus'] =
+            'confirmed';
+        currentTeamConfirmed = true;
+      }
+
+      final currentTeamAStatus = (data['teamAStatus'] ?? 'pending').toString();
+      final currentTeamBStatus = (data['teamBStatus'] ?? 'pending').toString();
+      final newTeamAStatus = teamKey == 'teamA'
+          ? (currentTeamConfirmed ? 'confirmed' : currentTeamAStatus)
+          : currentTeamAStatus;
+      final newTeamBStatus = teamKey == 'teamB'
+          ? (currentTeamConfirmed ? 'confirmed' : currentTeamBStatus)
+          : currentTeamBStatus;
+
+      final alreadyNotified = data['teamsReadyNotified'] ?? false;
+      final isTeamMatch = data['teamMatch'] == true;
+      if (isTeamMatch &&
+          !alreadyNotified &&
+          newTeamAStatus == 'confirmed' &&
+          newTeamBStatus == 'confirmed') {
+        updates['teamsReadyNotified'] = true;
+        updates['teamsReadyNotifiedAt'] = FieldValue.serverTimestamp();
+        readyTeamAName =
+            (data['teamA']?['name'] ?? 'Team A').toString();
+        readyTeamBName =
+            (data['teamB']?['name'] ?? 'Team B').toString();
+        notifyOrganizer = organizerId.isNotEmpty;
+      }
+
+      tx.update(matchRef, updates);
+    });
+
+    if (notifyOrganizer && organizerId.isNotEmpty) {
+      await NotificationService().sendTeamMatchReadyNotification(
+        toUserId: organizerId,
+        matchId: matchId,
+        teamAName: readyTeamAName,
+        teamBName: readyTeamBName,
+      );
+    }
   }
 }

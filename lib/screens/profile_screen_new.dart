@@ -216,75 +216,180 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              ...invites.map((invite) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.04),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.groups, color: Colors.white70),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              invite.teamName,
+              ...invites.map(_buildInviteCard),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInviteCard(TeamInvite invite) {
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future:
+          FirebaseFirestore.instance.collection('teams').doc(invite.teamId).get(),
+      builder: (context, snapshot) {
+        final teamData = snapshot.data?.data();
+        final logoUrl = (teamData?['logoUrl'] ?? '').toString();
+        final city = (teamData?['city'] ?? '').toString();
+        final motto = (teamData?['description'] ??
+                I18n.inline(
+                    'Команда кличе вас у склад', 'Club wants you on the roster'))
+            .toString();
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TeamDetailsScreen(teamId: invite.teamId),
+                        ),
+                      );
+                    },
+                    child: CircleAvatar(
+                      radius: 28,
+                      backgroundColor: const Color(0xFF1A2737),
+                      backgroundImage:
+                          logoUrl.isNotEmpty ? NetworkImage(logoUrl) : null,
+                      child: logoUrl.isEmpty
+                          ? Text(
+                              invite.teamName.isNotEmpty
+                                  ? invite.teamName[0].toUpperCase()
+                                  : '?',
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.bold,
                               ),
-                            ),
-                            Text(
-                              I18n.inline('Вас запросили до команди',
-                                  'You were invited to join'),
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () async {
-                          await _teamService.respondToInvite(
-                            invite: invite,
-                            accept: false,
-                          );
-                        },
-                        child: Text(I18n.t('cancel')),
-                      ),
-                      ElevatedButton(
-                        onPressed: () async {
-                          try {
-                            await _teamService.respondToInvite(
-                              invite: invite,
-                              accept: true,
-                            );
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(I18n.inline(
-                                    'Команду додано!', 'Joined the team!')),
-                              ),
-                            );
-                          } catch (e) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(e.toString())),
-                            );
-                          }
-                        },
-                        child: Text(I18n.inline('Приєднатись', 'Join')),
-                      ),
-                    ],
+                            )
+                          : null,
+                    ),
                   ),
-                );
-              }),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          invite.teamName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (city.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '📍 $city',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                        Text(
+                          motto,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isTight = constraints.maxWidth < 320;
+                  final cancelButton = TextButton(
+                    onPressed: () async {
+                      await _teamService.respondToInvite(
+                        invite: invite,
+                        accept: false,
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 10),
+                      backgroundColor: Colors.white.withOpacity(0.04),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(I18n.t('cancel')),
+                  );
+                  final joinButton = ElevatedButton(
+                    onPressed: () async {
+                      try {
+                        await _teamService.respondToInvite(
+                          invite: invite,
+                          accept: true,
+                        );
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(I18n.inline(
+                                'Команду додано!', 'Joined the team!')),
+                          ),
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(e.toString())),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF36D399),
+                      foregroundColor: const Color(0xFF041013),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(I18n.inline('Приєднатись', 'Join')),
+                  );
+                  if (isTight) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        cancelButton,
+                        const SizedBox(height: 8),
+                        joinButton,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      cancelButton,
+                      const SizedBox(width: 12),
+                      joinButton,
+                    ],
+                  );
+                },
+              ),
             ],
           ),
         );
@@ -331,7 +436,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       slivers: [
         // App bar with gradient
         SliverAppBar(
-          expandedHeight: 420,
+          expandedHeight: 320,
           floating: false,
           pinned: true,
           backgroundColor: const Color(0xFF0f0f23),
@@ -377,276 +482,366 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileHeader(Map<String, dynamic> userData, String displayName, 
-                           String? avatarUrl, double rating, int coins) {
-    return Padding(
-  padding: const EdgeInsets.fromLTRB(20, 56, 20, 20),
-  child: Column(
-        children: [
-          // Avatar with glow effect
-          Stack(
-            children: [
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF4caf50).withOpacity(0.3),
-                      blurRadius: 20,
-                      spreadRadius: 5,
-                    ),
-                  ],
+  Widget _buildProfileHeader(
+      Map<String, dynamic> userData,
+      String displayName,
+      String? avatarUrl,
+      double rating,
+      int coins) {
+    final userId = userData['uid'] ?? _auth.currentUser?.uid ?? '';
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _loadMatchStats(userId),
+      builder: (context, snapshot) {
+        final stats = snapshot.data ??
+            {
+              'winRate': 0.0,
+              'recentResults': ['-', '-', '-', '-', '-'],
+              'wins': 0,
+              'draws': 0,
+              'losses': 0,
+            };
+        final recentResults = List<String>.from(stats['recentResults'] as List);
+        final winRate = (stats['winRate'] as num).toDouble();
+        final wdlText =
+            '${stats['wins'] ?? 0}W · ${stats['draws'] ?? 0}D · ${stats['losses'] ?? 0}L';
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 32, 16, 20),
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 460),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF162035), Color(0xFF0F1624)],
                 ),
-                child: ClipOval(
-                  child: avatarUrl != null && avatarUrl.isNotEmpty
-                      ? Image.network(
-                          avatarUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _buildAvatarPlaceholder(displayName),
-                        )
-                      : _buildAvatarPlaceholder(displayName),
-                ),
-              ),
-              // Edit button
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: GestureDetector(
-                  onTap: () => _editProfile(),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4caf50),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF0f0f23), width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.edit,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          
-          // Name
-          Text(
-            displayName,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          
-          // Rating and coins row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Rating
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      _getRatingColor(rating).withOpacity(0.2),
-                      _getRatingColor(rating).withOpacity(0.1),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _getRatingColor(rating), width: 1),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.star,
-                      color: _getRatingColor(rating),
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      rating.toStringAsFixed(1),
-                      style: TextStyle(
-                        color: _getRatingColor(rating),
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              
-              // Coins
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFFFFD700),
-                      Color(0xFFFFA500),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFFD700).withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.monetization_on,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      coins.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          
-          // Position and city
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _getPositionDisplay(userData['position']),
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
-                  fontSize: 14,
-                ),
-              ),
-              if (userData['city'] != null) ...[
-                Text(
-                  ' • ',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  '📍 ${userData['city']}',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 6),
-          
-          // Win rate and recent matches
-          FutureBuilder<Map<String, dynamic>>(
-            future: _loadMatchStats(userData['uid'] ?? _auth.currentUser?.uid ?? ''),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const SizedBox.shrink();
-              
-              final stats = snapshot.data!;
-              final winRate = stats['winRate'] as double;
-              final recentResults = stats['recentResults'] as List<String>;
-              
-              return Column(
-                children: [
-                  // Win rate
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.percent, color: Colors.white70, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${I18n.inline('Win Rate:', 'Win Rate:')} ${winRate.toStringAsFixed(0)}%',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  
-                  // Recent matches (W/D/L)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: recentResults.map((result) {
-                      Color color;
-                      if (result == 'W') {
-  color = const Color(0xFF4CAF50);
-} else if (result == 'D') {
-  color = Colors.grey;
-} else if (result == 'L') {
-  color = Colors.red;
-} else {
-  color = Colors.grey; // плейсхолдер '-'
-}
-                      
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 3),
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: color, width: 1.5),
-                        ),
-                        child: Center(
-                          child: Text(
-                            result,
-                            style: TextStyle(
-                              color: color,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: Colors.white.withOpacity(0.07)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.4),
+                    blurRadius: 30,
+                    offset: const Offset(0, 20),
                   ),
                 ],
-              );
-            },
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 96,
+                            height: 96,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.2), width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF4caf50).withOpacity(0.35),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: avatarUrl != null && avatarUrl.isNotEmpty
+                                  ? Image.network(
+                                      avatarUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          _buildAvatarPlaceholder(displayName),
+                                    )
+                                  : _buildAvatarPlaceholder(displayName),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: -4,
+                            right: -4,
+                            child: GestureDetector(
+                              onTap: _editProfile,
+                              child: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF4caf50),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.edit,
+                                    size: 16, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${_getPositionDisplay(userData['position'])} • ${userData['city'] ?? 'Earth'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              I18n.inline('Полюй на моменти — поле запам’ятає.',
+                                  'Hunt for moments — the pitch remembers.'),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.85),
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _profilePill(
+                                  icon: Icons.star_border_rounded,
+                                  label: I18n.t('rating'),
+                                  value: rating.toStringAsFixed(2),
+                                ),
+                                _profilePill(
+                                  icon: Icons.sports_soccer,
+                                  label: I18n.t('matches'),
+                                  value:
+                                      ((userData['matchesPlayed'] ?? 0) as num)
+                                          .toString(),
+                                ),
+                                _profilePill(
+                                  icon: Icons.percent,
+                                  label: 'Win rate',
+                                  value: '${winRate.toStringAsFixed(0)}%',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          _badgeValue(
+                            label: I18n.inline('Рейтинг', 'Rating'),
+                            value: rating.toStringAsFixed(2),
+                            icon: Icons.flash_on,
+                            color: _getRatingColor(rating),
+                          ),
+                          const SizedBox(height: 10),
+                          _badgeValue(
+                            label: 'FL Coins',
+                            value: coins.toString(),
+                            icon: Icons.monetization_on,
+                            color: const Color(0xFFFFB628),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.03),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    ),
+                    child: Row(
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              I18n.inline('Серія останніх матчів',
+                                  'Recent form'),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.65),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              wdlText,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Wrap(
+                          spacing: 6,
+                          children: recentResults
+                              .take(5)
+                              .map((result) => _resultTile(result))
+                              .toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _profilePill({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: Colors.white70),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 11,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _badgeValue({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withOpacity(0.4)),
+        color: color.withOpacity(0.12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: Colors.white),
+              const SizedBox(width: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resultTile(String result) {
+    var display = result;
+    Color color;
+    switch (result) {
+      case 'W':
+        color = const Color(0xFF4CAF50);
+        break;
+      case 'L':
+        color = const Color(0xFFE53935);
+        break;
+      case 'D':
+        color = const Color(0xFF9E9E9E);
+        break;
+      default:
+        color = Colors.white24;
+        display = '-';
+    }
+    return Container(
+      width: 26,
+      height: 26,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color, width: 1.2),
+        color: color.withOpacity(0.18),
+      ),
+      child: Center(
+        child: Text(
+          display,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }
@@ -743,7 +938,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                I18n.t('badges'),
+                I18n.inline('Скіли', 'Skills'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -753,7 +948,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               TextButton(
                 onPressed: _openBadgesStore,
                 child: Text(
-                  'Магазин'.i18n('Store'),
+                  I18n.inline('Додати', 'Add'),
                   style: const TextStyle(color: Color(0xFF4caf50)),
                 ),
               ),
@@ -779,7 +974,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Поки немає бейджів'.i18n('No badges yet'),
+                    I18n.inline('Ще немає скілів', 'No skills yet'),
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 14,

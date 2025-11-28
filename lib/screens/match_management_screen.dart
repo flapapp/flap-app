@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
 import '../services/match_service.dart';
 import '../utils/i18n.dart';
+import '../widgets/team_logo_button.dart';
+import '../widgets/player_avatar_button.dart';
 import 'dart:math';
 
 class MatchManagementScreen extends StatefulWidget {
@@ -342,6 +344,10 @@ Widget _buildTeamsContent(Match m, bool isOrganizer) {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildTeamsHeader(m, isOrganizer),
+              if (m.isTeamMatch) ...[
+                const SizedBox(height: 12),
+                _buildTeamConfirmationCard(m, isOrganizer),
+              ],
               if (m.participants.length >= 2) ...[
                 const SizedBox(height: 12),
                 _buildTeamCountSelector(m),
@@ -520,6 +526,9 @@ Widget _buildTeamsWrap(Match m) {
 
 Widget _buildManagementButtons(Match m) {
   final totalTeams = m.teamCount ?? m.allTeams.length;
+  final awaitingTeamConfirmations = m.isTeamMatch &&
+      ((m.teamAStatus ?? 'pending') != 'confirmed' ||
+          (m.teamBStatus ?? 'pending') != 'confirmed');
 
   VoidCallback? primaryAction;
   IconData primaryIcon = Icons.play_arrow;
@@ -548,41 +557,74 @@ Widget _buildManagementButtons(Match m) {
     primaryColor = Colors.grey;
     primaryAction = null;
   } else {
+    if (awaitingTeamConfirmations) {
+      primaryIcon = Icons.hourglass_empty;
+      primaryLabel =
+          I18n.inline('Очікуємо команди', 'Awaiting line-ups');
+      primaryColor = Colors.grey;
+      primaryAction = null;
+    } else {
     primaryAction = _startMatch;
   }
+  }
 
-  return Row(
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Expanded(
-        child: ElevatedButton.icon(
-          onPressed: primaryAction,
-          icon: Icon(primaryIcon, color: Colors.white),
-          label: Text(primaryLabel, style: const TextStyle(color: Colors.white)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-        ),
-      ),
-      const SizedBox(width: 12),
-      if (!m.isFinished && !m.isCancelled)
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () async {
-              final ok = await _confirm(
-                I18n.inline('Скасувати матч?', 'Cancel match?'),
-                I18n.inline('Скасувати подію і повідомити учасників', 'Cancel event and notify participants'),
-              );
-              if (ok == true) await _cancelMatch();
-            },
-            icon: const Icon(Icons.cancel, color: Colors.white),
-            label: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE53935),
-              padding: const EdgeInsets.symmetric(vertical: 14),
+      Row(
+        children: [
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: primaryAction,
+              icon: Icon(primaryIcon, color: Colors.white),
+              label: Text(primaryLabel, style: const TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
             ),
           ),
+          const SizedBox(width: 12),
+          if (!m.isFinished && !m.isCancelled)
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final ok = await _confirm(
+                    I18n.inline('Скасувати матч?', 'Cancel match?'),
+                    I18n.inline('Скасувати подію і повідомити учасників', 'Cancel event and notify participants'),
+                  );
+                  if (ok == true) await _cancelMatch();
+                },
+                icon: const Icon(Icons.cancel, color: Colors.white),
+                label: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE53935),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ),
+        ],
+      ),
+      if (!m.isFinished &&
+          !m.isCancelled &&
+          !m.isInProgress &&
+          awaitingTeamConfirmations) ...[
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.white54, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                I18n.inline(
+                    'Старт буде доступний, коли обидві команди підтвердять склади.',
+                    'Start will unlock once both teams confirm their rosters.'),
+                style: const TextStyle(color: Colors.white60, fontSize: 13),
+              ),
+            ),
+          ],
         ),
+      ],
     ],
   );
 }
@@ -762,6 +804,313 @@ Future<void> _saveResults(Match m) async {
         isDense: true,
       ),
     );
+  }
+
+  Widget _buildTeamConfirmationCard(Match m, bool isOrganizer) {
+    final teamAName = m.teamA?.name ?? I18n.inline('Команда А', 'Team A');
+    final teamBName = m.teamB?.name ?? I18n.inline('Команда Б', 'Team B');
+    final rosterA = m.teamRosters['teamA'] ?? m.teamA?.playerIds ?? const <String>[];
+    final rosterB = m.teamRosters['teamB'] ?? m.teamB?.playerIds ?? const <String>[];
+    final rosterStatusesA = m.teamRosterStatus['teamA'] ?? const <String, String>{};
+    final rosterStatusesB = m.teamRosterStatus['teamB'] ?? const <String, String>{};
+    final statusA = m.teamAStatus ?? 'pending';
+    final statusB = m.teamBStatus ?? 'pending';
+    final bothConfirmed = statusA == 'confirmed' && statusB == 'confirmed';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.shield, color: Colors.white70),
+              const SizedBox(width: 8),
+              Text(
+                I18n.inline('Підтвердження команд', 'Team confirmations'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: bothConfirmed ? const Color(0xFF4caf50) : const Color(0xFFFFC107),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  bothConfirmed
+                      ? I18n.inline('Готово', 'Ready')
+                      : I18n.inline('Очікуємо', 'Pending'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _teamStatusTile(
+            teamId: m.teamAId,
+            name: teamAName,
+            status: statusA,
+            roster: rosterA,
+            rosterStatuses: rosterStatusesA,
+            accent: const Color(0xFF4caf50),
+          ),
+          const SizedBox(height: 12),
+          _teamStatusTile(
+            teamId: m.teamBId,
+            name: teamBName,
+            status: statusB,
+            roster: rosterB,
+            rosterStatuses: rosterStatusesB,
+            accent: const Color(0xFF42a5f5),
+          ),
+          if (m.teamsReadyNotified && isOrganizer) ...[
+            const SizedBox(height: 12),
+            _infoPill(
+              icon: Icons.check_circle,
+              text: I18n.inline(
+                  'Організатору надіслано сповіщення про готовність команд.',
+                  'You received a push about teams being ready.'),
+              color: const Color(0xFF81C784),
+            ),
+          ] else if (!bothConfirmed && isOrganizer) ...[
+            const SizedBox(height: 12),
+            _infoPill(
+              icon: Icons.info_outline,
+              text: I18n.inline(
+                  'Очікуємо підтвердження від капітанів. Вони отримають пуш, щойно додадуть склади.',
+                  'Waiting for captains to confirm. They get a push as soon as they submit.'),
+              color: const Color(0xFFFFC107),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _teamStatusTile({
+    required String? teamId,
+    required String name,
+    required String status,
+    required List<String> roster,
+    required Map<String, String> rosterStatuses,
+    required Color accent,
+  }) {
+    final totalTracked =
+        rosterStatuses.isNotEmpty ? rosterStatuses.length : roster.length;
+    final confirmed =
+        rosterStatuses.values.where((v) => v == 'confirmed').length;
+    final declined =
+        rosterStatuses.values.where((v) => v == 'declined').length;
+    final pending = totalTracked - confirmed - declined;
+    final hasResponses = rosterStatuses.isNotEmpty;
+    final statusColor = _teamStatusColor(status);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              TeamLogoButton(
+                teamId: teamId,
+                teamName: name,
+                size: 36,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  _teamStatusText(status),
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (hasResponses && totalTracked > 0) ...[
+            LinearProgressIndicator(
+              value: totalTracked == 0 ? 0 : confirmed / totalTracked,
+              backgroundColor: Colors.white.withValues(alpha: 0.08),
+              valueColor: AlwaysStoppedAnimation<Color>(accent),
+              minHeight: 6,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              I18n.inline(
+                  'Підтверджено $confirmed з $totalTracked',
+                  'Confirmed $confirmed of $totalTracked'),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                _statusCounter(
+                  icon: Icons.check_circle,
+                  color: const Color(0xFF4caf50),
+                  value: confirmed,
+                ),
+                const SizedBox(width: 8),
+                _statusCounter(
+                  icon: Icons.timelapse,
+                  color: const Color(0xFFFFC107),
+                  value: max(pending, 0),
+                ),
+                const SizedBox(width: 8),
+                _statusCounter(
+                  icon: Icons.cancel,
+                  color: const Color(0xFFE53935),
+                  value: max(declined, 0),
+                ),
+              ],
+            ),
+          ] else ...[
+            Text(
+              I18n.inline(
+                  'Очікуємо відповіді капітана. Гравці команди ще не підтвердили участь.',
+                  'Waiting for captain response. Players have not confirmed yet.'),
+              style: const TextStyle(color: Colors.white60, fontSize: 13),
+            ),
+            if (roster.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                I18n.inline(
+                    'Вказано ${roster.length} гравців у складі.',
+                    '${roster.length} players assigned in roster.'),
+                style: const TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statusCounter({
+    required IconData icon,
+    required Color color,
+    required int value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            '$value',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoPill({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _teamStatusText(String status) {
+    switch (status) {
+      case 'confirmed':
+        return I18n.inline('Підтверджено', 'Confirmed');
+      case 'declined':
+        return I18n.inline('Відхилено', 'Declined');
+      default:
+        return I18n.inline('Очікує', 'Pending');
+    }
+  }
+
+  Color _teamStatusColor(String status) {
+    switch (status) {
+      case 'confirmed':
+        return const Color(0xFF4caf50);
+      case 'declined':
+        return const Color(0xFFE53935);
+      default:
+        return const Color(0xFFFFC107);
+    }
   }
 
 Widget _buildEditingSection(Match m) {
@@ -1154,18 +1503,11 @@ final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toStrin
               },
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: const Color(0xFF4caf50),
-                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                    child: avatarUrl.isEmpty ? Text(
-                            userId.substring(0, 2).toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : null,
+                  PlayerAvatarButton(
+                    userId: userId,
+                    displayName: displayName,
+                    avatarUrl: avatarUrl,
+                    size: 40,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1532,13 +1874,13 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: const Color(0xFF4caf50),
-                      backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                      child: avatarUrl.isEmpty
-                          ? Text(initials, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700))
-                          : null,
+                    PlayerAvatarButton(
+                      userId: id,
+                      displayName: name,
+                      avatarUrl: avatarUrl,
+                      size: 32,
+                      borderColor: Colors.white.withOpacity(0.15),
+                      borderWidth: 1,
                     ),
                     const SizedBox(width: 10),
                     Expanded(

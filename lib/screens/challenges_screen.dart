@@ -11,6 +11,7 @@ import 'challenge_video_player_screen.dart';
 import '../widgets/user_chip.dart';
 import '../utils/i18n.dart';
 import '../widgets/video_preview_box.dart';
+import '../widgets/player_avatar_button.dart';
 
 class ChallengesScreen extends StatefulWidget {
   final bool showOnlyMyChallenges;
@@ -801,10 +802,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         id: challengeId,
         title: challengeData['title'] ?? '',
         description: challengeData['description'] ?? '',
-        type: ChallengeType.values.firstWhere(
-          (e) => e.toString().split('.').last == challengeData['type'],
-          orElse: () => ChallengeType.technical,
-        ),
+        type: parseChallengeType(challengeData['type'] as String?),
         audience: ChallengeAudience.values.firstWhere(
           (e) => e.toString().split('.').last == challengeData['audience'],
           orElse: () => ChallengeAudience.city,
@@ -971,14 +969,11 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                       },
                                     );
                                   },
-                                  leading: CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: const Color(0xFF4caf50),
-                                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                                    child: avatarUrl.isEmpty ? Text(
-                                      userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                                    ) : null,
+                                  leading: PlayerAvatarButton(
+                                    userId: participantId,
+                                    displayName: userName,
+                                    avatarUrl: avatarUrl,
+                                    size: 40,
                                   ),
                                   title: Text(
                                     userName,
@@ -1216,10 +1211,11 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         final medal = place == 1 ? '🥇' : place == 2 ? '🥈' : '🥉';
         return ListTile(
           onTap: () => Navigator.pushNamed(context, '/player-profile', arguments: {'playerId': userId, 'playerName': name}),
-          leading: CircleAvatar(
-            backgroundColor: const Color(0xFF4caf50),
-            backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
-            child: avatar.isEmpty ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'U', style: const TextStyle(color: Colors.white)) : null,
+          leading: PlayerAvatarButton(
+            userId: userId,
+            displayName: name,
+            avatarUrl: avatar,
+            size: 36,
           ),
           title: Text('$medal $name', style: const TextStyle(color: Colors.white)),
           subtitle: Text('Місце: $place', style: TextStyle(color: Colors.white.withOpacity(0.7))),

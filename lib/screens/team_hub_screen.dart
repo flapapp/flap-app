@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/app_team.dart';
 import '../services/team_service.dart';
 import '../utils/i18n.dart';
+import '../widgets/team_logo_button.dart';
 import 'team_create_screen.dart';
 import 'team_details_screen.dart';
 
@@ -172,13 +173,26 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            team.name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-            ),
+          Row(
+            children: [
+              TeamLogoButton(
+                teamId: team.id,
+                teamName: team.name,
+                logoUrl: team.logoUrl,
+                size: 54,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  team.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -296,13 +310,11 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
                         children: [
                           Row(
                             children: [
-                              CircleAvatar(
-                                backgroundImage: team.logoUrl != null
-                                    ? NetworkImage(team.logoUrl!)
-                                    : null,
-                                child: team.logoUrl == null
-                                    ? Text(team.name[0].toUpperCase())
-                                    : null,
+                              TeamLogoButton(
+                                teamId: team.id,
+                                teamName: team.name,
+                                logoUrl: team.logoUrl,
+                                size: 32,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -401,15 +413,27 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         children: [
           const SizedBox(width: 24),
           Expanded(
-            flex: 4,
+            flex: 6,
             child: Text(I18n.inline('Команда', 'Team'), style: style),
           ),
           Expanded(
-            child: Text(I18n.inline('Матчі', 'Matches'), style: style),
+            flex: 2,
+            child: Text(
+              I18n.inline('Матчі', 'Matches'),
+              style: style,
+              textAlign: TextAlign.center,
+            ),
           ),
-          Expanded(child: Text('W-D-L', style: style)),
-          Expanded(child: Text('GD', style: style)),
           Expanded(
+            flex: 3,
+            child: Text('W-D-L', style: style, textAlign: TextAlign.center),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text('GD', style: style, textAlign: TextAlign.center),
+          ),
+          Expanded(
+            flex: 2,
             child: Text(
               I18n.inline('Очки', 'Pts'),
               style: style,
@@ -453,17 +477,14 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
               ),
             ),
             Expanded(
-              flex: 4,
+              flex: 6,
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 14,
-                    backgroundImage: team.logoUrl != null
-                        ? NetworkImage(team.logoUrl!)
-                        : null,
-                    child: team.logoUrl == null
-                        ? Text(team.name[0].toUpperCase())
-                        : null,
+                  TeamLogoButton(
+                    teamId: team.id,
+                    teamName: team.name,
+                    logoUrl: team.logoUrl,
+                    size: 32,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -490,24 +511,31 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
               ),
             ),
             Expanded(
+              flex: 2,
               child: Text(
                 '$matches',
                 style: const TextStyle(color: Colors.white),
+                textAlign: TextAlign.center,
               ),
             ),
             Expanded(
+              flex: 3,
               child: Text(
                 '${team.wins}-${team.draws}-${team.losses}',
                 style: const TextStyle(color: Colors.white70),
+                textAlign: TextAlign.center,
               ),
             ),
             Expanded(
+              flex: 2,
               child: Text(
                 '${_goalDiff(team) >= 0 ? '+' : ''}${_goalDiff(team)}',
                 style: const TextStyle(color: Colors.white70),
+                textAlign: TextAlign.center,
               ),
             ),
             Expanded(
+              flex: 2,
               child: Text(
                 '${_points(team)}',
                 style: const TextStyle(

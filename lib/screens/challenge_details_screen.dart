@@ -11,6 +11,7 @@ import '../services/thumbnail_service.dart';
 import 'challenge_completion_screen.dart';
 import '../utils/i18n.dart';
 import '../widgets/video_preview_box.dart';
+import '../widgets/player_avatar_button.dart';
 
 class ChallengeDetailsScreen extends StatefulWidget {
   final Challenge challenge;
@@ -192,10 +193,12 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             final bData = b.data() as Map<String, dynamic>;
             final aIsCreator = aData['isCreatorVideo'] ?? false;
             final bIsCreator = bData['isCreatorVideo'] ?? false;
-            
+            final aRating = (aData['averageRating'] ?? 0.0).toDouble();
+            final bRating = (bData['averageRating'] ?? 0.0).toDouble();
+
             if (aIsCreator && !bIsCreator) return -1;
             if (!aIsCreator && bIsCreator) return 1;
-            return 0;
+            return bRating.compareTo(aRating);
           });
         
         return Column(
@@ -329,14 +332,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                   final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
                   final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? I18n.inline('Користувач', 'User');
                   
-                  return CircleAvatar(
-                    radius: 20,
-                    backgroundColor: const Color(0xFF4caf50),
-                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                    child: avatarUrl.isEmpty ? Text(
-                      userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                    ) : null,
+                  return PlayerAvatarButton(
+                    userId: userId,
+                    displayName: userName,
+                    avatarUrl: avatarUrl,
+                    size: 40,
                   );
                 },
               ),
@@ -440,106 +440,91 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // User info and title
-          Row(
-            children: [
-              FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
-                builder: (context, userSnapshot) {
-                  if (!userSnapshot.hasData) {
-                    return const CircleAvatar(
-                      radius: 16,
-                      backgroundColor: Color(0xFF4caf50),
-                      child: Icon(Icons.person, color: Colors.white, size: 16),
-                    );
-                  }
-                  
-                  final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
-                  final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-                  final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? I18n.inline('Користувач', 'User');
-                  
-                  return GestureDetector(
-                    onTap: () {
-                      // Переходимо в challenge video player
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChallengeVideoPlayerScreen(
-                            videoUrl: videoUrl,
-                            title: title,
-                            authorName: userName,
-                            challengeId: widget.challenge.id,
-                            submissionId: videoId,
-                            thumbnailUrl: thumb,
+          FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+            builder: (context, userSnapshot) {
+              final userData = userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
+              final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
+              final userName = userData['displayName'] ??
+                  userData['name'] ??
+                  userData['email']?.split('@')[0] ??
+                  I18n.inline('Користувач', 'User');
+              return Row(
+                children: [
+                  PlayerAvatarButton(
+                    userId: userId,
+                    displayName: userName,
+                    avatarUrl: avatarUrl,
+                    size: 34,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChallengeVideoPlayerScreen(
+                              videoUrl: videoUrl,
+                              title: title,
+                              authorName: userName,
+                              challengeId: widget.challenge.id,
+                              submissionId: videoId,
+                              thumbnailUrl: thumb,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: const Color(0xFF4caf50),
-                          backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                          child: avatarUrl.isEmpty ? Text(
-                            userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                          ) : null,
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        );
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      title,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                              Expanded(
+                                child: Text(
+                                  title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
                                   ),
-                                  if (isCreatorVideo)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF4caf50),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        I18n.inline('АВТОР', 'CREATOR'),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              Text(
-                                userName,
-                                style: const TextStyle(
-                                  color: Color(0xFF66bb6a),
-                                  fontSize: 11,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              if (isCreatorVideo)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF4caf50),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    I18n.inline('АВТОР', 'CREATOR'),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
-                        ),
-                      ],
+                          Text(
+                            userName,
+                            style: const TextStyle(
+                              color: Color(0xFF66bb6a),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                },
-              ),
-            ],
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 8),
 
@@ -839,14 +824,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                                       },
                                     );
                                   },
-                                  leading: CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: const Color(0xFF4caf50),
-                                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                                    child: avatarUrl.isEmpty ? Text(
-                                      userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                                    ) : null,
+                                  leading: PlayerAvatarButton(
+                                    userId: participantId,
+                                    displayName: userName,
+                                    avatarUrl: avatarUrl,
+                                    size: 40,
                                   ),
                                   title: Text(
                                     userName,
@@ -924,12 +906,22 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       builder: (context, voteSnapshot) {
         final hasVoted = voteSnapshot.hasData && voteSnapshot.data!.exists;
         double currentVote = (_voteNotifiers[videoId]?.value) ?? 0.0;
-        
-        if (hasVoted && _voteNotifiers[videoId] == null) {
-          final voteData = voteSnapshot.data!.data() as Map<String, dynamic>? ?? {};
-          currentVote = (voteData['rating'] ?? 0.0).toDouble();
+
+        if (hasVoted) {
+          final voteData =
+              voteSnapshot.data!.data() as Map<String, dynamic>? ?? {};
+          final serverVote = (voteData['rating'] ?? 0.0).toDouble();
+          if (_voteNotifiers.containsKey(videoId)) {
+            if ((_voteNotifiers[videoId]!.value - serverVote).abs() > 0.01) {
+              _voteNotifiers[videoId]!.value = serverVote;
+            }
+          } else {
+            _voteNotifiers[videoId] = ValueNotifier<double>(serverVote);
+          }
+        } else {
+          _voteNotifiers.putIfAbsent(
+              videoId, () => ValueNotifier<double>(currentVote));
         }
-        _voteNotifiers.putIfAbsent(videoId, () => ValueNotifier<double>(currentVote));
 
         return Container(
           padding: const EdgeInsets.all(12),

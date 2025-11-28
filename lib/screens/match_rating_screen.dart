@@ -327,36 +327,82 @@ final alreadyRatedIds = existingSnap.docs
   ),
 ),
 
-          // Список гравців для оцінювання
-if (_playerRatings.isEmpty)
-  Padding(
-    padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
-    child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Text(
-        I18n.inline('Немає гравців для оцінювання.\nМожливо, ви вже оцінили всіх учасників цього матчу.', 'No players to rate.\nYou may have already rated all participants of this match.'),
-        style: const TextStyle(color: Colors.white70),
-      ),
-    ),
-  )
-else
-  Expanded(
-    child: ListView.builder(
-      padding: const EdgeInsets.all(15),
-      itemCount: _playerRatings.length,
-      itemBuilder: (context, index) {
-        final playerId = _playerRatings.keys.elementAt(index);
-        final ratings = _playerRatings[playerId]!;
-        return _buildPlayerRatingCard(playerId, ratings);
-      },
-    ),
-  ),
+          Expanded(
+            child: _playerRatings.isEmpty
+                ? _buildEmptyRatingsState()
+                : ListView.builder(
+                    padding: const EdgeInsets.all(15),
+                    itemCount: _playerRatings.length,
+                    itemBuilder: (context, index) {
+                      final playerId = _playerRatings.keys.elementAt(index);
+                      final ratings = _playerRatings[playerId]!;
+                      return _buildPlayerRatingCard(playerId, ratings);
+                    },
+                  ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(15, 0, 15, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: (_isSubmitting || _playerRatings.isEmpty)
+                      ? null
+                      : _submitAllRatings,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: const Color(0xFF4CAF50),
+                    foregroundColor: Colors.white,
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.check_circle_outline),
+                  label: Text(
+                    _isSubmitting
+                        ? I18n.inline('Зберігаємо...', 'Saving...')
+                        : I18n.inline('Зберегти оцінки', 'Save ratings'),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+  
+  Widget _buildEmptyRatingsState() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Text(
+          I18n.inline(
+            'Немає гравців для оцінювання.\nМожливо, ви вже оцінили всіх учасників цього матчу.',
+            'No players to rate.\nYou may have already rated all participants of this match.',
+          ),
+          style: const TextStyle(color: Colors.white70, height: 1.4),
+        ),
       ),
     );
   }
@@ -517,10 +563,11 @@ else
     
     try {
       int successCount = 0;
+      final List<String> failureMessages = [];
       final currentUserId = FirebaseAuth.instance.currentUser?.uid;
       final idsToRate = _playerRatings.keys.where((id) => id != currentUserId).toList();
       final int totalCount = idsToRate.length;
-            if (totalCount == 0) {
+      if (totalCount == 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(I18n.inline('Немає гравців для оцінювання', 'No players to rate')),
@@ -531,44 +578,52 @@ else
         return;
       }
 
-            for (final playerId in idsToRate) {
-  final ratings = _playerRatings[playerId]!;
-  final double simple = _simpleRating[playerId] ?? 2.5;
-  final Map<String, double> effectiveCriteria =
-      (_mode == RatingMode.advanced)
-          ? ratings
-          : {'technical': simple, 'physical': simple, 'tactical': simple, 'teamwork': simple};
+      for (final playerId in idsToRate) {
+        final ratings = _playerRatings[playerId]!;
+        final double simple = _simpleRating[playerId] ?? 2.5;
+        final Map<String, double> effectiveCriteria =
+            (_mode == RatingMode.advanced)
+                ? ratings
+                : {'technical': simple, 'physical': simple, 'tactical': simple, 'teamwork': simple};
+        try {
+          await _ratingService.ratePlayerAfterMatch(
+            matchId: widget.match.id,
+            playerId: playerId,
+            ratedBy: FirebaseAuth.instance.currentUser!.uid,
+            criteria: effectiveCriteria,
+          );
+          successCount++;
+          _playerRatings.remove(playerId);
+          _simpleRating.remove(playerId);
+        } catch (e) {
+          final profile = _userCache[playerId] ?? const {};
+          final playerName = (profile['displayName'] ?? '').toString().trim();
+          failureMessages.add(
+            '${playerName.isEmpty ? playerId : playerName}: ${_humanizeError(e)}',
+          );
+        }
+      }
+      setState(() {});
 
-  final success = await _ratingService.ratePlayerAfterMatch(
-    matchId: widget.match.id,
-    playerId: playerId,
-    ratedBy: FirebaseAuth.instance.currentUser!.uid,
-    criteria: effectiveCriteria,
-  );
-
-  if (success) {
-    successCount++;
-    _playerRatings.remove(playerId);
-    _simpleRating.remove(playerId);
-  }
-}
-setState(() {});
-      
       if (successCount == totalCount) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(I18n.inline('✅ Всі оцінки збережено! Рейтинги оновлено.', '✅ All ratings saved! Ratings updated.')),
             backgroundColor: Colors.green,
           ),
         );
-        
-        // Повертаємося назад
         Navigator.pop(context);
       } else {
+        if (!mounted) return;
+        final String headline = successCount == 0
+            ? I18n.inline('❌ Не вдалося зберегти оцінки', '❌ Ratings were not saved')
+            : I18n.inline('⚠️ Збережено $successCount з $totalCount оцінок', '⚠️ Saved $successCount of $totalCount ratings');
+        final String details = failureMessages.isNotEmpty ? '\n${failureMessages.first}' : '';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('⚠️ Збережено $successCount з $totalCount оцінок', '⚠️ Saved $successCount of $totalCount ratings')),
-            backgroundColor: Colors.orange,
+            content: Text('$headline$details'),
+            backgroundColor: successCount == 0 ? Colors.red : Colors.orange,
           ),
         );
       }
@@ -586,6 +641,11 @@ setState(() {});
         _isSubmitting = false;
       });
     }
+  }
+  
+  String _humanizeError(Object error) {
+    final raw = error.toString();
+    return raw.replaceFirst(RegExp(r'^Exception:\s*'), '').trim();
   }
   
   // Форматування дати

@@ -1198,7 +1198,7 @@ return Column(
                 filtered = all.where((m) => m.participants.contains(currentUserId) && m.organizerId != currentUserId).toList();
               }
               // Найближчі зверху
-              filtered.sort((a, b) => a.date.compareTo(b.date));
+          filtered.sort((a, b) => b.date.compareTo(a.date));
 
               // Показуємо список матчів користувача
               return ListView.builder(
@@ -2244,8 +2244,8 @@ Widget _buildActionButtons(Match match, String currentUserId) {
       }
         return true;
       }).toList();
-    // Сортування: найближчі матчі зверху
-    filtered.sort((a, b) => a.date.compareTo(b.date));
+    // Сортування: нові матчі зверху
+    filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return filtered;
     });
   }

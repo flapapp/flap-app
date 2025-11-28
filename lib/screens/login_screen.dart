@@ -36,6 +36,27 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // Логотип
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Image.asset(
+                    'assets/logo/flap_logo.jpg',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(height: 16),
                 // Заголовок і підзаголовок як у MVP
                 const Text(
                   // Static brand; we can localize subtitle below

@@ -5,6 +5,7 @@ import '../services/challenge_service.dart';
 import 'challenge_create_screen.dart';
 import 'challenge_details_screen.dart';
 import '../utils/i18n.dart';
+import '../widgets/player_avatar_button.dart';
 
 class ChallengeListScreen extends StatefulWidget {
   @override
@@ -30,8 +31,13 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
 
   final List<String> _types = [
     'all',
-    'technical',
-    'positional'
+    'goal',
+    'save',
+    'pass',
+    'tackle',
+    'dribbling',
+    'trick',
+    'other',
   ];
 
   List<String> get _cities => [
@@ -423,17 +429,11 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                 // Інформація про створювача та час
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 16,
+                    PlayerAvatarButton(
+                      userId: challenge.creatorId,
+                      displayName: challenge.creatorName,
+                      size: 32,
                       backgroundColor: const Color(0xFFFF9800),
-                      child: Text(
-                        challenge.creatorName.isNotEmpty ? challenge.creatorName[0].toUpperCase() : '?',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -634,10 +634,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
 
     // Фільтр по типу
     if (_selectedType != 'all') {
-      final type = ChallengeType.values.firstWhere(
-        (t) => t.toString().split('.').last == _selectedType,
-        orElse: () => ChallengeType.technical,
-      );
+      final type = parseChallengeType(_selectedType);
       stream = _challengeService.getChallengesByType(type);
     }
 
@@ -682,10 +679,20 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     switch (type) {
       case 'all':
         return I18n.inline('Всі типи', 'All types');
-      case 'technical':
-        return I18n.inline('Технічні навички', 'Technical skills');
-      case 'positional':
-        return I18n.inline('Позиційні челенджі', 'Positional challenges');
+      case 'goal':
+        return I18n.inline('Гол', 'Goal');
+      case 'save':
+        return I18n.inline('Сейв', 'Save');
+      case 'pass':
+        return I18n.inline('Пас', 'Pass');
+      case 'tackle':
+        return I18n.inline('Підкат', 'Tackle');
+      case 'dribbling':
+        return I18n.inline('Дриблінг', 'Dribbling');
+      case 'trick':
+        return I18n.inline('Трюк', 'Trick');
+      case 'other':
+        return I18n.inline('Інше', 'Other');
       default:
         return type;
     }

@@ -185,17 +185,29 @@ class TeamService {
     }
     final batch = _firestore.batch();
     final inviteRef = _invitesCollection.doc(invite.id);
+    final teamRef = _teamsCollection.doc(invite.teamId);
+    final userRef = _firestore.collection('users').doc(invite.userId);
+
     batch.update(inviteRef, {
       'status': accept ? 'accepted' : 'declined',
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
     if (accept) {
-      final teamRef = _teamsCollection.doc(invite.teamId);
       batch.update(teamRef, {
         'memberIds': FieldValue.arrayUnion([invite.userId]),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      batch.set(
+        userRef,
+        {
+          'teamIds': FieldValue.arrayUnion([invite.teamId]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
     }
+
     await batch.commit();
   }
 
@@ -263,30 +275,65 @@ class TeamService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
+    String? assignedTeamKey;
+
     if (accept) {
       final matchRef = _firestore.collection('matches').doc(request.matchId);
+      final matchSnap = await matchRef.get();
+      final matchData = matchSnap.data() ?? {};
+      assignedTeamKey =
+          (matchData['teamAId'] == request.teamId) ? 'teamA' : 'teamB';
       final teamDoc = await _teamsCollection.doc(request.teamId).get();
       final teamName = (teamDoc.data()?['name'] ?? 'Team') as String;
-      batch.update(matchRef, {
-        'teamBId': request.teamId,
-        'teamBStatus': 'confirmed',
-        'teamB': {
-          'name': teamName,
-          'playerIds': confirmedRoster,
-          'averageRating': 0.0,
-        },
-        'teamRosters.teamB': confirmedRoster,
+      final rosterStatus = {
+        for (final uid in confirmedRoster) uid: 'pending',
+      };
+      final statusField =
+          assignedTeamKey == 'teamA' ? 'teamAStatus' : 'teamBStatus';
+      final teamField = assignedTeamKey!;
+      final updateData = <String, dynamic>{
         'participants': FieldValue.arrayUnion(confirmedRoster),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+        'teamRosters.$teamField': confirmedRoster,
+        'teamRosterStatus.$teamField': rosterStatus,
+        statusField: 'pending',
+      };
+      updateData[teamField] = {
+        'name': teamName,
+        'playerIds': confirmedRoster,
+        'averageRating': 0.0,
+      };
+      if (teamField == 'teamA') {
+        updateData['teamAId'] = request.teamId;
+      } else {
+        updateData['teamBId'] = request.teamId;
+      }
+      batch.update(matchRef, updateData);
     } else {
       final matchRef = _firestore.collection('matches').doc(request.matchId);
+      final matchSnap = await matchRef.get();
+      final matchData = matchSnap.data() ?? {};
+      final isHost = (matchData['teamAId'] == request.teamId);
       batch.update(matchRef, {
-        'teamBStatus': 'declined',
+        isHost ? 'teamAStatus' : 'teamBStatus': 'declined',
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }
     await batch.commit();
+
+    if (accept && assignedTeamKey != null && confirmedRoster.isNotEmpty) {
+      final teamDoc = await _teamsCollection.doc(request.teamId).get();
+      final teamName = (teamDoc.data()?['name'] ?? 'Team') as String;
+      final notif = NotificationService();
+      for (final playerId in confirmedRoster) {
+        await notif.sendTeamRosterInvite(
+          toUserId: playerId,
+          matchId: request.matchId,
+          teamName: teamName,
+          teamKey: assignedTeamKey!,
+        );
+      }
+    }
   }
 
   Future<List<AppTeam>> searchTeams(String query, {int limit = 10}) async {

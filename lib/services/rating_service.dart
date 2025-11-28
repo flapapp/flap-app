@@ -137,7 +137,7 @@ class RatingService {
   }
 
   // Оцінити гравця після матчу
-  Future<bool> ratePlayerAfterMatch({
+  Future<void> ratePlayerAfterMatch({
     required String matchId,
     required String playerId,
     required String ratedBy,
@@ -172,13 +172,10 @@ class RatingService {
           .doc(matchId)
           .get();
       if (!matchDoc.exists) {
-  throw Exception('Матч не знайдено');
-}
-final matchData = matchDoc.data() as Map<String, dynamic>;
-if (matchData['status'] != 'finished') {
-  throw Exception('Матч ще не завершено');
-}
-final participants = List<String>.from(matchData['participants'] ?? const <String>[]);
+        throw Exception('Матч не знайдено');
+      }
+      final matchData = matchDoc.data() as Map<String, dynamic>;
+      final participants = List<String>.from(matchData['participants'] ?? const <String>[]);
 if (!participants.contains(ratedBy) || !participants.contains(playerId)) {
   throw Exception('Лише учасники можуть оцінювати');
 }
@@ -253,10 +250,9 @@ if (multiTeams.isNotEmpty) {
         sourceId: matchId,
       );
 
-      return true;
     } catch (e) {
       print('Error rating player after match: $e');
-      return false;
+      rethrow;
     }
   }
 

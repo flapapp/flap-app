@@ -75,10 +75,10 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
         elevation: 0,
         title: Row(
           children: [
-            const Icon(Icons.store, color: Color(0xFF4caf50), size: 24),
+            const Icon(Icons.auto_awesome, color: Color(0xFF4caf50), size: 24),
             const SizedBox(width: 8),
             Text(
-              'Магазин бейджів'.i18n('Badge store'),
+              I18n.inline('Додати скіли', 'Add skills'),
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,

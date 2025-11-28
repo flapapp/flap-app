@@ -122,6 +122,17 @@ class MyApp extends StatelessWidget {
         navigatorKey: AppNavigator.navigatorKey,
         theme: baseTheme.copyWith(
           textTheme: GoogleFonts.robotoTextTheme(baseTheme.textTheme),
+          appBarTheme: baseTheme.appBarTheme.copyWith(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            iconTheme: const IconThemeData(color: Colors.white),
+            titleTextStyle: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+            foregroundColor: Colors.white,
+          ),
         ),
         initialRoute: '/',
         routes: {

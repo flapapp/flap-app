@@ -129,6 +129,12 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                             const SizedBox(height: 24),
                             TextFormField(
                               controller: _nameCtrl,
+                              cursorColor: Colors.white,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                               decoration: _fieldDecoration(
                                 I18n.inline('Назва команди', 'Team name'),
                               ),
@@ -144,6 +150,12 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                             TextFormField(
                               controller: _descCtrl,
                               maxLines: 3,
+                              cursorColor: Colors.white,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                height: 1.4,
+                              ),
                               decoration: _fieldDecoration(
                                 I18n.inline('Опис (необов’язково)', 'Description (optional)'),
                               ),
@@ -160,6 +172,11 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                             const SizedBox(height: 16),
                             TextFormField(
                               controller: _cityCtrl,
+                              cursorColor: Colors.white,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
                               decoration: _fieldDecoration(
                                 I18n.inline('Місто (опційно)', 'City (optional)'),
                               ),
@@ -427,6 +444,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
     return InputDecoration(
       labelText: label,
       labelStyle: const TextStyle(color: Colors.white70),
+      hintStyle: const TextStyle(color: Colors.white54),
       filled: true,
       fillColor: Colors.white.withValues(alpha: 0.02),
       border: OutlineInputBorder(

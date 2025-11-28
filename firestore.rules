@@ -34,6 +34,27 @@ service cloud.firestore {
       );
     }
 
+    function getMatchData(matchId) {
+      return get(/databases/$(database)/documents/matches/$(matchId)).data;
+    }
+
+    function canRatePlayer(matchId, raterId, playerId) {
+      let matchData = getMatchData(matchId);
+      return matchData != null &&
+        matchData.participants.hasAll([raterId, playerId]);
+    }
+
+    function isSelfJoiningTeam(teamData) {
+      return isSignedIn() &&
+        teamData != null &&
+        teamData.memberIds != null &&
+        !teamData.memberIds.hasAny([request.auth.uid]) &&
+        request.resource.data.memberIds.size() == teamData.memberIds.size() + 1 &&
+        request.resource.data.memberIds.hasAll(teamData.memberIds) &&
+        request.resource.data.memberIds.hasAny([request.auth.uid]) &&
+        request.resource.data.diff(teamData).changedKeys().hasOnly(['memberIds','updatedAt']);
+    }
+
         match /matches/{matchId} {
       allow read: if true;
 
@@ -118,30 +139,12 @@ service cloud.firestore {
                   
       // Оцінки гравців після матчу (підколекція)
       match /playerRatings/{docId} {
-      // Читати можуть всі учасники матчу
         allow read: if isSignedIn();
 
-        // Створювати оцінку може тільки учасник для іншого учасника своєї команди
         allow create: if isSignedIn() &&
           request.resource.data.ratedBy == request.auth.uid &&
           request.resource.data.playerId != request.auth.uid &&
-          get(/databases/$(database)/documents/matches/$(matchId)).data.participants.hasAll([
-            request.auth.uid, request.resource.data.playerId
-          ]) &&
-          get(/databases/$(database)/documents/matches/$(matchId)).data.status == 'finished' &&
-          (
-            // Якщо команди не задані - дозволяємо
-            !get(/databases/$(database)/documents/matches/$(matchId)).data.keys().hasAll(['teamA','teamB']) ||
-            get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.size() == 0 ||
-            get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.size() == 0 ||
-            // Якщо команди є - ratedBy і playerId мають бути В ОДНІЙ КОМАНДІ
-            (
-              get(/databases/$(database)/documents/matches/$(matchId)).data.teamA.playerIds.hasAll([request.auth.uid, request.resource.data.playerId])
-            ) ||
-            (
-              get(/databases/$(database)/documents/matches/$(matchId)).data.teamB.playerIds.hasAll([request.auth.uid, request.resource.data.playerId])
-            )
-          ) &&
+          canRatePlayer(matchId, request.auth.uid, request.resource.data.playerId) &&
           !exists(/databases/$(database)/documents/matches/$(matchId)/playerRatings/$(docId));
       }
         match /fixtures/{fixtureId} {
@@ -161,7 +164,8 @@ service cloud.firestore {
         request.resource.data.memberIds.hasOnly([request.auth.uid]);
       allow update: if
         isTeamStaff(resource.data) ||
-        request.auth.token.admin == true;
+        request.auth.token.admin == true ||
+        isSelfJoiningTeam(resource.data);
       allow delete: if
         isTeamCaptain(resource.data) ||
         request.auth.token.admin == true;

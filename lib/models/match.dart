@@ -159,7 +159,10 @@ class Match {
   final String? teamAStatus;
   final String? teamBStatus;
   final Map<String, List<String>> teamRosters;
+  final Map<String, Map<String, String>> teamRosterStatus;
   final Map<String, int> goalsByPlayer;
+  final bool teamsReadyNotified;
+  final DateTime? teamsReadyNotifiedAt;
  
   // Результат
   final MatchResult? result;
@@ -207,7 +210,10 @@ class Match {
     this.teamAStatus,
     this.teamBStatus,
     this.teamRosters = const {},
+    this.teamRosterStatus = const {},
     this.goalsByPlayer = const {},
+    this.teamsReadyNotified = false,
+    this.teamsReadyNotifiedAt,
     this.result,
     this.teamAScore,
     this.teamBScore,
@@ -283,10 +289,26 @@ class Match {
             .map((key, value) => MapEntry(key.toString(),
                 value is List ? List<String>.from(value) : const <String>[])),
       ),
+      teamRosterStatus: ((data['teamRosterStatus'] as Map?) ?? const {})
+          .map((teamKey, value) {
+        final mapValue = value is Map ? value : const <String, dynamic>{};
+        return MapEntry(
+          teamKey.toString(),
+          mapValue.map(
+            (playerId, status) => MapEntry(
+              playerId.toString(),
+              status.toString(),
+            ),
+          ),
+        );
+      }),
       goalsByPlayer: Map<String, int>.from(
         ((data['goalsByPlayer'] as Map?) ?? const {})
             .map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
       ),
+      teamsReadyNotified: data['teamsReadyNotified'] ?? false,
+      teamsReadyNotifiedAt:
+          (data['teamsReadyNotifiedAt'] as Timestamp?)?.toDate(),
 teams: ((data['teams'] as List?) ?? const [])
     .whereType<Map<String, dynamic>>()
     .map((t) => Team(
@@ -359,7 +381,12 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
       'teamAStatus': teamAStatus,
       'teamBStatus': teamBStatus,
       'teamRosters': teamRosters,
+      'teamRosterStatus': teamRosterStatus,
       'goalsByPlayer': goalsByPlayer,
+      'teamsReadyNotified': teamsReadyNotified,
+      'teamsReadyNotifiedAt': teamsReadyNotifiedAt != null
+          ? Timestamp.fromDate(teamsReadyNotifiedAt!)
+          : null,
       'result': result?.toString().split('.').last,
       'teamAScore': teamAScore,
       'teamBScore': teamBScore,
@@ -405,7 +432,10 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
     String? teamAStatus,
     String? teamBStatus,
     Map<String, List<String>>? teamRosters,
+    Map<String, Map<String, String>>? teamRosterStatus,
     Map<String, int>? goalsByPlayer,
+    bool? teamsReadyNotified,
+    DateTime? teamsReadyNotifiedAt,
     MatchResult? result,
     int? teamAScore,
     int? teamBScore,
@@ -448,7 +478,11 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
       teamAStatus: teamAStatus ?? this.teamAStatus,
       teamBStatus: teamBStatus ?? this.teamBStatus,
       teamRosters: teamRosters ?? this.teamRosters,
+      teamRosterStatus: teamRosterStatus ?? this.teamRosterStatus,
       goalsByPlayer: goalsByPlayer ?? this.goalsByPlayer,
+      teamsReadyNotified: teamsReadyNotified ?? this.teamsReadyNotified,
+      teamsReadyNotifiedAt:
+          teamsReadyNotifiedAt ?? this.teamsReadyNotifiedAt,
       result: result ?? this.result,
       teamAScore: teamAScore ?? this.teamAScore,
       teamBScore: teamBScore ?? this.teamBScore,
@@ -600,10 +634,24 @@ class MatchUtils {
   
   // Перевірка чи матч можна почати
   static bool canStartMatch(Match match) {
-    return match.isFull && 
-           match.hasTeams && 
-           match.teamA!.playerIds.isNotEmpty && 
-           match.teamB!.playerIds.isNotEmpty;
+    final rosterA =
+        match.teamRosters['teamA'] ?? match.teamA?.playerIds ?? const <String>[];
+    final rosterB =
+        match.teamRosters['teamB'] ?? match.teamB?.playerIds ?? const <String>[];
+
+    if (match.isTeamMatch) {
+      final teamAReady = (match.teamAStatus ?? 'pending') == 'confirmed';
+      final teamBReady = (match.teamBStatus ?? 'pending') == 'confirmed';
+      return teamAReady &&
+          teamBReady &&
+          rosterA.isNotEmpty &&
+          rosterB.isNotEmpty;
+    }
+
+    return match.isFull &&
+        match.hasTeams &&
+        rosterA.isNotEmpty &&
+        rosterB.isNotEmpty;
   }
   
   // Перевірка чи матч можна завершити

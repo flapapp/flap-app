@@ -1940,10 +1940,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
       id: challengeId,
       title: challengeData['title'] ?? '',
       description: challengeData['description'] ?? '',
-      type: ChallengeType.values.firstWhere(
-        (e) => e.toString() == 'ChallengeType.${challengeData['type']}',
-        orElse: () => ChallengeType.technical,
-      ),
+      type: parseChallengeType(challengeData['type'] as String?),
       audience: ChallengeAudience.values.firstWhere(
         (e) => e.toString() == 'ChallengeAudience.${challengeData['audience']}',
         orElse: () => ChallengeAudience.city,

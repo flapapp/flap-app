@@ -8,6 +8,8 @@ import '../services/notification_service.dart';
 import '../services/team_service.dart';
 import '../models/notification.dart';
 import '../utils/i18n.dart';
+import '../widgets/player_avatar_button.dart';
+import '../widgets/team_logo_button.dart';
 
 class CreateMatchScreen extends StatefulWidget {
   const CreateMatchScreen({super.key});
@@ -346,25 +348,24 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             Row(
               children: [
                 Expanded(
-                  child: CheckboxListTile(
-                    title: Text(I18n.inline('Автобаланс команд', 'Auto-balance teams'), style: const TextStyle(color: Colors.white)),
+                  child: _buildSettingToggle(
+                    title: I18n.inline('Автобаланс', 'Auto balance'),
+                    subtitle: I18n.inline('Система підбере склади', 'System balances teams'),
                     value: _autoBalance,
                     onChanged: (value) {
-                      setState(() => _autoBalance = value!);
+                      setState(() => _autoBalance = value);
                     },
-                    activeColor: Color(0xFF4caf50),
-                    checkColor: Colors.white,
                   ),
                 ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: CheckboxListTile(
-                    title: Text(I18n.inline('Приватний матч', 'Private match'), style: const TextStyle(color: Colors.white)),
+                  child: _buildSettingToggle(
+                    title: I18n.inline('Приватний матч', 'Private match'),
+                    subtitle: I18n.inline('Бачать лише запрошені', 'Visible to invited only'),
                     value: _isPrivate,
                     onChanged: (value) {
-                      setState(() => _isPrivate = value!);
+                      setState(() => _isPrivate = value);
                     },
-                    activeColor: Color(0xFF4caf50),
-                    checkColor: Colors.white,
                   ),
                 ),
               ],
@@ -531,22 +532,11 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                             return ListTile(
                               contentPadding:
                                   const EdgeInsets.symmetric(horizontal: 8),
-                              leading: CircleAvatar(
-                                radius: 18,
-                                backgroundColor: const Color(0xFF4caf50),
-                                backgroundImage: photoUrl.isNotEmpty
-                                    ? NetworkImage(photoUrl)
-                                    : null,
-                                child: photoUrl.isEmpty
-                                    ? Text(
-                                        name.isNotEmpty
-                                            ? name[0].toUpperCase()
-                                            : 'U',
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w700),
-                                      )
-                                    : null,
+                              leading: PlayerAvatarButton(
+                                userId: id,
+                                displayName: name,
+                                avatarUrl: photoUrl,
+                                size: 36,
                               ),
                               title: Text(
                                 name,
@@ -691,44 +681,57 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       var currentPlayers = 1;
       var autoBalance = _autoBalance;
       var isTeamMatch = false;
-      Map<String, List<String>> teamRosters = const {};
+      final Map<String, List<String>> teamRosters = {};
+      final Map<String, Map<String, String>> teamRosterStatus = {};
       Team? teamAData;
       Team? teamBData;
       String? teamAId;
       String? teamBId;
       String? teamAStatus;
       String? teamBStatus;
+      var hostIsMyTeam = false;
 
       if (_teamMode) {
         if (_selectedTeam == null) {
           throw Exception(I18n.inline('Оберіть команду', 'Select a team'));
         }
-        if (_selectedRoster.isEmpty) {
+        hostIsMyTeam =
+            _selectedTeam!.memberIds.contains(currentUser.uid);
+        if (hostIsMyTeam && _selectedRoster.isEmpty) {
           throw Exception(I18n.inline(
               'Оберіть склад команди', 'Choose at least one player'));
         }
-        participants = List<String>.from(_selectedRoster);
-        currentPlayers = participants.length;
+        if (!hostIsMyTeam) {
+          participants = <String>[];
+          currentPlayers = 0;
+        } else {
+          participants = List<String>.from(_selectedRoster);
+          currentPlayers = participants.length;
+        }
         autoBalance = false;
         isTeamMatch = true;
         teamAId = _selectedTeam!.id;
-        teamAStatus = 'confirmed';
-        teamRosters = {
-          'teamA': _selectedRoster,
-          'teamB': _opponentTeam != null ? [] : [],
-        };
-        teamAData = Team(
-          name: _selectedTeam!.name,
-          playerIds: _selectedRoster,
-        );
+        teamAStatus = 'pending';
+        teamRosters['teamA'] =
+            hostIsMyTeam ? List<String>.from(_selectedRoster) : <String>[];
+        if (hostIsMyTeam) {
+          teamRosterStatus['teamA'] = {
+            for (final playerId in _selectedRoster) playerId: 'pending',
+          };
+        }
         if (_opponentTeam != null) {
           teamBId = _opponentTeam!.id;
           teamBStatus = 'pending';
+          teamRosters['teamB'] = [];
           teamBData = Team(
             name: _opponentTeam!.name,
             playerIds: const [],
           );
         }
+        teamAData = Team(
+          name: _selectedTeam!.name,
+          playerIds: hostIsMyTeam ? _selectedRoster : const [],
+        );
       }
 
       final match = Match(
@@ -755,6 +758,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
         teamAStatus: teamAStatus,
         teamBStatus: teamBStatus,
         teamRosters: teamRosters,
+        teamRosterStatus: teamRosterStatus,
         teamA: teamAData,
         teamB: teamBData,
         status: MatchStatus.open,
@@ -790,14 +794,34 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
         } catch (_) {}
       }
       
-      if (_teamMode && _opponentTeam != null) {
-        await _teamService.sendMatchRequest(
-          teamId: _opponentTeam!.id,
-          opponentTeamId: _selectedTeam!.id,
-          opponentName: _selectedTeam!.name,
-          matchId: matchId,
-          proposedRoster: _selectedRoster,
-        );
+      if (_teamMode) {
+        if (_selectedTeam != null && !hostIsMyTeam) {
+          await _teamService.sendMatchRequest(
+            teamId: _selectedTeam!.id,
+            opponentTeamId: _opponentTeam?.id ?? '',
+            opponentName:
+                _opponentTeam?.name ?? I18n.inline('Суперник', 'Opponent'),
+            matchId: matchId,
+            proposedRoster: hostIsMyTeam ? _selectedRoster : const [],
+          );
+        }
+        if (_opponentTeam != null) {
+          await _teamService.sendMatchRequest(
+            teamId: _opponentTeam!.id,
+            opponentTeamId: _selectedTeam!.id,
+            opponentName: _selectedTeam!.name,
+            matchId: matchId,
+            proposedRoster: const [],
+          );
+        }
+        if (hostIsMyTeam) {
+          await _sendRosterInvites(
+            matchId: matchId,
+            teamKey: 'teamA',
+            teamName: _selectedTeam!.name,
+            playerIds: _selectedRoster,
+          );
+        }
       }
 
       if (!mounted) return;
@@ -813,6 +837,206 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
     }
   }
 
+  Widget _buildSettingToggle({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: value ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.12),
+            width: value ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: value ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.15),
+              ),
+              child: Icon(
+                value ? Icons.check : Icons.circle_outlined,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: const Color(0xFF4caf50),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendRosterInvites({
+    required String matchId,
+    required String teamKey,
+    required String teamName,
+    required List<String> playerIds,
+  }) async {
+    if (playerIds.isEmpty) return;
+    final notifService = NotificationService();
+    for (final playerId in playerIds) {
+      await notifService.sendTeamRosterInvite(
+        toUserId: playerId,
+        matchId: matchId,
+        teamName: teamName,
+        teamKey: teamKey,
+      );
+    }
+  }
+
+  Future<void> _openTeamSearchSheet({required bool forHost}) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F1A2B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final controller = TextEditingController();
+        List<AppTeam> results = [];
+        bool loading = false;
+
+        Future<void> runSearch(StateSetter setSheetState) async {
+          final query = controller.text.trim();
+          if (query.isEmpty) return;
+          setSheetState(() => loading = true);
+          try {
+            final found = await _teamService.searchTeams(query, limit: 15);
+            setSheetState(() => results = found);
+          } finally {
+            setSheetState(() => loading = false);
+          }
+        }
+
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: 20,
+            right: 20,
+            top: 20,
+          ),
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  TextField(
+                    controller: controller,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: I18n.inline('Пошук команди', 'Search team'),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.search, color: Colors.white70),
+                        onPressed: () => runSearch(setSheetState),
+                      ),
+                    ),
+                    onSubmitted: (_) => runSearch(setSheetState),
+                  ),
+                  const SizedBox(height: 16),
+                  if (loading)
+                    const Padding(
+                      padding: EdgeInsets.all(12.0),
+                      child: CircularProgressIndicator(),
+                    )
+                  else if (results.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: Text(
+                        I18n.inline('Введіть назву команди для пошуку.',
+                            'Type a team name to search.'),
+                        style: const TextStyle(color: Colors.white54),
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.4,
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: results.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(color: Colors.white12),
+                        itemBuilder: (_, index) {
+                          final team = results[index];
+                          return ListTile(
+                            title: Text(team.name,
+                                style: const TextStyle(color: Colors.white)),
+                            subtitle: Text(
+                              '${team.memberIds.length} ${I18n.inline('гравців', 'players')}',
+                              style: const TextStyle(color: Colors.white54),
+                            ),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              if (forHost) {
+                                _onSelectTeam(team);
+                              } else {
+                                setState(() {
+                                  _opponentTeam = team;
+                                  _opponentResults = [];
+                                });
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildTeamModeSection() {
     if (_loadingTeams) {
       return const Padding(
@@ -822,20 +1046,59 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
     }
     if (_selectedTeam == null) {
       return Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(12),
+          color: Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white12),
         ),
-        child: Text(
-          I18n.inline('У вас немає команд. Створіть команду у профілі.',
-              'You have no teams yet. Create one in profile.'),
-          style: const TextStyle(color: Colors.white70),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              I18n.inline(
+                  'Обрати команду організатора', 'Pick an organizer team'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              I18n.inline(
+                  'Натисніть, щоб знайти існуючу команду, навіть якщо вона не ваша.',
+                  'Tap to search any existing team, even if it is not yours.'),
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _openTeamSearchSheet(forHost: true),
+                icon: const Icon(Icons.search, color: Colors.white),
+                label: Text(
+                  I18n.inline('Знайти команду', 'Find a team'),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF4caf50)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
     final rosterLimit = (_selectedPlayers / 2).ceil();
+    final myId = FirebaseAuth.instance.currentUser?.uid;
+    final hostIsMine =
+        myId != null && _selectedTeam!.memberIds.contains(myId);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -846,44 +1109,122 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          DropdownButtonFormField<AppTeam>(
-            initialValue: _selectedTeam,
-            decoration: InputDecoration(
-              labelText: I18n.inline('Моя команда', 'My team'),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TeamLogoButton(
+                teamId: _selectedTeam!.id,
+                teamName: _selectedTeam!.name,
+                logoUrl: _selectedTeam!.logoUrl,
+                size: 52,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _selectedTeam!.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_selectedTeam!.memberIds.length} ${I18n.inline('гравців', 'players')}',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    if (!hostIsMine) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        I18n.inline(
+                            'Цю команду запросимо підтвердити склад',
+                            'This club will confirm line-up themselves'),
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: I18n.t('remove'),
+                onPressed: () {
+                  setState(() {
+                    _selectedTeam = null;
+                    _selectedRoster.clear();
+                    _teamMemberNames.clear();
+                  });
+                },
+                icon: const Icon(Icons.close, color: Colors.white54),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Wrap(
+              spacing: 8,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _openTeamSearchSheet(forHost: true),
+                  icon: const Icon(Icons.swap_horiz, color: Colors.white70),
+                  label: Text(
+                    I18n.inline('Змінити', 'Change'),
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ],
             ),
-            items: _myTeams
-                .map((team) => DropdownMenuItem(
-                      value: team,
-                      child: Text(team.name),
-                    ))
-                .toList(),
-            onChanged: (team) => _onSelectTeam(team),
           ),
           const SizedBox(height: 12),
-          Text(
-            I18n.inline('Склад (${_selectedRoster.length}/$rosterLimit)',
-                'Roster (${_selectedRoster.length}/$rosterLimit)'),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
+          if (hostIsMine) ...[
+            Text(
+              I18n.inline('Склад (${_selectedRoster.length}/$rosterLimit)',
+                  'Roster (${_selectedRoster.length}/$rosterLimit)'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _selectedTeam!.memberIds.map((id) {
-              final name = _teamMemberNames[id] ?? I18n.t('player');
-              final selected = _selectedRoster.contains(id);
-              final disabled =
-                  !selected && _selectedRoster.length >= rosterLimit;
-              return ChoiceChip(
-                selected: selected,
-                label: Text(name),
-                onSelected: disabled ? null : (value) => _toggleRosterMember(id),
-              );
-            }).toList(),
-          ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _selectedTeam!.memberIds.map((id) {
+                final name = _teamMemberNames[id] ?? I18n.t('player');
+                final selected = _selectedRoster.contains(id);
+                final disabled =
+                    !selected && _selectedRoster.length >= rosterLimit;
+                return ChoiceChip(
+                  selected: selected,
+                  label: Text(name),
+                  onSelected:
+                      disabled ? null : (value) => _toggleRosterMember(id),
+                );
+              }).toList(),
+            ),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Text(
+                I18n.inline(
+                    'Капітан команди підтвердить участь та заявить склад у своїй програмі.',
+                    'Team captain will accept the invite and pick the roster on their side.'),
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           Text(
             I18n.inline('Запросити суперника', 'Invite opponent team'),
@@ -1033,12 +1374,15 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
     if (team == null) return;
     setState(() => _loadingTeams = true);
     final names = await _fetchMemberNames(team.memberIds);
+    final myId = FirebaseAuth.instance.currentUser?.uid;
+    final isMine = myId != null && team.memberIds.contains(myId);
+    final limit = (_selectedPlayers / 2).ceil();
     if (!mounted) return;
     setState(() {
       _selectedTeam = team;
       _teamMemberNames = names;
       _selectedRoster =
-          team.memberIds.take((_selectedPlayers / 2).ceil()).toList();
+          isMine ? team.memberIds.take(limit).toList() : <String>[];
       _loadingTeams = false;
     });
   }

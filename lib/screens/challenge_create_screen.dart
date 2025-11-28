@@ -10,6 +10,7 @@ import '../services/challenge_service.dart';
 import '../services/notification_service.dart';
 import '../services/thumbnail_service.dart';
 import '../utils/i18n.dart';
+import '../widgets/player_avatar_button.dart';
 
 class ChallengeCreateScreen extends StatefulWidget {
   @override
@@ -23,7 +24,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   final _prizePoolController = TextEditingController();
   final _maxParticipantsController = TextEditingController();
   
-  ChallengeType _selectedType = ChallengeType.technical;
+  ChallengeType _selectedType = ChallengeType.goal;
   ChallengeAudience _selectedAudience = ChallengeAudience.city;
   String _selectedCity = I18n.t('kyiv_city');
   int _selectedEntryFee = 10;
@@ -68,6 +69,66 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     {'hours': 72, 'label': I18n.inline('3 доби', '3 days')},
     {'hours': 168, 'label': I18n.inline('1 тиждень', '1 week')},
   ];
+
+  String _typeLabel(ChallengeType type) {
+    switch (type) {
+      case ChallengeType.goal:
+        return I18n.inline('Гол', 'Goal');
+      case ChallengeType.save:
+        return I18n.inline('Сейв', 'Save');
+      case ChallengeType.pass:
+        return I18n.inline('Пас', 'Pass');
+      case ChallengeType.tackle:
+        return I18n.inline('Підкат', 'Tackle');
+      case ChallengeType.dribbling:
+        return I18n.inline('Дриблінг', 'Dribbling');
+      case ChallengeType.trick:
+        return I18n.inline('Трюк', 'Trick');
+      case ChallengeType.other:
+        return I18n.inline('Інше', 'Other');
+    }
+  }
+
+  String _typeEmoji(ChallengeType type) {
+    switch (type) {
+      case ChallengeType.goal:
+        return '⚽';
+      case ChallengeType.save:
+        return '🧤';
+      case ChallengeType.pass:
+        return '🎯';
+      case ChallengeType.tackle:
+        return '🛡️';
+      case ChallengeType.dribbling:
+        return '🌀';
+      case ChallengeType.trick:
+        return '✨';
+      case ChallengeType.other:
+        return '🎲';
+    }
+  }
+
+  String _typeTagValue(ChallengeType type) =>
+      type.toString().split('.').last;
+
+  List<String> _typeKeywordTags(ChallengeType type) {
+    switch (type) {
+      case ChallengeType.goal:
+        return ['гол', 'удар', 'goal', 'finish'];
+      case ChallengeType.save:
+        return ['сейв', 'воротар', 'save', 'goalkeeper'];
+      case ChallengeType.pass:
+        return ['пас', 'передача', 'pass'];
+      case ChallengeType.tackle:
+        return ['підкат', 'відбір', 'tackle'];
+      case ChallengeType.dribbling:
+        return ['дриблінг', 'фінт', 'dribble', 'skill'];
+      case ChallengeType.trick:
+        return ['трюк', 'фрістайл', 'trick'];
+      case ChallengeType.other:
+        return ['інше', 'other'];
+    }
+  }
 
   @override
   void initState() {
@@ -286,7 +347,18 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         value: _selectedType,
                         items: ChallengeType.values,
                         onChanged: (value) { setState(() { _selectedType = value!; }); },
-                        itemBuilder: (type) => Text(I18n.inline('Технічні', 'Technical'), overflow: TextOverflow.ellipsis),
+                        itemBuilder: (type) => Row(
+                          children: [
+                            Text(_typeEmoji(type)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _typeLabel(type),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                         icon: Icons.sports_soccer,
                       ),
                     ),
@@ -353,16 +425,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
                           return ListTile(
                             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                            leading: CircleAvatar(
-                              radius: 18,
-                              backgroundColor: const Color(0xFF4caf50),
-                              backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                              child: photoUrl.isEmpty
-                                  ? Text(
-                                      name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                                    )
-                                  : null,
+                            leading: PlayerAvatarButton(
+                              userId: id,
+                              displayName: name,
+                              avatarUrl: photoUrl,
+                              size: 36,
                             ),
                             title: Text(
                               name,
@@ -1263,9 +1330,10 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   List<String> _generateTags() {
     final tags = <String>[];
     
-    // Додати тип
-    tags.add(_selectedType == ChallengeType.technical ? 'техніка' : 'позиція');
-    
+    // Тип і ключові слова
+    tags.add(_typeTagValue(_selectedType));
+    tags.addAll(_typeKeywordTags(_selectedType));
+
     // Додати місто
     tags.add(_selectedCity.toLowerCase());
     

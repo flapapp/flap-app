@@ -1205,7 +1205,7 @@ const SizedBox(height: 12),
                             challengeId: (selected['id'] ?? '').toString(),
                             challengeTitle: (selected['title'] ?? 'Челендж'.i18n('Challenge')).toString(),
                             creatorName: (playerData?['displayName'] ?? 'Користувач'.i18n('User')).toString(),
-                            challengeType: (selected['type'] ?? 'technical').toString(),
+                            challengeType: (selected['type'] ?? 'goal').toString(),
                           );
                           if (!mounted) return;
                           Navigator.pop(context, true);
