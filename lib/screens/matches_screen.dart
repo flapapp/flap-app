@@ -1277,18 +1277,24 @@ return Column(
 Widget _buildRatingsTab() {
   // Використовуємо кешований Future замість створення нового
   final topFuture = _ratingsTopPlayersFuture ?? Future.value(<Map<String, dynamic>>[]);
+  final allPositionsLabel = I18n.inline('Всі позиції', 'All positions');
 
   // Локальні хелпери для фільтрації (не залежать від наявності зовнішніх функцій)
   String norm(String? s) => (s ?? '').trim().toLowerCase();
 
   // Синоніми міст для надійного матчінгу
-  final Map<String, List<String>> cityAliases = <String, List<String>>{
-    'Київ':   ['київ', 'kyiv', 'kiev'],
-    'Харків': ['харків', 'kharkiv'],
-    'Одеса':  ['одеса', 'odesa', 'odessa'],
-    'Дніпро': ['дніпро', 'dnipro', 'dnepr', 'dnepropetrovsk'],
-    'Львів':  ['львів', 'lviv', 'lwow', 'lwów'],
-  };
+     final Map<String, List<String>> cityAliases = {
+     'Київ':   ['київ', 'kyiv', 'kiev'],
+     'Kyiv':   ['київ', 'kyiv', 'kiev'],
+     'Харків': ['харків', 'kharkiv'],
+     'Kharkiv': ['харків', 'kharkiv'],
+     'Одеса':  ['одеса', 'odesa', 'odessa'],
+     'Odesa':  ['одеса', 'odesa', 'odessa'],
+     'Дніпро': ['дніпро', 'dnipro', 'dnepr', 'dnepropetrovsk'],
+     'Dnipro': ['дніпро', 'dnipro', 'dnepr', 'dnepropetrovsk'],
+     'Львів':  ['львів', 'lviv', 'lwow', 'lwów'],
+     'Lviv':   ['львів', 'lviv', 'lwow', 'lwów'],
+   };
 
   bool cityMatches(String dbCity, String selectedUi) {
     final db = norm(dbCity);
@@ -1399,50 +1405,48 @@ Widget _buildRatingsTab() {
           color: const Color(0xFF4caf50),
           borderRadius: BorderRadius.circular(10),
         ),
-        tabs: const [
-          Tab(
-            child: Center(
-              child: Text(
-                'Загальний\nрейтинг',
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                softWrap: true,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.05),
-              ),
-            ),
-          ),
-          Tab(
-            child: Center(
-              child: Text(
-                'За містом',
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          Tab(
-            child: Center(
-              child: Text(
-                'За позицією',
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          Tab(
-            child: Center(
-              child: Text(
-                'Моя\nстатистика',
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                softWrap: true,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.05),
-              ),
-            ),
-          ),
-        ],
+        tabs: [
+  Tab(
+    child: Center(
+      child: Text(
+        I18n.inline('Загальний\nрейтинг', 'Overall\nrating'),
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        softWrap: true,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.05),
+      ),
+    ),
+  ),
+  Tab(
+    child: Center(
+      child: Text(
+        I18n.inline('За містом', 'By city'),
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+    ),
+  ),
+  Tab(
+    child: Center(
+      child: Text(
+        I18n.inline('За позицією', 'By position'),
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+    ),
+  ),
+  Tab(
+    child: Center(
+      child: Text(
+        I18n.inline('Моя\nстатистика', 'My\nstats'),
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        softWrap: true,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.05),
+      ),
+    ),
+  ),
+]
       ),
     ),
   ),
@@ -1520,9 +1524,10 @@ Widget _buildRatingsTab() {
                               ? all
                               : all.where((p) => cityMatches((p['city'] ?? '').toString(), cityFilter)).toList();
                           if (list.isEmpty) {
-                            return const Center(
-                              child: Text('Пусто для вибраного міста',
-                                  style: TextStyle(color: Colors.white70)),
+                            return Center(
+                              child: Text(I18n.inline('Пусто для вибраного міста', 'No players for this city'),
+                                style: TextStyle(color: Colors.white70),
+                              ),
                             );
                           }
                           return ListView.builder(
@@ -1553,7 +1558,7 @@ Widget _buildRatingsTab() {
                               ],
                               onChanged: (v) {
                                 setState(() {
-                                  _ratingsSelectedPosition = v ?? I18n.inline('Всі позиції', 'All positions');
+                                  _ratingsSelectedPosition = v ?? allPositionsLabel;
                                 });
                               },
                             ),
@@ -1567,8 +1572,8 @@ Widget _buildRatingsTab() {
                       ),
                       Expanded(
                         child: () {
-                          final String? positionFilter =
-                              (_ratingsSelectedPosition == 'Всі позиції') ? null : toCode(_ratingsSelectedPosition);
+                          final allPositionsLabel = I18n.inline('Всі позиції', 'All positions');
+                          final String? positionFilter = (_ratingsSelectedPosition == allPositionsLabel) ? null : toCode(_ratingsSelectedPosition);
                           final list = (positionFilter == null)
                               ? all
                               : all.where((p) {
@@ -1629,9 +1634,9 @@ Widget _buildRatingsTab() {
                               const SizedBox(height: 16),
                               Row(
                                 children: [
-                                  _chipStat(Icons.sports_soccer, 'Матчі', tm),
+                                  _chipStat(Icons.sports_soccer, I18n.inline('Матчі', 'Matches'), tm),
                                   const SizedBox(width: 8),
-                                  _chipStat(Icons.videocam, 'Відео', tv),
+                                  _chipStat(Icons.videocam, I18n.inline('Відео', 'Videos'), tv),
                                 ],
                               ),
                               const SizedBox(height: 16),
@@ -3226,6 +3231,8 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
   final String avatar = (p['avatarUrl'] ?? p['photoUrl'] ?? '').toString();
   final _Level lvl = _levelFor(rating);
   final int matchesCount = ((p['totalMatches'] ?? p['matches'] ?? p['matchesPlayed'] ?? 0) as num).toInt();
+  final positionLabel = _localizedPosition(position);   // додаємо над Text
+  final cityLabel = _localizedCity(city);
 
   return InkWell(
     onTap: () => Navigator.pushNamed(
@@ -3303,13 +3310,15 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
                   runSpacing: 2,
                   children: [
                     Text(
-                      position.isNotEmpty ? position : I18n.t('unknown'),
+                      positionLabel,
                       style: const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                     const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
                     Text(city, style: const TextStyle(color: Colors.white54, fontSize: 12)),
                     const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
-                    Text('$matchesCount матчів', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    Text(I18n.inline('$matchesCount матчів', '$matchesCount matches'),
+                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
                   ],
                 ),
               ],
@@ -3336,9 +3345,9 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'РЕЙТИНГ',
-                style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 0.3),
+              Text(
+                I18n.inline('РЕЙТИНГ', 'RATING'),
+                style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 0.3),
               ),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -3403,6 +3412,35 @@ Widget _statTile(String title, double val) {
       ],
     ),
   );
+}
+
+String _localizedPosition(String raw) {
+  switch (raw.toLowerCase()) {
+    case 'goalkeeper':
+    case 'воротар':
+      return I18n.inline('Воротар', 'Goalkeeper');
+    case 'defender':
+    case 'захисник':
+      return I18n.inline('Захисник', 'Defender');
+    case 'midfielder':
+    case 'півзахисник':
+      return I18n.inline('Півзахисник', 'Midfielder');
+    case 'forward':
+    case 'нападник':
+      return I18n.inline('Нападник', 'Forward');
+    case 'universal':
+    case 'універсал':
+      return I18n.inline('Універсал', 'Utility player');
+    default:
+      return I18n.inline('Позиція не вказана', 'Position not specified');
+  }
+}
+
+String _localizedCity(String raw) {
+  if (raw.trim().isEmpty) {
+    return I18n.inline('Місто не вказано', 'City not specified');
+  }
+  return raw;
 }
 
 Widget _chipStat(IconData icon, String label, String value) {

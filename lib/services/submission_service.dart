@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/submission.dart';
 import '../services/notification_service.dart';
+import '../utils/i18n.dart';
 
 class SubmissionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -129,7 +130,10 @@ class SubmissionService {
         'challengeId': challengeId,
         'submissionId': docRef.id,
         'timestamp': FieldValue.serverTimestamp(),
-        'description': 'Участь в челенджі: $title',
+          'description': I18n.inline(
+    'Участь в челенджі: $title',
+    'Challenge entry: $title',
+  ),
       });
 
       return docRef.id;
@@ -318,7 +322,10 @@ class SubmissionService {
           'amount': 5,
           'challengeId': challengeId,
           'timestamp': FieldValue.serverTimestamp(),
-          'description': 'Проголосували за всі відео в челенджі',
+            'description': I18n.inline(
+    'Проголосували за всі відео в челенджі',
+    'Voted for every video in the challenge',
+  ),
         });
 
         return true;

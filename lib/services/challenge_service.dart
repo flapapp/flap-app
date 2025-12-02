@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/challenge.dart';
 import '../models/notification.dart';
 import 'notification_service.dart';
+import '../utils/i18n.dart';
 
 class ChallengeService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -128,7 +129,10 @@ class ChallengeService {
         'challengeId': challengeId,
         'challengeTitle': challenge.title,
         'timestamp': FieldValue.serverTimestamp(),
-        'description': 'Плата за створення челенджу: ${challenge.title}',
+        'description': I18n.inline(
+  'Плата за створення челенджу: ${challenge.title}',
+  'Challenge creation fee: ${challenge.title}',
+),
       });
 
       // Відправити нотифікації залежно від аудиторії
@@ -206,7 +210,10 @@ class ChallengeService {
           'challengeId': challengeId,
           'challengeTitle': challenge.title,
           'timestamp': FieldValue.serverTimestamp(),
-          'description': 'Вступна плата за челендж: ${challenge.title}',
+          'description': I18n.inline(
+  'Вступна плата за челендж: ${challenge.title}',
+  'Challenge entry fee: ${challenge.title}',
+),
         });
       });
 
@@ -313,7 +320,10 @@ class ChallengeService {
         'amount': 1,
         'challengeId': challengeId,
         'timestamp': FieldValue.serverTimestamp(),
-        'description': 'Нагорода за голосування в челенджі',
+        'description': I18n.inline(
+  'Нагорода за голосування в челенджі',
+  'Reward for voting in the challenge',
+),
       });
 
       return true;
@@ -390,7 +400,10 @@ class ChallengeService {
           'challengeId': challengeId,
           'challengeTitle': challenge.title,
           'timestamp': FieldValue.serverTimestamp(),
-          'description': 'Перемога в челенджі: ${challenge.title} (1-е місце)',
+          'description': I18n.inline(
+  'Перемога в челенджі: ${challenge.title} (1-е місце)',
+  'Challenge win: ${challenge.title} (1st place)',
+),
         });
       }
       if (winners.length > 1) {
@@ -403,7 +416,10 @@ class ChallengeService {
           'challengeId': challengeId,
           'challengeTitle': challenge.title,
           'timestamp': FieldValue.serverTimestamp(),
-          'description': 'Друге місце в челенджі: ${challenge.title}',
+          'description': I18n.inline(
+  'Друге місце в челенджі: ${challenge.title}',
+  'Second place in challenge: ${challenge.title}',
+),
         });
       }
       if (winners.length > 2) {
@@ -416,7 +432,10 @@ class ChallengeService {
           'challengeId': challengeId,
           'challengeTitle': challenge.title,
           'timestamp': FieldValue.serverTimestamp(),
-          'description': 'Третє місце в челенджі: ${challenge.title}',
+          'description': I18n.inline(
+  'Третє місце в челенджі: ${challenge.title}',
+  'Third place in challenge: ${challenge.title}',
+),
         });
       }
 
@@ -752,7 +771,10 @@ class ChallengeService {
           .add({
         'amount': prize.toInt(),
         'type': 'challenge_prize',
-        'description': 'Приз за ${position}-е місце в челенджі "$challengeTitle"',
+        'description': I18n.inline(
+  'Приз за ${position}-е місце в челенджі "$challengeTitle"',
+  'Prize for ${position} place in challenge "$challengeTitle"',
+),
         'timestamp': FieldValue.serverTimestamp(),
       });
     } catch (e) {

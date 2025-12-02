@@ -151,11 +151,11 @@ class I18n {
     'weights': {'uk': 'Ваги', 'en': 'Weights'},
     
     // Cities
-    'kyiv_city': {'uk': 'Київ', 'en': 'Kyiv'},
-    'kharkiv': {'uk': 'Харків', 'en': 'Kharkiv'},
-    'odessa': {'uk': 'Одеса', 'en': 'Odessa'},
-    'dnipro': {'uk': 'Дніпро', 'en': 'Dnipro'},
-    'lviv': {'uk': 'Львів', 'en': 'Lviv'},
+    'kyiv': {'uk': 'Київ', 'en': 'Kyiv'},
+   'kharkiv': {'uk': 'Харків', 'en': 'Kharkiv'},
+   'odesa': {'uk': 'Одеса', 'en': 'Odesa'},
+   'dnipro': {'uk': 'Дніпро', 'en': 'Dnipro'},
+   'lviv': {'uk': 'Львів', 'en': 'Lviv'},
     'zaporizhzhia': {'uk': 'Запоріжжя', 'en': 'Zaporizhzhia'},
     'kryvyi_rih': {'uk': 'Кривий Ріг', 'en': 'Kryvyi Rih'},
     'mykolaiv': {'uk': 'Миколаїв', 'en': 'Mykolaiv'},

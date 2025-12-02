@@ -111,7 +111,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                             const Icon(Icons.info_outline, color: Colors.white70, size: 20),
                             const SizedBox(width: 8),
                             Text(
-                              'Важлива інформація',
+                              I18n.inline('Важлива інформація', 'Important information'),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -121,11 +121,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          '• Підписки оновлюються автоматично\n'
-                          '• Ви можете скасувати підписку в будь-який момент\n'
-                          '• Пробний період доступний лише один раз\n'
-                          '• Ціни вказані в гривнях (UAH)',
+                        Text(
+                          I18n.inline(
+    '• Підписки оновлюються автоматично\n'
+    '• Ви можете скасувати підписку в будь-який момент\n'
+    '• Пробний період доступний лише один раз\n'
+    '• Ціни вказані в гривнях (UAH)',
+    '• Subscriptions renew automatically\n'
+    '• You can cancel your subscription anytime\n'
+    '• The trial period is available only once\n'
+    '• Prices are shown in Ukrainian hryvnia (UAH)',
+  ),
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 14,

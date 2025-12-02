@@ -956,6 +956,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       }
 
       final userData = snapshot.data!.data()!;
+      final positionLabel = _localizedPosition(userData['position'] as String?);
+      final cityLabel = _localizedCity(userData['city'] as String?);
       final isOrganizer = participantId == widget.match.organizerId;
       final displayName =
           (userData['displayName'] ?? userData['authorName'] ?? I18n.t('player'))
@@ -1064,12 +1066,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      '${userData['position'] ?? I18n.inline('Позиція не вказана', 'Position not specified')} • ${userData['city'] ?? I18n.inline('Місто не вказано', 'City not specified')}',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
+  '$positionLabel • $cityLabel',
+  style: TextStyle(
+    color: Colors.white70,
+    fontSize: 14,
+  ),
+),
                   ],
                 ),
               ),
@@ -1101,6 +1103,32 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       );
     },
   );
+}
+
+String _localizedPosition(String? raw) {
+  switch ((raw ?? '').toLowerCase()) {
+    case 'goalkeeper':
+    case 'воротар':
+      return I18n.inline('Воротар', 'Goalkeeper');
+    case 'defender':
+    case 'захисник':
+      return I18n.inline('Захисник', 'Defender');
+    case 'midfielder':
+    case 'півзахисник':
+      return I18n.inline('Півзахисник', 'Midfielder');
+    case 'forward':
+    case 'нападник':
+      return I18n.inline('Нападник', 'Forward');
+    default:
+      return I18n.inline('Універсал', 'Utility player');
+  }
+}
+
+String _localizedCity(String? raw) {
+  if (raw == null || raw.trim().isEmpty) {
+    return I18n.inline('Місто не вказано', 'City not specified');
+  }
+  return raw;
 }
 
   Widget _buildParticipantCardPlaceholder(String participantId) {
@@ -1603,21 +1631,21 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   String _getStatusText(MatchStatus status) {
-    switch (status) {
-      case MatchStatus.open:
-        return 'Відкритий';
-      case MatchStatus.full:
-        return 'Заповнений';
-      case MatchStatus.inProgress:
-        return 'В процесі';
-      case MatchStatus.finished:
-        return 'Завершений';
-      case MatchStatus.cancelled:
-        return 'Скасований';
-      default:
-        return 'Невідомо';
-    }
+  switch (status) {
+    case MatchStatus.open:
+      return I18n.inline('Відкритий', 'Open');
+    case MatchStatus.full:
+      return I18n.inline('Заповнений', 'Full');
+    case MatchStatus.inProgress:
+      return I18n.inline('В процесі', 'In progress');
+    case MatchStatus.finished:
+      return I18n.inline('Завершений', 'Finished');
+    case MatchStatus.cancelled:
+      return I18n.inline('Скасований', 'Cancelled');
+    default:
+      return I18n.inline('Невідомо', 'Unknown');
   }
+}
   Future<double> _getMyMatchAverageRating(String matchId, String userId) async {
     try {
       final snap = await FirebaseFirestore.instance

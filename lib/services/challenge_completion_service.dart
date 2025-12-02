@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/i18n.dart';
 
 class ChallengeCompletionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -62,7 +63,10 @@ class ChallengeCompletionService {
             'challengeId': challengeId,
             'place': i + 1,
             'timestamp': FieldValue.serverTimestamp(),
-            'description': 'Приз за ${i + 1}-е місце в челенджі: ${prizes[i]} монет',
+            'description': I18n.inline(
+  'Приз за ${i + 1}-е місце в челенджі: ${prizes[i]} монет',
+  'Prize for ${i + 1} place in the challenge: ${prizes[i]} coins',
+),
           });
         }
       }
@@ -100,7 +104,10 @@ class ChallengeCompletionService {
           'amount': entryFee,
           'challengeId': challengeId,
           'timestamp': FieldValue.serverTimestamp(),
-          'description': 'Повернення коштів за челендж (скасовано)',
+          'description': I18n.inline(
+  'Повернення коштів за челендж (скасовано)',
+  'Challenge refund (canceled)',
+),
         });
       }
 

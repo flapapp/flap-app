@@ -435,33 +435,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return CustomScrollView(
       slivers: [
         // App bar with gradient
-        SliverAppBar(
-          expandedHeight: 320,
-          floating: false,
+                SliverAppBar(
           pinned: true,
+          elevation: 0,
           backgroundColor: const Color(0xFF0f0f23),
-          flexibleSpace: FlexibleSpaceBar(
-            background: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Color(0xFF1a1a2e),
-                    Color(0xFF16213e),
-                    Color(0xFF0f0f23),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-              child: _buildProfileHeader(userData, displayName, avatarUrl, rating, coins),
-            ),
-          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.settings, color: Colors.white),
               onPressed: _showSettings,
             ),
           ],
+        ),
+
+                SliverToBoxAdapter(
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFF1a1a2e),
+                  Color(0xFF16213e),
+                  Color(0xFF0f0f23),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child: _buildProfileHeader(
+              userData,
+              displayName,
+              avatarUrl,
+              rating,
+              coins,
+            ),
+          ),
         ),
         
         // Content
@@ -1126,6 +1132,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icons.people,
             () => _openFriends(),
           ),
+             _buildActionItem(
+     '⚽ Мої матчі'.i18n('⚽ My matches'),
+     I18n.inline('Переглянути свої матчі', 'View your matches'),
+     Icons.sports_soccer,
+     () => _openMyMatches(),
+   ),
           _buildActionItem(
             '🏆 Мої відео'.i18n('🏆 My videos'),
             I18n.t('view_uploaded_videos'),
@@ -1485,6 +1497,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       MaterialPageRoute(builder: (context) => FriendsScreen()),
     );
   }
+
+     void _openMyMatches() {
+     Navigator.pushNamed(
+       context,
+       '/matches',
+       arguments: {'initialTabIndex': 1},
+     );
+   }
 
   void _openMyVideos() {
     Navigator.pushNamed(

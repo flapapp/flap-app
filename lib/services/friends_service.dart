@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/friend_request.dart';
 import '../services/notification_service.dart';
+import '../utils/i18n.dart';
 
 class FriendsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -89,7 +90,10 @@ class FriendsService {
         'type': 'friend_request_sent',
         'amount': 3,
         'timestamp': FieldValue.serverTimestamp(),
-        'description': 'Надіслано запрошення в друзі: ${toUserData['name']}',
+        'description': I18n.inline(
+  'Надіслано запрошення в друзі: ${toUserData['name']}',
+  'Friend invite sent to: ${toUserData['name']}',
+),
       });
 
       return true;
@@ -202,7 +206,10 @@ class FriendsService {
             'type': 'friend_added',
             'amount': 5,
             'timestamp': FieldValue.serverTimestamp(),
-            'description': 'Новий друг: ${request.fromUserName}',
+            'description': I18n.inline(
+  'Новий друг: ${request.fromUserName}',
+  'New friend: ${request.fromUserName}',
+),
           });
         }
       }

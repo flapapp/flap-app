@@ -21,6 +21,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   String _selectedTab = 'all'; // all, challenges, trending
   bool _showOnlyMyVideos = false;
   bool _showOnlyMyChallenges = false;
+  
 
   List<String> get _cities => [
     I18n.t('all_cities'),
