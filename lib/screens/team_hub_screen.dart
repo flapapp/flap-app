@@ -3,8 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../models/app_team.dart';
+import '../models/team_stats.dart';
 import '../services/team_service.dart';
 import '../utils/i18n.dart';
+import '../widgets/mode_speed_dial.dart';
+import '../widgets/player_avatar_button.dart';
 import '../widgets/team_logo_button.dart';
 import 'team_create_screen.dart';
 import 'team_details_screen.dart';
@@ -21,6 +24,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _teamsStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _teamStatsStream;
   late final Stream<List<AppTeam>> _myTeamsStream;
 
   @override
@@ -30,6 +34,8 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         .collection('teams')
         .orderBy('wins', descending: true)
         .snapshots();
+    _teamStatsStream =
+        FirebaseFirestore.instance.collection('teamStats').snapshots();
     final uid = _auth.currentUser?.uid;
     _myTeamsStream = uid != null
         ? _teamService.watchUserTeams(uid)
@@ -43,74 +49,142 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(I18n.inline('Клуби', 'Clubs')),
+        title: InkWell(
+          onTap: () => Navigator.pushNamed(context, '/mode'),
+          borderRadius: BorderRadius.circular(10),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Image.asset('assets/logo/flap_logo.jpg',
+                    fit: BoxFit.cover),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                I18n.inline('Клуби', 'Clubs'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _teamsStream,
-        builder: (context, snapshot) {
-          final teams = snapshot.data?.docs
+        builder: (context, teamSnapshot) {
+          final teams = teamSnapshot.data?.docs
                   .map(AppTeam.fromDoc)
                   .toList(growable: false) ??
               const [];
-          final sorted = [...teams]
-            ..sort((a, b) {
-              final pointsA = _points(a);
-              final pointsB = _points(b);
-              if (pointsA != pointsB) return pointsB.compareTo(pointsA);
-              final diff = _goalDiff(b).compareTo(_goalDiff(a));
-              if (diff != 0) return diff;
-              return b.wins.compareTo(a.wins);
-            });
-          final top = sorted.isNotEmpty ? sorted.first : null;
+          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _teamStatsStream,
+            builder: (context, statsSnapshot) {
+              final statsMap = <String, TeamStats>{};
+              if (statsSnapshot.hasData) {
+                for (final doc in statsSnapshot.data!.docs) {
+                  statsMap[doc.id] = TeamStats.fromDoc(doc);
+                }
+              }
+              final teamNameMap = {
+                for (final team in teams) team.id: team.name,
+              };
+              final enriched = teams
+                  .map((team) => _TeamWithStats(
+                        team: team,
+                        stats: statsMap[team.id] ??
+                            TeamStats.empty(team.id, name: team.name),
+                      ))
+                  .toList();
+              enriched.sort(_compareTeams);
+              final leader = enriched.isNotEmpty ? enriched.first : null;
 
-          return RefreshIndicator(
-            onRefresh: () async => setState(() {}),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHero(top),
-                  const SizedBox(height: 24),
-                  _buildMyTeams(),
-                  const SizedBox(height: 24),
-                  _buildLeaderboard(sorted),
-                ],
-              ),
-            ),
+              return RefreshIndicator(
+                onRefresh: () async => setState(() {}),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHero(leader),
+                      const SizedBox(height: 24),
+                      _buildMyTeams(),
+                      const SizedBox(height: 24),
+                      _buildLeaderboard(enriched),
+                      const SizedBox(height: 24),
+                      _buildGoldenBootSection(statsMap, teamNameMap),
+                    ],
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
-      floatingActionButton: _auth.currentUser == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () async {
-                final uid = _auth.currentUser!.uid;
-                final userDoc = await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(uid)
-                    .get();
-                final teamIds =
-                    (userDoc.data()?['teamIds'] as List<dynamic>?) ?? [];
-                if (!mounted) return;
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        TeamCreateScreen(existingTeams: teamIds.length),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.add),
-              label: Text(I18n.inline('Нова команда', 'Create team')),
-              backgroundColor: const Color(0xFF4caf50),
-            ),
+      floatingActionButton: ModeSpeedDial(
+        shortcuts: [
+          ModeDialAction(
+            icon: Icons.sports_soccer,
+            tooltip: I18n.t('matches'),
+            onTap: () => Navigator.pushNamed(context, '/matches'),
+          ),
+          ModeDialAction(
+            icon: Icons.play_circle_outline,
+            tooltip: I18n.t('videos'),
+            onTap: () => Navigator.pushNamed(context, '/video-main'),
+          ),
+        ],
+        onCreate: _onCreateTeamPressed,
+        createTooltip: I18n.inline('Нова команда', 'Create team'),
+      ),
     );
   }
 
-  Widget _buildHero(AppTeam? team) {
-    if (team == null) {
+  Future<void> _onCreateTeamPressed() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline('Увійдіть, щоб створити команду.', 'Sign in to create a team.'),
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    final teamIds = (userDoc.data()?['teamIds'] as List<dynamic>?) ?? [];
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TeamCreateScreen(existingTeams: teamIds.length),
+      ),
+    );
+  }
+
+  Widget _buildHero(_TeamWithStats? leader) {
+    if (leader == null) {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
@@ -143,6 +217,8 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
       );
     }
 
+    final team = leader.team;
+    final stats = leader.stats;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -199,12 +275,12 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             spacing: 12,
             children: [
               _chip(Icons.emoji_events,
-                  '${team.wins} ${I18n.inline('перемог', 'wins')}'),
+                  '${stats.wins} ${I18n.inline('перемог', 'wins')}'),
               _chip(
                   Icons.sports_soccer,
-                  '${team.wins + team.draws + team.losses} '
+                  '${stats.matches} '
                       '${I18n.inline('матчів', 'matches')}'),
-              _chip(Icons.star, '${_points(team)} pts'),
+              _chip(Icons.star, '${stats.points} pts'),
             ],
           ),
           const SizedBox(height: 16),
@@ -359,7 +435,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
     );
   }
 
-  Widget _buildLeaderboard(List<AppTeam> teams) {
+  Widget _buildLeaderboard(List<_TeamWithStats> teams) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -398,6 +474,121 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildGoldenBootSection(
+      Map<String, TeamStats> statsMap, Map<String, String> teamNames) {
+    final aggregates = <String, _ScorerAggregate>{};
+    statsMap.forEach((teamId, stats) {
+      stats.playerGoals.forEach((playerId, goals) {
+        if (goals <= 0) return;
+        final entry = aggregates.putIfAbsent(
+          playerId,
+          () => _ScorerAggregate(playerId: playerId),
+        );
+        final sourceName = stats.teamName.isNotEmpty
+            ? stats.teamName
+            : (teamNames[teamId] ?? '');
+        entry.addGoals(goals, sourceName);
+      });
+    });
+
+    final sorted = aggregates.values.toList()
+      ..sort((a, b) => b.goals.compareTo(a.goals));
+    final top = sorted.take(5).toList();
+
+    if (top.isEmpty) {
+      return _emptyState(
+        title: I18n.inline('Бомбардирів ще немає', 'No scorers yet'),
+        subtitle: I18n.inline(
+            'Після перших голів ми покажемо рейтинг', 'Leaders will appear once teams score'),
+      );
+    }
+
+    final ids = top.map((e) => e.playerId).toList();
+    return FutureBuilder<Map<String, Map<String, dynamic>>>(
+      future: _fetchUsers(ids),
+      builder: (context, snapshot) {
+        final data = snapshot.data ?? const <String, Map<String, dynamic>>{};
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              I18n.inline('Бомбардири ліги', 'Golden boot'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.02),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withOpacity(0.05)),
+              ),
+              child: Column(
+                children: top.asMap().entries.map((entry) {
+                  final rank = entry.key + 1;
+                  final scorer = entry.value;
+                  final user = data[scorer.playerId] ?? const {};
+                  final name = (user['displayName'] ??
+                          user['name'] ??
+                          I18n.inline('Гравець', 'Player'))
+                      .toString();
+                  final avatarUrl =
+                      (user['avatarUrl'] ?? user['avatar'] ?? '').toString();
+                  final subtitle = scorer.teamNames.isEmpty
+                      ? I18n.inline('Без клубу', 'No club')
+                      : scorer.teamNames.join(', ');
+                  return ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    leading: PlayerAvatarButton(
+                      userId: scorer.playerId,
+                      displayName: name,
+                      avatarUrl: avatarUrl,
+                      size: 38,
+                    ),
+                    title: Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      subtitle,
+                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '#$rank',
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 11,
+                          ),
+                        ),
+                        Text(
+                          '${scorer.goals} ⚽',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -445,9 +636,11 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
     );
   }
 
-  Widget _tableRow(AppTeam team, int index) {
+  Widget _tableRow(_TeamWithStats data, int index) {
+    final team = data.team;
+    final stats = data.stats;
     final rank = index + 1;
-    final matches = team.wins + team.draws + team.losses;
+    final matches = stats.matches;
     final color = rank == 1
         ? const Color(0xFF4caf50)
         : rank <= 3
@@ -521,7 +714,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             Expanded(
               flex: 3,
               child: Text(
-                '${team.wins}-${team.draws}-${team.losses}',
+                    '${stats.wins}-${stats.draws}-${stats.losses}',
                 style: const TextStyle(color: Colors.white70),
                 textAlign: TextAlign.center,
               ),
@@ -529,7 +722,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             Expanded(
               flex: 2,
               child: Text(
-                '${_goalDiff(team) >= 0 ? '+' : ''}${_goalDiff(team)}',
+                    '${stats.goalDiff >= 0 ? '+' : ''}${stats.goalDiff}',
                 style: const TextStyle(color: Colors.white70),
                 textAlign: TextAlign.center,
               ),
@@ -537,7 +730,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             Expanded(
               flex: 2,
               child: Text(
-                '${_points(team)}',
+                    '${stats.points}',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -549,6 +742,26 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         ),
       ),
     );
+  }
+
+  Future<Map<String, Map<String, dynamic>>> _fetchUsers(
+      List<String> ids) async {
+    if (ids.isEmpty) return {};
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .where(FieldPath.documentId, whereIn: ids)
+        .get();
+    return {
+      for (final doc in snap.docs) doc.id: doc.data(),
+    };
+  }
+
+  int _compareTeams(_TeamWithStats a, _TeamWithStats b) {
+    final pointsDiff = b.stats.points.compareTo(a.stats.points);
+    if (pointsDiff != 0) return pointsDiff;
+    final diff = b.stats.goalDiff.compareTo(a.stats.goalDiff);
+    if (diff != 0) return diff;
+    return b.stats.wins.compareTo(a.stats.wins);
   }
 
   Widget _emptyState({required String title, required String subtitle}) {
@@ -579,9 +792,32 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
     );
   }
 
-  int _points(AppTeam team) => team.wins * 3 + team.draws;
+}
 
-  int _goalDiff(AppTeam team) => team.goalsFor - team.goalsAgainst;
+class _TeamWithStats {
+  final AppTeam team;
+  final TeamStats stats;
+
+  const _TeamWithStats({required this.team, required this.stats});
+}
+
+class _ScorerAggregate {
+  final String playerId;
+  int goals;
+  final Set<String> teamNames;
+
+  _ScorerAggregate({
+    required this.playerId,
+    this.goals = 0,
+    Set<String>? teamNames,
+  }) : teamNames = teamNames ?? <String>{};
+
+  void addGoals(int value, String teamName) {
+    goals += value;
+    if (teamName.isNotEmpty) {
+      teamNames.add(teamName);
+    }
+  }
 }
 
 

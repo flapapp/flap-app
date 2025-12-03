@@ -334,6 +334,11 @@ service cloud.firestore {
       );
     }
 
+    match /teamStats/{teamId} {
+      allow read: if true;
+      allow create, update: if isSignedIn();
+    }
+
         match /users/{uid} {
       allow read: if isSignedIn();
       // During development allow any signed-in user to update user fields

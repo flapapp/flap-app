@@ -2509,6 +2509,10 @@ String _localizedCity(String? raw) {
               Expanded(child: _teamList(bPlayers, color: Color(0xFFE57373))),
             ],
           ),
+          if (widget.match.goalsByPlayer.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildGoalsBreakdownSection(aName, bName),
+          ],
         ],
       ),
     );
@@ -2597,6 +2601,146 @@ String _localizedCity(String? raw) {
               final accent = palette[index % palette.length];
               return _buildMultiTeamTeamCard(team, index, stat, accent);
             }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalsBreakdownSection(String teamAName, String teamBName) {
+    final goals = widget.match.goalsByPlayer;
+    if (goals.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final assignments = widget.match.playerTeamAssignments;
+    final teamAEntries = <MapEntry<String, int>>[];
+    final teamBEntries = <MapEntry<String, int>>[];
+    goals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value))
+      ..forEach((entry) {
+        final teamKey = assignments[entry.key];
+        if (teamKey == 'teamB') {
+          teamBEntries.add(entry);
+        } else {
+          teamAEntries.add(entry);
+        }
+      });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          I18n.inline('Голи', 'Goals'),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _goalColumn(
+                teamAName,
+                const Color(0xFF64B5F6),
+                teamAEntries,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _goalColumn(
+                teamBName,
+                const Color(0xFFE57373),
+                teamBEntries,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _goalColumn(
+    String heading,
+    Color accent,
+    List<MapEntry<String, int>> entries,
+  ) {
+    if (entries.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.03),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.06)),
+        ),
+        child: Text(
+          I18n.inline('Без голів', 'No goals'),
+          style: const TextStyle(color: Colors.white70),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            heading,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...entries.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FutureBuilder<String>(
+                      future: _fetchPlayerName(entry.key),
+                      builder: (context, snapshot) {
+                        final name =
+                            snapshot.data ?? I18n.inline('Гравець', 'Player');
+                        return Text(
+                          name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '×${entry.value}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

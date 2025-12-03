@@ -8,6 +8,8 @@ import '../widgets/rating_display.dart';
 import '../widgets/video_preview_box.dart';
 import '../services/notification_service.dart';
 import '../utils/i18n.dart';
+import '../widgets/player_avatar_button.dart';
+import '../widgets/mode_speed_dial.dart';
 
 class VideoMainScreen extends StatefulWidget {
   @override
@@ -61,31 +63,40 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0f0f23).withValues(alpha: 0.95),
         elevation: 0,
-        title: Row(
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, 2)),
-                ],
+        title: InkWell(
+          onTap: () => Navigator.pushNamed(context, '/mode'),
+          borderRadius: BorderRadius.circular(10),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Image.asset('assets/logo/flap_logo.jpg',
+                    fit: BoxFit.cover, width: 28, height: 28),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: Image.asset('assets/logo/flap_logo.jpg', fit: BoxFit.cover, width: 28, height: 28),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'FLAP',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1,
+              const SizedBox(width: 10),
+              const Text(
+                'FLAP',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           // User chips: coins and rating
@@ -229,15 +240,14 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     ),
                     const SizedBox(height: 10),
                     // City and Category filters
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
+                    Row(
                       children: [
-                        SizedBox(
-                          width: (MediaQuery.of(context).size.width - 40) / 2, // 20px паддінг зліва+справа
+                        Expanded(
                           child: _buildFilterDropdown(
                             _cities,
-                            _selectedCity.isEmpty ? I18n.t('all_cities') : _selectedCity,
+                            _selectedCity.isEmpty
+                                ? I18n.t('all_cities')
+                                : _selectedCity,
                             (value) {
                               setState(() {
                                 _selectedCity = value == I18n.t('all_cities') ? '' : value;
@@ -246,8 +256,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                             '🏙️',
                           ),
                         ),
-                        SizedBox(
-                          width: (MediaQuery.of(context).size.width - 40) / 2,
+                        const SizedBox(width: 12),
+                        Expanded(
                           child: _buildCategoryFilterDropdown(),
                         ),
                       ],
@@ -275,80 +285,61 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           ],
         ),
       ),
-      // FAB for quick actions
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Button to switch to matches mode (like in matches screen)
-          Container(
-            width: 48,
-            height: 48,
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.2),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(24),
-                onTap: () {
-                  Navigator.pushNamed(context, '/matches');
-                },
-                child: const Center(
-                  child: Text(
-                    '⚽',
-                    style: TextStyle(fontSize: 24),
-                  ),
-                ),
-              ),
-            ),
+      floatingActionButton: ModeSpeedDial(
+        shortcuts: [
+          ModeDialAction(
+            icon: Icons.sports_soccer,
+            tooltip: I18n.t('matches'),
+            onTap: () => Navigator.pushNamed(context, '/matches'),
           ),
-          // Create Challenge FAB
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.elasticOut,
-            child: FloatingActionButton(
-              heroTag: "challenge_fab",
-              onPressed: () {
-                Navigator.pushNamed(context, '/challenge-create');
-              },
-              backgroundColor: const Color(0xFF4caf50),
-              elevation: 8,
-              child: const Icon(Icons.emoji_events, color: Colors.white),
-              tooltip: I18n.t('create_challenge'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Upload Video FAB
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.bounceOut,
-            child: FloatingActionButton(
-              heroTag: "video_fab",
-              onPressed: () {
-                Navigator.pushNamed(context, '/video-upload');
-              },
-              backgroundColor: const Color(0xFFFF6B35),
-              elevation: 8,
-              child: const Icon(Icons.videocam, color: Colors.white),
-              tooltip: I18n.t('upload_video'),
-            ),
+          ModeDialAction(
+            icon: Icons.groups_outlined,
+            tooltip: I18n.t('teams'),
+            onTap: () => Navigator.pushNamed(context, '/teams'),
           ),
         ],
+        onCreate: _showVideoCreateSheet,
+        createTooltip: I18n.inline('Додати контент', 'Create content'),
+        createGradient: const [Color(0xFFFF6B35), Color(0xFFFF8A65)],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  void _showVideoCreateSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF101320),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.videocam_outlined, color: Colors.white),
+              title: Text(I18n.t('upload_video'),
+                  style: const TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.pushNamed(context, '/video-upload');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.emoji_events_outlined,
+                  color: Colors.white),
+              title: Text(I18n.t('create_challenge'),
+                  style: const TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.pushNamed(context, '/challenge-create');
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 
@@ -936,81 +927,79 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                   ),
                   const SizedBox(height: 12),
                 ],
-                
-                // Author info
                 Row(
                   children: [
+                    _videoInfoChip(
+                      icon: Icons.star,
+                      label: rating > 0
+                          ? rating.toStringAsFixed(2)
+                          : I18n.inline('Немає оцінок', 'No ratings'),
+                      highlight: true,
+                    ),
+                    const SizedBox(width: 8),
+                    _videoInfoChip(
+                      icon: Icons.remove_red_eye,
+                      label: '$views',
+                    ),
+                    const SizedBox(width: 8),
+                    _videoInfoChip(
+                      icon: Icons.chat_bubble_outline,
+                      label: '$comments',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                
+                Row(
+                  children: [
+                    _buildUserAvatarChip(
+                      userId: authorId ?? '',
+                      name: authorName,
+                      size: 38,
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        if (authorId != null) {
-                          Navigator.pushNamed(
-                            context,
-                            '/player-profile',
-                            arguments: {'playerId': authorId, 'playerName': authorName},
-                          );
-                        }
-                      },
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                          future: authorId != null
-                              ? FirebaseFirestore.instance.collection('users').doc(authorId).get()
-                              : null,
-                          builder: (context, s) {
-                            final url = s.hasData ? (s.data!.data()?['avatarUrl'] as String?) : null;
-                            if (url != null && url.isNotEmpty) {
-                              return Image.network(url, width: 32, height: 32, fit: BoxFit.cover);
-                            }
-                            return Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFFff9800), Color(0xFFf57c00)],
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Icon(Icons.person, color: Colors.white, size: 18),
+                        onTap: () {
+                          if (authorId != null) {
+                            Navigator.pushNamed(
+                              context,
+                              '/player-profile',
+                              arguments: {
+                                'playerId': authorId,
+                                'playerName': authorName,
+                              },
                             );
-                          },
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            authorName,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Text(
-                            '$city • ${_formatDate(createdAt)}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.white.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          if (authorId != null) ...[
-                            const SizedBox(height: 6),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CompactRatingDisplay(userId: authorId, size: 16),
-                              ],
-                            ),
-                          ],
-                        ],
+                          }
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              authorName,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
                               ),
                             ),
+                            Text(
+                              '$city • ${_formatDate(createdAt)}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.white.withValues(alpha: 0.7),
+                              ),
+                            ),
+                            if (authorId != null) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CompactRatingDisplay(userId: authorId, size: 16),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -1452,6 +1441,17 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     final prizePool = (challenge['prizePool'] ?? 0.0).toDouble();
     final entryFee = challenge['entryFee'] ?? 10;
     final duration = challenge['duration'] ?? 7;
+    final creatorId = (challenge['creatorId'] ?? '').toString();
+    final creatorName = (challenge['creatorName'] ??
+            I18n.inline('Невідомо', 'Unknown'))
+        .toString();
+    final creatorVideoUrl =
+        (challenge['creatorVideoUrl'] ?? '').toString();
+    final creatorThumbnailUrl =
+        (challenge['creatorThumbnailUrl'] ?? challenge['thumbnailUrl'] ?? '')
+            .toString();
+    final participants =
+        List<String>.from(challenge['participants'] ?? const []);
     
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -1554,47 +1554,39 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 // Author and duration info
                 Row(
                   children: [
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.person,
-                        color: Colors.white,
-                        size: 14,
+                    _buildUserAvatarChip(
+                      userId: creatorId,
+                      name: creatorName,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            creatorName,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.95),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            I18n.inline('Автор челенджу', 'Challenge author'),
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                    const Icon(Icons.access_time, color: Colors.white70, size: 16),
                     const SizedBox(width: 6),
                     Text(
-                      challenge['creatorName'] ?? 'Невідомо',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.access_time,
+                      '$duration ${I18n.inline('днів', 'days')}',
+                      style: const TextStyle(
                         color: Colors.white,
-                        size: 14,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$duration днів',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1604,7 +1596,39 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               ],
             ),
           ),
-          
+          if (creatorVideoUrl.isNotEmpty || creatorThumbnailUrl.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: VideoPreviewBox(
+                videoUrl: creatorVideoUrl.isNotEmpty ? creatorVideoUrl : null,
+                thumbnailUrl: creatorThumbnailUrl.isNotEmpty
+                    ? creatorThumbnailUrl
+                    : null,
+                borderRadius: 18,
+                onTap: creatorVideoUrl.isEmpty
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => VideoPlayerScreen(
+                              videoUrl: creatorVideoUrl,
+                              title: challenge['title'] ??
+                                  I18n.inline('Відео челенджу', 'Challenge video'),
+                              authorName: creatorName,
+                              videoId: challengeId,
+                            ),
+                          ),
+                        );
+                      },
+                topLeft: _buildMetaPill(
+                  I18n.inline('Відео організатора', 'Organizer video'),
+                ),
+              ),
+            ),
+          ],
+
           // Інформація про челендж
           Padding(
             padding: const EdgeInsets.all(16),
@@ -1691,6 +1715,11 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 ),
                 
                 const SizedBox(height: 16),
+
+                if (participants.isNotEmpty) ...[
+                  _buildParticipantsRow(participants),
+                  const SizedBox(height: 16),
+                ],
                 
                 // Action Buttons Row
                 Row(
@@ -1850,6 +1879,132 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParticipantsRow(List<String> ids) {
+    final preview = ids.take(5).toList();
+    final remaining = ids.length - preview.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.groups_2, color: Colors.white70, size: 16),
+            const SizedBox(width: 6),
+            Text(
+              I18n.inline('Учасники', 'Participants'),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            ...preview.map(
+              (id) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _buildUserAvatarChip(
+                  userId: id,
+                  size: 34,
+                ),
+              ),
+            ),
+            if (remaining > 0)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                child: Text(
+                  '+$remaining',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUserAvatarChip({
+    required String userId,
+    String? name,
+    double size = 36,
+  }) {
+    if (userId.isEmpty) {
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundColor: Colors.white.withOpacity(0.1),
+        child: const Icon(Icons.person, color: Colors.white70),
+      );
+    }
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future:
+          FirebaseFirestore.instance.collection('users').doc(userId).get(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data();
+        final resolvedName = (data?['displayName'] ??
+                data?['name'] ??
+                data?['authorName'] ??
+                name ??
+                I18n.inline('Гравець', 'Player'))
+            .toString();
+        final avatarUrl =
+            (data?['avatarUrl'] ?? data?['avatar'] ?? '').toString();
+        return PlayerAvatarButton(
+          userId: userId,
+          displayName: resolvedName,
+          avatarUrl: avatarUrl,
+          size: size,
+        );
+      },
+    );
+  }
+
+  Widget _videoInfoChip({
+    required IconData icon,
+    required String label,
+    bool highlight = false,
+  }) {
+    final color =
+        highlight ? const Color(0xFFFFD54F) : Colors.white.withOpacity(0.7);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: highlight
+            ? color.withOpacity(0.25)
+            : Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: highlight ? color.withOpacity(0.6) : Colors.white.withOpacity(0.12),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: highlight ? Colors.white : Colors.white70,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
           ),

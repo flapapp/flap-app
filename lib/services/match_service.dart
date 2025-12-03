@@ -1101,16 +1101,20 @@ for (final uid in a) {
     final recentB = [summaryB, ...teamB.recentMatches];
     final aPlayerUpdates = <String, dynamic>{};
     final bPlayerUpdates = <String, dynamic>{};
+    final aGoalDeltas = <String, int>{};
+    final bGoalDeltas = <String, int>{};
     for (final uid in rosterA) {
       final goals = goalsByPlayer[uid] ?? 0;
       if (goals > 0) {
         aPlayerUpdates['playerGoals.$uid'] = FieldValue.increment(goals);
+        aGoalDeltas[uid] = goals;
       }
     }
     for (final uid in rosterB) {
       final goals = goalsByPlayer[uid] ?? 0;
       if (goals > 0) {
         bPlayerUpdates['playerGoals.$uid'] = FieldValue.increment(goals);
+        bGoalDeltas[uid] = goals;
       }
     }
     final batch = _firestore.batch();
@@ -1134,7 +1138,85 @@ for (final uid in a) {
       'updatedAt': now,
       ...bPlayerUpdates,
     });
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (e) {
+      print('Warning updating teams standings: $e');
+    }
+
+    await _updateTeamStatsDoc(
+      teamId: match.teamAId!,
+      teamName: teamA.name,
+      goalsFor: teamAScore,
+      goalsAgainst: teamBScore,
+      isWin: resultA > 0,
+      isDraw: resultA == 0,
+      playerGoalDeltas: aGoalDeltas,
+      summary: summaryA,
+    );
+    await _updateTeamStatsDoc(
+      teamId: match.teamBId!,
+      teamName: teamB.name,
+      goalsFor: teamBScore,
+      goalsAgainst: teamAScore,
+      isWin: resultA < 0,
+      isDraw: resultA == 0,
+      playerGoalDeltas: bGoalDeltas,
+      summary: summaryB,
+    );
+  }
+
+  Future<void> _updateTeamStatsDoc({
+    required String teamId,
+    required String teamName,
+    required int goalsFor,
+    required int goalsAgainst,
+    required bool isWin,
+    required bool isDraw,
+    required Map<String, int> playerGoalDeltas,
+    required Map<String, dynamic> summary,
+  }) async {
+    final ref = _firestore.collection('teamStats').doc(teamId);
+    await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      final data = snap.data() ?? const <String, dynamic>{};
+      final currentWins = (data['wins'] ?? 0) as int;
+      final currentDraws = (data['draws'] ?? 0) as int;
+      final currentLosses = (data['losses'] ?? 0) as int;
+      final currentGoalsFor = (data['goalsFor'] ?? 0) as int;
+      final currentGoalsAgainst = (data['goalsAgainst'] ?? 0) as int;
+      final playerGoals = Map<String, int>.from(
+        (data['playerGoals'] ?? const <String, dynamic>{}).map(
+          (key, value) => MapEntry(key.toString(), (value as num).toInt()),
+        ),
+      );
+      playerGoalDeltas.forEach((playerId, delta) {
+        playerGoals[playerId] = (playerGoals[playerId] ?? 0) + delta;
+      });
+
+      final recent = List<Map<String, dynamic>>.from(
+        (data['recentMatches'] as List?) ?? const [],
+      );
+      recent.insert(0, summary);
+      final trimmedRecent = recent.take(5).toList();
+
+      tx.set(
+        ref,
+        {
+          'teamId': teamId,
+          'teamName': teamName,
+          'wins': currentWins + (isWin ? 1 : 0),
+          'draws': currentDraws + (isDraw ? 1 : 0),
+          'losses': currentLosses + ((!isWin && !isDraw) ? 1 : 0),
+          'goalsFor': currentGoalsFor + goalsFor,
+          'goalsAgainst': currentGoalsAgainst + goalsAgainst,
+          'playerGoals': playerGoals,
+          'recentMatches': trimmedRecent,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    });
   }
 
   Future<void> setTeamRoster({

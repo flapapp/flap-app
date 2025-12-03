@@ -15,6 +15,7 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:async';
 import '../widgets/user_chip.dart';
 import '../widgets/player_avatar_button.dart';
+import '../widgets/mode_speed_dial.dart';
 import '../services/notification_service.dart';
 import '../utils/i18n.dart';
 
@@ -416,39 +417,49 @@ void _resetFindFilters() {
         backgroundColor: Colors.transparent,
         elevation: 0,
         flexibleSpace: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-        colors: [Color(0xFF1a1a2e), Color(0xFF16213e)],
-      ),
-    ),
-  ),
-  title: Row(
-    children: [
-      Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 6, offset: Offset(0, 2)),
-          ],
+              colors: [Color(0xFF1a1a2e), Color(0xFF16213e)],
+            ),
+          ),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Image.asset('assets/logo/flap_logo.jpg', fit: BoxFit.cover),
-      ),
-      SizedBox(width: 10),
-      const Text('FLAP', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1)),
-    ],
-  ),
+        title: InkWell(
+          onTap: () => Navigator.pushNamed(context, '/mode'),
+          borderRadius: BorderRadius.circular(10),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Image.asset('assets/logo/flap_logo.jpg', fit: BoxFit.cover),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'FLAP',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
-          IconButton(
-      tooltip: I18n.t('videos'),
-      icon: const Icon(Icons.videocam, color: Colors.white, size: 20),
-            onPressed: () => Navigator.pushNamed(context, '/video-main'),
-      padding: EdgeInsets.zero,
-    ),
     StreamBuilder<int>(
       stream: _notificationService.getUnreadCount(),
             builder: (context, snapshot) {
@@ -478,12 +489,6 @@ void _resetFindFilters() {
         );
       },
           ),
-          IconButton(
-      icon: const Icon(Icons.add_circle_outline, color: Colors.white, size: 22),
-      onPressed: () => Navigator.pushNamed(context, '/create-match'),
-      padding: EdgeInsets.zero,
-      tooltip: I18n.t('create_match'),
-    ),
     StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).snapshots(),
       builder: (context, snapshot) {
@@ -563,78 +568,21 @@ void _resetFindFilters() {
           _buildRatingsTab(),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // Кнопка переходу до відео (як в MVP)
-          Container(
-            width: 48,
-            height: 48,
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.2),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(24),
-                onTap: () {
-                  // Перехід до відео режиму
-                  Navigator.pushNamed(context, '/video-main');
-                },
-                child: const Center(
-                  child: Text(
-                    '📹',
-                    style: TextStyle(fontSize: 24),
-                  ),
-                ),
-              ),
-            ),
+      floatingActionButton: ModeSpeedDial(
+        shortcuts: [
+          ModeDialAction(
+            icon: Icons.groups_outlined,
+            tooltip: I18n.t('teams'),
+            onTap: () => Navigator.pushNamed(context, '/teams'),
           ),
-          
-          // Основна FAB кнопка створення матчу
-          Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF4caf50),
-              Color(0xFF66bb6a),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0xFF4caf50).withValues(alpha: 0.4),
-              blurRadius: 20,
-              offset: Offset(0, 6),
-            ),
-          ],
-        ),
-        child: FloatingActionButton(
-          onPressed: () {
-            Navigator.pushNamed(context, '/create-match');
-          },
-          child: Icon(Icons.add, color: Colors.white),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          tooltip: I18n.t('create_match'),
-        ),
+          ModeDialAction(
+            icon: Icons.play_circle_outline,
+            tooltip: I18n.t('videos'),
+            onTap: () => Navigator.pushNamed(context, '/video-main'),
           ),
         ],
+        onCreate: () => Navigator.pushNamed(context, '/create-match'),
+        createTooltip: I18n.t('create_match'),
       ),
     );
   }
@@ -1800,10 +1748,6 @@ void _shareMatch(Match match) {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (match.coverPhotoUrl?.isNotEmpty == true) ...[
-            _buildMatchCardPhoto(match),
-            SizedBox(height: 16),
-          ],
           Column(
   crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1829,38 +1773,27 @@ void _shareMatch(Match match) {
           
           // Кнопки дій
           _buildActionButtons(match, currentUser.uid),
+          if (match.coverPhotoUrl?.isNotEmpty == true) ...[
+            const SizedBox(height: 16),
+            _buildMatchPhotoFooter(match),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildMatchCardPhoto(Match match) {
-    final showScore = match.status == MatchStatus.finished &&
-        match.teamAScore != null &&
-        match.teamBScore != null;
+ Widget _buildMatchPhotoFooter(Match match) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Stack(
-        children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Image.network(
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        height: 140,
+        width: double.infinity,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(
               match.coverPhotoUrl!,
               fit: BoxFit.cover,
-              loadingBuilder: (context, child, progress) {
-                if (progress == null) return child;
-                return Container(
-                  color: Colors.black12,
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      value: progress.expectedTotalBytes != null
-                          ? progress.cumulativeBytesLoaded /
-                              progress.expectedTotalBytes!
-                          : null,
-                    ),
-                  ),
-                );
-              },
               errorBuilder: (context, error, stackTrace) => Container(
                 color: Colors.black12,
                 child: const Center(
@@ -1868,67 +1801,62 @@ void _shareMatch(Match match) {
                 ),
               ),
             ),
-          ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.55),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 12,
-            bottom: 12,
-            right: 12,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  match.city,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  '${match.date.day.toString().padLeft(2, '0')}.${match.date.month.toString().padLeft(2, '0')}.${match.date.year} · ${match.time}',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (showScore)
-            Positioned(
-              top: 12,
-              right: 12,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            Positioned.fill(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${match.teamAScore}:${match.teamBScore}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.65),
+                      Colors.transparent,
+                    ],
                   ),
                 ),
               ),
             ),
-        ],
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 10,
+              child: Row(
+                children: [
+                  const Icon(Icons.camera_alt_outlined,
+                      color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      I18n.inline(
+                        'Післяматчевий момент',
+                        'Match highlight',
+                      ),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (match.teamAScore != null && match.teamBScore != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.65),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${match.teamAScore}:${match.teamBScore}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3053,6 +2981,20 @@ Future<void> _onLeaveMatch(Match match) async {
     final MatchResult result = (a > b) ? MatchResult.teamAWins : (b > a) ? MatchResult.teamBWins : MatchResult.draw;
     final goals = await _collectGoalsForMatch(match);
     if (goals == null) return;
+    if (!_validateGoalsAgainstScore(match, goals, a, b)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline(
+              'Суми голів по командах не збігаються з рахунком. Перевірте дані.',
+              'Goals per team do not match the final score. Please adjust.',
+            ),
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
     final ok = await _matchService.finishMatch(match.id, result, a, b, goalsByPlayer: goals);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? I18n.t('match_finished') : I18n.t('match_finish_failed')),
@@ -3154,6 +3096,30 @@ Future<void> _onLeaveMatch(Match match) async {
     );
     controllers.values.forEach((c) => c.dispose());
     return map;
+  }
+
+  bool _validateGoalsAgainstScore(
+    Match match,
+    Map<String, int> goals,
+    int teamAScore,
+    int teamBScore,
+  ) {
+    if (match.hasTeams) {
+      final assignments = match.playerTeamAssignments;
+      int sumA = 0;
+      int sumB = 0;
+      goals.forEach((playerId, value) {
+        final teamKey = assignments[playerId];
+        if (teamKey == 'teamB') {
+          sumB += value;
+        } else {
+          sumA += value;
+        }
+      });
+      return sumA == teamAScore && sumB == teamBScore;
+    }
+    final total = goals.values.fold<int>(0, (prev, value) => prev + value);
+    return total == (teamAScore + teamBScore);
   }
 
   Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {

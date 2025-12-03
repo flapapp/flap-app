@@ -642,34 +642,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 14),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _profilePill(
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final pills = [
+                                  _profilePill(
                                     icon: Icons.star_border_rounded,
                                     label: I18n.t('rating'),
                                     value: rating.toStringAsFixed(2),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _profilePill(
+                                  _profilePill(
                                     icon: Icons.sports_soccer,
                                     label: I18n.t('matches'),
                                     value: ((userData['matchesPlayed'] ?? 0)
                                             as num)
                                         .toString(),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _profilePill(
+                                  _profilePill(
                                     icon: Icons.percent,
                                     label: 'Win rate',
                                     value: '${winRate.toStringAsFixed(0)}%',
                                   ),
-                                ),
-                              ],
+                                  _profilePill(
+                                    icon: Icons.sports,
+                                    label: I18n.inline('Голи', 'Goals'),
+                                    value:
+                                        ((userData['goals'] ?? 0) as num).toString(),
+                                  ),
+                                ];
+
+                                if (constraints.maxWidth < 360) {
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: pills
+                                        .map(
+                                          (pill) => Padding(
+                                            padding:
+                                                const EdgeInsets.only(bottom: 8),
+                                            child: pill,
+                                          ),
+                                        )
+                                        .toList(),
+                                  );
+                                }
+
+                                if (constraints.maxWidth < 520) {
+                                  return Column(
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(child: pills[0]),
+                                          const SizedBox(width: 12),
+                                          Expanded(child: pills[1]),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Expanded(child: pills[2]),
+                                          const SizedBox(width: 12),
+                                          Expanded(child: pills[3]),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                                }
+
+                                return Row(
+                                  children: [
+                                    Expanded(child: pills[0]),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: pills[1]),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: pills[2]),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: pills[3]),
+                                  ],
+                                );
+                              },
                             ),
                           ],
                         ),

@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../models/app_team.dart';
 import '../models/team_match_request.dart';
+import '../models/team_stats.dart';
 import '../services/team_service.dart';
 import '../services/friends_service.dart';
 import '../models/friend_request.dart';
@@ -29,6 +30,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   final _teamService = TeamService();
   final _friendsService = FriendsService();
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _teamStream;
+  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _teamStatsStream;
   late final Stream<List<TeamMatchRequest>> _requestsStream;
   final _auth = FirebaseAuth.instance;
   bool _isSendingJoinRequest = false;
@@ -39,6 +41,10 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     super.initState();
     _teamStream = FirebaseFirestore.instance
         .collection('teams')
+        .doc(widget.teamId)
+        .snapshots();
+    _teamStatsStream = FirebaseFirestore.instance
+        .collection('teamStats')
         .doc(widget.teamId)
         .snapshots();
     _requestsStream = _teamService.watchMatchRequests(widget.teamId);
@@ -64,40 +70,50 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
           final isCaptain = uid == team.captainId;
           final isVice = team.viceCaptainIds.contains(uid);
           final canManage = isCaptain || isVice;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeroSection(team, canManage),
-                const SizedBox(height: 20),
-                _buildMetricGrid(team),
-                const SizedBox(height: 20),
-                _buildHighlights(team),
-                if (canManage) ...[
-                  const SizedBox(height: 24),
-                  _buildJoinRequests(team),
-                ],
-                if (canManage) ...[
-                  const SizedBox(height: 24),
-                  _buildCoachDesk(team),
-                ],
-                const SizedBox(height: 24),
-                _buildMembers(team, canManage),
-                const SizedBox(height: 24),
-                _buildRecentMatches(team),
-                const SizedBox(height: 24),
-                _buildMatchRequests(canManage),
-              ],
-            ),
+          return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: _teamStatsStream,
+            builder: (context, statsSnap) {
+              final stats = (statsSnap.hasData && statsSnap.data!.exists)
+                  ? TeamStats.fromDoc(statsSnap.data!)
+                  : TeamStats.empty(team.id, name: team.name);
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeroSection(team, canManage, stats),
+                    const SizedBox(height: 20),
+                    _buildMetricGrid(team, stats),
+                    const SizedBox(height: 20),
+                    _buildHighlights(team, stats),
+                    const SizedBox(height: 20),
+                    _buildScorersList(stats),
+                    if (canManage) ...[
+                      const SizedBox(height: 24),
+                      _buildJoinRequests(team),
+                    ],
+                    if (canManage) ...[
+                      const SizedBox(height: 24),
+                      _buildCoachDesk(team),
+                    ],
+                    const SizedBox(height: 24),
+                    _buildMembers(team, canManage),
+                    const SizedBox(height: 24),
+                    _buildRecentMatches(stats),
+                    const SizedBox(height: 24),
+                    _buildMatchRequests(canManage),
+                  ],
+                ),
+              );
+            },
           );
         },
       ),
     );
   }
 
-  Widget _buildHeroSection(AppTeam team, bool canManage) {
-    final totalMatches = team.wins + team.losses + team.draws;
+  Widget _buildHeroSection(AppTeam team, bool canManage, TeamStats stats) {
+    final totalMatches = stats.matches;
     final DateFormat formatter = DateFormat('MMM yyyy');
     final uid = _auth.currentUser?.uid;
     final isMember = uid != null && team.memberIds.contains(uid);
@@ -184,15 +200,15 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
             children: [
               _heroStatBlock(
                 label: I18n.inline('Перемоги', 'Wins'),
-                value: team.wins.toString(),
+                value: stats.wins.toString(),
               ),
               _heroStatBlock(
                 label: I18n.inline('Нічиї', 'Draws'),
-                value: team.draws.toString(),
+                value: stats.draws.toString(),
               ),
               _heroStatBlock(
                 label: I18n.inline('Поразки', 'Losses'),
-                value: team.losses.toString(),
+                value: stats.losses.toString(),
               ),
               _heroStatBlock(
                 label: I18n.inline('Матчів', 'Matches'),
@@ -487,11 +503,11 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     );
   }
 
-  Widget _buildMetricGrid(AppTeam team) {
-    final totalMatches = team.wins + team.draws + team.losses;
-    final goalDiff = team.goalsFor - team.goalsAgainst;
+  Widget _buildMetricGrid(AppTeam team, TeamStats stats) {
+    final totalMatches = stats.matches;
+    final goalDiff = stats.goalDiff;
     final avgGoals =
-        totalMatches == 0 ? '0.0' : (team.goalsFor / totalMatches).toStringAsFixed(1);
+        totalMatches == 0 ? '0.0' : (stats.goalsFor / totalMatches).toStringAsFixed(1);
     final metrics = [
       _MetricTileData(
         icon: Icons.auto_graph,
@@ -501,7 +517,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       ),
       _MetricTileData(
         icon: Icons.shield,
-        value: '${team.goalsAgainst}',
+        value: '${stats.goalsAgainst}',
         title: I18n.inline('Пропущено', 'Conceded'),
         caption: I18n.inline('Блок оборони', 'Defensive wall'),
       ),
@@ -526,7 +542,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.4,
+        childAspectRatio: 1.2,
       ),
       itemBuilder: (context, index) => _metricTile(metrics[index]),
     );
@@ -568,7 +584,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     );
   }
 
-  Widget _buildHighlights(AppTeam team) {
+  Widget _buildHighlights(AppTeam team, TeamStats stats) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -592,11 +608,102 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
           icon: Icons.local_fire_department,
           title: I18n.inline('Клубна енергія', 'Club momentum'),
           value:
-              '+${team.wins} / -${team.losses} / =${team.draws}',
+              '+${stats.wins} / -${stats.losses} / =${stats.draws}',
           caption: I18n.inline('Свіжа статистика', 'Fresh stats'),
         ),
         const SizedBox(height: 12),
-        _buildTopScorerCard(team),
+        _buildTopScorerCard(stats),
+      ],
+    );
+  }
+
+  Widget _buildScorersList(TeamStats stats) {
+    if (stats.playerGoals.isEmpty) {
+      return _highlightTile(
+        icon: Icons.sports_soccer,
+        title: I18n.inline('Бомбардирів ще немає', 'No scorers yet'),
+        value: I18n.inline('Забий перший гол', 'Score the first goal'),
+        caption: I18n.inline('Список оновлюється миттєво', 'Table updates right away'),
+      );
+    }
+    final entries = stats.playerGoals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top = entries.take(5).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          I18n.inline('Бомбардири команди', 'Team top scorers'),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...top.map((entry) => FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              future: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(entry.key)
+                  .get(),
+              builder: (context, snapshot) {
+                final data = snapshot.data?.data();
+                final name = (data?['displayName'] ??
+                        data?['name'] ??
+                        I18n.inline('Гравець', 'Player'))
+                    .toString();
+                final avatarUrl =
+                    (data?['avatarUrl'] ?? data?['avatar'] ?? '').toString();
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.02),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  ),
+                  child: Row(
+                    children: [
+                      PlayerAvatarButton(
+                        userId: entry.key,
+                        displayName: name,
+                        avatarUrl: avatarUrl,
+                        size: 42,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              I18n.inline('Гравець команди', 'Squad member'),
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '${entry.value} ⚽',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            )),
       ],
     );
   }
@@ -741,8 +848,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     );
   }
 
-  Widget _buildTopScorerCard(AppTeam team) {
-    if (team.playerGoals.isEmpty) {
+  Widget _buildTopScorerCard(TeamStats stats) {
+    if (stats.playerGoals.isEmpty) {
       return _highlightTile(
         icon: Icons.stars,
         title: I18n.inline('Очікує героя', 'Awaiting hero'),
@@ -750,7 +857,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         caption: I18n.inline('Перший гол запише історію', 'First scorer writes history'),
       );
     }
-    final entries = team.playerGoals.entries.toList()
+    final entries = stats.playerGoals.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final best = entries.first;
     return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -772,8 +879,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     );
   }
 
-  Widget _buildRecentMatches(AppTeam team) {
-    final recent = team.recentMatches.take(4).toList();
+  Widget _buildRecentMatches(TeamStats stats) {
+    final recent = stats.recentMatches.take(4).toList();
     if (recent.isEmpty) {
       return _emptyState(
         title: I18n.inline('Ще немає історій', 'No stories yet'),
