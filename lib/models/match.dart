@@ -163,6 +163,8 @@ class Match {
   final Map<String, int> goalsByPlayer;
   final bool teamsReadyNotified;
   final DateTime? teamsReadyNotifiedAt;
+  final String? coverPhotoUrl;
+  final DateTime? coverPhotoUpdatedAt;
  
   // Результат
   final MatchResult? result;
@@ -214,6 +216,8 @@ class Match {
     this.goalsByPlayer = const {},
     this.teamsReadyNotified = false,
     this.teamsReadyNotifiedAt,
+    this.coverPhotoUrl,
+    this.coverPhotoUpdatedAt,
     this.result,
     this.teamAScore,
     this.teamBScore,
@@ -309,6 +313,9 @@ class Match {
       teamsReadyNotified: data['teamsReadyNotified'] ?? false,
       teamsReadyNotifiedAt:
           (data['teamsReadyNotifiedAt'] as Timestamp?)?.toDate(),
+      coverPhotoUrl: data['coverPhotoUrl'] as String?,
+      coverPhotoUpdatedAt:
+          (data['coverPhotoUpdatedAt'] as Timestamp?)?.toDate(),
 teams: ((data['teams'] as List?) ?? const [])
     .whereType<Map<String, dynamic>>()
     .map((t) => Team(
@@ -387,6 +394,10 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
       'teamsReadyNotifiedAt': teamsReadyNotifiedAt != null
           ? Timestamp.fromDate(teamsReadyNotifiedAt!)
           : null,
+      'coverPhotoUrl': coverPhotoUrl,
+      'coverPhotoUpdatedAt': coverPhotoUpdatedAt != null
+          ? Timestamp.fromDate(coverPhotoUpdatedAt!)
+          : null,
       'result': result?.toString().split('.').last,
       'teamAScore': teamAScore,
       'teamBScore': teamBScore,
@@ -436,6 +447,8 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
     Map<String, int>? goalsByPlayer,
     bool? teamsReadyNotified,
     DateTime? teamsReadyNotifiedAt,
+    String? coverPhotoUrl,
+    DateTime? coverPhotoUpdatedAt,
     MatchResult? result,
     int? teamAScore,
     int? teamBScore,
@@ -483,6 +496,9 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
       teamsReadyNotified: teamsReadyNotified ?? this.teamsReadyNotified,
       teamsReadyNotifiedAt:
           teamsReadyNotifiedAt ?? this.teamsReadyNotifiedAt,
+      coverPhotoUrl: coverPhotoUrl ?? this.coverPhotoUrl,
+      coverPhotoUpdatedAt:
+          coverPhotoUpdatedAt ?? this.coverPhotoUpdatedAt,
       result: result ?? this.result,
       teamAScore: teamAScore ?? this.teamAScore,
       teamBScore: teamBScore ?? this.teamBScore,

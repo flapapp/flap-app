@@ -295,6 +295,29 @@ class AppNotification {
     );
   }
 
+  static AppNotification challengeCompleted({
+    required String userId,
+    required String challengeTitle,
+    required String challengeId,
+  }) {
+    return AppNotification(
+      id: '',
+      userId: userId,
+      type: NotificationType.challengeCompleted,
+      title: I18n.inline('Челендж завершено!', 'Challenge completed!'),
+      message: I18n.inline(
+        '«$challengeTitle» завершено. Переглянь результати.',
+        '"$challengeTitle" just finished. Check out the winners.',
+      ),
+      data: {
+        'challengeId': challengeId,
+        'challengeTitle': challengeTitle,
+      },
+      createdAt: DateTime.now(),
+      actionUrl: '/challenge-details/$challengeId',
+    );
+  }
+
   static AppNotification videoVote({
     required String userId,
     required String videoTitle,

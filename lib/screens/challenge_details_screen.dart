@@ -27,8 +27,17 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   bool _isJoining = false;
   bool _isSubmitting = false;
+  bool _celebrationChecked = false;
 
   final Map<String, ValueNotifier<double>> _voteNotifiers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowWinnerCelebration();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -715,6 +724,52 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         builder: (context) => ChallengeCompletionScreen(challengeId: widget.challenge.id),
       ),
     );
+  }
+
+  Future<void> _maybeShowWinnerCelebration() async {
+    if (_celebrationChecked) return;
+    _celebrationChecked = true;
+
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      final challengeDoc = await FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(widget.challenge.id)
+          .get();
+      if (!challengeDoc.exists) return;
+
+      final latestChallenge = Challenge.fromFirestore(challengeDoc);
+      if (latestChallenge.status != ChallengeStatus.completed) return;
+      if (!latestChallenge.winners.contains(currentUser.uid)) return;
+
+      final celebrationRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('challengeCelebrations')
+          .doc(widget.challenge.id);
+      final shownDoc = await celebrationRef.get();
+      if (shownDoc.exists) return;
+
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => ChallengeCompletionScreen(
+            challengeId: widget.challenge.id,
+          ),
+        ),
+      );
+
+      await celebrationRef.set({
+        'challengeId': widget.challenge.id,
+        'shownAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Failed to show celebration: $e');
+    }
   }
 
   void _showParticipants() {

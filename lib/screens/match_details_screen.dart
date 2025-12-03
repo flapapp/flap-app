@@ -1,14 +1,20 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:io' as io show File;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/match.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
+
 import '../models/app_team.dart';
+import '../models/match.dart';
 import '../services/match_service.dart';
 import '../services/notification_service.dart';
 import '../services/rating_service.dart';
-import '../widgets/player_avatar_button.dart';
-import 'package:share_plus/share_plus.dart';
 import '../utils/i18n.dart';
+import '../widgets/player_avatar_button.dart';
 import '../widgets/user_chip.dart';
 
 class MatchDetailsScreen extends StatefulWidget {
@@ -25,6 +31,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   final RatingService _ratingService = RatingService();
   final NotificationService _notificationService = NotificationService();
   bool _isJoining = false;
+  bool _isUploadingCover = false;
+  final ImagePicker _imagePicker = ImagePicker();
 
     // Кеш профілів для уникнення повторних запитів
   final Map<String, Map<String, dynamic>> _profileCache = {};
@@ -75,6 +83,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             // Заголовок та статус
             _buildHeaderSection(),
             SizedBox(height: 20),
+            _buildCoverPhotoSection(),
             
             // Основна інформація
             _buildInfoSection(),
@@ -166,6 +175,236 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildCoverPhotoSection() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final bool isOrganizer = currentUser?.uid == widget.match.organizerId;
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('matches')
+          .doc(widget.match.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        Match? liveMatch;
+        if (snapshot.hasData && snapshot.data?.data() != null) {
+          liveMatch = Match.fromFirestore(snapshot.data!);
+        }
+        final photoUrl = liveMatch?.coverPhotoUrl ?? widget.match.coverPhotoUrl;
+        final status = liveMatch?.status ?? widget.match.status;
+        final bool showUploadCta =
+            isOrganizer && status == MatchStatus.finished;
+        final bool hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+        if (!hasPhoto && !showUploadCta) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                height: 200,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.02),
+                  border: Border.all(color: Colors.white.withOpacity(0.08)),
+                ),
+                child: hasPhoto
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.network(
+                            photoUrl!,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: progress.expectedTotalBytes != null
+                                      ? progress.cumulativeBytesLoaded /
+                                          progress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) =>
+                                _buildCoverPlaceholderContent(),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [
+                                    Colors.black.withOpacity(0.6),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.photo_album,
+                                      color: Colors.white.withOpacity(0.9),
+                                      size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    I18n.inline(
+                                      'Післяматчеве фото',
+                                      'Post-match highlight',
+                                    ),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : _buildCoverPlaceholderContent(),
+              ),
+            ),
+            if (showUploadCta) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ElevatedButton.icon(
+                  onPressed:
+                      _isUploadingCover ? null : _handleUploadMatchPhoto,
+                  icon: _isUploadingCover
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: const CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.cloud_upload),
+                  label: Text(hasPhoto
+                      ? I18n.inline(
+                          'Оновити фото матчу', 'Update match photo')
+                      : I18n.inline(
+                          'Додати фото матчу', 'Add match photo')),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4caf50),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCoverPlaceholderContent() {
+    return Container(
+      color: Colors.black.withOpacity(0.1),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.camera_alt_outlined,
+                color: Colors.white.withOpacity(0.6), size: 36),
+            const SizedBox(height: 8),
+            Text(
+              I18n.inline(
+                'Додайте фото, щоб матч виглядав яскравіше',
+                'Add a highlight photo for this match',
+              ),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleUploadMatchPhoto() async {
+    try {
+      final pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        imageQuality: 85,
+      );
+      if (pickedFile == null) return;
+
+      setState(() => _isUploadingCover = true);
+
+      final fileName =
+          'cover_${DateTime.now().millisecondsSinceEpoch.toString()}.jpg';
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('matches')
+          .child(widget.match.id)
+          .child(fileName);
+
+      final metadata = SettableMetadata(contentType: 'image/jpeg');
+      UploadTask uploadTask;
+      if (kIsWeb) {
+        final data = await pickedFile.readAsBytes();
+        uploadTask = storageRef.putData(data, metadata);
+      } else {
+        final file = io.File(pickedFile.path);
+        uploadTask = storageRef.putFile(file, metadata);
+      }
+
+      final snapshot = await uploadTask.whenComplete(() {});
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+
+      await _matchService.updateCoverPhoto(
+        matchId: widget.match.id,
+        photoUrl: downloadUrl,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline('Фото матчу оновлено.', 'Match photo updated.'),
+          ),
+          backgroundColor: const Color(0xFF4caf50),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline(
+              'Не вдалося завантажити фото: $e',
+              'Failed to upload photo: $e',
+            ),
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingCover = false);
+      }
+    }
   }
 
   Widget _buildInfoSection() {

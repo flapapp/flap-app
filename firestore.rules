@@ -61,6 +61,49 @@ service cloud.firestore {
         ).changedKeys().hasOnly([request.auth.uid]);
     }
 
+    function rosterSelectionKeysAllowed(matchData) {
+      return request.resource.data.diff(matchData).changedKeys().hasOnly([
+        'teamRosters',
+        'teamRosterStatus',
+        'teamAStatus',
+        'teamBStatus',
+        'teamA',
+        'teamB',
+        'teamAId',
+        'teamBId',
+        'updatedAt'
+      ]);
+    }
+
+    function teamRosterSelectionChanged(teamKey, matchData) {
+      let oldRosters = matchData.teamRosters == null ? {} : matchData.teamRosters;
+      let newRosters = request.resource.data.teamRosters == null
+        ? {}
+        : request.resource.data.teamRosters;
+      let oldStatuses = matchData.teamRosterStatus == null
+        ? {}
+        : matchData.teamRosterStatus;
+      let newStatuses = request.resource.data.teamRosterStatus == null
+        ? {}
+        : request.resource.data.teamRosterStatus;
+      let statusField = teamKey == 'teamA' ? 'teamAStatus' : 'teamBStatus';
+      let teamField = teamKey == 'teamA' ? 'teamA' : 'teamB';
+      let teamIdField = teamKey == 'teamA' ? 'teamAId' : 'teamBId';
+      return newRosters[teamKey] != oldRosters[teamKey] ||
+        newStatuses[teamKey] != oldStatuses[teamKey] ||
+        request.resource.data[statusField] != matchData[statusField] ||
+        request.resource.data[teamField] != matchData[teamField] ||
+        request.resource.data[teamIdField] != matchData[teamIdField];
+    }
+
+    function managesRosterTeam(teamKey, matchData) {
+      let teamIdField = teamKey == 'teamA' ? 'teamAId' : 'teamBId';
+      let existingId = matchData[teamIdField];
+      let requestedId = request.resource.data[teamIdField];
+      let targetId = existingId != null ? existingId : requestedId;
+      return targetId != null && canManageTeam(targetId);
+    }
+
     function participantsChangeBySelf(matchData) {
       let newParticipants = request.resource.data.participants;
       let oldParticipants = matchData.participants;
@@ -180,6 +223,22 @@ service cloud.firestore {
         rosterStatusChangedCorrectly(resource.data) &&
         participantsChangeBySelf(resource.data) &&
         rosterUpdateKeysAllowed();
+
+      // Капітани команд можуть обирати склад для свого боку
+      allow update: if isSignedIn() &&
+        rosterSelectionKeysAllowed(resource.data) &&
+        (
+          (
+            teamRosterSelectionChanged('teamA', resource.data) &&
+            !teamRosterSelectionChanged('teamB', resource.data) &&
+            managesRosterTeam('teamA', resource.data)
+          ) ||
+          (
+            teamRosterSelectionChanged('teamB', resource.data) &&
+            !teamRosterSelectionChanged('teamA', resource.data) &&
+            managesRosterTeam('teamB', resource.data)
+          )
+        );
               
       // Користувачі можуть подавати заявки на матчі
       allow update: if isSignedIn() && 

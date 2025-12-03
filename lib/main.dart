@@ -9,7 +9,7 @@ import 'screens/mode_selection_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/video_upload_screen.dart';
-import 'screens/main_screen.dart';
+import 'screens/video_main_screen.dart';
 import 'screens/video_player_screen.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -153,16 +153,7 @@ class MyApp extends StatelessWidget {
                 challengeTitle: args?['challengeTitle'],
               );
             },
-        '/video-main': (context) {
-          final args = (ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?) ?? {};
-          final myContent = args['myContent'] as String?; // 'videos' | 'challenges'
-          final initialTabIndex = myContent == 'challenges' ? 1 : 0;
-          return MainScreen(
-            initialTabIndex: initialTabIndex,
-            showOnlyMyVideos: myContent == 'videos',
-            showOnlyMyChallenges: myContent == 'challenges',
-          );
-        },
+        '/video-main': (context) => VideoMainScreen(),
         '/challenge-list': (context) => ChallengeListScreen(),
         '/challenge-create': (context) => ChallengeCreateScreen(),
         '/challenge-details': (context) {

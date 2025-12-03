@@ -57,6 +57,7 @@ class Challenge {
   final Map<String, Map<String, double>> detailedVotes; // userId -> {criteria -> rating}
   final List<String> winners; // [1st, 2nd, 3rd]
   final Map<String, double> finalScores; // userId -> final score
+  final Map<String, int> winnerPrizes; // userId -> coins won
   final bool isActive;
   final String? imageUrl;
   final List<String> tags;
@@ -88,15 +89,19 @@ class Challenge {
     required this.detailedVotes,
     required this.winners,
     required this.finalScores,
+    Map<String, int>? winnerPrizes,
     required this.isActive,
     this.imageUrl,
     required this.tags,
-  });
+  }) : winnerPrizes = winnerPrizes ?? const {};
 
   // Конструктор з Firestore
   factory Challenge.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     
+    final rawStatus = (data['status'] ?? 'recruiting').toString();
+    final normalizedStatus = rawStatus == 'finished' ? 'completed' : rawStatus;
+
     return Challenge(
       id: doc.id,
       title: data['title'] ?? '',
@@ -118,7 +123,7 @@ class Challenge {
       votingDeadline: (data['votingDeadline'] as Timestamp).toDate(),
       endDate: (data['endDate'] as Timestamp).toDate(),
       status: ChallengeStatus.values.firstWhere(
-        (e) => e.toString().split('.').last == data['status'],
+        (e) => e.toString().split('.').last == normalizedStatus,
         orElse: () => ChallengeStatus.recruiting,
       ),
       maxParticipants: data['maxParticipants'] ?? 50,
@@ -130,6 +135,9 @@ class Challenge {
       detailedVotes: Map<String, Map<String, double>>.from(data['detailedVotes'] ?? {}),
       winners: List<String>.from(data['winners'] ?? []),
       finalScores: Map<String, double>.from(data['finalScores'] ?? {}),
+      winnerPrizes: Map<String, int>.from(
+        data['winnerPrizes'] ?? {},
+      ),
       isActive: data['isActive'] ?? true,
       imageUrl: data['imageUrl'],
       tags: List<String>.from(data['tags'] ?? []),
@@ -164,6 +172,7 @@ class Challenge {
       'detailedVotes': detailedVotes,
       'winners': winners,
       'finalScores': finalScores,
+      'winnerPrizes': winnerPrizes,
       'isActive': isActive,
       'imageUrl': imageUrl,
       'tags': tags,
@@ -195,6 +204,7 @@ class Challenge {
     Map<String, Map<String, double>>? detailedVotes,
     List<String>? winners,
     Map<String, double>? finalScores,
+    Map<String, int>? winnerPrizes,
     bool? isActive,
     String? imageUrl,
     List<String>? tags,
@@ -226,6 +236,7 @@ class Challenge {
       detailedVotes: detailedVotes ?? this.detailedVotes,
       winners: winners ?? this.winners,
       finalScores: finalScores ?? this.finalScores,
+      winnerPrizes: winnerPrizes ?? this.winnerPrizes,
       isActive: isActive ?? this.isActive,
       imageUrl: imageUrl ?? this.imageUrl,
       tags: tags ?? this.tags,

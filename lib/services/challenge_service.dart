@@ -342,8 +342,6 @@ class ChallengeService {
       }
 
       final challengeRef = _challengesCollection.doc(challengeId);
-      
-      // Перевірка чи користувач створювач челенджу
       final challengeDoc = await challengeRef.get();
       if (!challengeDoc.exists) {
         throw Exception('Челендж не знайдено');
@@ -354,98 +352,16 @@ class ChallengeService {
         throw Exception('Тільки створювач може завершити челендж');
       }
 
+      if (challenge.status == ChallengeStatus.completed) {
+        throw Exception('Челендж вже завершено');
+      }
+
       if (challenge.status != ChallengeStatus.voting) {
         throw Exception('Челендж не в стадії голосування');
       }
 
-      // Розрахунок фінальних оцінок
-      final finalScores = <String, double>{};
-      for (final submission in challenge.submissions) {
-        double totalScore = 0;
-        int voteCount = 0;
-        
-        for (final vote in challenge.votes.values) {
-          totalScore += vote;
-          voteCount++;
-        }
-        
-        if (voteCount > 0) {
-          finalScores[submission] = totalScore / voteCount;
-        }
-      }
-
-      // Визначення переможців
-      final sortedParticipants = finalScores.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-
-      final winners = <String>[];
-      if (sortedParticipants.isNotEmpty) {
-        winners.add(sortedParticipants[0].key); // 1-е місце
-      }
-      if (sortedParticipants.length > 1) {
-        winners.add(sortedParticipants[1].key); // 2-е місце
-      }
-      if (sortedParticipants.length > 2) {
-        winners.add(sortedParticipants[2].key); // 3-є місце
-      }
-
-      // Нарахування призів з записом транзакцій
-      if (winners.isNotEmpty) {
-        final firstPrize = challenge.firstPlacePrize.toInt();
-        await _addCoinsToUser(winners[0], firstPrize);
-        await _firestore.collection('transactions').add({
-          'userId': winners[0],
-          'type': 'challenge_win',
-          'amount': firstPrize,
-          'challengeId': challengeId,
-          'challengeTitle': challenge.title,
-          'timestamp': FieldValue.serverTimestamp(),
-          'description': I18n.inline(
-  'Перемога в челенджі: ${challenge.title} (1-е місце)',
-  'Challenge win: ${challenge.title} (1st place)',
-),
-        });
-      }
-      if (winners.length > 1) {
-        final secondPrize = challenge.secondPlacePrize.toInt();
-        await _addCoinsToUser(winners[1], secondPrize);
-        await _firestore.collection('transactions').add({
-          'userId': winners[1],
-          'type': 'challenge_second',
-          'amount': secondPrize,
-          'challengeId': challengeId,
-          'challengeTitle': challenge.title,
-          'timestamp': FieldValue.serverTimestamp(),
-          'description': I18n.inline(
-  'Друге місце в челенджі: ${challenge.title}',
-  'Second place in challenge: ${challenge.title}',
-),
-        });
-      }
-      if (winners.length > 2) {
-        final thirdPrize = challenge.thirdPlacePrize.toInt();
-        await _addCoinsToUser(winners[2], thirdPrize);
-        await _firestore.collection('transactions').add({
-          'userId': winners[2],
-          'type': 'challenge_third',
-          'amount': thirdPrize,
-          'challengeId': challengeId,
-          'challengeTitle': challenge.title,
-          'timestamp': FieldValue.serverTimestamp(),
-          'description': I18n.inline(
-  'Третє місце в челенджі: ${challenge.title}',
-  'Third place in challenge: ${challenge.title}',
-),
-        });
-      }
-
-      // Оновлення статусу челенджу
-      await challengeRef.update({
-        'status': ChallengeStatus.completed.toString().split('.').last,
-        'finalScores': finalScores,
-        'winners': winners,
-        'endDate': Timestamp.fromDate(DateTime.now()),
-      });
+      final result = await _finalizeChallenge(challenge);
+      await _notifyParticipantsAboutCompletion(challenge, result);
 
       return true;
     } catch (e) {
@@ -658,20 +574,19 @@ class ChallengeService {
   Future<void> checkAndFinishChallenges() async {
     try {
       final now = DateTime.now();
-      
-      // Знаходимо челенджі, які закінчилися, але ще не завершені
+
       final expiredChallengesSnapshot = await _challengesCollection
           .where('isActive', isEqualTo: true)
-          .where('status', isNotEqualTo: 'finished')
+          .where('endDate', isLessThan: Timestamp.fromDate(now))
+          .limit(25)
           .get();
-      
+
       for (final doc in expiredChallengesSnapshot.docs) {
         final challenge = Challenge.fromFirestore(doc);
-        
-        // Перевіряємо чи челендж закінчився
-        if (challenge.endDate.isBefore(now)) {
-          await _finishChallenge(challenge);
+        if (challenge.status == ChallengeStatus.completed) {
+          continue;
         }
+        await _finishChallenge(challenge);
       }
     } catch (e) {
       print('Error checking and finishing challenges: $e');
@@ -680,105 +595,11 @@ class ChallengeService {
 
   Future<void> _finishChallenge(Challenge challenge) async {
     try {
-      // Визначаємо переможців
-      final submissionsSnapshot = await _challengesCollection
-          .doc(challenge.id)
-          .collection('submissions')
-          .orderBy('averageRating', descending: true)
-          .limit(3)
-          .get();
-      
-      final winners = <Map<String, dynamic>>[];
-      final totalPrize = challenge.prizePool;
-      
-      for (int i = 0; i < submissionsSnapshot.docs.length; i++) {
-        final doc = submissionsSnapshot.docs[i];
-        final data = doc.data();
-        final userId = data['userId'];
-        final prize = _calculatePrize(i + 1, totalPrize, submissionsSnapshot.docs.length);
-        
-        winners.add({
-          'userId': userId,
-          'position': i + 1,
-          'prize': prize,
-        });
-        
-        // Нараховуємо монети
-        await _awardPrize(userId, prize, i + 1, challenge.title);
-      }
-      
-      // Оновлюємо статус челенджу
-      await _challengesCollection.doc(challenge.id).update({
-        'status': 'finished',
-        'winners': winners.map((w) => w['userId']).toList(),
-        'finishedAt': FieldValue.serverTimestamp(),
-      });
-      
-      // Відправляємо нотифікації всім учасникам
-      for (final participantId in challenge.participants) {
-        await _notificationService.sendNotification(
-          AppNotification(
-            id: '',
-            userId: participantId,
-            type: NotificationType.challengeCompleted,
-            title: 'Челендж завершено!',
-            message: 'Челендж "${challenge.title}" завершено. Переглянь результати!',
-            data: {'challengeId': challenge.id},
-            actionUrl: '/challenge/${challenge.id}/results',
-            createdAt: DateTime.now(),
-          ),
-        );
-      }
-      
+      final result = await _finalizeChallenge(challenge);
+      await _notifyParticipantsAboutCompletion(challenge, result);
       print('Challenge ${challenge.id} finished successfully');
     } catch (e) {
       print('Error finishing challenge: $e');
-    }
-  }
-
-  double _calculatePrize(int position, double totalPrize, int totalWinners) {
-    if (totalWinners < 3) {
-      // Якщо менше 3 учасників
-      if (position == 1) return totalPrize * 0.7;
-      if (position == 2) return totalPrize * 0.3;
-    }
-    
-    // Стандартний розподіл
-    switch (position) {
-      case 1: return totalPrize * 0.5; // 50%
-      case 2: return totalPrize * 0.3; // 30%
-      case 3: return totalPrize * 0.2; // 20%
-      default: return 0.0;
-    }
-  }
-
-  Future<void> _awardPrize(String userId, double prize, int position, String challengeTitle) async {
-    try {
-      final userRef = _firestore.collection('users').doc(userId);
-      await _firestore.runTransaction((transaction) async {
-        final userDoc = await transaction.get(userRef);
-        final currentCoins = (userDoc.data()?['coins'] ?? 0) as num;
-        transaction.update(userRef, {
-          'coins': currentCoins + prize.toInt(),
-        });
-      });
-      
-      // Додаємо запис в історію транзакцій
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('coin_transactions')
-          .add({
-        'amount': prize.toInt(),
-        'type': 'challenge_prize',
-        'description': I18n.inline(
-  'Приз за ${position}-е місце в челенджі "$challengeTitle"',
-  'Prize for ${position} place in challenge "$challengeTitle"',
-),
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      print('Error awarding prize: $e');
     }
   }
 
@@ -788,8 +609,8 @@ class ChallengeService {
       final twoDaysAgo = DateTime.now().subtract(const Duration(days: 2));
       
       final oldChallengesSnapshot = await _challengesCollection
-          .where('status', isEqualTo: 'finished')
-          .where('finishedAt', isLessThan: Timestamp.fromDate(twoDaysAgo))
+          .where('status', isEqualTo: 'completed')
+          .where('completedAt', isLessThan: Timestamp.fromDate(twoDaysAgo))
           .get();
       
       for (final doc in oldChallengesSnapshot.docs) {
@@ -813,4 +634,128 @@ class ChallengeService {
       print('Error deleting old challenges: $e');
     }
   }
+
+  Future<_ChallengeWinnersPayload> _finalizeChallenge(
+    Challenge challenge,
+  ) async {
+    final challengeRef = _challengesCollection.doc(challenge.id);
+    final submissionsSnapshot = await challengeRef
+        .collection('submissions')
+        .orderBy('averageRating', descending: true)
+        .get();
+
+    final winners = <String>[];
+    final finalScores = <String, double>{};
+    final winnerPrizes = <String, int>{};
+    final prizePool = _effectivePrizePool(challenge);
+    final prizes = _prizeBreakdown(prizePool);
+
+    for (int i = 0; i < submissionsSnapshot.docs.length && i < 3; i++) {
+      final data = submissionsSnapshot.docs[i].data();
+      final winnerId = (data['userId'] ?? '').toString();
+      if (winnerId.isEmpty) {
+        continue;
+      }
+
+      final rating =
+          ((data['averageRating'] ?? data['rating'] ?? 0.0) as num).toDouble();
+      final prize = prizes[i];
+
+      winners.add(winnerId);
+      finalScores[winnerId] = rating;
+      winnerPrizes[winnerId] = prize;
+
+      if (prize > 0) {
+        await _addCoinsToUser(winnerId, prize);
+        await _firestore.collection('transactions').add({
+          'userId': winnerId,
+          'type': 'challenge_prize',
+          'amount': prize,
+          'challengeId': challenge.id,
+          'challengeTitle': challenge.title,
+          'position': i + 1,
+          'timestamp': FieldValue.serverTimestamp(),
+          'description': I18n.inline(
+            'Приз за ${i + 1}-е місце в челенджі "${challenge.title}"',
+            'Prize for place ${i + 1} in "${challenge.title}"',
+          ),
+        });
+        await _notificationService.sendChallengeResultNotification(
+          toUserId: winnerId,
+          challengeTitle: challenge.title,
+          challengeId: challenge.id,
+          position: i + 1,
+          coinsWon: prize,
+        );
+      }
+    }
+
+    await challengeRef.update({
+      'status': ChallengeStatus.completed.toString().split('.').last,
+      'winners': winners,
+      'finalScores': finalScores,
+      'winnerPrizes': winnerPrizes,
+      'isActive': false,
+      'completedAt': FieldValue.serverTimestamp(),
+    });
+
+    return _ChallengeWinnersPayload(
+      winners: winners,
+      finalScores: finalScores,
+      winnerPrizes: winnerPrizes,
+    );
+  }
+
+  Future<void> _notifyParticipantsAboutCompletion(
+    Challenge challenge,
+    _ChallengeWinnersPayload result,
+  ) async {
+    final winnersSet = result.winnersSet;
+    for (final participantId in challenge.participants.toSet()) {
+      if (participantId.isEmpty || winnersSet.contains(participantId)) {
+        continue;
+      }
+      await _notificationService.sendChallengeCompletedNotification(
+        toUserId: participantId,
+        challengeTitle: challenge.title,
+        challengeId: challenge.id,
+      );
+    }
+  }
+
+  double _effectivePrizePool(Challenge challenge) {
+    if (challenge.prizePool > 0) {
+      return challenge.prizePool;
+    }
+    final participantCount = challenge.participants.isNotEmpty
+        ? challenge.participants.length
+        : challenge.currentParticipants;
+    return (participantCount * challenge.entryFee).toDouble();
+  }
+
+  List<int> _prizeBreakdown(double prizePool) {
+    final total = prizePool.round();
+    if (total <= 0) {
+      return [0, 0, 0];
+    }
+    final first = (total * 0.5).round();
+    final second = (total * 0.3).round();
+    final remaining = total - first - second;
+    final third = remaining < 0 ? 0 : remaining;
+    return [first, second, third];
+  }
+}
+
+class _ChallengeWinnersPayload {
+  const _ChallengeWinnersPayload({
+    required this.winners,
+    required this.finalScores,
+    required this.winnerPrizes,
+  });
+
+  final List<String> winners;
+  final Map<String, double> finalScores;
+  final Map<String, int> winnerPrizes;
+
+  Set<String> get winnersSet => winners.toSet();
 }

@@ -1252,4 +1252,20 @@ for (final uid in a) {
       );
     }
   }
+
+  Future<void> updateCoverPhoto({
+    required String matchId,
+    required String photoUrl,
+  }) async {
+    try {
+      await _firestore.collection('matches').doc(matchId).update({
+        'coverPhotoUrl': photoUrl,
+        'coverPhotoUpdatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error updating match cover photo: $e');
+      rethrow;
+    }
+  }
 }

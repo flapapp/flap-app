@@ -134,6 +134,8 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
 
       final winners = <Map<String, dynamic>>[];
       
+      final prizeOverrides = _challenge?.winnerPrizes ?? const <String, int>{};
+
       for (int i = 0; i < submissionsSnapshot.docs.length; i++) {
         final doc = submissionsSnapshot.docs[i];
         final data = doc.data();
@@ -145,19 +147,18 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
             .get();
         
         final userData = userDoc.data() ?? {};
-        final prize = _calculatePrize(i + 1);
+        final winnerId = data['userId'] as String? ?? '';
+        final override = prizeOverrides[winnerId];
+        final prize = (override ?? _calculatePrize(i + 1)).toDouble();
         
         winners.add({
           'position': i + 1,
-          'userId': data['userId'],
+          'userId': winnerId,
           'userName': userData['displayName'] ?? userData['name'] ?? I18n.inline('Невідомий', 'Unknown'),
           'userAvatar': userData['avatarUrl'] ?? userData['photoUrl'] ?? '',
           'rating': data['averageRating'] ?? 0.0,
           'prize': prize,
         });
-        
-        // Нараховуємо монети переможцям
-        await _awardPrize(data['userId'], prize, i + 1);
       }
       
       setState(() {
@@ -165,33 +166,6 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
       });
     } catch (e) {
       print('Error loading winners: $e');
-    }
-  }
-
-  Future<void> _awardPrize(String userId, double prize, int position) async {
-    try {
-      final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final userDoc = await transaction.get(userRef);
-        final currentCoins = (userDoc.data()?['coins'] ?? 0) as num;
-        transaction.update(userRef, {
-          'coins': currentCoins + prize.toInt(),
-        });
-      });
-      
-      // Додаємо запис в історію транзакцій
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('coin_transactions')
-          .add({
-        'amount': prize.toInt(),
-        'type': 'challenge_prize',
-        'description': I18n.inline('Приз за ${position}-е місце в челенджі "${_challenge?.title}"', 'Prize for ${position}${position == 1 ? 'st' : position == 2 ? 'nd' : position == 3 ? 'rd' : 'th'} place in challenge "${_challenge?.title}"'),
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      print('Error awarding prize: $e');
     }
   }
 

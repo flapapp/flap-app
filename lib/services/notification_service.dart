@@ -342,6 +342,19 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     return await sendNotification(notification);
   }
 
+  Future<bool> sendChallengeCompletedNotification({
+    required String toUserId,
+    required String challengeTitle,
+    required String challengeId,
+  }) async {
+    final notification = AppNotification.challengeCompleted(
+      userId: toUserId,
+      challengeTitle: challengeTitle,
+      challengeId: challengeId,
+    );
+    return await sendNotification(notification);
+  }
+
   // Send video vote notification
   Future<bool> sendVideoVoteNotification({
     required String toUserId,
