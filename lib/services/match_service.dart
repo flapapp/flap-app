@@ -821,6 +821,16 @@ if (currentUserId == null || currentUserId != match.organizerId) {
           if (rosterA.isEmpty || rosterB.isEmpty) {
             throw Exception('Склади команд не заповнені');
           }
+          final statusesA = match.teamRosterStatus['teamA'] ?? const {};
+          final statusesB = match.teamRosterStatus['teamB'] ?? const {};
+          final hasConfirmedA =
+              statusesA.values.any((status) => status == 'confirmed');
+          final hasConfirmedB =
+              statusesB.values.any((status) => status == 'confirmed');
+          if (!hasConfirmedA || !hasConfirmedB) {
+            throw Exception(
+                'Потрібно підтвердити хоча б по одному гравцю в кожній команді');
+          }
         }
         
         // Дозволяємо початок матчу навіть якщо не набралася повна кількість гравців
@@ -862,6 +872,24 @@ if (currentUserId == null || currentUserId != match.organizerId) {
       }
       if (!match.isInProgress) {
         throw Exception('Матч не почався або вже завершений');
+      }
+
+      if (match.hasTeams && goalsByPlayer.isNotEmpty) {
+        final assignments = match.playerTeamAssignments;
+        int totalA = 0;
+        int totalB = 0;
+        goalsByPlayer.forEach((playerId, goals) {
+          final teamKey = assignments[playerId];
+          if (teamKey == 'teamA') {
+            totalA += goals;
+          } else if (teamKey == 'teamB') {
+            totalB += goals;
+          }
+        });
+        if (totalA > teamAScore || totalB > teamBScore) {
+          throw Exception(
+              'Сума голів заявлених гравців перевищує рахунок команди');
+        }
       }
 
       tx.update(docRef, {

@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Статус матчу
@@ -516,6 +518,59 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
   bool get isInProgress => status == MatchStatus.inProgress;
   bool get isFinished => status == MatchStatus.finished;
   bool get isCancelled => status == MatchStatus.cancelled;
+
+  int confirmedPlayersForTeam(String teamKey) {
+    final statusMap = teamRosterStatus[teamKey];
+    if (statusMap == null || statusMap.isEmpty) return 0;
+    return statusMap.values.where((status) => status == 'confirmed').length;
+  }
+
+  bool teamHasConfirmedPlayers(String teamKey) =>
+      confirmedPlayersForTeam(teamKey) > 0;
+
+  bool get hasConfirmedPlayersForBothTeams =>
+      teamHasConfirmedPlayers('teamA') && teamHasConfirmedPlayers('teamB');
+
+  List<String> get confirmedParticipantIds {
+    if (teamRosterStatus.isEmpty) {
+      return List<String>.from(participants);
+    }
+    final ordered = LinkedHashSet<String>();
+    teamRosterStatus.forEach((_, playerStatuses) {
+      playerStatuses.forEach((playerId, status) {
+        if (status == 'confirmed') {
+          ordered.add(playerId);
+        }
+      });
+    });
+    if (ordered.isEmpty) {
+      return List<String>.from(participants);
+    }
+    return ordered.toList();
+  }
+
+  int get confirmedParticipantsCount {
+    final ids = confirmedParticipantIds;
+    return ids.isEmpty ? participants.length : ids.length;
+  }
+
+  Map<String, String> get playerTeamAssignments {
+    final assignments = <String, String>{};
+    teamRosters.forEach((teamKey, ids) {
+      for (final id in ids) {
+        assignments[id] = teamKey;
+      }
+    });
+    if (assignments.isEmpty) {
+      for (final id in teamA?.playerIds ?? const <String>[]) {
+        assignments[id] = 'teamA';
+      }
+      for (final id in teamB?.playerIds ?? const <String>[]) {
+        assignments[id] = 'teamB';
+      }
+    }
+    return assignments;
+  }
   
   // Перевірка ролі користувача
   bool isOrganizer(String userId) => organizerId == userId;

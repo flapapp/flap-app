@@ -526,9 +526,8 @@ Widget _buildTeamsWrap(Match m) {
 
 Widget _buildManagementButtons(Match m) {
   final totalTeams = m.teamCount ?? m.allTeams.length;
-  final awaitingTeamConfirmations = m.isTeamMatch &&
-      ((m.teamAStatus ?? 'pending') != 'confirmed' ||
-          (m.teamBStatus ?? 'pending') != 'confirmed');
+  final awaitingTeamConfirmations =
+      m.isTeamMatch && !m.hasConfirmedPlayersForBothTeams;
 
   VoidCallback? primaryAction;
   IconData primaryIcon = Icons.play_arrow;

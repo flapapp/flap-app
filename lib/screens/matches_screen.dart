@@ -1938,7 +1938,9 @@ void _shareMatch(Match match) {
 Widget _buildMatchDetails(Match match) {
   // Діагностика
   print('DEBUG: Building match details for ${match.title}');
-  print('DEBUG: Participants count: ${match.participants.length}');
+  final confirmedCount =
+      match.isTeamMatch ? match.confirmedParticipantsCount : match.participants.length;
+  print('DEBUG: Participants count: $confirmedCount');
   print('DEBUG: Participants: ${match.participants}');
   
   return Column(
@@ -2023,7 +2025,7 @@ Row(
     Icon(Icons.people, color: Colors.white70, size: 16),
     SizedBox(width: 8),
     Text(
-      '${match.participants.length}/${match.maxPlayers} ${I18n.t('participants')}',
+      '${confirmedCount}/${match.maxPlayers} ${I18n.t('participants')}',
       style: TextStyle(color: Colors.white70, fontSize: 14),
     ),
     Spacer(),
@@ -2841,6 +2843,13 @@ Column(
         // Швидкі дії для організатора
         if (isOrganizer) ...[
           const SizedBox(height: 12),
+          Builder(builder: (context) {
+            final canStartNow = match.hasTeams
+                ? match.hasConfirmedPlayersForBothTeams
+                : match.participants.length >= 2;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           Row(
             children: [
               if (!match.hasTeams &&
@@ -2868,13 +2877,16 @@ Column(
                   match.status != MatchStatus.inProgress &&
                   match.status != MatchStatus.finished)
                 ElevatedButton(
-                  onPressed: () async {
+                  onPressed: canStartNow
+                      ? () async {
                     final sure = await _confirm('Почати матч?', 'Після початку рахунок стане доступним і дії зміняться.');
                     if (sure != true) return;
                     await _onStartMatch(match);
-                  },
+                  }
+                      : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2196f3),
+                    backgroundColor:
+                        canStartNow ? const Color(0xFF2196f3) : Colors.grey,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
@@ -2904,6 +2916,22 @@ Column(
                 ),
             ],
           ),
+            if (match.hasTeams &&
+                match.status == MatchStatus.open &&
+                !canStartNow)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  I18n.inline(
+                    'Потрібно щонайменше по одному підтвердженому гравцю з кожної команди.',
+                    'Need at least one confirmed player per team to start.',
+                  ),
+                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                ),
+              ),
+          ],
+            );
+          }),
         ],
 
         // Інфо для неорганізаторів

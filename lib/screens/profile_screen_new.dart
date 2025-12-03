@@ -642,52 +642,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 14),
-                            LayoutBuilder(
-                              builder: (context, constraints) {
-                                final isCompact = constraints.maxWidth < 360;
-                                final pills = [
-                                  _profilePill(
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _profilePill(
                                     icon: Icons.star_border_rounded,
                                     label: I18n.t('rating'),
                                     value: rating.toStringAsFixed(2),
                                   ),
-                                  _profilePill(
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _profilePill(
                                     icon: Icons.sports_soccer,
                                     label: I18n.t('matches'),
                                     value: ((userData['matchesPlayed'] ?? 0)
                                             as num)
                                         .toString(),
                                   ),
-                                  _profilePill(
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _profilePill(
                                     icon: Icons.percent,
                                     label: 'Win rate',
                                     value: '${winRate.toStringAsFixed(0)}%',
                                   ),
-                                ];
-                                if (isCompact) {
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: pills
-                                        .map((pill) => Padding(
-                                              padding:
-                                                  const EdgeInsets.only(
-                                                      bottom: 8),
-                                              child: pill,
-                                            ))
-                                        .toList(),
-                                  );
-                                }
-                                return Row(
-                                  children: [
-                                    Expanded(child: pills[0]),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: pills[1]),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: pills[2]),
-                                  ],
-                                );
-                              },
+                                ),
+                              ],
                             ),
                           ],
                         ),
