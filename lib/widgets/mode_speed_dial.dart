@@ -98,9 +98,9 @@ class _ModeSpeedDialState extends State<ModeSpeedDial>
         elevation: 0,
         onPressed: _toggleOrCreate,
         tooltip: widget.createTooltip,
-        child: AnimatedRotation(
+        child: AnimatedScale(
           duration: const Duration(milliseconds: 200),
-          turns: _expanded ? 0.125 : 0,
+          scale: _expanded ? 0.9 : 1.0,
           child: const Icon(Icons.add, color: Colors.white),
         ),
       ),

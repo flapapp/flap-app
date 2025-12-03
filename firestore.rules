@@ -162,6 +162,9 @@ service cloud.firestore {
         request.resource.data.organizerId == request.auth.uid ||
         request.auth.token.admin == true
       );
+      allow delete: if isSignedIn() &&
+        resource.data.organizerId == request.auth.uid &&
+        resource.data.status == 'open';
 
       // Учасник може "вийти" з відкритого матчу (participants зменшується на 1)
       allow update, delete: if

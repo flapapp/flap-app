@@ -642,83 +642,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 14),
-                            LayoutBuilder(
-                              builder: (context, constraints) {
-                                final pills = [
-                                  _profilePill(
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _profilePill(
                                     icon: Icons.star_border_rounded,
                                     label: I18n.t('rating'),
                                     value: rating.toStringAsFixed(2),
+                                    accent: const Color(0xFFFFD54F),
                                   ),
-                                  _profilePill(
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _profilePill(
                                     icon: Icons.sports_soccer,
                                     label: I18n.t('matches'),
-                                    value: ((userData['matchesPlayed'] ?? 0)
-                                            as num)
-                                        .toString(),
+                                    value:
+                                        ((userData['matchesPlayed'] ?? 0) as num)
+                                            .toString(),
+                                    accent: const Color(0xFF4CAF50),
                                   ),
-                                  _profilePill(
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _profilePill(
                                     icon: Icons.percent,
                                     label: 'Win rate',
                                     value: '${winRate.toStringAsFixed(0)}%',
+                                    accent: const Color(0xFF64B5F6),
                                   ),
-                                  _profilePill(
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _profilePill(
                                     icon: Icons.sports,
                                     label: I18n.inline('Голи', 'Goals'),
                                     value:
                                         ((userData['goals'] ?? 0) as num).toString(),
+                                    accent: const Color(0xFFFF7043),
                                   ),
-                                ];
-
-                                if (constraints.maxWidth < 360) {
-                                  return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: pills
-                                        .map(
-                                          (pill) => Padding(
-                                            padding:
-                                                const EdgeInsets.only(bottom: 8),
-                                            child: pill,
-                                          ),
-                                        )
-                                        .toList(),
-                                  );
-                                }
-
-                                if (constraints.maxWidth < 520) {
-                                  return Column(
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Expanded(child: pills[0]),
-                                          const SizedBox(width: 12),
-                                          Expanded(child: pills[1]),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          Expanded(child: pills[2]),
-                                          const SizedBox(width: 12),
-                                          Expanded(child: pills[3]),
-                                        ],
-                                      ),
-                                    ],
-                                  );
-                                }
-
-                                return Row(
-                                  children: [
-                                    Expanded(child: pills[0]),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: pills[1]),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: pills[2]),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: pills[3]),
-                                  ],
-                                );
-                              },
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -783,18 +747,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required String label,
     required String value,
+    Color? accent,
   }) {
+    final primary = accent ?? Colors.white70;
+    final bg = (accent ?? Colors.white).withOpacity(0.08);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: bg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: (accent ?? Colors.white).withOpacity(0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: Colors.white70),
+          Icon(icon, size: 16, color: primary),
           const SizedBox(width: 6),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1295,7 +1262,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     int losses = 0;
     final List<String> recentResults = [];
 
-    for (final doc in matchesSnapshot.docs) {
+    final orderedDocs = [...matchesSnapshot.docs]
+      ..sort((a, b) {
+        final dataA = a.data();
+        final dataB = b.data();
+        final tsA = (dataA['finishedAt'] as Timestamp?) ??
+            (dataA['updatedAt'] as Timestamp?) ??
+            Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
+        final tsB = (dataB['finishedAt'] as Timestamp?) ??
+            (dataB['updatedAt'] as Timestamp?) ??
+            Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
+        return tsB.compareTo(tsA);
+      });
+
+    for (final doc in orderedDocs) {
       final data = doc.data();
 
       // 1) Зчитуємо рахунок із числових полів, інакше з текстового result

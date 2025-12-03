@@ -1866,8 +1866,10 @@ void _shareMatch(Match match) {
 Widget _buildMatchDetails(Match match) {
   // Діагностика
   print('DEBUG: Building match details for ${match.title}');
-  final confirmedCount =
-      match.isTeamMatch ? match.confirmedParticipantsCount : match.participants.length;
+  final totalParticipants = match.participants.length;
+  final confirmedCount = match.isTeamMatch
+      ? match.confirmedParticipantsCount
+      : totalParticipants;
   print('DEBUG: Participants count: $confirmedCount');
   print('DEBUG: Participants: ${match.participants}');
   
@@ -1952,9 +1954,19 @@ Row(
   children: [
     Icon(Icons.people, color: Colors.white70, size: 16),
     SizedBox(width: 8),
-    Text(
-      '${confirmedCount}/${match.maxPlayers} ${I18n.t('participants')}',
-      style: TextStyle(color: Colors.white70, fontSize: 14),
+    Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$totalParticipants/${match.maxPlayers} ${I18n.t('participants')}',
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        if (match.isTeamMatch)
+          Text(
+            I18n.inline('Підтверджено: $confirmedCount', 'Confirmed: $confirmedCount'),
+            style: TextStyle(color: Colors.white54, fontSize: 11),
+          ),
+      ],
     ),
     Spacer(),
     Container(

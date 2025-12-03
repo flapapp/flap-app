@@ -813,24 +813,22 @@ if (currentUserId == null || currentUserId != match.organizerId) {
           final rosterB = match.teamRosters['teamB'] ??
               match.teamB?.playerIds ??
               const <String>[];
-          final teamAReady = (match.teamAStatus ?? 'pending') == 'confirmed';
-          final teamBReady = (match.teamBStatus ?? 'pending') == 'confirmed';
-          if (!teamAReady || !teamBReady) {
-            throw Exception('Команди ще не підтвердили склади');
-          }
           if (rosterA.isEmpty || rosterB.isEmpty) {
             throw Exception('Склади команд не заповнені');
           }
           final statusesA = match.teamRosterStatus['teamA'] ?? const {};
           final statusesB = match.teamRosterStatus['teamB'] ?? const {};
-          final hasConfirmedA =
-              statusesA.values.any((status) => status == 'confirmed');
-          final hasConfirmedB =
-              statusesB.values.any((status) => status == 'confirmed');
-          if (!hasConfirmedA || !hasConfirmedB) {
-            throw Exception(
-                'Потрібно підтвердити хоча б по одному гравцю в кожній команді');
+          final confirmedA = statusesA.values
+              .where((status) => status == 'confirmed')
+              .length;
+          final confirmedB = statusesB.values
+              .where((status) => status == 'confirmed')
+              .length;
+          if (confirmedA + confirmedB < 2) {
+            throw Exception('Потрібно мінімум два підтверджені гравці');
           }
+        } else if (match.participants.length < 2) {
+          throw Exception('Потрібно щонайменше 2 учасники');
         }
         
         // Дозволяємо початок матчу навіть якщо не набралася повна кількість гравців
@@ -1032,6 +1030,29 @@ for (final uid in a) {
       });
     } catch (e) {
       print('Error cancelling match: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteMatch(String matchId) async {
+    try {
+      final docRef = _firestore.collection('matches').doc(matchId);
+      return await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(docRef);
+        if (!snap.exists) throw Exception('Match not found');
+        final match = Match.fromFirestore(snap);
+        final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        if (currentUserId == null || currentUserId != match.organizerId) {
+          throw Exception('Only organizer can perform this action');
+        }
+        if (match.isInProgress || match.isFinished) {
+          throw Exception('Неможливо видалити матч після старту');
+        }
+        tx.delete(docRef);
+        return true;
+      });
+    } catch (e) {
+      print('Error deleting match: $e');
       return false;
     }
   }

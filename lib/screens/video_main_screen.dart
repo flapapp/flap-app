@@ -941,11 +941,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       icon: Icons.remove_red_eye,
                       label: '$views',
                     ),
-                    const SizedBox(width: 8),
-                    _videoInfoChip(
-                      icon: Icons.chat_bubble_outline,
-                      label: '$comments',
-                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -2351,6 +2346,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   }
 
   void _showComments(String videoId, String videoTitle) {
+    final commentController = TextEditingController();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -2455,86 +2451,54 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     itemCount: snapshot.data!.docs.length,
                     itemBuilder: (context, index) {
                       final comment = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-                      final userId = comment['userId'] ?? '';
-                      final commentText = comment['comment'] ?? '';
+                      final userId = (comment['userId'] ?? '').toString();
+                      final commentText = (comment['comment'] ?? '').toString();
                       final timestamp = comment['createdAt'] as Timestamp?;
-                      
-                      return FutureBuilder<DocumentSnapshot>(
-                        future: FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(userId)
-                            .get(),
+
+                      return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        future: userId.isEmpty
+                            ? null
+                            : FirebaseFirestore.instance.collection('users').doc(userId).get(),
                         builder: (context, userSnapshot) {
-                          String authorName = 'Користувач';
-                          if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                            final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                            final name = userData['name'] ?? '';
-                            final surname = userData['surname'] ?? '';
-                            authorName = '$name $surname'.trim();
-                            if (authorName.isEmpty) {
-                              authorName = userData['authorName'] ?? 'Користувач';
-                            }
-                          }
+                          final userData = userSnapshot.data?.data() ?? const <String, dynamic>{};
+                          final authorName = (userData['displayName'] ??
+                                  userData['name'] ??
+                                  userData['authorName'] ??
+                                  'Користувач')
+                              .toString();
+                          final avatarUrl =
+                              (userData['avatarUrl'] ?? userData['photoUrl'] ?? '').toString();
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 16),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.1),
+                              color: Colors.white.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.1),
+                                color: Colors.white.withValues(alpha: 0.12),
                               ),
                             ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Avatar (кліабельний)
-                                GestureDetector(
-                                  onTap: () {
-                                    Navigator.pushNamed(
-                                      context,
-                                      '/player-profile',
-                                      arguments: {
-                                        'playerId': userId,
-                                        'playerName': authorName,
-                                      },
-                                    );
-                                  },
-                                  child: Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-                                      ),
-                                      borderRadius: BorderRadius.circular(18),
-                                      border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.3),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        authorName.isNotEmpty ? authorName[0].toUpperCase() : '?',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                PlayerAvatarButton(
+                                  userId: userId,
+                                  displayName: authorName,
+                                  avatarUrl: avatarUrl,
+                                  size: 38,
+                                  backgroundColor: const Color(0xFF4caf50),
+                                  borderColor: Colors.white.withValues(alpha: 0.25),
+                                  borderWidth: 1,
                                 ),
                                 const SizedBox(width: 12),
-                                // Comment content
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      // Author name (кліабельний)
                                       GestureDetector(
                                         onTap: () {
+                                          if (userId.isEmpty) return;
                                           Navigator.pushNamed(
                                             context,
                                             '/player-profile',
@@ -2550,13 +2514,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                                             color: Colors.white,
                                             fontSize: 14,
                                             fontWeight: FontWeight.w600,
-                                            decoration: TextDecoration.underline,
-                                            decorationColor: Colors.white30,
                                           ),
                                         ),
                                       ),
                                       const SizedBox(height: 4),
-                                      // Comment text
                                       Text(
                                         commentText,
                                         style: TextStyle(
@@ -2565,7 +2526,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                                         ),
                                       ),
                                       const SizedBox(height: 4),
-                                      // Timestamp
                                       if (timestamp != null)
                                         Text(
                                           _formatTimestamp(timestamp),
@@ -2603,6 +2563,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                         ),
                       ),
                       child: TextField(
+                        controller: commentController,
                         style: const TextStyle(color: Colors.white),
                         decoration: const InputDecoration(
                           hintText: 'Написати коментар...',
@@ -2610,27 +2571,38 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                           border: InputBorder.none,
                         ),
                         onSubmitted: (text) {
-                          if (text.trim().isNotEmpty) {
-                            _addComment(videoId, text.trim());
+                          final value = text.trim();
+                          if (value.isNotEmpty) {
+                            _addComment(videoId, value);
+                            commentController.clear();
                           }
                         },
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+                  InkWell(
+                    onTap: () {
+                      final value = commentController.text.trim();
+                      if (value.isEmpty) return;
+                      _addComment(videoId, value);
+                      commentController.clear();
+                    },
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+                        ),
+                        borderRadius: BorderRadius.circular(24),
                       ),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: const Icon(
-                      Icons.send,
-                      color: Colors.white,
-                      size: 20,
+                      child: const Icon(
+                        Icons.send,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ),
                 ],

@@ -152,7 +152,20 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     int wins = 0, draws = 0, losses = 0;
     final List<String> recent = [];
 
-    for (final d in snap.docs) {
+    final docs = [...snap.docs]
+      ..sort((a, b) {
+        final dataA = a.data();
+        final dataB = b.data();
+        final tsA = (dataA['finishedAt'] as Timestamp?) ??
+            (dataA['updatedAt'] as Timestamp?) ??
+            Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
+        final tsB = (dataB['finishedAt'] as Timestamp?) ??
+            (dataB['updatedAt'] as Timestamp?) ??
+            Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
+        return tsB.compareTo(tsA);
+      });
+
+    for (final d in docs) {
       final data = d.data();
 
       int? aOpt = data['teamAScore'] as int?;
@@ -655,6 +668,7 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
     final wins   = ((playerData!['wins'] ?? playerData!['wonMatches']  ?? 0) as num).toInt();
     final losses = ((playerData!['losses'] ?? playerData!['lostMatches'] ?? 0) as num).toInt();
     final draws  = ((playerData!['draws'] ?? playerData!['drawMatches']  ?? 0) as num).toInt();
+    final goals  = ((playerData!['goals'] ?? 0) as num).toInt();
     final avatarUrl = (playerData!['avatarUrl'] ?? playerData!['avatar'] ?? playerData!['photoUrl'] ?? '').toString();
 
     final me = FirebaseAuth.instance.currentUser?.uid;
@@ -732,9 +746,13 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
             ),
             const SizedBox(height: 12),
             Row(children: [
-              Expanded(child: _statBox(value: matches.toString(), label: 'Матчі зіграно'.i18n('Matches played'))),
+              Expanded(child: _statBox(value: matches.toString(), label: 'Матчі'.i18n('Matches'), icon: Icons.sports_soccer, color: const Color(0xFF4CAF50))),
               const SizedBox(width: 10),
-              Expanded(child: _statBox(value: averageRating.toStringAsFixed(2), label: 'Середня оцінка'.i18n('Average rating'))),
+              Expanded(child: _statBox(value: averageRating.toStringAsFixed(2), label: 'Середня'.i18n('Average'), icon: Icons.star_border, color: const Color(0xFFFFD54F))),
+              const SizedBox(width: 10),
+              Expanded(child: _statBox(value: '${_winRate.toStringAsFixed(0)}%', label: 'Win rate', icon: Icons.percent, color: const Color(0xFF64B5F6))),
+              const SizedBox(width: 10),
+              Expanded(child: _statBox(value: goals.toString(), label: I18n.inline('Голи', 'Goals'), icon: Icons.sports, color: const Color(0xFFFF7043))),
             ]),
             const SizedBox(height: 20),
 
@@ -1073,12 +1091,16 @@ const SizedBox(height: 12),
     );
   }
 
-  Widget _statBox({required String value, required String label}) {
+  Widget _statBox({required String value, required String label, IconData? icon, Color? color}) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
       child: Column(
         children: [
+          if (icon != null) ...[
+            Icon(icon, color: color ?? Colors.white70, size: 18),
+            const SizedBox(height: 4),
+          ],
           Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12), textAlign: TextAlign.center),

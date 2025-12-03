@@ -49,6 +49,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
   List<List<String>> _editingTeams = [[], []];
 
   final Map<String, Map<String, dynamic>> _userCache = {};
+  final Map<String, _ClubInfo> _clubCache = {};
 
   Future<Map<String, dynamic>> _getUserProfile(String userId) async {
     if (_userCache.containsKey(userId)) {
@@ -67,6 +68,41 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
       final fallback = <String, dynamic>{'displayName': I18n.t('player'), 'avatarUrl': ''};
       _userCache[userId] = fallback;
       return fallback;
+    }
+  }
+
+  Future<_ClubInfo> _getClubInfo(
+    String? teamId,
+    Team? fallback, {
+    required String fallbackLabel,
+  }) async {
+    final effectiveLabel =
+        (fallback?.name?.isNotEmpty ?? false) ? fallback!.name : fallbackLabel;
+
+    if (teamId == null || teamId.isEmpty) {
+      return _ClubInfo.fromTeam(fallback, fallbackLabel: effectiveLabel);
+    }
+
+    final cached = _clubCache[teamId];
+    if (cached != null) return cached;
+
+    try {
+      final doc =
+          await FirebaseFirestore.instance.collection('teams').doc(teamId).get();
+      final data = doc.data();
+      final info = _ClubInfo(
+        name: (data?['name'] ?? effectiveLabel).toString(),
+        logoUrl: (data?['logoUrl'] ?? '').toString(),
+        rating:
+            (data?['rating'] ?? data?['teamRating'] ?? fallback?.averageRating ?? 0)
+                .toDouble(),
+      );
+      _clubCache[teamId] = info;
+      return info;
+    } catch (_) {
+      final info = _ClubInfo.fromTeam(fallback, fallbackLabel: effectiveLabel);
+      _clubCache[teamId] = info;
+      return info;
     }
   }
 
@@ -348,7 +384,7 @@ Widget _buildTeamsContent(Match m, bool isOrganizer) {
                 const SizedBox(height: 12),
                 _buildTeamConfirmationCard(m, isOrganizer),
               ],
-              if (m.participants.length >= 2) ...[
+              if (!m.isTeamMatch && m.participants.length >= 2) ...[
                 const SizedBox(height: 12),
                 _buildTeamCountSelector(m),
               ],
@@ -471,21 +507,22 @@ Widget _buildBalanceAndManagement(Match m) {
               style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
             ),
             const Spacer(),
-            TextButton.icon(
-              onPressed: () async {
-                final ok = await _confirm(
-                  I18n.inline('Перемішати команди?', 'Shuffle teams?'),
-                  I18n.inline('Переформувати склади на основі рейтингу', 'Reform teams based on ratings'),
-                );
-                if (ok == true) await _shuffleTeams(m);
-              },
-              icon: const Icon(Icons.shuffle, color: Colors.white),
-              label: Text(I18n.inline('Перемішати', 'Shuffle'), style: const TextStyle(color: Colors.white)),
-            ),
+            if (!m.isTeamMatch)
+              TextButton.icon(
+                onPressed: () async {
+                  final ok = await _confirm(
+                    I18n.inline('Перемішати команди?', 'Shuffle teams?'),
+                    I18n.inline('Переформувати склади на основі рейтингу', 'Reform teams based on ratings'),
+                  );
+                  if (ok == true) await _shuffleTeams(m);
+                },
+                icon: const Icon(Icons.shuffle, color: Colors.white),
+                label: Text(I18n.inline('Перемішати', 'Shuffle'), style: const TextStyle(color: Colors.white)),
+              ),
           ],
         ),
         const SizedBox(height: 16),
-        _buildTeamsWrap(m),
+        m.isTeamMatch ? _buildClubVsCard(m) : _buildTeamsWrap(m),
         const SizedBox(height: 20),
         Text(
           I18n.inline('Управління матчем', 'Match Management'),
@@ -524,10 +561,104 @@ Widget _buildTeamsWrap(Match m) {
   );
 }
 
+Widget _buildClubVsCard(Match m) {
+  return FutureBuilder<List<_ClubInfo>>(
+    future: Future.wait([
+      _getClubInfo(
+        m.teamAId,
+        m.teamA,
+        fallbackLabel: I18n.inline('Команда А', 'Team A'),
+      ),
+      _getClubInfo(
+        m.teamBId,
+        m.teamB,
+        fallbackLabel: I18n.inline('Команда Б', 'Team B'),
+      ),
+    ]),
+    builder: (context, snapshot) {
+      final infos = snapshot.data ??
+          [
+            _ClubInfo.fromTeam(m.teamA, fallbackLabel: I18n.inline('Команда А', 'Team A')),
+            _ClubInfo.fromTeam(m.teamB, fallbackLabel: I18n.inline('Команда Б', 'Team B')),
+          ];
+
+      Widget buildSide(_ClubInfo info, List<String> roster, double total, String? teamId) {
+        return Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              TeamLogoButton(
+                teamId: teamId,
+                teamName: info.name,
+                logoUrl: info.logoUrl,
+                size: 60,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                info.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${I18n.inline('Рейтинг', 'Rating')}: ${total.toStringAsFixed(1)}',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${roster.length} ${I18n.t('players').toLowerCase()}',
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+            ],
+          ),
+        );
+      }
+
+      final rosterA = m.teamRosters['teamA'] ?? m.teamA?.playerIds ?? const <String>[];
+      final rosterB = m.teamRosters['teamB'] ?? m.teamB?.playerIds ?? const <String>[];
+      final totalA = _teamTotalRating(rosterA, _ratingsCache, infos[0].rating ?? 0);
+      final totalB = _teamTotalRating(rosterB, _ratingsCache, infos[1].rating ?? 0);
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.02),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: Row(
+          children: [
+            buildSide(infos[0], rosterA, totalA, m.teamAId),
+            Column(
+              children: [
+                Text(
+                  I18n.inline('vs', 'vs'),
+                  style: const TextStyle(color: Colors.white54, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${rosterA.length}-${rosterB.length}',
+                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+              ],
+            ),
+            buildSide(infos[1], rosterB, totalB, m.teamBId),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 Widget _buildManagementButtons(Match m) {
   final totalTeams = m.teamCount ?? m.allTeams.length;
   final awaitingTeamConfirmations =
       m.isTeamMatch && !m.hasConfirmedPlayersForBothTeams;
+  final isOrganizer = FirebaseAuth.instance.currentUser?.uid == m.organizerId;
 
   VoidCallback? primaryAction;
   IconData primaryIcon = Icons.play_arrow;
@@ -622,6 +753,20 @@ Widget _buildManagementButtons(Match m) {
               ),
             ),
           ],
+        ),
+      ],
+      if (isOrganizer &&
+          !m.isInProgress &&
+          !m.isFinished &&
+          !m.isCancelled) ...[
+        const SizedBox(height: 8),
+        TextButton.icon(
+          onPressed: _deleteMatch,
+          icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+          label: Text(
+            I18n.inline('Видалити матч', 'Delete match'),
+            style: const TextStyle(color: Colors.redAccent),
+          ),
         ),
       ],
     ],
@@ -2367,8 +2512,67 @@ setState(() {
     setState(() => _isLoading = false);
   }
 }
+
+  Future<void> _deleteMatch() async {
+    final ok = await _confirm(
+      I18n.inline('Видалити матч?', 'Delete match?'),
+      I18n.inline('Після підтвердження матч буде остаточно видалений.', 'This action cannot be undone.'),
+    );
+    if (ok != true) return;
+    setState(() => _isLoading = true);
+    try {
+      final success = await _matchService.deleteMatch(widget.match.id);
+      if (!mounted) return;
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(I18n.inline('Матч видалено', 'Match deleted')),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        Navigator.of(context).pop();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(I18n.inline('Не вдалося видалити матч', 'Failed to delete match')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(I18n.inline('Помилка: $e', 'Error: $e')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
   
   String _formatDateTime(DateTime dateTime) {
     return '${dateTime.day.toString().padLeft(2, '0')}.${dateTime.month.toString().padLeft(2, '0')}.${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _ClubInfo {
+  final String name;
+  final String? logoUrl;
+  final double? rating;
+
+  const _ClubInfo({
+    required this.name,
+    this.logoUrl,
+    this.rating,
+  });
+
+  factory _ClubInfo.fromTeam(Team? team, {required String fallbackLabel}) {
+    return _ClubInfo(
+      name: team?.name?.isNotEmpty == true ? team!.name : fallbackLabel,
+      logoUrl: null,
+      rating: team?.averageRating,
+    );
   }
 }

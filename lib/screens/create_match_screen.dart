@@ -40,6 +40,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   final List<int> _playerOptions = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
   final ScrollController _friendsScrollController = ScrollController();
   final TeamService _teamService = TeamService();
+  bool _isCreating = false;
   bool _teamMode = false;
   bool _loadingTeams = true;
   List<AppTeam> _myTeams = [];
@@ -650,7 +651,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             
             // Кнопка створення
             ElevatedButton(
-              onPressed: _createMatch,
+              onPressed: _isCreating ? null : _createMatch,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF4caf50),
                 padding: EdgeInsets.symmetric(vertical: 15),
@@ -658,10 +659,20 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: Text(
-                I18n.t('create_match'),
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-              ),
+              child: _isCreating
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text(
+                      I18n.t('create_match'),
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
             ),
           ],
         ),
@@ -670,7 +681,9 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   }
 
   Future<void> _createMatch() async {
+    if (_isCreating) return;
     if (!_formKey.currentState!.validate()) return;
+    setState(() => _isCreating = true);
     
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
@@ -848,6 +861,8 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Помилка створення: $e'), backgroundColor: Colors.red),
       );
+    } finally {
+      if (mounted) setState(() => _isCreating = false);
     }
   }
 
