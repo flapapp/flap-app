@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../constants/video_categories.dart';
 import '../services/challenge_service.dart';
 import '../services/thumbnail_service.dart';
 import '../utils/i18n.dart';
@@ -26,22 +27,12 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _categoryController = TextEditingController();
   
-  String? _selectedCategory;
+  String? _selectedCategoryId;
   String? _selectedDifficulty;
   XFile? _pickedVideo;
   bool _isUploading = false;
   double _uploadProgress = 0.0;
-
-  List<String> get _categories => [
-    I18n.inline('Техніка', 'Technique'),
-    I18n.inline('Фізика', 'Physics'),
-    I18n.inline('Тактика', 'Tactics'),
-    I18n.inline('Командна гра', 'Teamplay'),
-    I18n.inline('Фрістайл', 'Freestyle'),
-    I18n.inline('Інше', 'Other'),
-  ];
 
   List<String> get _difficulties => [
     I18n.inline('Легкий', 'Easy'),
@@ -291,32 +282,64 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: DropdownButtonFormField<String>(
-                    value: _selectedCategory,
+                    value: _selectedCategoryId ?? '',
                     style: const TextStyle(color: Colors.white),
                     dropdownColor: const Color(0xFF1e7d32),
                     decoration: InputDecoration(
                       labelText: I18n.inline('Категорія', 'Category'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
                     ),
-                    items: _categories.map((String category) {
-                      return DropdownMenuItem<String>(
-                        value: category,
+                    items: [
+                      DropdownMenuItem<String>(
+                        value: '',
                         child: Text(
-                          category,
-                          style: const TextStyle(color: Colors.white),
+                          I18n.inline('Оберіть категорію', 'Select a category'),
+                          style: const TextStyle(color: Colors.white70),
                         ),
-                      );
-                    }).toList(),
+                      ),
+                      ...kVideoCategories.map(
+                        (category) => DropdownMenuItem<String>(
+                          value: category.id,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                category.label(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (category.description().isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  category.description(),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     onChanged: (String? newValue) {
                       setState(() {
-                        _selectedCategory = newValue;
+                        _selectedCategoryId =
+                            (newValue == null || newValue.isEmpty)
+                                ? null
+                                : newValue;
                       });
                     },
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return I18n.inline('Виберіть категорію', 'Select category');
+                      if ((_selectedCategoryId ?? '').isEmpty) {
+                        return I18n.inline(
+                            'Виберіть категорію', 'Select category');
                       }
                       return null;
                     },
@@ -482,7 +505,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         'authorName': user.displayName ?? user.email?.split('@')[0] ?? 'Користувач',
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'category': _selectedCategory,
+        'category': normalizeVideoCategoryValue(_selectedCategoryId ?? 'other'),
         'difficulty': _selectedDifficulty,
         'videoUrl': videoUrl,
         'createdAt': FieldValue.serverTimestamp(),

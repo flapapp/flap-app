@@ -53,7 +53,7 @@ class ChallengeService {
   Stream<List<Challenge>> getChallengesByType(ChallengeType type) {
     return _challengesCollection
         .where('isActive', isEqualTo: true)
-        .where('type', isEqualTo: type.toString().split('.').last)
+        .where('type', isEqualTo: challengeTypeToSlug(type))
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -644,7 +644,7 @@ class ChallengeService {
           challengeId: challengeId,
           challengeTitle: challenge.title,
           creatorName: challenge.creatorName,
-          challengeType: challenge.type.toString().split('.').last,
+          challengeType: challengeTypeToSlug(challenge.type),
         );
         print('Sent ${targetUserIds.length} challenge invitations for ${challenge.title}');
       }

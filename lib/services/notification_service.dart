@@ -139,6 +139,11 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
         nav.pushNamed('/match-details', arguments: match);
       }
       break;
+    case 'team_roster_invite':
+      if (match != null) {
+        nav.pushNamed('/match-details', arguments: match);
+      }
+      break;
     case 'team_match_ready':
       if (match != null) {
         nav.pushNamed('/match_management', arguments: match);

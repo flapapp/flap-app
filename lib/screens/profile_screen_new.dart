@@ -31,6 +31,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Stream<List<AppTeam>>? _teamsStream;
   Stream<List<TeamInvite>>? _teamInvitesStream;
   String? _userId;
+  Future<Map<String, dynamic>>? _matchStatsFuture;
+  String? _matchStatsUserId;
 
   @override
   void initState() {
@@ -426,11 +428,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _ensureMatchStatsFuture(String userId) {
+    if (userId.isEmpty) return;
+    if (_matchStatsUserId == userId && _matchStatsFuture != null) return;
+    _matchStatsUserId = userId;
+    _matchStatsFuture = _loadMatchStats(userId);
+  }
+
   Widget _buildProfileContent(Map<String, dynamic> userData) {
     final displayName = userData['name'] ?? userData['displayName'] ?? I18n.t('player');
     final avatarUrl = userData['avatar'] ?? userData['avatarUrl'];
     final rating = (userData['rating'] ?? 0.0).toDouble();
     final coins = userData['coins'] ?? 0;
+    final profileUserId = userData['uid'] ?? _auth.currentUser?.uid ?? '';
+    if (profileUserId.isNotEmpty) {
+      _ensureMatchStatsFuture(profileUserId);
+    }
+    final statsFuture = _matchStatsFuture;
     
     return CustomScrollView(
       slivers: [
@@ -466,6 +480,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               avatarUrl,
               rating,
               coins,
+              statsFuture,
             ),
           ),
         ),
@@ -479,7 +494,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   _buildTeamsSection(),
   const SizedBox(height: 20),
   _buildTeamInvitesSection(),
-  _buildActionsMenu(),
+  _buildActionsMenu(userData),
   const SizedBox(height: 20),
 ],
           ),
@@ -493,10 +508,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       String displayName,
       String? avatarUrl,
       double rating,
-      int coins) {
+      int coins,
+      Future<Map<String, dynamic>>? statsFuture) {
     final userId = userData['uid'] ?? _auth.currentUser?.uid ?? '';
     return FutureBuilder<Map<String, dynamic>>(
-      future: _loadMatchStats(userId),
+      future: statsFuture ?? _loadMatchStats(userId),
       builder: (context, snapshot) {
         final stats = snapshot.data ??
             {
@@ -626,50 +642,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 14),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                _profilePill(
-                                  icon: Icons.star_border_rounded,
-                                  label: I18n.t('rating'),
-                                  value: rating.toStringAsFixed(2),
-                                ),
-                                _profilePill(
-                                  icon: Icons.sports_soccer,
-                                  label: I18n.t('matches'),
-                                  value:
-                                      ((userData['matchesPlayed'] ?? 0) as num)
-                                          .toString(),
-                                ),
-                                _profilePill(
-                                  icon: Icons.percent,
-                                  label: 'Win rate',
-                                  value: '${winRate.toStringAsFixed(0)}%',
-                                ),
-                              ],
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final isCompact = constraints.maxWidth < 360;
+                                final pills = [
+                                  _profilePill(
+                                    icon: Icons.star_border_rounded,
+                                    label: I18n.t('rating'),
+                                    value: rating.toStringAsFixed(2),
+                                  ),
+                                  _profilePill(
+                                    icon: Icons.sports_soccer,
+                                    label: I18n.t('matches'),
+                                    value: ((userData['matchesPlayed'] ?? 0)
+                                            as num)
+                                        .toString(),
+                                  ),
+                                  _profilePill(
+                                    icon: Icons.percent,
+                                    label: 'Win rate',
+                                    value: '${winRate.toStringAsFixed(0)}%',
+                                  ),
+                                ];
+                                if (isCompact) {
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: pills
+                                        .map((pill) => Padding(
+                                              padding:
+                                                  const EdgeInsets.only(
+                                                      bottom: 8),
+                                              child: pill,
+                                            ))
+                                        .toList(),
+                                  );
+                                }
+                                return Row(
+                                  children: [
+                                    Expanded(child: pills[0]),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: pills[1]),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: pills[2]),
+                                  ],
+                                );
+                              },
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          _badgeValue(
-                            label: I18n.inline('Рейтинг', 'Rating'),
-                            value: rating.toStringAsFixed(2),
-                            icon: Icons.flash_on,
-                            color: _getRatingColor(rating),
-                          ),
-                          const SizedBox(height: 10),
-                          _badgeValue(
-                            label: 'FL Coins',
-                            value: coins.toString(),
-                            icon: Icons.monetization_on,
-                            color: const Color(0xFFFFB628),
-                          ),
-                        ],
                       ),
                     ],
                   ),
@@ -712,7 +733,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           spacing: 6,
                           children: recentResults
                               .take(5)
-                              .map((result) => _resultTile(result))
+                              .map((result) => buildResultTile(result))
                               .toList(),
                         ),
                       ],
@@ -769,89 +790,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _badgeValue({
-    required String label,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withOpacity(0.4)),
-        color: color.withOpacity(0.12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: Colors.white),
-              const SizedBox(width: 4),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _resultTile(String result) {
-    var display = result;
-    Color color;
-    switch (result) {
-      case 'W':
-        color = const Color(0xFF4CAF50);
-        break;
-      case 'L':
-        color = const Color(0xFFE53935);
-        break;
-      case 'D':
-        color = const Color(0xFF9E9E9E);
-        break;
-      default:
-        color = Colors.white24;
-        display = '-';
-    }
-    return Container(
-      width: 26,
-      height: 26,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color, width: 1.2),
-        color: color.withOpacity(0.18),
-      ),
-      child: Center(
-        child: Text(
-          display,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildStatsCards(Map<String, dynamic> userData) {
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -863,6 +801,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               (userData['matchesPlayed'] ?? 0).toString(),
               Icons.sports_soccer,
               const Color(0xFF4caf50),
+              onTap: () => Navigator.pushNamed(
+                context,
+                '/matches',
+                arguments: {'initialTabIndex': 1},
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -872,6 +815,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               (userData['videosUploaded'] ?? 0).toString(),
               Icons.videocam,
               const Color(0xFFFF6B35),
+              onTap: () =>
+                  Navigator.pushNamed(context, '/video-main', arguments: {'myContent': 'videos'}),
             ),
           ),
           const SizedBox(width: 12),
@@ -895,9 +840,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color.withOpacity(0.25),
+              Colors.white.withOpacity(0.02),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.4)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.2),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -905,7 +864,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
+                color: Colors.black.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Icon(icon, color: color, size: 20),
@@ -1121,7 +1080,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildActionsMenu() {
+  Widget _buildActionsMenu(Map<String, dynamic> userData) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -1154,7 +1113,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             I18n.t('statistics_title'),
             I18n.t('detailed_statistics'),
             Icons.analytics,
-            () => _openStats(),
+            () => _openStats(userData),
           ),
           _buildActionItem(
             I18n.t('subscriptions_title'),
@@ -1522,9 +1481,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _openStats() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(I18n.inline('${I18n.t('stats')} (буде реалізовано)', '${I18n.t('stats')} (coming soon)'))),
+  void _openStats(Map<String, dynamic> userData) {
+    final statsFuture = _matchStatsFuture ??
+        _loadMatchStats(userData['uid'] ?? _auth.currentUser?.uid ?? '');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfileStatsPage(
+          statsFuture: statsFuture,
+          userData: userData,
+        ),
+      ),
     );
   }
 
@@ -1695,3 +1662,222 @@ class _TeamCard extends StatelessWidget {
     );
   }
 }
+
+class ProfileStatsPage extends StatelessWidget {
+  final Future<Map<String, dynamic>> statsFuture;
+  final Map<String, dynamic> userData;
+
+  const ProfileStatsPage({
+    super.key,
+    required this.statsFuture,
+    required this.userData,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final totalMatches =
+        (userData['matchesPlayed'] ?? userData['totalMatches'] ?? 0) as num;
+    final goalsValue = (userData['goals'] ?? 0) as num;
+    final assistsValue = (userData['assists'] ?? 0) as num;
+    final cleanSheetsValue = (userData['cleanSheets'] ?? 0) as num;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0f0f23),
+      appBar: AppBar(
+        title: Text(I18n.t('statistics_title')),
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+      ),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: statsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+            );
+          }
+          final stats = snapshot.data ??
+              {
+                'winRate': 0.0,
+                'wins': 0,
+                'draws': 0,
+                'losses': 0,
+                'recentResults': ['-', '-', '-', '-', '-'],
+              };
+          final winRate = (stats['winRate'] as num?)?.toDouble() ?? 0.0;
+          final wins = (stats['wins'] ?? 0).toString();
+          final draws = (stats['draws'] ?? 0).toString();
+          final losses = (stats['losses'] ?? 0).toString();
+          final goalsPerMatch =
+              totalMatches > 0 ? (goalsValue / totalMatches).toStringAsFixed(2) : '0.0';
+          final recent = List<String>.from(
+              stats['recentResults'] ?? const ['-', '-', '-', '-', '-']);
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  I18n.inline('Загальні показники', 'Summary'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    buildPerformanceStat(
+                      I18n.inline('Win rate', 'Win rate'),
+                      '${winRate.toStringAsFixed(0)}%',
+                      I18n.inline('W: $wins · D: $draws · L: $losses',
+                          'W: $wins · D: $draws · L: $losses'),
+                      Icons.pie_chart_outline,
+                      const Color(0xFF4CAF50),
+                    ),
+                    buildPerformanceStat(
+                      I18n.inline('Голи', 'Goals'),
+                      goalsValue.toString(),
+                      I18n.inline('за матч: $goalsPerMatch', 'per match: $goalsPerMatch'),
+                      Icons.sports_soccer,
+                      const Color(0xFFFF7043),
+                    ),
+                    buildPerformanceStat(
+                      I18n.inline('Асисти', 'Assists'),
+                      assistsValue.toString(),
+                      I18n.inline('створено моментів', 'created chances'),
+                      Icons.timeline,
+                      const Color(0xFF42A5F5),
+                    ),
+                    buildPerformanceStat(
+                      I18n.inline('Матчів', 'Matches'),
+                      totalMatches.toString(),
+                      I18n.inline('в кар’єрі', 'career total'),
+                      Icons.calendar_month,
+                      const Color(0xFF26C6DA),
+                    ),
+                    buildPerformanceStat(
+                      I18n.inline('Сухі ігри', 'Clean sheets'),
+                      cleanSheetsValue.toString(),
+                      I18n.inline('для воротарів', 'keeper badge'),
+                      Icons.shield,
+                      const Color(0xFF8D6E63),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  I18n.inline('Форма (останні 5)', 'Form (last 5)'),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: recent
+                      .take(5)
+                      .map((r) => Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: buildResultTile(r),
+                          ))
+                      .toList(),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+Widget buildPerformanceStat(
+    String title, String value, String caption, IconData icon, Color color) {
+  return ConstrainedBox(
+    constraints: const BoxConstraints(minWidth: 140),
+    child: Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withOpacity(0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            caption,
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget buildResultTile(String result) {
+  var display = result;
+  Color color;
+  switch (result) {
+    case 'W':
+      color = const Color(0xFF4CAF50);
+      break;
+    case 'L':
+      color = const Color(0xFFE53935);
+      break;
+    case 'D':
+      color = const Color(0xFF9E9E9E);
+      break;
+    default:
+      color = Colors.white24;
+      display = '-';
+  }
+  return Container(
+    width: 26,
+    height: 26,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(6),
+      border: Border.all(color: color, width: 1.2),
+      color: color.withOpacity(0.18),
+    ),
+    child: Center(
+      child: Text(
+        display,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+  );
+}
+

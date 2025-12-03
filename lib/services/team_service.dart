@@ -6,9 +6,11 @@ import 'package:firebase_storage/firebase_storage.dart';
 
 import '../models/app_team.dart';
 import '../models/team_invite.dart';
+import '../models/team_join_request.dart';
 import '../models/team_match_request.dart';
 import '../models/notification.dart';
 import 'notification_service.dart';
+import '../utils/i18n.dart';
 
 class TeamService {
   TeamService._();
@@ -25,6 +27,8 @@ class TeamService {
       _firestore.collection('teamInvites');
   CollectionReference<Map<String, dynamic>> get _matchRequestsCollection =>
       _firestore.collection('teamMatchRequests');
+  CollectionReference<Map<String, dynamic>> get _joinRequestsCollection =>
+      _firestore.collection('teamJoinRequests');
 
   Stream<List<AppTeam>> watchUserTeams(String userId) {
     return _teamsCollection
@@ -211,6 +215,111 @@ class TeamService {
     await batch.commit();
   }
 
+  Stream<List<TeamJoinRequest>> watchJoinRequests(String teamId) {
+    return _joinRequestsCollection
+        .where('teamId', isEqualTo: teamId)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snap) => snap.docs.map(TeamJoinRequest.fromDoc).toList());
+  }
+
+  Stream<TeamJoinRequest?> watchMyJoinRequest(
+      String teamId, String userId) {
+    return _joinRequestsCollection
+        .where('teamId', isEqualTo: teamId)
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.isEmpty ? null : TeamJoinRequest.fromDoc(snap.docs.first));
+  }
+
+  Future<void> requestToJoinTeam({
+    required String teamId,
+    required String teamName,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Потрібна авторизація');
+    }
+    final teamDoc = await _teamsCollection.doc(teamId).get();
+    if (!teamDoc.exists) {
+      throw Exception('Команду не знайдено');
+    }
+    final memberIds =
+        List<String>.from(teamDoc.data()?['memberIds'] ?? const []);
+    if (memberIds.contains(user.uid)) {
+      throw Exception('Ви вже у цій команді');
+    }
+
+    final pendingExisting = await _joinRequestsCollection
+        .where('teamId', isEqualTo: teamId)
+        .where('userId', isEqualTo: user.uid)
+        .where('status', isEqualTo: 'pending')
+        .limit(1)
+        .get();
+    if (pendingExisting.docs.isNotEmpty) {
+      throw Exception('Запит вже надіслано');
+    }
+
+    await _joinRequestsCollection.add({
+      'teamId': teamId,
+      'teamName': teamName,
+      'userId': user.uid,
+      'userName': user.displayName ??
+          user.photoURL ??
+          (user.email?.split('@').first ?? 'Player'),
+      'status': 'pending',
+      'createdAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  Future<void> respondToJoinRequest({
+    required TeamJoinRequest request,
+    required bool accept,
+  }) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+    final teamDoc = await _teamsCollection.doc(request.teamId).get();
+    if (!teamDoc.exists) {
+      throw Exception('Команду не знайдено');
+    }
+    final data = teamDoc.data() ?? {};
+    final captainId = (data['captainId'] ?? '').toString();
+    final viceIds =
+        List<String>.from(data['viceCaptainIds'] ?? const <String>[]);
+    final canManage =
+        captainId == currentUser.uid || viceIds.contains(currentUser.uid);
+    if (!canManage) {
+      throw Exception('Недостатньо прав');
+    }
+
+    final batch = _firestore.batch();
+    final reqRef = _joinRequestsCollection.doc(request.id);
+    batch.update(reqRef, {
+      'status': accept ? 'accepted' : 'declined',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    if (accept) {
+      batch.update(_teamsCollection.doc(request.teamId), {
+        'memberIds': FieldValue.arrayUnion([request.userId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      batch.set(
+        _firestore.collection('users').doc(request.userId),
+        {
+          'teamIds': FieldValue.arrayUnion([request.teamId]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    }
+
+    await batch.commit();
+  }
+
   Stream<List<TeamMatchRequest>> watchMatchRequests(String teamId) {
     return _matchRequestsCollection
         .where('teamId', isEqualTo: teamId)
@@ -337,34 +446,99 @@ class TeamService {
   }
 
   Future<List<AppTeam>> searchTeams(String query, {int limit = 10}) async {
-    if (query.isEmpty) return [];
-    final lower = query.toLowerCase();
-    final snap = await _teamsCollection
-        .where('nameLower', isGreaterThanOrEqualTo: lower)
-        .where('nameLower', isLessThanOrEqualTo: '$lower\uf8ff')
-        .limit(limit)
-        .get();
-    return snap.docs.map(AppTeam.fromDoc).toList();
+    final trimmed = query.trim().toLowerCase();
+    if (trimmed.isEmpty) return [];
+    final snap = await _teamsCollection.limit(200).get();
+    final matches = <AppTeam>[];
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final name = (data['name'] ?? '').toString();
+      final city = (data['city'] ?? '').toString();
+      if (name.toLowerCase().contains(trimmed) ||
+          city.toLowerCase().contains(trimmed)) {
+        matches.add(AppTeam.fromDoc(doc));
+      }
+    }
+    matches.sort((a, b) => a.name.compareTo(b.name));
+    return matches.take(limit).toList();
   }
 
   Future<List<Map<String, dynamic>>> searchPlayers(String query,
       {int limit = 10}) async {
-    if (query.isEmpty) return [];
-    final lower = query.toLowerCase();
-    final snap = await _firestore
-        .collection('users')
-        .where('displayNameLower', isGreaterThanOrEqualTo: lower)
-        .where('displayNameLower', isLessThanOrEqualTo: '$lower\uf8ff')
-        .limit(limit)
-        .get();
-    return snap.docs.map((doc) {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+    final lower = trimmed.toLowerCase();
+    final snap = await _firestore.collection('users').limit(200).get();
+    final results = <Map<String, dynamic>>[];
+
+    for (final doc in snap.docs) {
       final data = doc.data();
-      return {
-        'id': doc.id,
-        'displayName': data['displayName'] ?? data['name'] ?? 'Гравець',
-        'avatarUrl': data['avatarUrl'] ?? data['avatar'] ?? '',
-      };
-    }).toList();
+      final displayNameRaw =
+          (data['displayName'] ?? data['name'] ?? data['authorName'] ?? '')
+              .toString()
+              .trim();
+      final firstName = (data['firstName'] ?? '').toString().trim();
+      final lastName = (data['lastName'] ?? '').toString().trim();
+      final nickName = (data['nickname'] ?? '').toString().trim();
+      final email = (data['email'] ?? '').toString().trim();
+
+      final searchFields = <String>[
+        displayNameRaw.toLowerCase(),
+        firstName.toLowerCase(),
+        lastName.toLowerCase(),
+        '$firstName $lastName'.trim().toLowerCase(),
+        nickName.toLowerCase(),
+        email.toLowerCase(),
+      ];
+
+      final keywords = (data['searchKeywords'] is List)
+          ? (data['searchKeywords'] as List)
+              .whereType<String>()
+              .map((e) => e.toLowerCase())
+              .toList()
+          : const <String>[];
+      searchFields.addAll(keywords);
+
+      bool matches = false;
+      for (final field in searchFields) {
+        if (field.isEmpty) continue;
+        if (field.startsWith(lower) || field.contains(lower)) {
+          matches = true;
+          break;
+        }
+      }
+
+      if (matches) {
+        results.add({
+          'id': doc.id,
+          'displayName':
+              displayNameRaw.isNotEmpty ? displayNameRaw : I18n.inline('Гравець', 'Player'),
+          'avatarUrl': (data['avatarUrl'] ?? data['avatar'] ?? '').toString(),
+          'firstName': firstName,
+          'lastName': lastName,
+          'email': email,
+        });
+      }
+    }
+
+    results.sort((a, b) {
+      String normalize(dynamic value) =>
+          (value ?? '').toString().toLowerCase().trim();
+      final aName = normalize(a['displayName']);
+      final bName = normalize(b['displayName']);
+
+      final aExact = aName == lower ? 1 : 0;
+      final bExact = bName == lower ? 1 : 0;
+      if (aExact != bExact) return bExact - aExact;
+
+      final aStartsWith = aName.startsWith(lower) ? 1 : 0;
+      final bStartsWith = bName.startsWith(lower) ? 1 : 0;
+      if (aStartsWith != bStartsWith) return bStartsWith - aStartsWith;
+
+      return aName.compareTo(bName);
+    });
+
+    return results.take(limit).toList();
   }
 }
 

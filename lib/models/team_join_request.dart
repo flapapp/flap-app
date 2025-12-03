@@ -1,34 +1,35 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum TeamInviteStatus { pending, accepted, declined }
+enum TeamJoinRequestStatus { pending, accepted, declined }
 
-class TeamInvite {
+class TeamJoinRequest {
   final String id;
   final String teamId;
   final String teamName;
   final String userId;
-  final String invitedBy;
-  final TeamInviteStatus status;
+  final String userName;
+  final TeamJoinRequestStatus status;
   final DateTime createdAt;
 
-  const TeamInvite({
+  const TeamJoinRequest({
     required this.id,
     required this.teamId,
     required this.teamName,
     required this.userId,
-    required this.invitedBy,
+    required this.userName,
     required this.status,
     required this.createdAt,
   });
 
-  factory TeamInvite.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory TeamJoinRequest.fromDoc(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
-    return TeamInvite(
+    return TeamJoinRequest(
       id: doc.id,
       teamId: (data['teamId'] ?? '').toString(),
       teamName: (data['teamName'] ?? '').toString(),
       userId: (data['userId'] ?? '').toString(),
-      invitedBy: (data['invitedBy'] ?? '').toString(),
+      userName: (data['userName'] ?? '').toString(),
       status: _statusFromString((data['status'] ?? 'pending').toString()),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -39,28 +40,22 @@ class TeamInvite {
       'teamId': teamId,
       'teamName': teamName,
       'userId': userId,
-      'invitedBy': invitedBy,
+      'userName': userName,
       'status': status.name,
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
 
-  static TeamInviteStatus _statusFromString(String value) {
+  static TeamJoinRequestStatus _statusFromString(String value) {
     switch (value) {
       case 'accepted':
-        return TeamInviteStatus.accepted;
+        return TeamJoinRequestStatus.accepted;
       case 'declined':
-        return TeamInviteStatus.declined;
+        return TeamJoinRequestStatus.declined;
       default:
-        return TeamInviteStatus.pending;
+        return TeamJoinRequestStatus.pending;
     }
   }
 }
-
-
-
-
-
-
 
 

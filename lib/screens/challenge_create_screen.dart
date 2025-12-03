@@ -74,14 +74,24 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     switch (type) {
       case ChallengeType.goal:
         return I18n.inline('Гол', 'Goal');
+      case ChallengeType.shotPower:
+        return I18n.inline('Сила удару', 'Shot power');
       case ChallengeType.save:
         return I18n.inline('Сейв', 'Save');
       case ChallengeType.pass:
         return I18n.inline('Пас', 'Pass');
+      case ChallengeType.longPass:
+        return I18n.inline('Довгий пас', 'Long pass');
       case ChallengeType.tackle:
         return I18n.inline('Підкат', 'Tackle');
       case ChallengeType.dribbling:
         return I18n.inline('Дриблінг', 'Dribbling');
+      case ChallengeType.penalty:
+        return I18n.inline('Пенальті', 'Penalty');
+      case ChallengeType.wall:
+        return I18n.inline('Стіна / стандарт', 'Wall / set-piece');
+      case ChallengeType.strategy:
+        return I18n.inline('Стратегія', 'Strategy');
       case ChallengeType.trick:
         return I18n.inline('Трюк', 'Trick');
       case ChallengeType.other:
@@ -93,14 +103,24 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     switch (type) {
       case ChallengeType.goal:
         return '⚽';
+      case ChallengeType.shotPower:
+        return '💥';
       case ChallengeType.save:
         return '🧤';
       case ChallengeType.pass:
         return '🎯';
+      case ChallengeType.longPass:
+        return '📡';
       case ChallengeType.tackle:
         return '🛡️';
       case ChallengeType.dribbling:
         return '🌀';
+      case ChallengeType.penalty:
+        return '🎯';
+      case ChallengeType.wall:
+        return '🧱';
+      case ChallengeType.strategy:
+        return '🧠';
       case ChallengeType.trick:
         return '✨';
       case ChallengeType.other:
@@ -108,21 +128,30 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     }
   }
 
-  String _typeTagValue(ChallengeType type) =>
-      type.toString().split('.').last;
+  String _typeTagValue(ChallengeType type) => challengeTypeToSlug(type);
 
   List<String> _typeKeywordTags(ChallengeType type) {
     switch (type) {
       case ChallengeType.goal:
         return ['гол', 'удар', 'goal', 'finish'];
+      case ChallengeType.shotPower:
+        return ['power', 'сила', 'гармата', 'rocket'];
       case ChallengeType.save:
         return ['сейв', 'воротар', 'save', 'goalkeeper'];
       case ChallengeType.pass:
         return ['пас', 'передача', 'pass'];
+      case ChallengeType.longPass:
+        return ['довг', 'long pass', 'cross', 'діагональ'];
       case ChallengeType.tackle:
         return ['підкат', 'відбір', 'tackle'];
       case ChallengeType.dribbling:
         return ['дриблінг', 'фінт', 'dribble', 'skill'];
+      case ChallengeType.penalty:
+        return ['пеналь', '11', 'penalty'];
+      case ChallengeType.wall:
+        return ['стінк', 'wall', 'бар\'єр'];
+      case ChallengeType.strategy:
+        return ['стратег', 'тактик', 'strategy', 'scheme'];
       case ChallengeType.trick:
         return ['трюк', 'фрістайл', 'trick'];
       case ChallengeType.other:
@@ -1187,7 +1216,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               challengeId: challengeId,
               challengeTitle: _titleController.text.trim(),
               creatorName: userName,
-              challengeType: _selectedType.toString().split('.').last,
+              challengeType: challengeTypeToSlug(_selectedType),
             );
           } catch (_) {}
         }

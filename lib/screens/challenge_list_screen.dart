@@ -32,10 +32,15 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   final List<String> _types = [
     'all',
     'goal',
-    'save',
+    'shot_power',
     'pass',
-    'tackle',
+    'long_pass',
     'dribbling',
+    'tackle',
+    'penalty',
+    'save',
+    'wall',
+    'strategy',
     'trick',
     'other',
   ];
@@ -681,14 +686,24 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         return I18n.inline('Всі типи', 'All types');
       case 'goal':
         return I18n.inline('Гол', 'Goal');
+      case 'shot_power':
+        return I18n.inline('Сила удару', 'Shot power');
       case 'save':
         return I18n.inline('Сейв', 'Save');
       case 'pass':
         return I18n.inline('Пас', 'Pass');
+      case 'long_pass':
+        return I18n.inline('Довгий пас', 'Long pass');
       case 'tackle':
         return I18n.inline('Підкат', 'Tackle');
       case 'dribbling':
         return I18n.inline('Дриблінг', 'Dribbling');
+      case 'penalty':
+        return I18n.inline('Пенальті', 'Penalty');
+      case 'wall':
+        return I18n.inline('Стіна / стандарт', 'Wall / set-piece');
+      case 'strategy':
+        return I18n.inline('Стратегія', 'Strategy');
       case 'trick':
         return I18n.inline('Трюк', 'Trick');
       case 'other':

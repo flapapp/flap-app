@@ -3,10 +3,15 @@ import '../utils/i18n.dart';
 
 enum ChallengeType {
   goal,
-  save,
+  shotPower,
   pass,
-  tackle,
+  longPass,
   dribbling,
+  tackle,
+  penalty,
+  save,
+  wall,
+  strategy,
   trick,
   other,
 }
@@ -136,7 +141,7 @@ class Challenge {
     return {
       'title': title,
       'description': description,
-      'type': type.toString().split('.').last,
+      'type': challengeTypeToSlug(type),
       'audience': audience.toString().split('.').last,
       'creatorId': creatorId,
       'creatorName': creatorName,
@@ -278,14 +283,24 @@ class Challenge {
     switch (type) {
       case ChallengeType.goal:
         return I18n.inline('Гол', 'Goal');
+      case ChallengeType.shotPower:
+        return I18n.inline('Сила удару', 'Shot power');
       case ChallengeType.save:
         return I18n.inline('Сейв', 'Save');
       case ChallengeType.pass:
         return I18n.inline('Пас', 'Pass');
+      case ChallengeType.longPass:
+        return I18n.inline('Довгий пас', 'Long pass');
       case ChallengeType.tackle:
         return I18n.inline('Підкат', 'Tackle');
       case ChallengeType.dribbling:
         return I18n.inline('Дриблінг', 'Dribbling');
+      case ChallengeType.penalty:
+        return I18n.inline('Пенальті', 'Penalty');
+      case ChallengeType.wall:
+        return I18n.inline('Стіна / стандарт', 'Wall / set-piece');
+      case ChallengeType.strategy:
+        return I18n.inline('Стратегія', 'Strategy');
       case ChallengeType.trick:
         return I18n.inline('Трюк', 'Trick');
       case ChallengeType.other:
@@ -325,14 +340,24 @@ class Challenge {
     switch (type) {
       case ChallengeType.goal:
         return '⚽';
+      case ChallengeType.shotPower:
+        return '💥';
       case ChallengeType.save:
         return '🧤';
       case ChallengeType.pass:
         return '🎯';
+      case ChallengeType.longPass:
+        return '📡';
       case ChallengeType.tackle:
         return '🛡️';
       case ChallengeType.dribbling:
         return '🌀';
+      case ChallengeType.penalty:
+        return '🎯';
+      case ChallengeType.wall:
+        return '🧱';
+      case ChallengeType.strategy:
+        return '🧠';
       case ChallengeType.trick:
         return '✨';
       case ChallengeType.other:
@@ -356,26 +381,68 @@ class Challenge {
 }
 
 ChallengeType parseChallengeType(String? raw) {
-  switch (raw) {
+  final normalized = (raw ?? '').toLowerCase();
+  switch (normalized) {
     case 'goal':
       return ChallengeType.goal;
-    case 'save':
-      return ChallengeType.save;
+    case 'shot_power':
+    case 'shotpower':
+    case 'power':
+      return ChallengeType.shotPower;
     case 'pass':
       return ChallengeType.pass;
+    case 'long_pass':
+    case 'longpass':
+      return ChallengeType.longPass;
     case 'tackle':
       return ChallengeType.tackle;
     case 'dribbling':
+    case 'technical':
       return ChallengeType.dribbling;
+    case 'penalty':
+      return ChallengeType.penalty;
+    case 'save':
+      return ChallengeType.save;
+    case 'wall':
+      return ChallengeType.wall;
+    case 'strategy':
+    case 'tactics':
+    case 'positional':
+      return ChallengeType.strategy;
     case 'trick':
       return ChallengeType.trick;
     case 'other':
       return ChallengeType.other;
-    case 'technical':
-      return ChallengeType.dribbling;
-    case 'positional':
-      return ChallengeType.other;
     default:
       return ChallengeType.other;
+  }
+}
+
+String challengeTypeToSlug(ChallengeType type) {
+  switch (type) {
+    case ChallengeType.goal:
+      return 'goal';
+    case ChallengeType.shotPower:
+      return 'shot_power';
+    case ChallengeType.pass:
+      return 'pass';
+    case ChallengeType.longPass:
+      return 'long_pass';
+    case ChallengeType.dribbling:
+      return 'dribbling';
+    case ChallengeType.tackle:
+      return 'tackle';
+    case ChallengeType.penalty:
+      return 'penalty';
+    case ChallengeType.save:
+      return 'save';
+    case ChallengeType.wall:
+      return 'wall';
+    case ChallengeType.strategy:
+      return 'strategy';
+    case ChallengeType.trick:
+      return 'trick';
+    case ChallengeType.other:
+      return 'other';
   }
 }

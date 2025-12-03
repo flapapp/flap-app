@@ -439,6 +439,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case NotificationType.friendAccepted:
         _navigateToAction('/friends');
         return;
+      case NotificationType.teamRosterInvite:
+        final rosterMatchId = notification.data['matchId'] as String?;
+        if (rosterMatchId != null && rosterMatchId.isNotEmpty) {
+          await _openMatchById(rosterMatchId);
+          return;
+        }
+        break;
       default:
         _navigateToAction('/video-main');
         return;
@@ -534,6 +541,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           final matchId = segments[2];
           _openMatchRatingById(matchId);
         }
+      } else if (actionUrl.startsWith('/match-details/')) {
+        final matchId = actionUrl.split('/').last;
+        _openMatchById(matchId);
       }
     }
   }

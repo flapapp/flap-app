@@ -14,6 +14,7 @@ import 'match_management_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:async';
 import '../widgets/user_chip.dart';
+import '../widgets/player_avatar_button.dart';
 import '../services/notification_service.dart';
 import '../utils/i18n.dart';
 
@@ -37,6 +38,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   late String _selectedLevel;
   late String _selectedTime;
   String _searchQuery = '';
+  bool _filtersExpanded = false;
 
   // Списки опцій для фільтрів
   List<String> get _cityOptions => [
@@ -138,6 +140,86 @@ void _resetFindFilters() {
   });
 }
   // Метод для створення фільтрів
+  bool get _hasActiveFilters =>
+      _selectedCity != I18n.t('all_cities') ||
+      _selectedLevel != I18n.t('all_levels') ||
+      _selectedTime != I18n.t('anytime') ||
+      _searchQuery.isNotEmpty;
+
+  Widget _buildFilterToggle() {
+    final hasFilters = _hasActiveFilters;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: GestureDetector(
+        onTap: () => setState(() => _filtersExpanded = !_filtersExpanded),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: Colors.white.withValues(alpha: 0.04),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                _filtersExpanded ? Icons.filter_alt_off : Icons.filter_alt,
+                color: Colors.white70,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      I18n.inline('Знайти матч', 'Find a match'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      _filtersExpanded
+                          ? I18n.inline('Сховати фільтри', 'Hide filters')
+                          : I18n.inline(
+                              'Натисніть, щоб показати фільтри',
+                              'Tap to reveal filters',
+                            ),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (hasFilters)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4caf50).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    I18n.inline('Фільтри активні', 'Filters on'),
+                    style: const TextStyle(
+                      color: Color(0xFF4caf50),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              Icon(
+                _filtersExpanded ? Icons.expand_less : Icons.expand_more,
+                color: Colors.white70,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFilters() {
     return Container(
     margin: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -1003,8 +1085,8 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Фільтри
-          _buildFilters(),
+          _buildFilterToggle(),
+          if (_filtersExpanded) _buildFilters(),
 
           // Список доступних матчів
           StreamBuilder<List<Match>>(
@@ -1065,17 +1147,32 @@ return Column(
   children: [
     Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      child: Row(
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          const Icon(Icons.filter_alt, color: Colors.white70, size: 18),
-          const SizedBox(width: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.filter_alt, color: Colors.white70, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                I18n.inline('Знайдено: ${items.length}', 'Found: ${items.length}'),
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
           Text(
-              I18n.inline('Знайдено: ${items.length}', 'Found: ${items.length}'),
-              style: const TextStyle(color: Colors.white70, fontSize: 14)),
-          const Spacer(),
+            I18n.inline('Нові додані зверху', 'Newest first'),
+            style: const TextStyle(color: Colors.white38, fontSize: 12),
+          ),
           TextButton(
             onPressed: _resetFindFilters,
-            child: Text(I18n.t('reset_filters'), style: const TextStyle(color: Colors.white70)),
+            child: Text(
+              I18n.t('reset_filters'),
+              style: const TextStyle(color: Colors.white70),
+            ),
           ),
         ],
       ),
@@ -1871,11 +1968,39 @@ SingleChildScrollView(
       // Організатор
       Row(
         children: [
-          Icon(Icons.person, color: Colors.white70, size: 16),
-          SizedBox(width: 8),
-          Text(
-            '${I18n.t('organizer')}: ${match.organizerName}',
-            style: TextStyle(color: Colors.white70, fontSize: 14),
+          PlayerAvatarButton(
+            userId: match.organizerId,
+            displayName: match.organizerName ?? I18n.t('organizer'),
+            size: 36,
+            backgroundColor: const Color(0xFF1f2b3a),
+            borderColor: Colors.white.withOpacity(0.15),
+            borderWidth: 1.5,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  I18n.t('organizer'),
+                  style: const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  match.organizerName ?? I18n.t('player'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),

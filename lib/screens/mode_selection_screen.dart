@@ -24,6 +24,8 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
   String _currentInstruction = '';
   _NewsEntry? _newsEntry;
   bool _newsLoading = true;
+  Future<_HeroStats>? _heroStatsFuture;
+  String? _heroStatsUserId;
 
   @override
   void initState() {
@@ -32,6 +34,7 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
     if (uid != null) {
       _userStream =
           FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
+      _primeHeroStats(uid);
     }
     _updateGreeting();
     _loadLatestNews();
@@ -262,8 +265,6 @@ setState(() {
                   _buildHeroCard(data),
                   const SizedBox(height: 20),
                   _buildNewsCard(),
-                  const SizedBox(height: 18),
-                  _buildQuickShortcuts(),
                   const SizedBox(height: 24),
                   _ModeCard(
                     title: I18n.t('matches'),
@@ -337,6 +338,12 @@ setState(() {
         (data?['avatarUrl'] ?? data?['avatar'] ?? '').toString();
     final rating = (data?['rating'] ?? 0.0).toDouble();
     final matches = (data?['totalMatches'] ?? 0).toString();
+    final coins = (data?['coins'] ?? data?['flCoins'] ?? 0).toString();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      _primeHeroStats(uid);
+    }
+    final heroStatsFuture = _heroStatsFuture;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -402,82 +409,35 @@ setState(() {
           ],
         );
 
-        final statGrid = Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 12,
-          runSpacing: 12,
+        final statGrid = Row(
           children: [
-            _heroPill(
-              icon: Icons.star,
-              value: rating.toStringAsFixed(2),
-              label: I18n.inline('Рейтинг', 'Rating'),
-            ),
-            _heroPill(
-              icon: Icons.sports_soccer,
-              value: matches,
-              label: I18n.inline('Матчів', 'Matches'),
-            ),
-            if (_currentInstruction.isNotEmpty)
-              _heroPill(
-                icon: Icons.local_fire_department,
-                value: _currentInstruction,
-                label: I18n.inline('Фокус', 'Focus'),
+            Expanded(
+              child: _heroPill(
+                icon: Icons.star,
+                value: rating.toStringAsFixed(2),
+                label: I18n.inline('Рейтинг', 'Rating'),
               ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _heroPill(
+                icon: Icons.sports_soccer,
+                value: matches,
+                label: I18n.inline('Матчів', 'Matches'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _heroPill(
+                icon: Icons.monetization_on_outlined,
+                value: coins,
+                label: 'FL Coins',
+              ),
+            ),
           ],
         );
 
-        final focusCard = Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            color: Colors.black.withValues(alpha: 0.25),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF1de9b6), Color(0xFF1dc4e9)],
-                  ),
-                ),
-                child: const Icon(Icons.bolt, color: Colors.black87, size: 20),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      I18n.inline('Режим дня', 'Mode of the day'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _currentInstruction.isNotEmpty
-                          ? _currentInstruction
-                          : I18n.inline(
-                              'Обери режим та тримай темп',
-                              'Pick a mode and own the tempo',
-                            ),
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
+        final winRateCard = _buildWinRateCard(heroStatsFuture);
 
         final content = isWide
             ? Row(
@@ -495,7 +455,7 @@ setState(() {
                       children: [
                         statGrid,
                         const SizedBox(height: 18),
-                        focusCard,
+                        winRateCard,
                       ],
                     ),
                   ),
@@ -507,7 +467,7 @@ setState(() {
                   const SizedBox(height: 18),
                   statGrid,
                   const SizedBox(height: 18),
-                  focusCard,
+                  winRateCard,
                 ],
               );
 
@@ -545,7 +505,6 @@ setState(() {
     required String label,
   }) {
     return Container(
-      width: 140,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
@@ -576,6 +535,234 @@ setState(() {
         ],
       ),
     );
+  }
+
+  Widget _buildWinRateCard(Future<_HeroStats>? statsFuture) {
+    final baseDecoration = BoxDecoration(
+      borderRadius: BorderRadius.circular(22),
+      color: Colors.white.withValues(alpha: 0.04),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+    );
+    if (statsFuture == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: baseDecoration,
+        child: _buildWinRateContent(_HeroStats.empty),
+      );
+    }
+
+    return FutureBuilder<_HeroStats>(
+      future: statsFuture,
+      builder: (context, snapshot) {
+        final stats = snapshot.data ?? _HeroStats.empty;
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: baseDecoration,
+          child: _buildWinRateContent(stats),
+        );
+      },
+    );
+  }
+
+  Widget _buildWinRateContent(_HeroStats stats) {
+    final trend = '${stats.wins}W · ${stats.draws}D · ${stats.losses}L';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Color(0xFF1de9b6), Color(0xFF42a5f5)],
+                ),
+              ),
+              child: const Icon(Icons.insights, color: Colors.black),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    I18n.inline('Відсоток перемог', 'Win rate'),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    '${stats.winRate.toStringAsFixed(0)}%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              trend,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: stats.recentResults
+              .take(5)
+              .map((result) => _buildResultChip(result))
+              .toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResultChip(String result) {
+    Color color;
+    String display = result;
+    switch (result) {
+      case 'W':
+        color = const Color(0xFF4CAF50);
+        break;
+      case 'D':
+        color = const Color(0xFFFFC107);
+        break;
+      case 'L':
+        color = const Color(0xFFF44336);
+        break;
+      default:
+        color = Colors.white24;
+        display = '-';
+    }
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.8)),
+        color: color.withValues(alpha: 0.12),
+      ),
+      child: Center(
+        child: Text(
+          display,
+          style: TextStyle(
+            color: color == Colors.white24 ? Colors.white54 : color,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _primeHeroStats(String uid) {
+    if (_heroStatsUserId == uid && _heroStatsFuture != null) return;
+    _heroStatsUserId = uid;
+    _heroStatsFuture = _fetchHeroStats(uid);
+  }
+
+  Future<_HeroStats> _fetchHeroStats(String userId) async {
+    try {
+      final base = FirebaseFirestore.instance
+          .collection('matches')
+          .where('participants', arrayContains: userId);
+      QuerySnapshot<Map<String, dynamic>> snapshot;
+      try {
+        snapshot = await base
+            .where('status', isEqualTo: 'finished')
+            .orderBy('updatedAt', descending: true)
+            .limit(20)
+            .get();
+      } catch (_) {
+        try {
+          snapshot = await base
+              .where('status', isEqualTo: 'finished')
+              .limit(20)
+              .get();
+        } catch (_) {
+          snapshot = await base.limit(20).get();
+        }
+      }
+      int wins = 0;
+      int draws = 0;
+      int losses = 0;
+      final List<String> recentResults = [];
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        int? scoreAOpt = data['teamAScore'] as int?;
+        int? scoreBOpt = data['teamBScore'] as int?;
+        var scoreA = scoreAOpt ?? 0;
+        var scoreB = scoreBOpt ?? 0;
+        if (scoreAOpt == null || scoreBOpt == null) {
+          final result = (data['result'] as String?) ?? '';
+          if (result == 'teamAWins') {
+            scoreA = 1;
+            scoreB = 0;
+          } else if (result == 'teamBWins') {
+            scoreA = 0;
+            scoreB = 1;
+          } else if (result == 'draw') {
+            scoreA = 0;
+            scoreB = 0;
+          } else {
+            continue;
+          }
+        }
+        final List<String> teamAPlayers =
+            List<String>.from((data['teamA']?['playerIds'] ?? const []));
+        final List<String> teamBPlayers =
+            List<String>.from((data['teamB']?['playerIds'] ?? const []));
+
+        bool isTeamA = teamAPlayers.contains(userId);
+        if (!isTeamA && teamAPlayers.isEmpty && teamBPlayers.isEmpty) {
+          final participants =
+              List<String>.from(data['participants'] ?? const []);
+          if (participants.isNotEmpty) {
+            final half = (participants.length / 2).ceil();
+            isTeamA = participants.take(half).contains(userId);
+          }
+        }
+
+        if (scoreA == scoreB) {
+          draws++;
+          if (recentResults.length < 5) recentResults.add('D');
+        } else if ((isTeamA && scoreA > scoreB) ||
+            (!isTeamA && scoreB > scoreA)) {
+          wins++;
+          if (recentResults.length < 5) recentResults.add('W');
+        } else {
+          losses++;
+          if (recentResults.length < 5) recentResults.add('L');
+        }
+      }
+
+      while (recentResults.length < 5) {
+        recentResults.add('-');
+      }
+      final total = wins + draws + losses;
+      final winRate = total > 0 ? (wins / total) * 100 : 0.0;
+      return _HeroStats(
+        winRate: winRate,
+        wins: wins,
+        draws: draws,
+        losses: losses,
+        recentResults: recentResults,
+      );
+    } catch (_) {
+      return _HeroStats.empty;
+    }
   }
 
   Widget _buildNewsCard() {
@@ -705,102 +892,6 @@ setState(() {
           ],
         ],
       ),
-    );
-  }
-
-  Widget _buildQuickShortcuts() {
-    final shortcuts = [
-      _QuickShortcut(
-        icon: Icons.sports_soccer,
-        title: I18n.inline('Матчі', 'Matches'),
-        subtitle: I18n.inline('Шукай або створи гру зараз', 'Find or host a match'),
-        route: '/matches',
-      ),
-      _QuickShortcut(
-        icon: Icons.play_circle_fill,
-        title: I18n.inline('Відео', 'Videos'),
-        subtitle: I18n.inline('Кидай челенджі та збирай рейтинг', 'Launch challenges and earn rating'),
-        route: '/video-main',
-      ),
-      _QuickShortcut(
-        icon: Icons.groups_2,
-        title: I18n.inline('Команди', 'Teams'),
-        subtitle: I18n.inline('Керуйте клубом та запрошуйте друзів', 'Manage your club and invite teammates'),
-        route: '/teams',
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final maxWidth = constraints.maxWidth;
-        double itemWidth;
-        if (maxWidth > 780) {
-          itemWidth = (maxWidth - 24) / 3;
-        } else if (maxWidth > 520) {
-          itemWidth = (maxWidth - 12) / 2;
-        } else {
-          itemWidth = maxWidth;
-        }
-
-        return Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: shortcuts.map((shortcut) {
-            return SizedBox(
-              width: itemWidth,
-              child: GestureDetector(
-                onTap: () => Navigator.pushNamed(context, shortcut.route),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.06),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Icon(shortcut.icon, color: Colors.white),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              shortcut.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              shortcut.subtitle,
-                              style: const TextStyle(
-                                color: Colors.white60,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        );
-      },
     );
   }
 
@@ -1113,6 +1204,30 @@ class _ModeArt extends StatelessWidget {
   }
 }
 
+class _HeroStats {
+  final double winRate;
+  final int wins;
+  final int draws;
+  final int losses;
+  final List<String> recentResults;
+
+  const _HeroStats({
+    required this.winRate,
+    required this.wins,
+    required this.draws,
+    required this.losses,
+    required this.recentResults,
+  });
+
+  static const _HeroStats empty = _HeroStats(
+    winRate: 0.0,
+    wins: 0,
+    draws: 0,
+    losses: 0,
+    recentResults: ['-', '-', '-', '-', '-'],
+  );
+}
+
 class _NewsEntry {
   final String title;
   final String subtitle;
@@ -1130,20 +1245,6 @@ class _NewsEntry {
     required this.timestamp,
     this.route,
     this.ctaLabel,
-  });
-}
-
-class _QuickShortcut {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final String route;
-
-  const _QuickShortcut({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.route,
   });
 }
 

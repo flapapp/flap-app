@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'video_player_screen.dart';
+import '../constants/video_categories.dart';
 import '../models/challenge.dart';
 import '../widgets/rating_display.dart';
 import '../widgets/video_preview_box.dart';
@@ -32,25 +33,19 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     I18n.t('dnipro'),
   ];
 
-  List<String> get _categories => [
-    I18n.inline('Всі категорії', 'All categories'),
-    I18n.inline('Техніка', 'Technique'),
-    I18n.inline('Фізика', 'Physics'),
-    I18n.inline('Тактика', 'Tactics'),
-    I18n.inline('Командна гра', 'Teamplay'),
-    I18n.inline('Фрістайл', 'Freestyle'),
-    I18n.inline('Дриблінг', 'Dribbling'),
-    I18n.inline('Удари', 'Shots'),
-    I18n.inline('Передачі', 'Passes'),
-    I18n.inline('Воротарі', 'Goalkeepers'),
-    I18n.inline('Комбінації', 'Combinations'),
-  ];
-
   List<String> get _ratings => [
     I18n.inline('Всі рейтинги', 'All ratings'),
     '4.0+',
     '4.5+',
   ];
+
+  String _selectedCategoryLabel() {
+    if (_selectedCategory.isEmpty) {
+      return I18n.inline('Всі категорії', 'All categories');
+    }
+    return videoCategoryById(_selectedCategory)?.label() ??
+        videoCategoryLabel(_selectedCategory);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -207,23 +202,29 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       height: 36,
                       child: ListView(
                         scrollDirection: Axis.horizontal,
-                        children: [
-                          ...[I18n.inline('Дриблінг', 'Dribbling'), I18n.inline('Удари', 'Shots'), I18n.inline('Передачі', 'Passes'), I18n.inline('Фрістайл', 'Freestyle'), I18n.inline('Воротарі', 'Goalkeepers'), I18n.inline('Комбінації', 'Combinations')]
-                              .map((c) => Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: ChoiceChip(
-                                      selected: _selectedCategory == c,
-                                      onSelected: (selected) {
-                                        setState(() {
-                                          _selectedCategory = selected ? c : '';
-                                        });
-                                      },
-                                      label: Text(c),
-                                      selectedColor: const Color(0xFF4caf50),
-                                      labelStyle: TextStyle(color: _selectedCategory == c ? Colors.white : Colors.black87),
-                                    ),
-                                  )),
-                        ],
+                        children: quickVideoCategories()
+                            .map(
+                              (category) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  selected: _selectedCategory == category.id,
+                                  onSelected: (selected) {
+                                    setState(() {
+                                      _selectedCategory =
+                                          selected ? category.id : '';
+                                    });
+                                  },
+                                  label: Text(category.label()),
+                                  selectedColor: const Color(0xFF4caf50),
+                                  labelStyle: TextStyle(
+                                    color: _selectedCategory == category.id
+                                        ? Colors.white
+                                        : Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -247,16 +248,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                         ),
                         SizedBox(
                           width: (MediaQuery.of(context).size.width - 40) / 2,
-                          child: _buildFilterDropdown(
-                            _categories,
-                            _selectedCategory.isEmpty ? I18n.inline('Всі категорії', 'All categories') : _selectedCategory,
-                            (value) {
-                              setState(() {
-                                _selectedCategory = value == I18n.inline('Всі категорії', 'All categories') ? '' : value;
-                              });
-                            },
-                            '⚽',
-                          ),
+                          child: _buildCategoryFilterDropdown(),
                         ),
                       ],
                     ),
@@ -360,11 +352,11 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     );
   }
 
-  Widget _buildVideoChip(String label) {
+  Widget _buildVideoChip(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.65),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
@@ -376,6 +368,91 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildCategoryLabel(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.local_fire_department, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _videoCategoryColor(String category) => videoCategoryColor(category);
+
+  Color _challengeTypeColor(String type) {
+    switch (parseChallengeType(type)) {
+      case ChallengeType.goal:
+        return const Color(0xFFFF7043);
+      case ChallengeType.shotPower:
+        return const Color(0xFFD84315);
+      case ChallengeType.pass:
+        return const Color(0xFF66BB6A);
+      case ChallengeType.longPass:
+        return const Color(0xFF26C6DA);
+      case ChallengeType.dribbling:
+        return const Color(0xFFAB47BC);
+      case ChallengeType.tackle:
+        return const Color(0xFF8D6E63);
+      case ChallengeType.penalty:
+        return const Color(0xFFFFC107);
+      case ChallengeType.save:
+        return const Color(0xFF42A5F5);
+      case ChallengeType.wall:
+        return const Color(0xFF455A64);
+      case ChallengeType.strategy:
+        return const Color(0xFF26A69A);
+      case ChallengeType.trick:
+        return const Color(0xFFFFCA28);
+      case ChallengeType.other:
+        return const Color(0xFF78909C);
+    }
+  }
+
+  String _challengeTypeLabel(String type) {
+    switch (parseChallengeType(type)) {
+      case ChallengeType.goal:
+        return I18n.inline('Гол', 'Goal');
+      case ChallengeType.shotPower:
+        return I18n.inline('Сила удару', 'Shot power');
+      case ChallengeType.pass:
+        return I18n.inline('Пас', 'Pass');
+      case ChallengeType.longPass:
+        return I18n.inline('Довгий пас', 'Long pass');
+      case ChallengeType.dribbling:
+        return I18n.inline('Дриблінг', 'Dribbling');
+      case ChallengeType.tackle:
+        return I18n.inline('Підкат', 'Tackle');
+      case ChallengeType.penalty:
+        return I18n.inline('Пенальті', 'Penalty');
+      case ChallengeType.save:
+        return I18n.inline('Сейв', 'Save');
+      case ChallengeType.wall:
+        return I18n.inline('Стіна / стандарт', 'Wall / set-piece');
+      case ChallengeType.strategy:
+        return I18n.inline('Стратегія', 'Strategy');
+      case ChallengeType.trick:
+        return I18n.inline('Трюк', 'Trick');
+      case ChallengeType.other:
+        return I18n.inline('Інше', 'Other');
+    }
   }
 
   Widget _buildRatingBadge(double rating) {
@@ -509,6 +586,63 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     );
   }
 
+  Widget _buildCategoryFilterDropdown() {
+    final items = [
+      DropdownMenuItem<String>(
+        value: '',
+        child: Text(
+          I18n.inline('Всі категорії', 'All categories'),
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      ...kVideoCategories.map(
+        (category) => DropdownMenuItem<String>(
+          value: category.id,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                category.label(),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              if (category.description().isNotEmpty)
+                Text(
+                  category.description(),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.black54,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedCategory,
+          isExpanded: true,
+          padding: const EdgeInsets.symmetric(horizontal: 15),
+          dropdownColor: Colors.white,
+          style: const TextStyle(color: Colors.black87, fontSize: 14),
+          items: items,
+          onChanged: (String? newValue) {
+            setState(() {
+              _selectedCategory = newValue ?? '';
+            });
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildContent() {
     switch (_selectedTab) {
       case 'challenges':
@@ -609,8 +743,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           
           // Фільтр категорії
           if (_selectedCategory.isNotEmpty) {
-            final category = data['category'] ?? '';
-            if (category != _selectedCategory) return false;
+            final categoryValue = (data['category'] ?? '').toString();
+            final normalized = normalizeVideoCategoryValue(categoryValue);
+            if (normalized != _selectedCategory) return false;
           }
           
           // Фільтр міста
@@ -693,7 +828,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   Widget _buildVideoCard(Map<String, dynamic> data, String videoId) {
     final title = data['title'] ?? I18n.inline('Без назви', 'No title');
     final description = data['description'] ?? '';
-    final category = data['category'] ?? I18n.inline('Без категорії', 'No category');
+    final rawCategory = (data['category'] ?? '').toString();
+    final categoryLabel = rawCategory.isEmpty
+        ? I18n.inline('Без категорії', 'No category')
+        : videoCategoryLabel(rawCategory);
     final rating = (data['rating'] ?? 0.0).toDouble();
     final views = data['views'] ?? 0;
     final likes = data['likes'] ?? 0;
@@ -706,7 +844,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     final videoUrl = (data['videoUrl'] ?? '').toString();
     final thumbnailUrl = data['thumbnailUrl']?.toString();
     final durationSeconds = data['duration'] is int ? data['duration'] as int : null;
-    
+    final categoryColor = _videoCategoryColor(rawCategory);
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.only(bottom: 16),
@@ -715,14 +854,14 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withValues(alpha: 0.1),
-            Colors.white.withValues(alpha: 0.05),
+            categoryColor.withValues(alpha: 0.18),
+            Colors.white.withValues(alpha: 0.02),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
-          width: 1,
+          color: categoryColor.withValues(alpha: 0.45),
+          width: 1.4,
         ),
         boxShadow: [
           BoxShadow(
@@ -752,7 +891,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 ),
               );
             },
-            topLeft: _buildVideoChip(category),
+            topLeft: _buildVideoChip(categoryLabel, categoryColor),
             topRight: rating > 0 ? _buildRatingBadge(rating) : null,
             bottomRight: _buildMetaPill(
               durationSeconds != null
@@ -768,6 +907,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _buildCategoryLabel(categoryLabel, categoryColor),
+                const SizedBox(height: 10),
                 // Title
                 Text(
                   title,
@@ -1304,6 +1445,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   // Картка челенджу
   Widget _buildChallengeCard(Map<String, dynamic> challenge, String challengeId) {
     final status = challenge['status'] ?? 'recruiting';
+    final type = (challenge['type'] ?? 'goal').toString();
+    final accent = _challengeTypeColor(type);
     final currentParticipants = challenge['currentParticipants'] ?? 0;
     final maxParticipants = challenge['maxParticipants'] ?? 50;
     final prizePool = (challenge['prizePool'] ?? 0.0).toDouble();
@@ -1318,14 +1461,14 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF4caf50).withValues(alpha: 0.1),
-            const Color(0xFF66bb6a).withValues(alpha: 0.05),
+            accent.withValues(alpha: 0.22),
+            Colors.white.withValues(alpha: 0.02),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFF4caf50).withValues(alpha: 0.3),
-          width: 1,
+          color: accent.withValues(alpha: 0.4),
+          width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
@@ -1341,10 +1484,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+                colors: [accent, accent.withValues(alpha: 0.8)],
               ),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(20),
@@ -1352,7 +1495,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF4caf50).withValues(alpha: 0.3),
+                  color: accent.withValues(alpha: 0.35),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -1394,6 +1537,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 6),
+                _buildCategoryLabel(_challengeTypeLabel(type), accent),
                 const SizedBox(height: 8),
                 Text(
                   challenge['description'] ?? 'Без опису',

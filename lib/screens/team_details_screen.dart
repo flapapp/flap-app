@@ -10,6 +10,7 @@ import '../models/team_match_request.dart';
 import '../services/team_service.dart';
 import '../services/friends_service.dart';
 import '../models/friend_request.dart';
+import '../models/team_join_request.dart';
 import '../utils/i18n.dart';
 import '../widgets/team_logo_button.dart';
 import '../widgets/player_avatar_button.dart';
@@ -30,6 +31,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _teamStream;
   late final Stream<List<TeamMatchRequest>> _requestsStream;
   final _auth = FirebaseAuth.instance;
+  bool _isSendingJoinRequest = false;
+  final Set<String> _processingJoinRequestIds = {};
 
   @override
   void initState() {
@@ -73,6 +76,10 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                 _buildHighlights(team),
                 if (canManage) ...[
                   const SizedBox(height: 24),
+                  _buildJoinRequests(team),
+                ],
+                if (canManage) ...[
+                  const SizedBox(height: 24),
                   _buildCoachDesk(team),
                 ],
                 const SizedBox(height: 24),
@@ -92,6 +99,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   Widget _buildHeroSection(AppTeam team, bool canManage) {
     final totalMatches = team.wins + team.losses + team.draws;
     final DateFormat formatter = DateFormat('MMM yyyy');
+    final uid = _auth.currentUser?.uid;
+    final isMember = uid != null && team.memberIds.contains(uid);
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -191,6 +200,10 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
               ),
             ],
           ),
+          if (uid != null && !isMember) ...[
+            const SizedBox(height: 18),
+            _buildJoinRequestWidget(team, uid),
+          ],
         ],
       ),
     );
@@ -216,6 +229,175 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildJoinRequestWidget(AppTeam team, String userId) {
+    return StreamBuilder<TeamJoinRequest?>(
+      stream: _teamService.watchMyJoinRequest(team.id, userId),
+      builder: (context, snapshot) {
+        final request = snapshot.data;
+        if (request != null) {
+          if (request.status == TeamJoinRequestStatus.pending) {
+            return _joinStatusBanner(
+              icon: Icons.hourglass_top,
+              color: Colors.orangeAccent,
+              title: I18n.inline('Запит надіслано', 'Request sent'),
+              subtitle: I18n.inline(
+                  'Капітан перевіряє ваш профіль', 'Captain is reviewing your profile'),
+            );
+          } else if (request.status == TeamJoinRequestStatus.declined) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _joinStatusBanner(
+                  icon: Icons.close,
+                  color: Colors.redAccent,
+                  title: I18n.inline('Запит відхилено', 'Request declined'),
+                  subtitle: I18n.inline(
+                      'Спробуйте пізніше або напишіть капітану',
+                      'Try later or contact the captain'),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: _isSendingJoinRequest
+                      ? null
+                      : () => _sendJoinRequest(team),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(I18n.inline('Спробувати ще раз', 'Try again')),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white.withOpacity(0.08),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+        }
+        return ElevatedButton.icon(
+          onPressed:
+              _isSendingJoinRequest ? null : () => _sendJoinRequest(team),
+          icon: const Icon(Icons.group_add),
+          label: Text(I18n.inline('Приєднатися до команди', 'Join this team')),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF4caf50),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _joinStatusBanner({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendJoinRequest(AppTeam team) async {
+    if (_isSendingJoinRequest) return;
+    setState(() => _isSendingJoinRequest = true);
+    try {
+      await _teamService.requestToJoinTeam(
+        teamId: team.id,
+        teamName: team.name,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline(
+                'Запит на приєднання надіслано', 'Join request sent'),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSendingJoinRequest = false);
+      }
+    }
+  }
+
+  Future<void> _handleJoinResponse(
+      TeamJoinRequest request, bool accept) async {
+    setState(() => _processingJoinRequestIds.add(request.id));
+    try {
+      await _teamService.respondToJoinRequest(
+        request: request,
+        accept: accept,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            accept
+                ? I18n.inline('Гравця додано до команди', 'Player accepted')
+                : I18n.inline('Запит відхилено', 'Request declined'),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _processingJoinRequestIds.remove(request.id));
+      }
+    }
   }
 
   Widget _infoChip(IconData icon, String label) {
@@ -418,6 +600,87 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       ],
     );
   }
+
+  Widget _buildJoinRequests(AppTeam team) {
+    return StreamBuilder<List<TeamJoinRequest>>(
+      stream: _teamService.watchJoinRequests(team.id),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final requests = snapshot.data!;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              I18n.inline('Запити до команди', 'Join requests'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...requests.map(_joinRequestTile),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _joinRequestTile(TeamJoinRequest request) {
+    final busy = _processingJoinRequestIds.contains(request.id);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.person, color: Colors.white70),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  request.userName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  DateFormat('dd MMM, HH:mm').format(request.createdAt),
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            children: [
+              IconButton(
+                onPressed:
+                    busy ? null : () => _handleJoinResponse(request, false),
+                icon: const Icon(Icons.close, color: Colors.redAccent),
+                tooltip: I18n.inline('Відхилити', 'Decline'),
+              ),
+              IconButton(
+                onPressed:
+                    busy ? null : () => _handleJoinResponse(request, true),
+                icon: const Icon(Icons.check, color: Color(0xFF4caf50)),
+                tooltip: I18n.inline('Підтвердити', 'Accept'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Widget _highlightTile({
     required IconData icon,
@@ -967,6 +1230,21 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     final maxPlayers = (data['maxPlayers'] ?? 10) as int;
     final limit = (maxPlayers / 2).ceil();
     final current = members.take(limit).toSet();
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId != null) {
+      current.add(currentUserId);
+      if (current.length > limit) {
+        var overflow = current.length - limit;
+        final removable = current
+            .where((id) => id != currentUserId)
+            .toList();
+        for (final id in removable) {
+          if (overflow <= 0) break;
+          current.remove(id);
+          overflow--;
+        }
+      }
+    }
     final selected = Set<String>.from(current);
     final namesCache = <String, String>{};
     final futures = members.map((id) async {
@@ -994,7 +1272,9 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                   shrinkWrap: true,
                   children: members.map((id) {
                     final checked = selected.contains(id);
-                    final disabled = !checked && selected.length >= limit;
+                    final isSelf = currentUserId != null && id == currentUserId;
+                    final disabled =
+                        (!checked && selected.length >= limit) || isSelf;
                     final name =
                         namesCache[id] ?? I18n.inline('Гравець', 'Player');
                     return CheckboxListTile(
@@ -1011,6 +1291,12 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                               });
                             },
                       title: Text(name),
+                      subtitle: isSelf
+                          ? Text(
+                              I18n.inline('Капітан команди', 'Team captain'),
+                              style: const TextStyle(fontSize: 12),
+                            )
+                          : null,
                     );
                   }).toList(),
                 ),
@@ -1037,6 +1323,9 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     );
     if (!mounted) {
       return selected.toList();
+    }
+    if (currentUserId != null) {
+      selected.add(currentUserId);
     }
     return selected.toList();
   }
@@ -1087,9 +1376,16 @@ class _InviteSheetState extends State<_InviteSheet> {
   }
 
   Future<void> _searchPlayers() async {
+    final query = _searchCtrl.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
     setState(() => _isSearching = true);
-    final results =
-        await _teamService.searchPlayers(_searchCtrl.text.trim(), limit: 10);
+    final results = await _teamService.searchPlayers(query, limit: 10);
     setState(() {
       _searchResults = results;
       _isSearching = false;
@@ -1099,7 +1395,7 @@ class _InviteSheetState extends State<_InviteSheet> {
   void _handleSearchChanged(String value) {
     _searchDebounce?.cancel();
     final query = value.trim();
-    if (query.length < 2) {
+    if (query.isEmpty) {
       setState(() {
         _searchResults = [];
         _isSearching = false;

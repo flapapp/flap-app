@@ -345,10 +345,11 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             SizedBox(height: 20),
             
             // Налаштування
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSettingToggle(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 640;
+                final toggles = [
+                  _buildSettingToggle(
                     title: I18n.inline('Автобаланс', 'Auto balance'),
                     subtitle: I18n.inline('Система підбере склади', 'System balances teams'),
                     value: _autoBalance,
@@ -356,10 +357,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                       setState(() => _autoBalance = value);
                     },
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildSettingToggle(
+                  _buildSettingToggle(
                     title: I18n.inline('Приватний матч', 'Private match'),
                     subtitle: I18n.inline('Бачать лише запрошені', 'Visible to invited only'),
                     value: _isPrivate,
@@ -367,8 +365,24 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                       setState(() => _isPrivate = value);
                     },
                   ),
-                ),
-              ],
+                ];
+                if (isNarrow) {
+                  return Column(
+                    children: [
+                      toggles[0],
+                      const SizedBox(height: 12),
+                      toggles[1],
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: toggles[0]),
+                    const SizedBox(width: 12),
+                    Expanded(child: toggles[1]),
+                  ],
+                );
+              },
             ),
             
             // Вибір кількості команд
@@ -974,6 +988,18 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: I18n.inline('Пошук команди', 'Search team'),
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.06),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: Colors.white.withOpacity(0.12)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF4caf50)),
+                      ),
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.search, color: Colors.white70),
                         onPressed: () => runSearch(setSheetState),
@@ -1236,10 +1262,22 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
           const SizedBox(height: 8),
           TextField(
             controller: _opponentSearchCtrl,
+            style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               labelText: I18n.inline('Пошук команди', 'Search team'),
+              labelStyle: const TextStyle(color: Colors.white70),
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.04),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF4caf50)),
+              ),
               suffixIcon: IconButton(
-                icon: const Icon(Icons.search),
+                icon: const Icon(Icons.search, color: Colors.white70),
                 onPressed: _searchOpponentTeams,
               ),
             ),

@@ -1109,6 +1109,50 @@ for (final uid in a) {
     await batch.commit();
   }
 
+  Future<void> setTeamRoster({
+    required String matchId,
+    required String teamKey,
+    required AppTeam team,
+    required List<String> playerIds,
+  }) async {
+    final matchRef = _firestore.collection('matches').doc(matchId);
+    await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(matchRef);
+      if (!snap.exists) {
+        throw Exception('Матч не знайдено');
+      }
+      final data = snap.data() as Map<String, dynamic>;
+      final rosterStatusRaw =
+          Map<String, dynamic>.from(data['teamRosterStatus'] ?? {});
+      rosterStatusRaw[teamKey] = {
+        for (final id in playerIds) id: 'pending',
+      };
+
+      final teamField = teamKey == 'teamA' ? 'teamA' : 'teamB';
+      final statusField = teamKey == 'teamA' ? 'teamAStatus' : 'teamBStatus';
+      final teamIdField = teamKey == 'teamA' ? 'teamAId' : 'teamBId';
+
+      final existingTeam =
+          (data[teamField] as Map<String, dynamic>?);
+
+      final updates = <String, dynamic>{
+        'teamRosters.$teamKey': playerIds,
+        'teamRosterStatus': rosterStatusRaw,
+        statusField: 'pending',
+        teamIdField: team.id,
+        teamField: {
+          'name': team.name,
+          'playerIds': playerIds,
+          'averageRating':
+              ((existingTeam?['averageRating'] ?? 0.0) as num).toDouble(),
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      tx.update(matchRef, updates);
+    });
+  }
+
   Future<void> respondToRosterInvite({
     required String matchId,
     required String teamKey,
