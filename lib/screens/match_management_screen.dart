@@ -562,25 +562,15 @@ Widget _buildTeamsWrap(Match m) {
 }
 
 Widget _buildClubVsCard(Match m) {
-  return FutureBuilder<List<_ClubInfo>>(
-    future: Future.wait([
-      _getClubInfo(
-        m.teamAId,
-        m.teamA,
-        fallbackLabel: I18n.inline('Команда А', 'Team A'),
-      ),
-      _getClubInfo(
-        m.teamBId,
-        m.teamB,
-        fallbackLabel: I18n.inline('Команда Б', 'Team B'),
-      ),
-    ]),
+  return FutureBuilder<_ClubCardData>(
+    future: _prepareClubCardData(m),
     builder: (context, snapshot) {
-      final infos = snapshot.data ??
+      final infos = snapshot.data?.infos ??
           [
             _ClubInfo.fromTeam(m.teamA, fallbackLabel: I18n.inline('Команда А', 'Team A')),
             _ClubInfo.fromTeam(m.teamB, fallbackLabel: I18n.inline('Команда Б', 'Team B')),
           ];
+      final ratings = snapshot.data?.ratings ?? _ratingsCache;
 
       Widget buildSide(_ClubInfo info, List<String> roster, double total, String? teamId) {
         return Expanded(
@@ -620,8 +610,8 @@ Widget _buildClubVsCard(Match m) {
 
       final rosterA = m.teamRosters['teamA'] ?? m.teamA?.playerIds ?? const <String>[];
       final rosterB = m.teamRosters['teamB'] ?? m.teamB?.playerIds ?? const <String>[];
-      final totalA = _teamTotalRating(rosterA, _ratingsCache, infos[0].rating ?? 0);
-      final totalB = _teamTotalRating(rosterB, _ratingsCache, infos[1].rating ?? 0);
+      final totalA = _teamTotalRating(rosterA, ratings, infos[0].rating ?? 0);
+      final totalB = _teamTotalRating(rosterB, ratings, infos[1].rating ?? 0);
 
       return Container(
         padding: const EdgeInsets.all(16),
@@ -652,6 +642,38 @@ Widget _buildClubVsCard(Match m) {
       );
     },
   );
+}
+
+Future<_ClubCardData> _prepareClubCardData(Match m) async {
+  final infos = await Future.wait([
+    _getClubInfo(
+      m.teamAId,
+      m.teamA,
+      fallbackLabel: I18n.inline('Команда А', 'Team A'),
+    ),
+    _getClubInfo(
+      m.teamBId,
+      m.teamB,
+      fallbackLabel: I18n.inline('Команда Б', 'Team B'),
+    ),
+  ]);
+
+  final rosterA = m.teamRosters['teamA'] ?? m.teamA?.playerIds ?? const <String>[];
+  final rosterB = m.teamRosters['teamB'] ?? m.teamB?.playerIds ?? const <String>[];
+  final neededIds = {
+    ...rosterA,
+    ...rosterB,
+  }..removeWhere((id) => id.isEmpty);
+
+  final missing = neededIds.where((id) => !_ratingsCache.containsKey(id)).toList();
+  Map<String, double> mergedRatings = Map<String, double>.from(_ratingsCache);
+  if (missing.isNotEmpty) {
+    final fetched = await _fetchRatings(missing);
+    mergedRatings.addAll(fetched);
+    _ratingsCache = mergedRatings;
+  }
+
+  return _ClubCardData(infos: infos, ratings: mergedRatings);
 }
 
 Widget _buildManagementButtons(Match m) {
@@ -2575,4 +2597,14 @@ class _ClubInfo {
       rating: team?.averageRating,
     );
   }
+}
+
+class _ClubCardData {
+  final List<_ClubInfo> infos;
+  final Map<String, double> ratings;
+
+  const _ClubCardData({
+    required this.infos,
+    required this.ratings,
+  });
 }

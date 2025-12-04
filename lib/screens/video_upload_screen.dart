@@ -496,10 +496,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       
       print('✅ Video uploaded successfully: $videoUrl');
 
-      // Створюємо документ відео в Firestore (узгоджено з правилами: обов'язково userId == auth.uid)
-      final videoDoc = await FirebaseFirestore.instance
-          .collection('videos')
-          .add({
+      final videoData = <String, dynamic>{
         'userId': user.uid,
         'authorId': user.uid,
         'authorName': user.displayName ?? user.email?.split('@')[0] ?? 'Користувач',
@@ -514,7 +511,19 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         'views': 0,
         'thumbnailUrl': null,
         'thumbnailGenerated': false,
-      });
+      };
+
+      if (widget.challengeId != null) {
+        videoData.addAll({
+          'challengeId': widget.challengeId,
+          'challengeTitle': widget.challengeTitle ?? '',
+          'isChallengeVideo': true,
+        });
+      }
+
+      final videoDoc = await FirebaseFirestore.instance
+          .collection('videos')
+          .add(videoData);
 
       print('✅ Video document created: ${videoDoc.id}');
 

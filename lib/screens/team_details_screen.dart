@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../models/app_team.dart';
+import '../models/match.dart' as app_match;
 import '../models/team_match_request.dart';
 import '../models/team_stats.dart';
 import '../services/team_service.dart';
@@ -16,6 +17,8 @@ import '../utils/i18n.dart';
 import '../widgets/team_logo_button.dart';
 import '../widgets/player_avatar_button.dart';
 import 'create_match_screen.dart';
+import 'match_details_screen.dart';
+import 'match_details_screen.dart';
 
 class TeamDetailsScreen extends StatefulWidget {
   final String teamId;
@@ -737,54 +740,69 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   Widget _joinRequestTile(TeamJoinRequest request) {
     final busy = _processingJoinRequestIds.contains(request.id);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.person, color: Colors.white70),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  request.userName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  DateFormat('dd MMM, HH:mm').format(request.createdAt),
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
-                ),
-              ],
-            ),
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance.collection('users').doc(request.userId).get(),
+      builder: (context, snapshot) {
+        final userData = snapshot.data?.data() ?? const <String, dynamic>{};
+        final avatarUrl = (userData['avatarUrl'] ?? userData['photoUrl'] ?? '').toString();
+        final name = userData['displayName'] ??
+            userData['name'] ??
+            request.userName;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
           ),
-          Row(
+          child: Row(
             children: [
-              IconButton(
-                onPressed:
-                    busy ? null : () => _handleJoinResponse(request, false),
-                icon: const Icon(Icons.close, color: Colors.redAccent),
-                tooltip: I18n.inline('Відхилити', 'Decline'),
+              PlayerAvatarButton(
+                userId: request.userId,
+                displayName: name.toString(),
+                avatarUrl: avatarUrl,
+                size: 40,
               ),
-              IconButton(
-                onPressed:
-                    busy ? null : () => _handleJoinResponse(request, true),
-                icon: const Icon(Icons.check, color: Color(0xFF4caf50)),
-                tooltip: I18n.inline('Підтвердити', 'Accept'),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      DateFormat('dd MMM, HH:mm').format(request.createdAt),
+                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed:
+                        busy ? null : () => _handleJoinResponse(request, false),
+                    icon: const Icon(Icons.close, color: Colors.redAccent),
+                    tooltip: I18n.inline('Відхилити', 'Decline'),
+                  ),
+                  IconButton(
+                    onPressed:
+                        busy ? null : () => _handleJoinResponse(request, true),
+                    icon: const Icon(Icons.check, color: Color(0xFF4caf50)),
+                    tooltip: I18n.inline('Підтвердити', 'Accept'),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -919,62 +937,98 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         ? DateFormat('d MMM').format(playedAt)
         : I18n.inline('Нещодавно', 'recently');
     final badgeColor = _resultColor(result);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.02),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: badgeColor.withOpacity(0.18),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              result.toUpperCase(),
-              style: TextStyle(
-                color: badgeColor,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
+    final matchId = (match['matchId'] ?? '').toString();
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: matchId.isEmpty ? null : () => _openMatchDetails(matchId),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.02),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.06)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: badgeColor.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                result.toUpperCase(),
+                style: TextStyle(
+                  color: badgeColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  opponent,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    opponent,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  label,
-                  style: const TextStyle(color: Colors.white38, fontSize: 11),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Text(
-            score,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+            Text(
+              score,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _openMatchDetails(String matchId) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('matches')
+          .doc(matchId)
+          .get();
+      if (!doc.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(I18n.inline('Матч не знайдено', 'Match not found')),
+          ),
+        );
+        return;
+      }
+      final match = app_match.Match.fromFirestore(doc);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MatchDetailsScreen(match: match),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(I18n.inline('Не вдалося відкрити матч: $e', 'Unable to open match: $e')),
+        ),
+      );
+    }
   }
 
   Widget _buildMembers(AppTeam team, bool canManage) {

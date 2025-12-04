@@ -16,6 +16,7 @@ class VideoPlayerScreen extends StatefulWidget {
   final String videoId;
   final String? challengeId; // якщо це відео з челенджу
   final String? submissionUserId; // автор submission для голосування
+  final bool autoOpenRating;
 
   const VideoPlayerScreen({
     Key? key,
@@ -25,6 +26,7 @@ class VideoPlayerScreen extends StatefulWidget {
     required this.videoId,
     this.challengeId,
     this.submissionUserId,
+    this.autoOpenRating = false,
   }) : super(key: key);
 
   @override
@@ -58,12 +60,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool get _isChallengeSubmission => widget.challengeId != null && widget.submissionUserId != null;
   double? _videoAverageRating;
   int? _videoVoteCount;
+  bool _pendingRatingPrompt = false;
 
   @override
   void initState() {
     super.initState();
     _initializePlayer();
     _loadVideoData();
+    _pendingRatingPrompt = widget.autoOpenRating;
   }
 
   Future<void> _loadVideoData() async {
@@ -140,6 +144,20 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     } catch (e) {
       print('Error loading video data: $e');
     }
+    _openRatingIfNeeded();
+  }
+
+  void _openRatingIfNeeded() {
+    if (!_pendingRatingPrompt || _isChallengeSubmission || _hasVoted) {
+      _pendingRatingPrompt = false;
+      return;
+    }
+    _pendingRatingPrompt = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _showVotingBottomSheet();
+      }
+    });
   }
 
   Future<void> _computeVideoAverage() async {

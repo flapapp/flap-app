@@ -177,30 +177,53 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildNotificationCard(AppNotification notification) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _handleNotificationTap(notification),
+    return Dismissible(
+      key: ValueKey(notification.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.3),
           borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: notification.isRead 
-                  ? Colors.white.withOpacity(0.03)
-                  : Colors.white.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: notification.isRead 
-                    ? Colors.white.withOpacity(0.1)
-                    : Color(notification.typeColor).withOpacity(0.3),
-                width: notification.isRead ? 1 : 2,
-              ),
+        ),
+        child: const Icon(Icons.delete_outline, color: Colors.white),
+      ),
+      onDismissed: (_) async {
+        await _notificationService.deleteNotification(notification.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(I18n.inline('Сповіщення видалено', 'Notification removed')),
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          );
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _handleNotificationTap(notification),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: notification.isRead
+                    ? Colors.white.withOpacity(0.03)
+                    : Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: notification.isRead
+                      ? Colors.white.withOpacity(0.1)
+                      : Color(notification.typeColor).withOpacity(0.3),
+                  width: notification.isRead ? 1 : 2,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 // Icon
                 Container(
                   width: 48,
@@ -317,7 +340,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ],
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

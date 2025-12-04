@@ -1319,6 +1319,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       MaterialPageRoute(
         builder: (context) => VideoUploadScreen(
           challengeId: widget.challenge.id,
+          challengeTitle: widget.challenge.title,
         ),
       ),
     ).then((_) {

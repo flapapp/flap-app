@@ -20,6 +20,7 @@ enum NotificationType {
   teamMatchRequest,
   teamMatchReady,
   teamRosterInvite,
+  teamJoinRequest,
 }
 
 class AppNotification {
@@ -149,6 +150,8 @@ class AppNotification {
         return '📝';
       case NotificationType.teamMatchReady:
         return '🏁';
+      case NotificationType.teamJoinRequest:
+        return '📥';
     }
   }
 
@@ -190,6 +193,8 @@ class AppNotification {
         return 0xFFFFC107;
       case NotificationType.teamMatchReady:
         return 0xFF00BCD4;
+      case NotificationType.teamJoinRequest:
+        return 0xFF42A5F5;
     }
   }
 
@@ -458,6 +463,33 @@ class AppNotification {
       },
       createdAt: DateTime.now(),
       actionUrl: '/match-details/$matchId',
+    );
+  }
+
+  static AppNotification teamJoinRequest({
+    required String userId,
+    required String teamId,
+    required String teamName,
+    required String requesterName,
+    required String requestId,
+  }) {
+    return AppNotification(
+      id: '',
+      userId: userId,
+      type: NotificationType.teamJoinRequest,
+      title: I18n.inline('Запит на вступ до команди', 'New team join request'),
+      message: I18n.inline(
+        '$requesterName хоче приєднатися до "$teamName"',
+        '$requesterName wants to join "$teamName"',
+      ),
+      data: {
+        'teamId': teamId,
+        'teamName': teamName,
+        'requesterName': requesterName,
+        'requestId': requestId,
+      },
+      createdAt: DateTime.now(),
+      actionUrl: '/teams',
     );
   }
 

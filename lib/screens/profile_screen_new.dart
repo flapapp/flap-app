@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/badge.dart' as app_badge;
 import '../services/badge_service.dart';
 import 'badges_store_screen.dart';
@@ -9,6 +14,7 @@ import 'friends_screen.dart';
 import 'subscription_screen.dart';
 import '../utils/i18n.dart';
 import '../models/app_team.dart';
+import '../models/team_stats.dart';
 import '../models/team_invite.dart';
 import '../services/team_service.dart';
 import 'team_details_screen.dart';
@@ -21,9 +27,11 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   final BadgeService _badgeService = BadgeService();
   final FriendsService _friendsService = FriendsService();
   final TeamService _teamService = TeamService();
+  final ImagePicker _picker = ImagePicker();
   
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
   List<app_badge.Badge> _userBadges = [];
@@ -589,7 +597,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             bottom: -4,
                             right: -4,
                             child: GestureDetector(
-                              onTap: _editProfile,
+                              onTap: () => _editProfile(userData),
                               child: Container(
                                 width: 32,
                                 height: 32,
@@ -1361,10 +1369,304 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-  void _editProfile() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Редагування профілю (буде реалізовано)'.i18n('Profile editing (coming soon)'))),
+  Future<void> _editProfile(Map<String, dynamic> userData) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+
+    final nameController = TextEditingController(
+      text: (userData['displayName'] ??
+              userData['name'] ??
+              userData['authorName'] ??
+              '')
+          .toString(),
     );
+    final cityController = TextEditingController(
+      text: (userData['city'] ?? '').toString(),
+    );
+    final bioController = TextEditingController(
+      text: (userData['bio'] ?? userData['about'] ?? '').toString(),
+    );
+    XFile? pickedAvatar;
+    Uint8List? previewBytes;
+    bool isSaving = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0f0f23),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 16,
+                bottom: 20 + MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      I18n.inline('Редагувати профіль', 'Edit profile'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Center(
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 48,
+                            backgroundImage: previewBytes != null
+                                ? MemoryImage(previewBytes!)
+                                : (userData['avatarUrl'] != null &&
+                                        (userData['avatarUrl'] as String)
+                                            .isNotEmpty)
+                                    ? NetworkImage(
+                                        userData['avatarUrl'] as String,
+                                      ) as ImageProvider
+                                    : null,
+                            backgroundColor: const Color(0xFF1c2740),
+                            child: (pickedAvatar == null &&
+                                    (userData['avatarUrl'] == null ||
+                                        (userData['avatarUrl'] as String)
+                                            .isEmpty))
+                                ? Text(
+                                    nameController.text.isNotEmpty
+                                        ? nameController.text[0].toUpperCase()
+                                        : 'U',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: GestureDetector(
+                              onTap: () async {
+                                try {
+                                  final picked = await _picker.pickImage(
+                                    source: ImageSource.gallery,
+                                    maxWidth: 768,
+                                    maxHeight: 768,
+                                    imageQuality: 85,
+                                  );
+                                  if (picked != null) {
+                                    final bytes = await picked.readAsBytes();
+                                    setSheetState(() {
+                                      pickedAvatar = picked;
+                                      previewBytes = bytes;
+                                    });
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          I18n.inline(
+                                            'Помилка вибору фото: $e',
+                                            'Avatar selection error: $e',
+                                          ),
+                                        ),
+                                        backgroundColor: Colors.redAccent,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF4caf50),
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(8),
+                                child: const Icon(
+                                  Icons.edit,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    _ProfileField(
+                      controller: nameController,
+                      label: I18n.inline('Імʼя та прізвище', 'Full name'),
+                      icon: Icons.person_outline,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return I18n.inline(
+                              'Введіть імʼя', 'Please enter a name');
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _ProfileField(
+                      controller: cityController,
+                      label: I18n.inline('Місто', 'City'),
+                      icon: Icons.location_on_outlined,
+                    ),
+                    const SizedBox(height: 16),
+                    _ProfileField(
+                      controller: bioController,
+                      label: I18n.inline('Про себе', 'About you'),
+                      icon: Icons.notes_outlined,
+                      maxLines: 4,
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: isSaving
+                            ? null
+                            : () async {
+                                if (nameController.text.trim().isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(I18n.inline(
+                                          'Введіть імʼя', 'Name is required')),
+                                      backgroundColor: Colors.redAccent,
+                                    ),
+                                  );
+                                  return;
+                                }
+                                setSheetState(() => isSaving = true);
+                                try {
+                                  String? avatarUrl = userData['avatarUrl'];
+                                  if (pickedAvatar != null) {
+                                    avatarUrl = await _uploadAvatar(
+                                      uid,
+                                      pickedAvatar!,
+                                    );
+                                  }
+                                  final updates = <String, dynamic>{
+                                    'displayName':
+                                        nameController.text.trim(),
+                                    'name': nameController.text.trim(),
+                                    'authorName': nameController.text.trim(),
+                                    'city': cityController.text.trim(),
+                                    'bio': bioController.text.trim(),
+                                    'updatedAt':
+                                        FieldValue.serverTimestamp(),
+                                  };
+                                  if (avatarUrl != null &&
+                                      avatarUrl.isNotEmpty) {
+                                    updates['avatarUrl'] = avatarUrl;
+                                  }
+                                  await FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(uid)
+                                      .update(updates);
+                                  if (mounted) {
+                                    Navigator.pop(ctx);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          I18n.inline('Профіль оновлено',
+                                              'Profile updated'),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          I18n.inline(
+                                              'Помилка: $e', 'Error: $e'),
+                                        ),
+                                        backgroundColor: Colors.redAccent,
+                                      ),
+                                    );
+                                  }
+                                } finally {
+                                  setSheetState(() => isSaving = false);
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4caf50),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: isSaving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(I18n.t('save')),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    nameController.dispose();
+    cityController.dispose();
+    bioController.dispose();
+  }
+
+  Future<String?> _uploadAvatar(String uid, XFile picked) async {
+    try {
+      final Uint8List bytes = await picked.readAsBytes();
+      final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final ref = _storage.ref('avatars/$uid/$fileName');
+      final task = await ref.putData(
+        bytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      return await task.ref.getDownloadURL();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline('Не вдалося завантажити фото: $e',
+                'Failed to upload avatar: $e'),
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return null;
+    }
   }
 
   Future<int> _getBadgeEndorsementCount(String userId, String badgeId) async {
@@ -1564,6 +1866,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+class _ProfileField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final int maxLines;
+  final String? Function(String?)? validator;
+
+  const _ProfileField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    this.maxLines = 1,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      style: const TextStyle(color: Colors.white),
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: Colors.white70),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.05),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        labelStyle: const TextStyle(color: Colors.white70),
+      ),
+    );
+  }
+}
+
 class _TeamCard extends StatelessWidget {
   final AppTeam team;
   final VoidCallback? onTap;
@@ -1572,7 +1911,45 @@ class _TeamCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final winRate = team.winRate.toStringAsFixed(0);
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('teamStats')
+          .doc(team.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final stats = snapshot.hasData && snapshot.data!.exists
+            ? TeamStats.fromDoc(snapshot.data!)
+            : TeamStats.empty(team.id, name: team.name);
+        return _TeamCardBody(
+          team: team,
+          stats: stats,
+          onTap: onTap,
+        );
+      },
+    );
+  }
+}
+
+class _TeamCardBody extends StatelessWidget {
+  final AppTeam team;
+  final TeamStats stats;
+  final VoidCallback? onTap;
+
+  const _TeamCardBody({
+    required this.team,
+    required this.stats,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final wins = stats.wins != 0 ? stats.wins : team.wins;
+    final draws = stats.draws != 0 ? stats.draws : team.draws;
+    final losses = stats.losses != 0 ? stats.losses : team.losses;
+    final totalMatches = max<int>(wins + draws + losses, 0);
+    final winRate =
+        totalMatches > 0 ? ((wins / totalMatches) * 100).toStringAsFixed(0) : '0';
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1622,8 +1999,7 @@ class _TeamCard extends StatelessWidget {
                       Text(
                         I18n.inline('${team.memberIds.length} гравців',
                             '${team.memberIds.length} players'),
-                        style:
-                            const TextStyle(color: Colors.white70, fontSize: 12),
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ],
                   ),
@@ -1634,9 +2010,9 @@ class _TeamCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _teamStatChip('W', team.wins, Colors.greenAccent),
-                _teamStatChip('L', team.losses, Colors.redAccent),
-                _teamStatChip('D', team.draws, Colors.orangeAccent),
+                _teamStatChip(I18n.t('wins_short'), wins, Colors.greenAccent),
+                _teamStatChip(I18n.t('losses_short'), losses, Colors.redAccent),
+                _teamStatChip(I18n.t('draws_short'), draws, Colors.orangeAccent),
               ],
             ),
             const SizedBox(height: 8),

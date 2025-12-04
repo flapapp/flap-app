@@ -263,16 +263,42 @@ class TeamService {
       throw Exception('Запит вже надіслано');
     }
 
-    await _joinRequestsCollection.add({
+    final requesterName = user.displayName ??
+        user.photoURL ??
+        (user.email?.split('@').first ?? 'Player');
+    final reqRef = await _joinRequestsCollection.add({
       'teamId': teamId,
       'teamName': teamName,
       'userId': user.uid,
-      'userName': user.displayName ??
-          user.photoURL ??
-          (user.email?.split('@').first ?? 'Player'),
+      'userName': requesterName,
       'status': 'pending',
       'createdAt': Timestamp.fromDate(DateTime.now()),
     });
+
+    try {
+      final data = teamDoc.data() ?? {};
+      final captainId = (data['captainId'] ?? '').toString();
+      final viceIds =
+          List<String>.from(data['viceCaptainIds'] ?? const <String>[]);
+      final recipients = {
+        if (captainId.isNotEmpty) captainId,
+        ...viceIds.where((id) => id.isNotEmpty),
+      }..remove(user.uid);
+      if (recipients.isNotEmpty) {
+        final notifier = NotificationService();
+        final resolvedTeamName =
+            teamName.isNotEmpty ? teamName : (data['name'] ?? 'Team').toString();
+        for (final target in recipients) {
+          await notifier.sendTeamJoinRequestNotification(
+            toUserId: target,
+            teamId: teamId,
+            teamName: resolvedTeamName,
+            requesterName: requesterName,
+            requestId: reqRef.id,
+          );
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> respondToJoinRequest({

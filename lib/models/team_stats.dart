@@ -56,3 +56,4 @@ class TeamStats {
   int get goalDiff => goalsFor - goalsAgainst;
 }
 
+

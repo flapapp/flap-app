@@ -6,12 +6,16 @@ import 'package:video_player/video_player.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:typed_data';
-import '../services/friends_service.dart';
-import 'video_player_screen.dart';
-import '../services/notification_service.dart';
-import '../utils/i18n.dart';
-import '../services/badge_service.dart';
+import '../models/app_team.dart';
 import '../models/badge.dart' as app_badge;
+import '../services/badge_service.dart';
+import '../services/friends_service.dart';
+import '../services/notification_service.dart';
+import '../services/team_service.dart';
+import '../utils/i18n.dart';
+import 'team_details_screen.dart';
+import '../widgets/video_preview_box.dart';
+import 'video_player_screen.dart';
 
 class PlayerProfileScreen extends StatefulWidget {
   final String playerId;
@@ -29,6 +33,7 @@ class PlayerProfileScreen extends StatefulWidget {
 
 class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final TeamService _teamService = TeamService();
   Map<String, dynamic>? playerData;
   List<Map<String, dynamic>> playerVideos = [];
   bool isLoading = true;
@@ -47,6 +52,8 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   List<String> _userBadgeIds = [];
   List<app_badge.Badge> _userBadges = [];
   int _badgeEndorseVersion = 0;
+  List<AppTeam> _playerTeams = [];
+  bool _loadingTeams = false;
   // Опції як у реєстрації
   List<String> get _positions => [
         'Воротар'.i18n('Goalkeeper'),
@@ -114,6 +121,8 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         return bTime.compareTo(aTime);
       });
 
+      await _loadPlayerTeams();
+
       setState(() {
         isLoading = false;
       });
@@ -122,6 +131,24 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       setState(() {
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadPlayerTeams() async {
+    setState(() => _loadingTeams = true);
+    try {
+      final teams = await _teamService.fetchUserTeams(widget.playerId);
+      if (mounted) {
+        setState(() => _playerTeams = teams);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _playerTeams = []);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loadingTeams = false);
+      }
     }
   }
 
@@ -801,6 +828,47 @@ Container(
 ),
 const SizedBox(height: 12),
 
+            if (_loadingTeams)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: LinearProgressIndicator(),
+              )
+            else if (_playerTeams.isNotEmpty) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  I18n.inline('Команди', 'Teams'),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 130,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _playerTeams.length,
+                  itemBuilder: (context, index) {
+                    final team = _playerTeams[index];
+                    return _MiniTeamCard(
+                      team: team,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => TeamDetailsScreen(teamId: team.id),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
             // Кнопки (приховані на власному профілі)
             Builder(
               builder: (context) {
@@ -1014,41 +1082,26 @@ const SizedBox(height: 12),
                     final thumb = (v['thumbnailUrl'] ?? '').toString();
                     final vUrl = (v['videoUrl'] ?? '').toString();
                     final title = (v['title'] ?? 'Відео'.i18n('Video')).toString();
-                    return GestureDetector(
-                      onTap: () {
-                        if (vUrl.isEmpty) return;
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => VideoPlayerScreen(
-                              videoUrl: vUrl,
-                              title: title,
-                              authorName: displayName,
-                              videoId: (v['id'] ?? '').toString(),
+                    return SizedBox(
+                      width: 170,
+                      child: VideoPreviewBox(
+                        videoUrl: vUrl,
+                        thumbnailUrl: thumb.isNotEmpty ? thumb : null,
+                        borderRadius: 12,
+                        onTap: () {
+                          if (vUrl.isEmpty) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => VideoPlayerScreen(
+                                videoUrl: vUrl,
+                                title: title,
+                                authorName: displayName,
+                                videoId: (v['id'] ?? '').toString(),
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: 160,
-                        margin: const EdgeInsets.only(right: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white24),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: thumb.isNotEmpty
-                              ? (kIsWeb && thumb == vUrl
-                                  ? _buildWebVideoPreview(vUrl)
-                                  : Image.network(
-                                      thumb,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => _videoThumbFallback(title),
-                                    ))
-                              : (kIsWeb && vUrl.isNotEmpty ? _buildWebVideoPreview(vUrl) : _videoThumbFallback(title)),
-                        ),
+                          );
+                        },
                       ),
                     );
                   },
@@ -1101,9 +1154,22 @@ const SizedBox(height: 12),
             Icon(icon, color: color ?? Colors.white70, size: 18),
             const SizedBox(height: 4),
           ],
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12), textAlign: TextAlign.center),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
@@ -1370,5 +1436,100 @@ const SizedBox(height: 12),
         SnackBar(content: Text(message)),
       );
     }
+  }
+}
+
+class _MiniTeamCard extends StatelessWidget {
+  final AppTeam team;
+  final VoidCallback? onTap;
+
+  const _MiniTeamCard({required this.team, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 190,
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: const Color(0xFF4caf50),
+                  backgroundImage:
+                      team.logoUrl != null && team.logoUrl!.isNotEmpty ? NetworkImage(team.logoUrl!) : null,
+                  child: (team.logoUrl == null || team.logoUrl!.isEmpty)
+                      ? Text(
+                          team.name.isNotEmpty ? team.name[0].toUpperCase() : '?',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        team.name,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        I18n.inline('${team.memberIds.length} гравців', '${team.memberIds.length} players'),
+                        style: const TextStyle(color: Colors.white60, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _teamChip('W', team.wins, Colors.greenAccent),
+                _teamChip('L', team.losses, Colors.redAccent),
+                _teamChip('D', team.draws, Colors.orangeAccent),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              I18n.inline('Win rate: ${team.winRate.toStringAsFixed(0)}%',
+                  'Win rate: ${team.winRate.toStringAsFixed(0)}%'),
+              style: const TextStyle(color: Colors.white60, fontSize: 11),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _teamChip(String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 4),
+          Text(value.toString(), style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
   }
 }

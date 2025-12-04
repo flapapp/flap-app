@@ -3052,6 +3052,17 @@ Future<void> _onLeaveMatch(Match match) async {
     final ids = match.participants;
     if (ids.isEmpty) return {};
     final names = await _loadParticipantNames(ids);
+    final assignments = match.playerTeamAssignments;
+    final Map<String, List<String>> grouped = {
+      'teamA': [],
+      'teamB': [],
+      'free': [],
+    };
+    for (final id in ids) {
+      final key = assignments[id] ?? 'free';
+      grouped.putIfAbsent(key, () => <String>[]);
+      grouped[key]!.add(id);
+    }
     final controllers = {
       for (final id in ids) id: TextEditingController(text: '0')
     };
@@ -3064,28 +3075,12 @@ Future<void> _onLeaveMatch(Match match) async {
             width: double.maxFinite,
             child: ListView(
               shrinkWrap: true,
-              children: ids.map((id) {
-                final name = names[id] ?? I18n.t('player');
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text(name)),
-                      SizedBox(
-                        width: 70,
-                        child: TextField(
-                          controller: controllers[id],
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: I18n.t('goals'),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
+              children: _buildGoalInputSections(
+                grouped: grouped,
+                names: names,
+                controllers: controllers,
+                match: match,
+              ),
             ),
           ),
           actions: [
@@ -3132,6 +3127,68 @@ Future<void> _onLeaveMatch(Match match) async {
     }
     final total = goals.values.fold<int>(0, (prev, value) => prev + value);
     return total == (teamAScore + teamBScore);
+  }
+
+  List<Widget> _buildGoalInputSections({
+    required Map<String, List<String>> grouped,
+    required Map<String, String> names,
+    required Map<String, TextEditingController> controllers,
+    required Match match,
+  }) {
+    final sections = <Widget>[];
+    final order = ['teamA', 'teamB', 'free'];
+
+    String _teamLabel(String key) {
+      switch (key) {
+        case 'teamA':
+          return match.teamA?.name ?? I18n.inline('Команда А', 'Team A');
+        case 'teamB':
+          return match.teamB?.name ?? I18n.inline('Команда Б', 'Team B');
+        default:
+          return I18n.inline('Інші гравці', 'Other players');
+      }
+    }
+
+    for (final key in order) {
+      final players = grouped[key] ?? const <String>[];
+      if (players.isEmpty) continue;
+      sections.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 4),
+          child: Text(
+            _teamLabel(key),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+      sections.addAll(players.map((id) {
+        final name = names[id] ?? I18n.t('player');
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              Expanded(child: Text(name)),
+              SizedBox(
+                width: 70,
+                child: TextField(
+                  controller: controllers[id],
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: I18n.t('goals'),
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }));
+    }
+
+    return sections;
   }
 
   Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {

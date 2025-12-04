@@ -707,6 +707,23 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     );
     return await sendNotification(notification);
   }
+
+  Future<bool> sendTeamJoinRequestNotification({
+    required String toUserId,
+    required String teamId,
+    required String teamName,
+    required String requesterName,
+    required String requestId,
+  }) async {
+    final notification = AppNotification.teamJoinRequest(
+      userId: toUserId,
+      teamId: teamId,
+      teamName: teamName,
+      requesterName: requesterName,
+      requestId: requestId,
+    );
+    return await sendNotification(notification);
+  }
   Future<bool> sendMatchInvite({
   required String toUserId,
   required String matchId,

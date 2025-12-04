@@ -723,7 +723,6 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 ? liveMatch.teamAStatus
                 : liveMatch.teamBStatus) ??
             'pending';
-        final slots = _teamSlotLimit(liveMatch);
 
         final allConfirmed =
             roster.isNotEmpty && rosterStatus.values.every((s) => s == 'confirmed');
@@ -759,9 +758,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                I18n.inline(
-                    'Обрано ${roster.length}/$slots гравців',
-                    'Selected ${roster.length}/$slots players'),
+                    I18n.inline(
+                        'У складі ${roster.length} гравців',
+                        '${roster.length} players selected'),
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.8),
                   fontSize: 13,
@@ -1249,14 +1248,6 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
-  int _teamSlotLimit(Match match) {
-    final teamsCount = (match.teamCount != null && match.teamCount! > 0)
-        ? match.teamCount!
-        : (match.isTeamMatch ? 2 : 1);
-    final calculated = (match.maxPlayers / teamsCount).ceil();
-    return calculated > 0 ? calculated : match.maxPlayers;
-  }
-
   Future<AppTeam?> _getTeam(String teamId) async {
     if (_teamCache.containsKey(teamId)) return _teamCache[teamId];
     final snap = await FirebaseFirestore.instance
@@ -1310,7 +1301,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       return;
     }
 
-    final limit = _teamSlotLimit(liveMatch);
+    final limit = members.length;
     final previousSelection =
         Set<String>.from(liveMatch.teamRosters[teamKey] ?? const <String>[]);
 
@@ -1362,20 +1353,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      I18n.inline(
-                          'Максимум $limit гравців',
-                          'Maximum $limit players'),
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
-                    ),
                     const SizedBox(height: 16),
                     SizedBox(
                       height: MediaQuery.of(context).size.height * 0.5,
                       child: ListView(
                         children: members.map((memberId) {
-                          final disabled =
-                              !selected.contains(memberId) && selected.length >= limit;
+                          final disabled = false;
                           return CheckboxListTile(
                             value: selected.contains(memberId),
                             onChanged: disabled

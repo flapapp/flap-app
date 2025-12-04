@@ -49,6 +49,25 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         videoCategoryLabel(_selectedCategory);
   }
 
+int _compareVideoDocs(
+  QueryDocumentSnapshot<Object?> a,
+  QueryDocumentSnapshot<Object?> b,
+) {
+  final dataA = a.data() as Map<String, dynamic>? ?? const {};
+  final dataB = b.data() as Map<String, dynamic>? ?? const {};
+    if (_selectedTab == 'trending' && !_showOnlyMyVideos) {
+      final viewsA = (dataA['views'] ?? 0) as num;
+      final viewsB = (dataB['views'] ?? 0) as num;
+      final cmp = viewsB.compareTo(viewsA);
+      if (cmp != 0) return cmp;
+    }
+    final tsA =
+        (dataA['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+    final tsB =
+        (dataB['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+    return tsB.compareTo(tsA);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Читаємо навігаційні аргументи (напр. з профілю)
@@ -85,16 +104,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                 child: Image.asset('assets/logo/flap_logo.jpg',
                     fit: BoxFit.cover, width: 28, height: 28),
               ),
-              const SizedBox(width: 10),
-              const Text(
-                'FLAP',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
-                ),
-              ),
+              const SizedBox(width: 8),
             ],
           ),
         ),
@@ -717,15 +727,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         final docs = snapshot.data!.docs.where((d) {
           final data = d.data() as Map<String, dynamic>;
           
-          // Виключаємо відео з челенджів
-          final title = (data['title'] ?? '').toString();
-          final description = (data['description'] ?? '').toString();
-          if (title == 'Відео створювача' || 
-              title == 'Відео челенджу' ||
-              description == 'Відео челенджу') {
-            return false; // Виключаємо відео з челенджів
-          }
-          
           // Фільтр рейтингу
           if (_selectedRating.isNotEmpty) {
             final minRating = double.parse(_selectedRating.replaceAll('+', ''));
@@ -747,7 +748,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           }
           
           return true;
-        }).toList();
+        }).toList()
+          ..sort(_compareVideoDocs);
 
         return ListView.builder(
           padding: const EdgeInsets.all(20),
@@ -795,9 +797,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
 
   Stream<QuerySnapshot> _getVideosStream() {
     Query query = FirebaseFirestore.instance.collection('videos');
+    final filteringOwnVideos = _showOnlyMyVideos;
     
-    // Apply only basic filters that don't conflict with orderBy
-    if (_showOnlyMyVideos) {
+    if (filteringOwnVideos) {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null) query = query.where('userId', isEqualTo: uid);
     }
@@ -806,37 +808,67 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     // These will be applied on the client side in _buildVideosList()
     
     // Apply tab filters
-    switch (_selectedTab) {
-      case 'trending':
-        query = query.orderBy('views', descending: true);
-        break;
-      default:
-        query = query.orderBy('createdAt', descending: true);
+    if (!filteringOwnVideos) {
+      switch (_selectedTab) {
+        case 'trending':
+          query = query.orderBy('views', descending: true);
+          break;
+        default:
+          query = query.orderBy('createdAt', descending: true);
+      }
+    } else {
+      // Sorting for personal feed handled client-side to avoid composite indexes
     }
     
     return query.snapshots();
   }
 
   Widget _buildVideoCard(Map<String, dynamic> data, String videoId) {
-    final title = data['title'] ?? I18n.inline('Без назви', 'No title');
-    final description = data['description'] ?? '';
+    final title = (data['title'] ?? I18n.inline('Без назви', 'No title')).toString();
+    final description = (data['description'] ?? '').toString();
     final rawCategory = (data['category'] ?? '').toString();
     final categoryLabel = rawCategory.isEmpty
         ? I18n.inline('Без категорії', 'No category')
         : videoCategoryLabel(rawCategory);
-    final rating = (data['rating'] ?? 0.0).toDouble();
-    final views = data['views'] ?? 0;
-    final likes = data['likes'] ?? 0;
-    final comments = data['comments'] ?? 0;
-    final authorName = data['authorName'] ?? 'Невідомий';
+    final ratingRaw = data['rating'] ?? data['averageRating'] ?? data['voteAverage'] ?? 0.0;
+    final double rating = ratingRaw is num
+        ? ratingRaw.toDouble()
+        : double.tryParse(ratingRaw.toString()) ?? 0.0;
+    final views = (data['views'] ?? 0) as num;
+    final likes = (data['likes'] ?? 0) as num;
+    final commentsValue = (data['comments'] ?? data['commentCount'] ?? 0) as num;
+    final authorName = (data['authorName'] ??
+            data['displayName'] ??
+            data['userName'] ??
+            I18n.inline('Невідомо', 'Unknown'))
+        .toString();
     final authorId = data['userId'] as String?;
-    final city = data['city'] ?? 'Невідомо';
+    final city = (data['city'] ?? I18n.inline('Невідомо', 'Unknown')).toString();
     final createdAt = data['createdAt'] as Timestamp?;
-    final isLiked = data['isLikedByCurrentUser'] ?? false;
+    final isLiked = data['isLikedByCurrentUser'] == true;
     final videoUrl = (data['videoUrl'] ?? '').toString();
     final thumbnailUrl = data['thumbnailUrl']?.toString();
     final durationSeconds = data['duration'] is int ? data['duration'] as int : null;
     final categoryColor = _videoCategoryColor(rawCategory);
+    final challengeId = (data['challengeId'] ?? '').toString();
+    final challengeTitle = (data['challengeTitle'] ?? '').toString();
+    final isChallengeVideo = challengeId.isNotEmpty ||
+        title == 'Відео челенджу' ||
+        description == 'Відео челенджу' ||
+        (data['isChallengeVideo'] == true);
+
+    final badges = <Widget>[
+      _buildVideoChip(categoryLabel, categoryColor),
+      if (isChallengeVideo)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: _buildChallengeTag(),
+        ),
+    ];
+
+    final safeTitle = title.isEmpty
+        ? I18n.inline('Без назви', 'Untitled')
+        : title;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -870,20 +902,16 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             videoUrl: videoUrl,
             thumbnailUrl: thumbnailUrl,
             borderRadius: 20,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => VideoPlayerScreen(
-                    videoUrl: videoUrl,
-                    title: title,
-                    authorName: authorName,
-                    videoId: videoId,
-                  ),
-                ),
-              );
-            },
-            topLeft: _buildVideoChip(categoryLabel, categoryColor),
+            onTap: () => _openVideo(
+              videoId: videoId,
+              videoUrl: videoUrl,
+              title: safeTitle,
+              authorName: authorName,
+            ),
+            topLeft: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: badges,
+            ),
             topRight: _buildRatingBadge(
               rating > 0 ? rating.toStringAsFixed(2) : null,
             ),
@@ -895,7 +923,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       : I18n.inline('Новинка', 'New')),
             ),
           ),
-          
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
             child: Column(
@@ -907,18 +934,18 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     const Spacer(),
                     _videoInfoChip(
                       icon: Icons.remove_red_eye,
-                      label: '$views',
+                      label: views.toString(),
                     ),
                     const SizedBox(width: 6),
                     _videoInfoChip(
                       icon: Icons.chat_bubble_outline,
-                      label: '$comments',
+                      label: commentsValue.toString(),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  title,
+                  safeTitle,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -974,6 +1001,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               '$city • ${_formatDate(createdAt)}',
@@ -993,60 +1022,65 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       ),
                   ],
                 ),
+                if (isChallengeVideo && challengeId.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  TextButton.icon(
+                    onPressed: () => _openChallenge(challengeId, challengeTitle),
+                    icon: const Icon(Icons.emoji_events_outlined, color: Colors.white70),
+                    label: Text(
+                      I18n.inline('До челенджу', 'Open challenge'),
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    _buildActionButton(
+                    _iconCircleButton(
                       icon: isLiked ? Icons.favorite : Icons.favorite_border,
-                      label: '$likes',
-                      color: isLiked ? Colors.red : Colors.white70,
-                      onTap: () => _toggleLike(videoId, isLiked),
+                      tooltip: I18n.t('like'),
+                      iconColor: isLiked ? Colors.redAccent : Colors.white,
+                      background: isLiked ? Colors.redAccent.withOpacity(0.15) : Colors.white10,
+                      onPressed: () => _toggleLike(videoId, isLiked),
+                      trailing: likes.toString(),
                     ),
                     const SizedBox(width: 8),
-                    _buildActionButton(
+                    _iconCircleButton(
                       icon: Icons.chat_bubble_outline,
-                      label: '$comments',
-                      color: Colors.white70,
-                      onTap: () => _showComments(videoId, title),
+                      tooltip: I18n.t('comments'),
+                      onPressed: () => _showComments(videoId, safeTitle),
+                      trailing: commentsValue.toString(),
                     ),
                     const SizedBox(width: 8),
-                    _buildActionButton(
+                    _iconCircleButton(
                       icon: Icons.share,
-                      label: I18n.inline('Поділитися', 'Share'),
-                      color: Colors.white70,
-                      onTap: () => _shareVideo(videoId, title),
+                      tooltip: I18n.inline('Поділитися', 'Share'),
+                      onPressed: () => _shareVideo(videoId, safeTitle),
                     ),
                     const Spacer(),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        try {
-                          await FirebaseFirestore.instance
-                              .collection('videos')
-                              .doc(videoId)
-                              .update({'views': FieldValue.increment(1)});
-                        } catch (_) {}
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => VideoPlayerScreen(
-                              videoUrl: data['videoUrl'] ?? '',
-                              title: title,
-                              authorName: authorName,
-                              videoId: videoId,
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4caf50),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22),
-                        ),
+                    _iconCircleButton(
+                      icon: Icons.play_arrow_rounded,
+                      tooltip: I18n.inline('Дивитися', 'Watch'),
+                      background: const Color(0xFF4caf50),
+                      onPressed: () => _openVideo(
+                        videoId: videoId,
+                        videoUrl: videoUrl,
+                        title: safeTitle,
+                        authorName: authorName,
                       ),
-                      icon: const Icon(Icons.play_arrow),
-                      label: Text(I18n.inline('Дивитися', 'Watch')),
+                    ),
+                    const SizedBox(width: 8),
+                    _iconCircleButton(
+                      icon: Icons.star_rate_rounded,
+                      tooltip: I18n.inline('Оцінити', 'Rate'),
+                      background: const Color(0xFFFFC107),
+                      onPressed: () => _openVideo(
+                        videoId: videoId,
+                        videoUrl: videoUrl,
+                        title: safeTitle,
+                        authorName: authorName,
+                        autoRate: true,
+                      ),
                     ),
                   ],
                 ),
@@ -1056,6 +1090,132 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildChallengeTag() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFC107).withOpacity(0.8),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.emoji_events, color: Colors.black87, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            I18n.inline('Челендж', 'Challenge'),
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _iconCircleButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    Color background = Colors.white12,
+    Color iconColor = Colors.white,
+    String? tooltip,
+    String? trailing,
+  }) {
+    final content = Container(
+      padding: trailing != null
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
+          : const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: iconColor, size: 18),
+          if (trailing != null) ...[
+            const SizedBox(width: 4),
+            Text(
+              trailing!,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+    final button = InkWell(
+      borderRadius: BorderRadius.circular(24),
+      onTap: onPressed,
+      child: content,
+    );
+    return tooltip != null ? Tooltip(message: tooltip!, child: button) : button;
+  }
+
+  Future<void> _openVideo({
+    required String videoId,
+    required String videoUrl,
+    required String title,
+    required String authorName,
+    bool autoRate = false,
+  }) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .update({'views': FieldValue.increment(1)});
+    } catch (_) {}
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VideoPlayerScreen(
+          videoUrl: videoUrl,
+          title: title,
+          authorName: authorName,
+          videoId: videoId,
+          autoOpenRating: autoRate,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openChallenge(String challengeId, String title) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(challengeId)
+          .get();
+      if (!doc.exists) {
+        throw Exception('Challenge not found');
+      }
+      final challenge = Challenge.fromFirestore(doc);
+      if (!mounted) return;
+      Navigator.pushNamed(
+        context,
+        '/challenge-details',
+        arguments: challenge,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline(
+              'Не вдалося відкрити челендж: $e',
+              'Unable to open challenge: $e',
+            ),
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   String _formatDate(Timestamp? timestamp) {
@@ -1261,15 +1421,15 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   Widget _buildChallengesList() {
     return StreamBuilder<QuerySnapshot>(
       stream: (() {
-        Query q = FirebaseFirestore.instance
-            .collection('challenges')
-            .orderBy('createdAt', descending: true)
-            .limit(20);
+        Query q = FirebaseFirestore.instance.collection('challenges');
         if (_showOnlyMyChallenges) {
           final uid = FirebaseAuth.instance.currentUser?.uid;
           if (uid != null) {
             q = q.where('creatorId', isEqualTo: uid);
           }
+          q = q.limit(20);
+        } else {
+          q = q.orderBy('createdAt', descending: true).limit(20);
         }
         return q.snapshots();
       })(),
@@ -2224,44 +2384,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     );
   }
 
-  // Helper method for action buttons
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.2),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // Interactive methods
   Future<void> _toggleLike(String videoId, bool isCurrentlyLiked) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -2294,6 +2416,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
 
   void _showComments(String videoId, String videoTitle) {
     final commentController = TextEditingController();
+    final safeTitle = videoTitle.trim().isEmpty
+        ? I18n.inline('відео', 'video')
+        : videoTitle;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -2332,7 +2457,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Коментарі до "$videoTitle"',
+                      'Коментарі до "$safeTitle"',
                       style: const TextStyle(
                 color: Colors.white,
                         fontSize: 16,
@@ -2399,7 +2524,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     itemBuilder: (context, index) {
                       final comment = snapshot.data!.docs[index].data() as Map<String, dynamic>;
                       final userId = (comment['userId'] ?? '').toString();
-                      final commentText = (comment['comment'] ?? '').toString();
+                      final commentText =
+                          (comment['comment'] ?? comment['text'] ?? '').toString();
                       final timestamp = comment['createdAt'] as Timestamp?;
 
                       return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -2663,53 +2789,311 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Coins chip
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFffc107).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFffc107), width: 1),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.monetization_on, color: Color(0xFFffc107), size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      coins.toString(),
-                      style: const TextStyle(
-                        color: Color(0xFFffc107),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+              InkWell(
+                onTap: () => _showCoinsHistory(coins),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFffc107).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFffc107), width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.monetization_on, color: Color(0xFFffc107), size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        coins.toString(),
+                        style: const TextStyle(
+                          color: Color(0xFFffc107),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () => _showRatingHistory(userData),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4caf50).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF4caf50), width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        rating.toStringAsFixed(2),
+                        style: const TextStyle(
+                          color: Color(0xFF4caf50),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCoinsHistory(int currentCoins) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0f0f23),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.7,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    const Icon(Icons.monetization_on, color: Color(0xFFFFD700)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(I18n.inline('Мої монети', 'My coins'),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600)),
+                          Text(
+                            I18n.inline('Баланс: $currentCoins', 'Balance: $currentCoins'),
+                            style: const TextStyle(color: Color(0xFFFFD700)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              // Rating chip
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4caf50).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF4caf50), width: 1),
+              const Divider(color: Colors.white12),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('transactions')
+                      .where('userId', isEqualTo: uid)
+                      .orderBy('timestamp', descending: true)
+                      .limit(50)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(
+                          child: CircularProgressIndicator(color: Color(0xFFFFD700)));
+                    }
+                    final docs = snapshot.data!.docs;
+                    if (docs.isEmpty) {
+                      return Center(
+                        child: Text(
+                          I18n.inline('Поки немає транзакцій', 'No transactions yet'),
+                          style: const TextStyle(color: Colors.white54),
+                        ),
+                      );
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        final amount = (data['amount'] ?? 0) as num;
+                        final description = (data['description'] ?? '').toString();
+                        final ts = data['timestamp'] as Timestamp?;
+                        final timestampText = ts != null
+                            ? _formatTimestamp(ts)
+                            : I18n.inline('Нещодавно', 'Recently');
+                        final isPositive = amount >= 0;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.04),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white10),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: isPositive
+                                      ? const Color(0xFF4caf50).withOpacity(0.2)
+                                      : Colors.red.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: Icon(
+                                  isPositive ? Icons.add : Icons.remove,
+                                  color: isPositive ? const Color(0xFF4caf50) : Colors.red,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(description,
+                                        style: const TextStyle(
+                                            color: Colors.white, fontWeight: FontWeight.w600)),
+                                    Text(
+                                      timestampText,
+                                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                '${isPositive ? '+' : ''}${amount.toString()}',
+                                style: TextStyle(
+                                  color: isPositive ? const Color(0xFF4caf50) : Colors.redAccent,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showRatingHistory(Map<String, dynamic> userData) {
+    final history = List<Map<String, dynamic>>.from(
+      (userData['ratingHistory'] as List?) ?? const [],
+    );
+    if (history.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.inline('Поки немає історії рейтингу', 'No rating history yet'))),
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0f0f23),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.6,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(20),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      rating.toStringAsFixed(2),
-                      style: const TextStyle(
-                        color: Color(0xFF4caf50),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    const Icon(Icons.trending_up, color: Colors.white),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        I18n.inline('Історія рейтингу', 'Rating history'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close, color: Colors.white70),
+                    ),
                   ],
+                ),
+              ),
+              const Divider(color: Colors.white10),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: history.length,
+                  itemBuilder: (context, index) {
+                    final entry = history[index];
+                    final delta = (entry['delta'] ?? 0).toDouble();
+                    final newValue = (entry['newValue'] ?? 0).toDouble();
+                    final reason = (entry['reason'] ?? entry['source'] ?? '').toString();
+                    final ts = entry['createdAt'];
+                    DateTime? recordedAt;
+                    if (ts is Timestamp) recordedAt = ts.toDate();
+                    final deltaSign = delta >= 0 ? '+' : '';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.03),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                delta >= 0 ? Icons.trending_up : Icons.trending_down,
+                                color: delta >= 0 ? const Color(0xFF4caf50) : Colors.redAccent,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '$deltaSign${delta.toStringAsFixed(2)} → ${newValue.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (reason.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              reason,
+                              style: const TextStyle(color: Colors.white70, fontSize: 13),
+                            ),
+                          ],
+                          if (recordedAt != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              _formatTimestamp(Timestamp.fromDate(recordedAt)),
+                              style: const TextStyle(color: Colors.white38, fontSize: 11),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
