@@ -24,6 +24,12 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   String _selectedTab = 'all'; // all, challenges, trending
   bool _showOnlyMyVideos = false;
   bool _showOnlyMyChallenges = false;
+  final Map<String, double> _videoRatingCache = {};
+  final Set<String> _videoRatingLoading = {};
+  final Map<String, int> _commentCountCache = {};
+  final Set<String> _commentCountLoading = {};
+  final Map<String, _CachedUserProfile> _userProfileCache = {};
+  final Set<String> _loadingUserProfiles = {};
   
 
   List<String> get _cities => [
@@ -353,8 +359,12 @@ int _compareVideoDocs(
     );
   }
 
-  Widget _buildVideoChip(String label, Color color) {
-    return Container(
+  Widget _buildVideoChip(
+    String label,
+    Color color, {
+    VoidCallback? onTap,
+  }) {
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.2),
@@ -368,6 +378,12 @@ int _compareVideoDocs(
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+    if (onTap == null) return chip;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: chip,
     );
   }
 
@@ -499,6 +515,98 @@ int _compareVideoDocs(
         ),
       ),
     );
+  }
+
+  void _prefetchVideoRating(String videoId) async {
+    if (_videoRatingCache.containsKey(videoId) ||
+        _videoRatingLoading.contains(videoId)) {
+      return;
+    }
+    _videoRatingLoading.add(videoId);
+    try {
+      final votesSnap = await FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .collection('votes')
+          .get();
+      double sum = 0.0;
+      for (final doc in votesSnap.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        sum += (data['rating'] ?? 0.0).toDouble();
+      }
+      final avg = votesSnap.docs.isEmpty
+          ? 0.0
+          : double.parse((sum / votesSnap.docs.length).toStringAsFixed(2));
+      if (mounted) {
+        setState(() {
+          _videoRatingCache[videoId] = avg;
+        });
+      }
+    } catch (_) {
+      // ignore
+    } finally {
+      _videoRatingLoading.remove(videoId);
+    }
+  }
+
+  void _prefetchCommentCount(String videoId) async {
+    if (_commentCountCache.containsKey(videoId) ||
+        _commentCountLoading.contains(videoId)) {
+      return;
+    }
+    _commentCountLoading.add(videoId);
+    try {
+      final aggregate = await FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .collection('comments')
+          .count()
+          .get();
+      final count = aggregate.count ?? 0;
+      if (mounted) {
+        setState(() {
+          _commentCountCache[videoId] = count;
+        });
+      }
+    } catch (_) {
+      // ignore
+    } finally {
+      _commentCountLoading.remove(videoId);
+    }
+  }
+
+  void _prefetchUserProfile(String userId) async {
+    if (userId.isEmpty ||
+        _userProfileCache.containsKey(userId) ||
+        _loadingUserProfiles.contains(userId)) {
+      return;
+    }
+    _loadingUserProfiles.add(userId);
+    try {
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      final data = doc.data() ?? const <String, dynamic>{};
+      final resolvedName = (data['displayName'] ??
+              data['name'] ??
+              '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim())
+          .toString()
+          .trim();
+      final avatar = (data['avatarUrl'] ?? data['avatar'] ?? '').toString();
+      if (mounted) {
+        setState(() {
+          _userProfileCache[userId] = _CachedUserProfile(
+            name: resolvedName.isNotEmpty
+                ? resolvedName
+                : I18n.inline('Користувач', 'User'),
+            avatarUrl: avatar,
+          );
+        });
+      }
+    } catch (_) {
+      // ignore
+    } finally {
+      _loadingUserProfiles.remove(userId);
+    }
   }
 
   Widget _buildTab(String title, String tab) {
@@ -837,12 +945,40 @@ int _compareVideoDocs(
     final views = (data['views'] ?? 0) as num;
     final likes = (data['likes'] ?? 0) as num;
     final commentsValue = (data['comments'] ?? data['commentCount'] ?? 0) as num;
-    final authorName = (data['authorName'] ??
+    final voteCount = (data['voteCount'] ?? 0) as num;
+    double displayRating = rating;
+    final cachedRating = _videoRatingCache[videoId];
+    if (cachedRating != null) {
+      displayRating = cachedRating;
+    } else if ((displayRating <= 0 && voteCount > 0) &&
+        !_videoRatingLoading.contains(videoId)) {
+      _prefetchVideoRating(videoId);
+    }
+
+    int displayComments = commentsValue.toInt();
+    final cachedComments = _commentCountCache[videoId];
+    if (cachedComments != null) {
+      displayComments = cachedComments;
+    } else if (!_commentCountLoading.contains(videoId)) {
+      _prefetchCommentCount(videoId);
+    }
+
+    String authorDisplayName = (data['authorName'] ??
             data['displayName'] ??
             data['userName'] ??
             I18n.inline('Невідомо', 'Unknown'))
         .toString();
     final authorId = data['userId'] as String?;
+    String? authorAvatar;
+    if (authorId != null && authorId.isNotEmpty) {
+      final cachedProfile = _userProfileCache[authorId];
+      if (cachedProfile != null) {
+        authorDisplayName = cachedProfile.name;
+        authorAvatar = cachedProfile.avatarUrl;
+      } else {
+        _prefetchUserProfile(authorId);
+      }
+    }
     final city = (data['city'] ?? I18n.inline('Невідомо', 'Unknown')).toString();
     final createdAt = data['createdAt'] as Timestamp?;
     final isLiked = data['isLikedByCurrentUser'] == true;
@@ -852,23 +988,41 @@ int _compareVideoDocs(
     final categoryColor = _videoCategoryColor(rawCategory);
     final challengeId = (data['challengeId'] ?? '').toString();
     final challengeTitle = (data['challengeTitle'] ?? '').toString();
-    final isChallengeVideo = challengeId.isNotEmpty ||
+    final bool isChallengeVideo = challengeId.isNotEmpty ||
         title == 'Відео челенджу' ||
         description == 'Відео челенджу' ||
         (data['isChallengeVideo'] == true);
+    final bool hasChallengeLink = isChallengeVideo && challengeId.isNotEmpty;
 
     final badges = <Widget>[
-      _buildVideoChip(categoryLabel, categoryColor),
-      if (isChallengeVideo)
+      _buildVideoChip(
+        hasChallengeLink && challengeTitle.isNotEmpty
+            ? challengeTitle
+            : categoryLabel,
+        categoryColor,
+        onTap: hasChallengeLink
+            ? () => _openChallenge(
+                  challengeId,
+                  challengeTitle.isNotEmpty ? challengeTitle : title,
+                )
+            : null,
+      ),
+      if (hasChallengeLink)
         Padding(
           padding: const EdgeInsets.only(top: 6),
-          child: _buildChallengeTag(),
+          child: GestureDetector(
+            onTap: () => _openChallenge(
+              challengeId,
+              challengeTitle.isNotEmpty ? challengeTitle : title,
+            ),
+            child: _buildChallengeTag(),
+          ),
         ),
     ];
 
-    final safeTitle = title.isEmpty
-        ? I18n.inline('Без назви', 'Untitled')
-        : title;
+    final safeTitle = (hasChallengeLink && challengeTitle.isNotEmpty)
+        ? challengeTitle
+        : (title.isEmpty ? I18n.inline('Без назви', 'Untitled') : title);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -906,14 +1060,14 @@ int _compareVideoDocs(
               videoId: videoId,
               videoUrl: videoUrl,
               title: safeTitle,
-              authorName: authorName,
+              authorName: authorDisplayName,
             ),
             topLeft: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: badges,
             ),
             topRight: _buildRatingBadge(
-              rating > 0 ? rating.toStringAsFixed(2) : null,
+              displayRating > 0 ? displayRating.toStringAsFixed(2) : null,
             ),
             bottomRight: _buildMetaPill(
               durationSeconds != null
@@ -939,7 +1093,7 @@ int _compareVideoDocs(
                     const SizedBox(width: 6),
                     _videoInfoChip(
                       icon: Icons.chat_bubble_outline,
-                      label: commentsValue.toString(),
+                      label: displayComments.toString(),
                     ),
                   ],
                 ),
@@ -970,9 +1124,10 @@ int _compareVideoDocs(
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    _buildUserAvatarChip(
+                    PlayerAvatarButton(
                       userId: authorId ?? '',
-                      name: authorName,
+                      displayName: authorDisplayName,
+                      avatarUrl: authorAvatar,
                       size: 34,
                     ),
                     const SizedBox(width: 10),
@@ -986,7 +1141,7 @@ int _compareVideoDocs(
                               '/player-profile',
                               arguments: {
                                 'playerId': authorId,
-                                'playerName': authorName,
+                                'playerName': authorDisplayName,
                               },
                             );
                           }
@@ -995,7 +1150,7 @@ int _compareVideoDocs(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              authorName,
+                              authorDisplayName,
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
@@ -1049,7 +1204,7 @@ int _compareVideoDocs(
                       icon: Icons.chat_bubble_outline,
                       tooltip: I18n.t('comments'),
                       onPressed: () => _showComments(videoId, safeTitle),
-                      trailing: commentsValue.toString(),
+                      trailing: displayComments.toString(),
                     ),
                     const SizedBox(width: 8),
                     _iconCircleButton(
@@ -1066,7 +1221,7 @@ int _compareVideoDocs(
                         videoId: videoId,
                         videoUrl: videoUrl,
                         title: safeTitle,
-                        authorName: authorName,
+                        authorName: authorDisplayName,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1078,7 +1233,7 @@ int _compareVideoDocs(
                         videoId: videoId,
                         videoUrl: videoUrl,
                         title: safeTitle,
-                        authorName: authorName,
+                        authorName: authorDisplayName,
                         autoRate: true,
                       ),
                     ),
@@ -2749,6 +2904,9 @@ int _compareVideoDocs(
         'comments': FieldValue.increment(1),
       });
 
+      _commentCountCache.remove(videoId);
+      _prefetchCommentCount(videoId);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('💬 Коментар додано!'),
@@ -3102,5 +3260,15 @@ int _compareVideoDocs(
       },
     );
   }
+}
+
+class _CachedUserProfile {
+  final String name;
+  final String avatarUrl;
+
+  const _CachedUserProfile({
+    required this.name,
+    required this.avatarUrl,
+  });
 }
 

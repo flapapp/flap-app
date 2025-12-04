@@ -650,19 +650,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 14),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _profilePill(
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final pills = [
+                                  _profilePill(
                                     icon: Icons.star_border_rounded,
                                     label: I18n.t('rating'),
                                     value: rating.toStringAsFixed(2),
                                     accent: const Color(0xFFFFD54F),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _profilePill(
+                                  _profilePill(
                                     icon: Icons.sports_soccer,
                                     label: I18n.t('matches'),
                                     value:
@@ -670,27 +667,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             .toString(),
                                     accent: const Color(0xFF4CAF50),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _profilePill(
+                                  _profilePill(
                                     icon: Icons.percent,
                                     label: 'Win rate',
                                     value: '${winRate.toStringAsFixed(0)}%',
                                     accent: const Color(0xFF64B5F6),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _profilePill(
+                                  _profilePill(
                                     icon: Icons.sports,
                                     label: I18n.inline('Голи', 'Goals'),
                                     value:
                                         ((userData['goals'] ?? 0) as num).toString(),
                                     accent: const Color(0xFFFF7043),
                                   ),
-                                ),
-                              ],
+                                ];
+                                final isCompact = constraints.maxWidth < 500;
+                                final columns = isCompact ? 2 : 4;
+                                final spacing = 10.0;
+                                final itemWidth = columns == 1
+                                    ? constraints.maxWidth
+                                    : (constraints.maxWidth -
+                                            spacing * (columns - 1)) /
+                                        columns;
+                                return Wrap(
+                                  spacing: spacing,
+                                  runSpacing: spacing,
+                                  children: pills
+                                      .map(
+                                        (pill) => SizedBox(
+                                          width: itemWidth,
+                                          child: pill,
+                                        ),
+                                      )
+                                      .toList(),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -2008,11 +2019,18 @@ class _TeamCardBody extends StatelessWidget {
             ),
             const Spacer(),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _teamStatChip(I18n.t('wins_short'), wins, Colors.greenAccent),
-                _teamStatChip(I18n.t('losses_short'), losses, Colors.redAccent),
-                _teamStatChip(I18n.t('draws_short'), draws, Colors.orangeAccent),
+                Expanded(
+                  child: _teamStatChip('W', wins, Colors.greenAccent),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _teamStatChip('D', draws, Colors.orangeAccent),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _teamStatChip('L', losses, Colors.redAccent),
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -2028,21 +2046,31 @@ class _TeamCardBody extends StatelessWidget {
 
   Widget _teamStatChip(String label, int value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(10),
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             label,
-            style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(height: 4),
           Text(
             value.toString(),
-            style: TextStyle(color: color, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
           ),
         ],
       ),
