@@ -7,6 +7,7 @@ import '../models/challenge.dart';
 import '../widgets/rating_display.dart';
 import '../widgets/video_preview_box.dart';
 import '../services/notification_service.dart';
+import '../services/rating_service.dart';
 import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
 import '../widgets/mode_speed_dial.dart';
@@ -18,6 +19,7 @@ class VideoMainScreen extends StatefulWidget {
 
 class _VideoMainScreenState extends State<VideoMainScreen> {
   final NotificationService _notificationService = NotificationService();
+  final RatingService _ratingService = RatingService();
   String _selectedCity = '';
   String _selectedCategory = '';
   String _selectedRating = '';
@@ -387,8 +389,8 @@ int _compareVideoDocs(
     );
   }
 
-  Widget _buildCategoryLabel(String label, Color color) {
-    return Container(
+  Widget _buildCategoryLabel(String label, Color color, {VoidCallback? onTap}) {
+    final pill = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
@@ -410,9 +412,22 @@ int _compareVideoDocs(
         ],
       ),
     );
+    if (onTap == null) return pill;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: pill,
+    );
   }
 
   Color _videoCategoryColor(String category) => videoCategoryColor(category);
+
+  bool _isUnknownLabel(String value) {
+    final normalized = value.toLowerCase().trim();
+    return normalized.isEmpty ||
+        normalized == 'невідомо' ||
+        normalized == 'unknown';
+  }
 
   Color _challengeTypeColor(String type) {
     switch (parseChallengeType(type)) {
@@ -592,6 +607,7 @@ int _compareVideoDocs(
           .toString()
           .trim();
       final avatar = (data['avatarUrl'] ?? data['avatar'] ?? '').toString();
+      final profileCity = (data['city'] ?? '').toString();
       if (mounted) {
         setState(() {
           _userProfileCache[userId] = _CachedUserProfile(
@@ -599,6 +615,7 @@ int _compareVideoDocs(
                 ? resolvedName
                 : I18n.inline('Користувач', 'User'),
             avatarUrl: avatar,
+            city: profileCity,
           );
         });
       }
@@ -607,6 +624,298 @@ int _compareVideoDocs(
     } finally {
       _loadingUserProfiles.remove(userId);
     }
+  }
+
+  Future<void> _showRateVideoSheet({
+    required String videoId,
+    required String videoTitle,
+  }) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(I18n.inline(
+              'Увійдіть, щоб оцінювати відео', 'Sign in to rate videos')),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final existingVote = await FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .collection('votes')
+          .doc(currentUser.uid)
+          .get();
+      if (existingVote.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(I18n.inline(
+                'Ви вже оцінили це відео', 'You already rated this video')),
+          ),
+        );
+        return;
+      }
+    } catch (_) {}
+
+    double overall = 3.0;
+    double technical = 3.0;
+    double creativity = 3.0;
+    double difficulty = 3.0;
+    double quality = 3.0;
+    bool advanced = false;
+    bool submitting = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF101320),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setModalState) {
+          Widget sliderTile(
+            String label,
+            double value,
+            ValueChanged<double> onChanged,
+          ) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Slider(
+                  value: value,
+                  min: 0,
+                  max: 5,
+                  divisions: 50,
+                  label: value.toStringAsFixed(1),
+                  activeColor: const Color(0xFFFFC107),
+                  onChanged: onChanged,
+                ),
+              ],
+            );
+          }
+
+          Future<void> submitVote() async {
+            if (submitting) return;
+            setModalState(() => submitting = true);
+            final criteria = advanced
+                ? <String, double>{
+                    'technical': technical,
+                    'creativity': creativity,
+                    'difficulty': difficulty,
+                    'quality': quality,
+                  }
+                : <String, double>{
+                    'technical': overall,
+                    'creativity': overall,
+                    'difficulty': overall,
+                    'quality': overall,
+                  };
+            try {
+              final success = await _ratingService.rateVideo(
+                videoId: videoId,
+                ratedBy: currentUser.uid,
+                criteria: criteria,
+              );
+              if (!mounted) return;
+              if (success) {
+                Navigator.pop(sheetContext);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(I18n.inline(
+                        'Оцінку збережено', 'Rating submitted')),
+                  ),
+                );
+                _prefetchVideoRating(videoId);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(I18n.inline(
+                        'Не вдалося зберегти оцінку', 'Unable to save rating')),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              }
+            } catch (e) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    I18n.inline('Помилка: $e', 'Error: $e'),
+                  ),
+                  backgroundColor: Colors.redAccent,
+                ),
+              );
+            } finally {
+              if (mounted) {
+                setModalState(() => submitting = false);
+              }
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  Text(
+                    I18n.inline('Оцініть відео', 'Rate video'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    videoTitle,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setModalState(() => advanced = false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: !advanced
+                                    ? const Color(0xFF4caf50)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                I18n.inline('Простий', 'Simple'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: !advanced
+                                      ? Colors.white
+                                      : Colors.white54,
+                                  fontWeight: !advanced
+                                      ? FontWeight.w700
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setModalState(() => advanced = true),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: advanced
+                                    ? const Color(0xFF4caf50)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                I18n.inline('Розширений', 'Advanced'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: advanced
+                                      ? Colors.white
+                                      : Colors.white54,
+                                  fontWeight: advanced
+                                      ? FontWeight.w700
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (advanced) ...[
+                    sliderTile(I18n.inline('Техніка', 'Technical'), technical,
+                        (v) => setModalState(() => technical = v)),
+                    sliderTile(
+                        I18n.inline('Креативність', 'Creativity'),
+                        creativity,
+                        (v) => setModalState(() => creativity = v)),
+                    sliderTile(
+                        I18n.inline('Складність', 'Difficulty'),
+                        difficulty,
+                        (v) => setModalState(() => difficulty = v)),
+                    sliderTile(
+                        I18n.inline('Якість відео', 'Video quality'),
+                        quality,
+                        (v) => setModalState(() => quality = v)),
+                  ] else ...[
+                    sliderTile(
+                      I18n.inline('Загальна оцінка', 'Overall rating'),
+                      overall,
+                      (v) => setModalState(() => overall = v),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: submitting ? null : submitVote,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFC107),
+                        disabledBackgroundColor: Colors.white24,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        submitting
+                            ? I18n.inline('Надсилаємо...', 'Submitting...')
+                            : I18n.inline('Оцінити відео', 'Submit rating'),
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildTab(String title, String tab) {
@@ -945,12 +1254,11 @@ int _compareVideoDocs(
     final views = (data['views'] ?? 0) as num;
     final likes = (data['likes'] ?? 0) as num;
     final commentsValue = (data['comments'] ?? data['commentCount'] ?? 0) as num;
-    final voteCount = (data['voteCount'] ?? 0) as num;
     double displayRating = rating;
     final cachedRating = _videoRatingCache[videoId];
     if (cachedRating != null) {
       displayRating = cachedRating;
-    } else if ((displayRating <= 0 && voteCount > 0) &&
+    } else if (displayRating <= 0 &&
         !_videoRatingLoading.contains(videoId)) {
       _prefetchVideoRating(videoId);
     }
@@ -970,8 +1278,9 @@ int _compareVideoDocs(
         .toString();
     final authorId = data['userId'] as String?;
     String? authorAvatar;
+    _CachedUserProfile? cachedProfile;
     if (authorId != null && authorId.isNotEmpty) {
-      final cachedProfile = _userProfileCache[authorId];
+      cachedProfile = _userProfileCache[authorId];
       if (cachedProfile != null) {
         authorDisplayName = cachedProfile.name;
         authorAvatar = cachedProfile.avatarUrl;
@@ -979,7 +1288,14 @@ int _compareVideoDocs(
         _prefetchUserProfile(authorId);
       }
     }
-    final city = (data['city'] ?? I18n.inline('Невідомо', 'Unknown')).toString();
+    final rawCity = (data['city'] ?? '').toString();
+    String locationLabel = rawCity.trim();
+    if (locationLabel.isEmpty || _isUnknownLabel(locationLabel)) {
+      final fallbackCity = cachedProfile?.city?.trim() ?? '';
+      locationLabel = fallbackCity.isNotEmpty
+          ? fallbackCity
+          : I18n.inline('Невідомо', 'Unknown');
+    }
     final createdAt = data['createdAt'] as Timestamp?;
     final isLiked = data['isLikedByCurrentUser'] == true;
     final videoUrl = (data['videoUrl'] ?? '').toString();
@@ -992,36 +1308,39 @@ int _compareVideoDocs(
         title == 'Відео челенджу' ||
         description == 'Відео челенджу' ||
         (data['isChallengeVideo'] == true);
-    final bool hasChallengeLink = isChallengeVideo && challengeId.isNotEmpty;
+    final bool hasChallengeLink = challengeId.isNotEmpty;
+    final bool hasChallengeInfo = isChallengeVideo || challengeTitle.isNotEmpty;
+    final String challengeLabel = challengeTitle.isNotEmpty
+        ? challengeTitle
+        : I18n.inline('Челендж', 'Challenge');
+    final Color challengeColor = const Color(0xFFFFC107);
 
-    final badges = <Widget>[
-      _buildVideoChip(
-        hasChallengeLink && challengeTitle.isNotEmpty
-            ? challengeTitle
-            : categoryLabel,
-        categoryColor,
-        onTap: hasChallengeLink
-            ? () => _openChallenge(
-                  challengeId,
-                  challengeTitle.isNotEmpty ? challengeTitle : title,
-                )
-            : null,
-      ),
-      if (hasChallengeLink)
+    final badges = <Widget>[];
+    if (hasChallengeInfo) {
+      badges.add(
+        _buildVideoChip(
+          challengeLabel,
+          challengeColor,
+          onTap: hasChallengeLink
+              ? () => _openChallenge(
+                    challengeId,
+                    challengeLabel,
+                  )
+              : null,
+        ),
+      );
+      badges.add(
         Padding(
           padding: const EdgeInsets.only(top: 6),
-          child: GestureDetector(
-            onTap: () => _openChallenge(
-              challengeId,
-              challengeTitle.isNotEmpty ? challengeTitle : title,
-            ),
-            child: _buildChallengeTag(),
-          ),
+          child: _buildVideoChip(categoryLabel, categoryColor),
         ),
-    ];
+      );
+    } else {
+      badges.add(_buildVideoChip(categoryLabel, categoryColor));
+    }
 
-    final safeTitle = (hasChallengeLink && challengeTitle.isNotEmpty)
-        ? challengeTitle
+    final safeTitle = (hasChallengeInfo && challengeLabel.isNotEmpty)
+        ? challengeLabel
         : (title.isEmpty ? I18n.inline('Без назви', 'Untitled') : title);
 
     return AnimatedContainer(
@@ -1084,7 +1403,16 @@ int _compareVideoDocs(
               children: [
                 Row(
                   children: [
-                    _buildCategoryLabel(categoryLabel, categoryColor),
+                    _buildCategoryLabel(
+                      hasChallengeInfo ? challengeLabel : categoryLabel,
+                      hasChallengeInfo ? challengeColor : categoryColor,
+                      onTap: hasChallengeInfo && hasChallengeLink
+                          ? () => _openChallenge(
+                                challengeId,
+                                challengeLabel,
+                              )
+                          : null,
+                    ),
                     const Spacer(),
                     _videoInfoChip(
                       icon: Icons.remove_red_eye,
@@ -1160,7 +1488,7 @@ int _compareVideoDocs(
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              '$city • ${_formatDate(createdAt)}',
+                              '$locationLabel • ${_formatDate(createdAt)}',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.white.withValues(alpha: 0.7),
@@ -1229,12 +1557,9 @@ int _compareVideoDocs(
                       icon: Icons.star_rate_rounded,
                       tooltip: I18n.inline('Оцінити', 'Rate'),
                       background: const Color(0xFFFFC107),
-                      onPressed: () => _openVideo(
+                      onPressed: () => _showRateVideoSheet(
                         videoId: videoId,
-                        videoUrl: videoUrl,
-                        title: safeTitle,
-                        authorName: authorDisplayName,
-                        autoRate: true,
+                        videoTitle: safeTitle,
                       ),
                     ),
                   ],
@@ -3265,10 +3590,12 @@ int _compareVideoDocs(
 class _CachedUserProfile {
   final String name;
   final String avatarUrl;
+  final String city;
 
   const _CachedUserProfile({
     required this.name,
     required this.avatarUrl,
+    required this.city,
   });
 }
 
