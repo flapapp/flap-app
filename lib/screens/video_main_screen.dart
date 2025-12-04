@@ -446,11 +446,12 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     }
   }
 
-  Widget _buildRatingBadge(double rating) {
+  Widget _buildRatingBadge(String? ratingText) {
+    final hasRating = ratingText != null;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.7),
+        color: Colors.black.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6)),
       ),
@@ -460,11 +461,11 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           const Icon(Icons.star, color: Color(0xFFFFD700), size: 14),
           const SizedBox(width: 4),
           Text(
-            rating.toStringAsFixed(2),
-            style: const TextStyle(
+            ratingText ?? I18n.inline('Немає', 'No rating'),
+            style: TextStyle(
               color: Colors.white,
               fontSize: 12,
-              fontWeight: FontWeight.w700,
+              fontWeight: hasRating ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
         ],
@@ -883,7 +884,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
               );
             },
             topLeft: _buildVideoChip(categoryLabel, categoryColor),
-            topRight: rating > 0 ? _buildRatingBadge(rating) : null,
+            topRight: _buildRatingBadge(
+              rating > 0 ? rating.toStringAsFixed(2) : null,
+            ),
             bottomRight: _buildMetaPill(
               durationSeconds != null
                   ? _formatDuration(durationSeconds)
@@ -894,65 +897,58 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
           ),
           
           Padding(
-            padding: const EdgeInsets.all(15),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildCategoryLabel(categoryLabel, categoryColor),
-                const SizedBox(height: 10),
-                // Title
+                Row(
+                  children: [
+                    _buildCategoryLabel(categoryLabel, categoryColor),
+                    const Spacer(),
+                    _videoInfoChip(
+                      icon: Icons.remove_red_eye,
+                      label: '$views',
+                    ),
+                    const SizedBox(width: 6),
+                    _videoInfoChip(
+                      icon: Icons.chat_bubble_outline,
+                      label: '$comments',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
-                
-                // Description
                 if (description.isNotEmpty) ...[
+                  const SizedBox(height: 6),
                   Text(
                     description,
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 14,
                       color: Colors.white.withValues(alpha: 0.8),
-                      height: 1.4,
+                      height: 1.35,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 12),
                 ],
-                Row(
-                  children: [
-                    _videoInfoChip(
-                      icon: Icons.star,
-                      label: rating > 0
-                          ? rating.toStringAsFixed(2)
-                          : I18n.inline('Немає оцінок', 'No ratings'),
-                      highlight: true,
-                    ),
-                    const SizedBox(width: 8),
-                    _videoInfoChip(
-                      icon: Icons.remove_red_eye,
-                      label: '$views',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     _buildUserAvatarChip(
                       userId: authorId ?? '',
                       name: authorName,
-                      size: 38,
+                      size: 34,
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
@@ -974,7 +970,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                             Text(
                               authorName,
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
                               ),
@@ -982,84 +978,47 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                             Text(
                               '$city • ${_formatDate(createdAt)}',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 12,
                                 color: Colors.white.withValues(alpha: 0.7),
                               ),
                             ),
-                            if (authorId != null) ...[
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CompactRatingDisplay(userId: authorId, size: 16),
-                                ],
-                              ),
-                            ],
                           ],
                         ),
                       ),
                     ),
+                    if (authorId != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: CompactRatingDisplay(userId: authorId, size: 16),
+                      ),
                   ],
                 ),
-                
-                const SizedBox(height: 15),
-                
-                // Interactive Actions Row (responsive)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  alignment: WrapAlignment.spaceBetween,
+                const SizedBox(height: 10),
+                Row(
                   children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                    // Like button
                     _buildActionButton(
                       icon: isLiked ? Icons.favorite : Icons.favorite_border,
                       label: '$likes',
                       color: isLiked ? Colors.red : Colors.white70,
                       onTap: () => _toggleLike(videoId, isLiked),
                     ),
-                        const SizedBox(width: 8),
-                    // Comment button
+                    const SizedBox(width: 8),
                     _buildActionButton(
                       icon: Icons.chat_bubble_outline,
                       label: '$comments',
                       color: Colors.white70,
                       onTap: () => _showComments(videoId, title),
                     ),
-                        const SizedBox(width: 8),
-                    // Share button
+                    const SizedBox(width: 8),
                     _buildActionButton(
                       icon: Icons.share,
-                      label: 'Поділитися',
+                      label: I18n.inline('Поділитися', 'Share'),
                       color: Colors.white70,
                       onTap: () => _shareVideo(videoId, title),
                     ),
-                      ],
-                    ),
-                    // Enhanced Watch button
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF4caf50),
-                            const Color(0xFF66bb6a),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF4caf50).withValues(alpha: 0.4),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                      child: ElevatedButton.icon(
+                    const Spacer(),
+                    ElevatedButton.icon(
                       onPressed: () async {
-                        // increment views best-effort before opening
                         try {
                           await FirebaseFirestore.instance
                               .collection('videos')
@@ -1079,27 +1038,15 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
+                        backgroundColor: const Color(0xFF4caf50),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        ),
-                        icon: const Icon(
-                          Icons.play_arrow,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        label: const Text(
-                        'Дивитися',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          borderRadius: BorderRadius.circular(22),
                         ),
                       ),
+                      icon: const Icon(Icons.play_arrow),
+                      label: Text(I18n.inline('Дивитися', 'Watch')),
                     ),
                   ],
                 ),

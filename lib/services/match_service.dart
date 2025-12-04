@@ -1037,7 +1037,7 @@ for (final uid in a) {
   Future<bool> deleteMatch(String matchId) async {
     try {
       final docRef = _firestore.collection('matches').doc(matchId);
-      return await _firestore.runTransaction((tx) async {
+      final ok = await _firestore.runTransaction((tx) async {
         final snap = await tx.get(docRef);
         if (!snap.exists) throw Exception('Match not found');
         final match = Match.fromFirestore(snap);
@@ -1051,9 +1051,33 @@ for (final uid in a) {
         tx.delete(docRef);
         return true;
       });
+      if (!ok) return false;
+
+      // Clean nested collections (best-effort outside transaction)
+      await _deleteSubcollection(matchId, 'playerRatings');
+      await _deleteSubcollection(matchId, 'fixtures');
+
+      // Remove pending team match requests referencing this match
+      final reqSnap = await _firestore
+          .collection('teamMatchRequests')
+          .where('matchId', isEqualTo: matchId)
+          .get();
+      for (final doc in reqSnap.docs) {
+        await doc.reference.delete();
+      }
+
+      return true;
     } catch (e) {
       print('Error deleting match: $e');
       return false;
+    }
+  }
+
+  Future<void> _deleteSubcollection(String matchId, String subcollection) async {
+    final parent = _firestore.collection('matches').doc(matchId);
+    final snap = await parent.collection(subcollection).get();
+    for (final doc in snap.docs) {
+      await doc.reference.delete();
     }
   }
 
