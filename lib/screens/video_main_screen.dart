@@ -32,6 +32,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   final Set<String> _commentCountLoading = {};
   final Map<String, _CachedUserProfile> _userProfileCache = {};
   final Set<String> _loadingUserProfiles = {};
+  final Map<String, _CachedChallengeMeta> _challengeMetaCache = {};
+  final Set<String> _challengeMetaLoading = {};
   
 
   List<String> get _cities => [
@@ -623,6 +625,43 @@ int _compareVideoDocs(
       // ignore
     } finally {
       _loadingUserProfiles.remove(userId);
+    }
+  }
+
+  void _prefetchChallengeMetaForVideo(String videoId) async {
+    if (_challengeMetaCache.containsKey(videoId) ||
+        _challengeMetaLoading.contains(videoId)) {
+      return;
+    }
+    _challengeMetaLoading.add(videoId);
+    try {
+      final submissions = await FirebaseFirestore.instance
+          .collectionGroup('submissions')
+          .where('videoId', isEqualTo: videoId)
+          .limit(1)
+          .get();
+      if (submissions.docs.isEmpty) return;
+      final doc = submissions.docs.first;
+      final challengeRef = doc.reference.parent.parent;
+      if (challengeRef == null) return;
+      final challengeSnap = await challengeRef.get();
+      if (!challengeSnap.exists) return;
+      final challengeData =
+          challengeSnap.data() as Map<String, dynamic>? ?? const {};
+      final title = (challengeData['title'] ?? '').toString();
+      final challengeId = challengeRef.id;
+      if (mounted) {
+        setState(() {
+          _challengeMetaCache[videoId] = _CachedChallengeMeta(
+            challengeId: challengeId,
+            title: title,
+          );
+        });
+      }
+    } catch (e) {
+      debugPrint('Error prefetching challenge meta for video $videoId: $e');
+    } finally {
+      _challengeMetaLoading.remove(videoId);
     }
   }
 
@@ -1302,16 +1341,29 @@ int _compareVideoDocs(
     final thumbnailUrl = data['thumbnailUrl']?.toString();
     final durationSeconds = data['duration'] is int ? data['duration'] as int : null;
     final categoryColor = _videoCategoryColor(rawCategory);
-    final challengeId = (data['challengeId'] ?? '').toString();
-    final challengeTitle = (data['challengeTitle'] ?? '').toString();
-    final bool isChallengeVideo = challengeId.isNotEmpty ||
+    String resolvedChallengeId = (data['challengeId'] ?? '').toString();
+    String resolvedChallengeTitle = (data['challengeTitle'] ?? '').toString();
+    final bool isChallengeVideo = resolvedChallengeId.isNotEmpty ||
         title == 'Відео челенджу' ||
         description == 'Відео челенджу' ||
         (data['isChallengeVideo'] == true);
-    final bool hasChallengeLink = challengeId.isNotEmpty;
-    final bool hasChallengeInfo = isChallengeVideo || challengeTitle.isNotEmpty;
-    final String challengeLabel = challengeTitle.isNotEmpty
-        ? challengeTitle
+    final bool hasChallengeInfo = isChallengeVideo || resolvedChallengeTitle.isNotEmpty;
+
+    if (hasChallengeInfo && resolvedChallengeId.isEmpty) {
+      final cachedMeta = _challengeMetaCache[videoId];
+      if (cachedMeta != null) {
+        resolvedChallengeId = cachedMeta.challengeId;
+        if (resolvedChallengeTitle.isEmpty) {
+          resolvedChallengeTitle = cachedMeta.title;
+        }
+      } else if (!_challengeMetaLoading.contains(videoId)) {
+        _prefetchChallengeMetaForVideo(videoId);
+      }
+    }
+
+    final bool hasChallengeLink = resolvedChallengeId.isNotEmpty;
+    final String challengeLabel = resolvedChallengeTitle.isNotEmpty
+        ? resolvedChallengeTitle
         : I18n.inline('Челендж', 'Challenge');
     final Color challengeColor = const Color(0xFFFFC107);
 
@@ -1323,7 +1375,7 @@ int _compareVideoDocs(
           challengeColor,
           onTap: hasChallengeLink
               ? () => _openChallenge(
-                    challengeId,
+                    resolvedChallengeId,
                     challengeLabel,
                   )
               : null,
@@ -1408,7 +1460,7 @@ int _compareVideoDocs(
                       hasChallengeInfo ? challengeColor : categoryColor,
                       onTap: hasChallengeInfo && hasChallengeLink
                           ? () => _openChallenge(
-                                challengeId,
+                            resolvedChallengeId,
                                 challengeLabel,
                               )
                           : null,
@@ -1505,10 +1557,10 @@ int _compareVideoDocs(
                       ),
                   ],
                 ),
-                if (isChallengeVideo && challengeId.isNotEmpty) ...[
+                if (resolvedChallengeId.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   TextButton.icon(
-                    onPressed: () => _openChallenge(challengeId, challengeTitle),
+                    onPressed: () => _openChallenge(resolvedChallengeId, challengeLabel),
                     icon: const Icon(Icons.emoji_events_outlined, color: Colors.white70),
                     label: Text(
                       I18n.inline('До челенджу', 'Open challenge'),
@@ -3596,6 +3648,16 @@ class _CachedUserProfile {
     required this.name,
     required this.avatarUrl,
     required this.city,
+  });
+}
+
+class _CachedChallengeMeta {
+  final String challengeId;
+  final String title;
+
+  const _CachedChallengeMeta({
+    required this.challengeId,
+    required this.title,
   });
 }
 
