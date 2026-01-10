@@ -203,14 +203,23 @@ class AppNotification {
     final difference = now.difference(createdAt);
     
     if (difference.inDays > 0) {
-      return '${difference.inDays} дн. тому';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours} год. тому';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} хв. тому';
-    } else {
-      return 'Щойно';
-    }
+  return I18n.inline(
+    '${difference.inDays} дн. тому',
+    '${difference.inDays} d ago',
+  );
+} else if (difference.inHours > 0) {
+  return I18n.inline(
+    '${difference.inHours} год. тому',
+    '${difference.inHours} h ago',
+  );
+} else if (difference.inMinutes > 0) {
+  return I18n.inline(
+    '${difference.inMinutes} хв. тому',
+    '${difference.inMinutes} min ago',
+  );
+} else {
+  return I18n.inline('Щойно', 'Just now');
+}
   }
 
   // Factory constructors for different notification types
@@ -223,8 +232,11 @@ class AppNotification {
       id: '',
       userId: userId,
       type: NotificationType.friendRequest,
-      title: 'Нове запрошення в друзі',
-      message: '$fromUserName хоче додати вас у друзі',
+      title: I18n.inline('Нове запрошення в друзі', 'New friend request'),
+      message: I18n.inline(
+        '$fromUserName хоче додати вас у друзі',
+        '$fromUserName wants to add you as a friend',
+      ),
       data: {
         'requestId': requestId,
         'fromUserName': fromUserName,
@@ -242,8 +254,11 @@ class AppNotification {
       id: '',
       userId: userId,
       type: NotificationType.friendAccepted,
-      title: 'Запрошення прийнято!',
-      message: '$friendName прийняв ваше запрошення в друзі',
+      title: I18n.inline('Запрошення прийнято!', 'Friend request accepted!'),
+      message: I18n.inline(
+        '$friendName прийняв ваше запрошення в друзі',
+        '$friendName accepted your friend request',
+      ),
       data: {
         'friendName': friendName,
       },
@@ -262,8 +277,11 @@ class AppNotification {
       id: '',
       userId: userId,
       type: NotificationType.challengeInvitation,
-      title: 'Запрошення на челендж',
-      message: '$creatorName запросив вас на челендж "$challengeTitle"',
+      title: I18n.inline('Запрошення на челендж', 'Challenge invitation'),
+      message: I18n.inline(
+        '$creatorName запросив вас на челендж "$challengeTitle"',
+        '$creatorName invited you to the "$challengeTitle" challenge',
+      ),
       data: {
         'challengeId': challengeId,
         'challengeTitle': challengeTitle,
@@ -281,14 +299,18 @@ class AppNotification {
     required int position,
     required int coinsWon,
   }) {
-    final positionText = position == 1 ? '🥇 1-е' : position == 2 ? '🥈 2-е' : '🥉 3-є';
+    final ukPosition = position == 1 ? '🥇 1-е' : position == 2 ? '🥈 2-е' : '🥉 3-є';
+    final enPosition = position == 1 ? '🥇 1st' : position == 2 ? '🥈 2nd' : '🥉 3rd';
     
     return AppNotification(
       id: '',
       userId: userId,
       type: NotificationType.challengeResult,
-      title: 'Результати челенджу!',
-      message: 'Ви зайняли $positionText місце в "$challengeTitle" і отримали $coinsWon монет!',
+      title: I18n.inline('Результати челенджу!', 'Challenge results!'),
+      message: I18n.inline(
+        'Ви зайняли $ukPosition місце в "$challengeTitle" і отримали $coinsWon монет!',
+        'You finished $enPosition in "$challengeTitle" and earned $coinsWon coins!',
+      ),
       data: {
         'challengeId': challengeId,
         'challengeTitle': challengeTitle,
@@ -333,8 +355,11 @@ class AppNotification {
       id: '',
       userId: userId,
       type: NotificationType.videoVote,
-      title: 'Нова оцінка відео',
-      message: '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(1)} зірок',
+      title: I18n.inline('Нова оцінка відео', 'New video rating'),
+      message: I18n.inline(
+        '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(1)} зірок',
+        '$voterName rated your video "$videoTitle" ${rating.toStringAsFixed(1)} stars',
+      ),
       data: {
         'videoTitle': videoTitle,
         'voterName': voterName,
@@ -355,8 +380,11 @@ class AppNotification {
       id: '',
       userId: userId,
       type: NotificationType.ratingRequest,
-      title: 'Запит оцінки відео',
-      message: '$fromUserName просить оцінити його відео (${videoIds.length} шт.)',
+      title: I18n.inline('Запит оцінки відео', 'Video rating request'),
+      message: I18n.inline(
+        '$fromUserName просить оцінити його відео (${videoIds.length} шт.)',
+        '$fromUserName asks you to rate ${videoIds.length} video(s)',
+      ),
       data: {
         'fromUserName': fromUserName,
         'videoIds': videoIds,
@@ -379,13 +407,19 @@ class AppNotification {
     final sign = delta >= 0 ? '+' : '';
     final hasVideo = videoTitle != null && videoTitle.isNotEmpty;
     final messageText = hasVideo
-        ? '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(2)}. Зміна: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}'
-        : 'Ваш рейтинг було оновлено. Зміна: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}';
+    ? I18n.inline(
+        '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(2)}. Зміна: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
+        '$voterName rated your video "$videoTitle" ${rating.toStringAsFixed(2)}. Change: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
+      )
+    : I18n.inline(
+        'Ваш рейтинг було оновлено. Зміна: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
+        'Your rating was updated. Change: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
+      );
     return AppNotification(
       id: '',
       userId: userId,
       type: NotificationType.ratingChanged,
-      title: 'Новий рейтинг',
+      title: I18n.inline('Новий рейтинг', 'Rating update'),
       message: messageText,
       data: {
         'voterName': voterName,
@@ -408,8 +442,11 @@ class AppNotification {
       id: '',
       userId: userId,
       type: NotificationType.teamInvite,
-      title: 'Запрошення до команди',
-      message: 'Вас запросили до команди "$teamName"',
+      title: I18n.inline('Запрошення до команди', 'Team invitation'),
+      message: I18n.inline(
+        'Вас запросили до команди "$teamName"',
+        'You were invited to join "$teamName"',
+      ),
       data: {
         'type': 'team_invite',
         'teamId': teamId,
@@ -429,8 +466,11 @@ class AppNotification {
       id: '',
       userId: userId,
       type: NotificationType.teamMatchRequest,
-      title: 'Запит на матч',
-      message: 'Команда "$opponentTeamName" пропонує матч',
+      title: I18n.inline('Запит на матч', 'Team match request'),
+      message: I18n.inline(
+        'Команда "$opponentTeamName" пропонує матч',
+        'Team "$opponentTeamName" is challenging you to a match',
+      ),
       data: {
         'type': 'team_match_request',
         'matchId': matchId,
@@ -528,8 +568,11 @@ class AppNotification {
       id: '',
       userId: userId,
       type: NotificationType.badgeEarned,
-      title: 'Новий бейдж!',
-      message: 'Ви отримали бейдж "$badgeEmoji $badgeName" за $reason',
+      title: I18n.inline('Новий бейдж!', 'New badge!'),
+      message: I18n.inline(
+        'Ви отримали бейдж "$badgeEmoji $badgeName" за $reason',
+        'You earned the "$badgeEmoji $badgeName" badge for $reason',
+      ),
       data: {
         'badgeName': badgeName,
         'badgeEmoji': badgeEmoji,
@@ -549,8 +592,11 @@ class AppNotification {
       id: '',
       userId: userId,
       type: NotificationType.coinsEarned,
-      title: 'Монети нараховано!',
-      message: 'Ви отримали $amount монет за $reason',
+      title: I18n.inline('Монети нараховано!', 'Coins earned!'),
+      message: I18n.inline(
+        'Ви отримали $amount монет за $reason',
+        'You earned $amount coins for $reason',
+      ),
       data: {
         'amount': amount,
         'reason': reason,

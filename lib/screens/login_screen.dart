@@ -208,7 +208,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     message = e.message ?? I18n.t('login_error');
                                 }
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(message)),
+                                  SnackBar(content: Text(I18n.inline('Помилка: $message', 'Error: $message'))),
                                 );
                               } finally {
                                 if (mounted) setState(() => _isLoading = false);

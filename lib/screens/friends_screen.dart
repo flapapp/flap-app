@@ -832,7 +832,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${I18n.t('error')}: $e')),
+        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
       );
     }
   }
@@ -855,7 +855,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${I18n.t('error')}: $e')),
+        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
       );
     }
   }
@@ -871,7 +871,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${I18n.t('error')}: $e')),
+        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
       );
     }
   }
@@ -936,7 +936,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${I18n.t('error')}: $e')),
+        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
       );
     }
   }

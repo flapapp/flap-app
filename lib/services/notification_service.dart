@@ -5,6 +5,7 @@ import '../models/notification.dart';
 import 'package:flutter/foundation.dart';
 import '../models/match.dart' as app_models;
 import '../utils/app_navigator.dart';
+import '../utils/i18n.dart';
 
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -357,27 +358,30 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
 
   // Send video vote notification
   Future<bool> sendVideoVoteNotification({
-    required String toUserId,
-    required String videoTitle,
-    required String voterName,
-    required double rating,
-  }) async {
-    final notification = AppNotification(
-      id: '',
-      userId: toUserId,
-      type: NotificationType.videoVote,
-      title: 'Нова оцінка відео',
-      message: '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(2)}',
-      data: {
-        'videoTitle': videoTitle,
-        'voterName': voterName,
-        'rating': rating,
-      },
-      isRead: false,
-      createdAt: DateTime.now(),
-    );
-    return await sendNotification(notification);
-  }
+  required String toUserId,
+  required String videoTitle,
+  required String voterName,
+  required double rating,
+}) async {
+  final notification = AppNotification(
+    id: '',
+    userId: toUserId,
+    type: NotificationType.videoVote,
+    title: I18n.inline('Нова оцінка відео', 'New video rating'),
+    message: I18n.inline(
+      '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(2)}',
+      '$voterName rated your video "$videoTitle" at ${rating.toStringAsFixed(2)}',
+    ),
+    data: {
+      'videoTitle': videoTitle,
+      'voterName': voterName,
+      'rating': rating,
+    },
+    isRead: false,
+    createdAt: DateTime.now(),
+  );
+  return await sendNotification(notification);
+}
 
   // Send a rating change summary notification
   Future<bool> sendRatingChangedNotification({
@@ -528,123 +532,144 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
 
   // Challenge invitation notification
   Future<bool> sendChallengeInvitation({
-    required String toUserId,
-    required String challengeId,
-    required String challengeTitle,
-    required String creatorName,
-    required String challengeType,
-  }) async {
-    final notification = AppNotification(
-      id: '',
-      userId: toUserId,
-      type: NotificationType.challengeInvitation,
-      title: 'Запрошення на челендж!',
-      message: '$creatorName запросив вас взяти участь у челенджі "$challengeTitle"',
-      data: {
-        'challengeId': challengeId,
-        'challengeTitle': challengeTitle,
-        'creatorName': creatorName,
-        'challengeType': challengeType,
-      },
-      isRead: false,
-      createdAt: DateTime.now(),
-    );
-    return await sendNotification(notification);
-  }
+  required String toUserId,
+  required String challengeId,
+  required String challengeTitle,
+  required String creatorName,
+  required String challengeType,
+}) async {
+  final notification = AppNotification(
+    id: '',
+    userId: toUserId,
+    type: NotificationType.challengeInvitation,
+    title: I18n.inline('Запрошення на челендж!', 'Challenge invitation!'),
+    message: I18n.inline(
+      '$creatorName запросив вас взяти участь у челенджі "$challengeTitle"',
+      '$creatorName invited you to join the "$challengeTitle" challenge',
+    ),
+    data: {
+      'challengeId': challengeId,
+      'challengeTitle': challengeTitle,
+      'creatorName': creatorName,
+      'challengeType': challengeType,
+    },
+    isRead: false,
+    createdAt: DateTime.now(),
+  );
+  return await sendNotification(notification);
+}
 
   // Challenge submission notification
   Future<bool> sendChallengeSubmission({
-    required String toUserId,
-    required String challengeId,
-    required String challengeTitle,
-    required String participantName,
-  }) async {
-    final notification = AppNotification(
-      id: '',
-      userId: toUserId,
-      type: NotificationType.challengeUpdate,
-      title: 'Нове відео в челенджі!',
-      message: '$participantName завантажив відео до челенджу "$challengeTitle"',
-      data: {
-        'challengeId': challengeId,
-        'challengeTitle': challengeTitle,
-        'participantName': participantName,
-      },
-      isRead: false,
-      createdAt: DateTime.now(),
-    );
-    return await sendNotification(notification);
-  }
+  required String toUserId,
+  required String challengeId,
+  required String challengeTitle,
+  required String participantName,
+}) async {
+  final notification = AppNotification(
+    id: '',
+    userId: toUserId,
+    type: NotificationType.challengeUpdate,
+    title: I18n.inline('Нове відео в челенджі!', 'New video in the challenge!'),
+    message: I18n.inline(
+      '$participantName завантажив відео до челенджу "$challengeTitle"',
+      '$participantName uploaded a video to the "$challengeTitle" challenge',
+    ),
+    data: {
+      'challengeId': challengeId,
+      'challengeTitle': challengeTitle,
+      'participantName': participantName,
+    },
+    isRead: false,
+    createdAt: DateTime.now(),
+  );
+  return await sendNotification(notification);
+}
 
   // Challenge voting started notification
   Future<bool> sendChallengeVotingStarted({
-    required String toUserId,
-    required String challengeId,
-    required String challengeTitle,
-  }) async {
-    final notification = AppNotification(
-      id: '',
-      userId: toUserId,
-      type: NotificationType.challengeUpdate,
-      title: 'Голосування розпочато!',
-      message: 'Розпочалося голосування в челенджі "$challengeTitle". Проголосуйте за найкращі відео!',
-      data: {
-        'challengeId': challengeId,
-        'challengeTitle': challengeTitle,
-        'action': 'vote',
-      },
-      isRead: false,
-      createdAt: DateTime.now(),
-    );
-    return await sendNotification(notification);
-  }
+  required String toUserId,
+  required String challengeId,
+  required String challengeTitle,
+}) async {
+  final notification = AppNotification(
+    id: '',
+    userId: toUserId,
+    type: NotificationType.challengeUpdate,
+    title: I18n.inline('Голосування розпочато!', 'Voting has started!'),
+    message: I18n.inline(
+      'Розпочалося голосування в челенджі "$challengeTitle". Проголосуйте за найкращі відео!',
+      'Voting has started in the "$challengeTitle" challenge. Please vote for the best videos!',
+    ),
+    data: {
+      'challengeId': challengeId,
+      'challengeTitle': challengeTitle,
+      'action': 'vote',
+    },
+    isRead: false,
+    createdAt: DateTime.now(),
+  );
+  return await sendNotification(notification);
+}
 
   // Challenge results notification
   Future<bool> sendChallengeResults({
-    required String toUserId,
-    required String challengeId,
-    required String challengeTitle,
-    required int position,
-    required int coinsWon,
-  }) async {
-    String title;
-    String message;
-    
-    switch (position) {
-      case 1:
-        title = '🥇 Ви перемогли!';
-        message = 'Вітаємо! Ви зайняли 1 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!';
-        break;
-      case 2:
-        title = '🥈 Друге місце!';
-        message = 'Чудово! Ви зайняли 2 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!';
-        break;
-      case 3:
-        title = '🥉 Третє місце!';
-        message = 'Добре! Ви зайняли 3 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!';
-        break;
-      default:
-        title = 'Челендж завершено';
-        message = 'Челендж "$challengeTitle" завершено. Дякуємо за участь!';
-    }
+  required String toUserId,
+  required String challengeId,
+  required String challengeTitle,
+  required int position,
+  required int coinsWon,
+}) async {
+  late final String title;
+  late final String message;
 
-    final notification = AppNotification(
-      id: '',
-      userId: toUserId,
-      type: NotificationType.challengeResult,
-      title: title,
-      message: message,
-      data: {
-        'challengeId': challengeId,
-        'challengeTitle': challengeTitle,
-        'position': position,
-        'coinsWon': coinsWon,
-      },
-      isRead: false,
-      createdAt: DateTime.now(),
-    );
-    return await sendNotification(notification);
+  switch (position) {
+    case 1:
+      title = I18n.inline('🥇 Ви перемогли!', '🥇 You won!');
+      message = I18n.inline(
+        'Вітаємо! Ви зайняли 1 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!',
+        'Congratulations! You took 1st place in "$challengeTitle" and earned $coinsWon coins!',
+      );
+      break;
+    case 2:
+      title = I18n.inline('🥈 Друге місце!', '🥈 Second place!');
+      message = I18n.inline(
+        'Чудово! Ви зайняли 2 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!',
+        'Great! You took 2nd place in "$challengeTitle" and earned $coinsWon coins!',
+      );
+      break;
+    case 3:
+      title = I18n.inline('🥉 Третє місце!', '🥉 Third place!');
+      message = I18n.inline(
+        'Добре! Ви зайняли 3 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!',
+        'Nice! You took 3rd place in "$challengeTitle" and earned $coinsWon coins!',
+      );
+      break;
+    default:
+      title = I18n.inline('Челендж завершено', 'Challenge completed');
+      message = I18n.inline(
+        'Челендж "$challengeTitle" завершено. Дякуємо за участь!',
+        'The "$challengeTitle" challenge has ended. Thanks for participating!',
+      );
   }
+
+  final notification = AppNotification(
+    id: '',
+    userId: toUserId,
+    type: NotificationType.challengeResult,
+    title: title,
+    message: message,
+    data: {
+      'challengeId': challengeId,
+      'challengeTitle': challengeTitle,
+      'position': position,
+      'coinsWon': coinsWon,
+    },
+    isRead: false,
+    createdAt: DateTime.now(),
+  );
+  return await sendNotification(notification);
+}
 
   // Send challenge invitations to multiple users
   Future<bool> sendBulkChallengeInvitations({
@@ -659,8 +684,11 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
         id: '',
         userId: userId,
         type: NotificationType.challengeInvitation,
-        title: 'Запрошення на челендж!',
-        message: '$creatorName запросив вас взяти участь у челенджі "$challengeTitle"',
+        title: I18n.inline('Запрошення на челендж!', 'Challenge invitation!'),
+        message: I18n.inline(
+          '$creatorName запросив вас взяти участь у челенджі "$challengeTitle"',
+          '$creatorName invited you to join the "$challengeTitle" challenge',
+        ),
         data: {
           'challengeId': challengeId,
           'challengeTitle': challengeTitle,
@@ -728,15 +756,18 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   required String toUserId,
   required String matchId,
   required String organizerName,
-  String title = 'Запрошення на матч',
+  String? title,
   String? body,
 }) async {
+  final localizedTitle = title ?? I18n.inline('Запрошення на матч', 'Match invitation');
+  final localizedBody = body ?? I18n.inline('$organizerName запросив(ла) вас на матч',
+          '$organizerName invited you to a match');
   return sendNotification(AppNotification(
     id: '',
     userId: toUserId,
     type: NotificationType.matchInvite,
-    title: title,
-    message: body ?? '$organizerName запросив(ла) вас на матч',
+    title: localizedTitle,
+    message: localizedBody,
     data: {'type': 'match_invite', 'matchId': matchId},
     createdAt: DateTime.now(),
   ));
@@ -751,8 +782,11 @@ Future<bool> sendMatchApplicationSubmitted({
     id: '',
     userId: toOrganizerId,
     type: NotificationType.matchInvite,
-    title: 'Нова заявка на матч',
-    message: '$applicantName подав(ла) заявку на участь у вашому матчі',
+    title: I18n.inline('Нова заявка на матч', 'New match application'),
+    message: I18n.inline(
+      '$applicantName подав(ла) заявку на участь у вашому матчі',
+      '$applicantName applied to join your match',
+    ),
     data: {'type': 'match_application_submitted', 'matchId': matchId},
     createdAt: DateTime.now(),
   ));
@@ -767,8 +801,11 @@ Future<bool> sendMatchApplicationAccepted({
     id: '',
     userId: toUserId,
     type: NotificationType.matchInvite,
-    title: 'Заявку підтверджено',
-    message: '$organizerName підтвердив(ла) вашу участь у матчі',
+    title: I18n.inline('Заявку підтверджено', 'Application approved'),
+    message: I18n.inline(
+      '$organizerName підтвердив(ла) вашу участь у матчі',
+      '$organizerName approved your participation in the match',
+    ),
     data: {'type': 'match_application_accepted', 'matchId': matchId},
     createdAt: DateTime.now(),
   ));
@@ -783,8 +820,11 @@ Future<bool> sendMatchApplicationRejected({
     id: '',
     userId: toUserId,
     type: NotificationType.matchInvite,
-    title: 'Заявку відхилено',
-    message: '$organizerName відхилив(ла) вашу заявку на матч',
+    title: I18n.inline('Заявку відхилено', 'Application declined'),
+    message: I18n.inline(
+      '$organizerName відхилив(ла) вашу заявку на матч',
+      '$organizerName declined your match application',
+    ),
     data: {'type': 'match_application_rejected', 'matchId': matchId},
     createdAt: DateTime.now(),
   ));
@@ -803,8 +843,11 @@ Future<bool> sendMatchFinished({
     id: '',
     userId: toUserId,
     type: NotificationType.matchFinished,
-    title: 'Матч завершено',
-    message: 'Матч завершено: $score. Поставте оцінки гравцям.',
+    title: I18n.inline('Матч завершено', 'Match finished'),
+    message: I18n.inline(
+      'Матч завершено: $score. Поставте оцінки гравцям.',
+      'Full time: $score. Please rate the players.',
+    ),
     data: {'type': 'match_finished', 'matchId': matchId},
     actionUrl: '/match/$matchId/rate',
     createdAt: DateTime.now(),

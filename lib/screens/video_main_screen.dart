@@ -2857,7 +2857,7 @@ int _compareVideoDocs(
                 );
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Помилка приєднання: $e')),
+                  SnackBar(content: Text(I18n.inline('Помилка приєднання: $e', 'Join error: $e'))),
                 );
               }
             },
@@ -2941,7 +2941,7 @@ int _compareVideoDocs(
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка лайку: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text(I18n.inline('Помилка лайку: $e', 'Like error: $e')), backgroundColor: Colors.red),
       );
     }
   }

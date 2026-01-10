@@ -805,10 +805,13 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
               id: '',
               userId: uid,
               type: NotificationType.matchInvite,
-              title: 'Запрошення на матч',
-              message: '$resolvedOrganizerName запросив вас на матч "$title"',
+              title: I18n.inline('Запрошення на матч', 'Match invitation'),
+              message: I18n.inline(
+                '$resolvedOrganizerName запросив вас на матч "$title"',
+                '$resolvedOrganizerName invited you to the match "$title"',
+              ),
               data: {
-                'matchId': matchId,  // ← ДОДАНО matchId!
+                'matchId': matchId, 
                 'matchTitle': title,
                 'city': _selectedCity,
                 'date': _selectedDate.toIso8601String(),
@@ -854,13 +857,16 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Матч створено успішно!')),
-      );
+  SnackBar(content: Text(I18n.inline('Матч створено успішно!', 'Match created successfully!'))),
+);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка створення: $e'), backgroundColor: Colors.red),
-      );
+  SnackBar(
+    content: Text(I18n.inline('Помилка створення: $e', 'Failed to create match: $e')),
+    backgroundColor: Colors.red,
+  ),
+);
     } finally {
       if (mounted) setState(() => _isCreating = false);
     }

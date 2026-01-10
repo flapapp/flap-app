@@ -2898,7 +2898,7 @@ Column(
   Future<void> _onStartMatchPrep(Match match) async {
     final ok = await _matchService.startMatch(match.id);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Матч розпочато' : 'Не вдалося розпочати матч'),
+      content: Text(ok ? I18n.inline('Матч розпочато', 'Match started') : I18n.inline('Не вдалося розпочати матч', 'Failed to start match')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
     ));
     if (ok) setState(() {});
@@ -2911,7 +2911,7 @@ Column(
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(I18n.t('need_sign_in')), backgroundColor: Colors.red),
+          SnackBar(content: Text(I18n.inline('Потрібно увійти в систему', 'You need to sign in')), backgroundColor: Colors.red),
         );
         return;
       }
@@ -2921,14 +2921,14 @@ Column(
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.t('applied_wait')),
+            content: Text(I18n.inline('Заявку прийнято, очікуйте підтвердження', 'Request sent, awaiting approval')),
             backgroundColor: Color(0xFF4caf50),
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.t('already_applied')),
+            content: Text(I18n.inline('Ви вже подали заявку', 'You already applied')),
             backgroundColor: Colors.red,
           ),
         );
@@ -2936,7 +2936,7 @@ Column(
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${I18n.t('error')}: $e'),
+          content: Text(I18n.inline('Помилка: $e', 'Error: $e')),
           backgroundColor: Colors.red,
         ),
       );
@@ -2948,7 +2948,10 @@ Future<void> _onLeaveMatch(Match match) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Потрібно увійти в систему'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(I18n.inline('Потрібно увійти в систему', 'You need to sign in')),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }

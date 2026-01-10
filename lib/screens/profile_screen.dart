@@ -961,7 +961,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
 
   void _editProfile() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Редагування профілю (буде реалізовано)')),
+      SnackBar(content: Text(I18n.inline('Редагування профілю (буде реалізовано)', 'Profile editing (coming soon)'))),
     );
   }
 
@@ -1014,7 +1014,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
 
   void _showSettings() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Налаштування (буде реалізовано)')),
+      SnackBar(content: Text(I18n.inline('Налаштування (буде реалізовано)', 'Settings (coming soon)'))),
     );
   }
 

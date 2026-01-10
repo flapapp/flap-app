@@ -1192,11 +1192,11 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Челендж завершено. Нараховано призи переможцям.')),
+        SnackBar(content: Text(I18n.inline('✅ Челендж завершено. Нараховано призи переможцям.', '✅ Challenge completed. Prizes credited.'))),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Помилка завершення: $e')),
+        SnackBar(content: Text(I18n.inline('❌ Помилка завершення: $e', '❌ Finish error: $e'))),
       );
     }
   }

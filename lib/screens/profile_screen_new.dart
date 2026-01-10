@@ -366,7 +366,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       } catch (e) {
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(e.toString())),
+                          SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
                         );
                       }
                     },

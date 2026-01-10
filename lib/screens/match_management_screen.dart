@@ -1367,7 +1367,7 @@ Widget _buildEditingSection(Match m) {
                       if (success) {
                         setState(() => _editMode = false);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Склади збережено'), backgroundColor: Color(0xFF4caf50)),
+                          SnackBar(content: Text(I18n.inline('Склади збережено', 'Rosters saved')), backgroundColor: const Color(0xFF4caf50)),
                         );
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1477,7 +1477,7 @@ Future<void> _shuffleTeams(Match match) async {
     final ids = match.participants.map((e) => e.toString()).toList();
     if (ids.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Потрібно мінімум 2 гравці')),
+        SnackBar(content: Text(I18n.inline('Потрібно мінімум 2 гравці', 'Need at least 2 players'))),
       );
       return;
     }
@@ -1488,7 +1488,7 @@ Future<void> _shuffleTeams(Match match) async {
     final ok = await _matchService.updateTeamsFlexible(match.id, balanced);
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не вдалося зберегти склади')),
+        SnackBar(content: Text(I18n.inline('Не вдалося зберегти склади', 'Failed to save rosters'))),
       );
       return;
     }
@@ -1503,11 +1503,11 @@ setState(() {
 });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Команди перемішано!')),
+      SnackBar(content: Text(I18n.inline('Команди перемішано!', 'Teams shuffled!'))),
     );
   } catch (e) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Помилка перемішування: $e')),
+      SnackBar(content: Text(I18n.inline('Помилка перемішування: $e', 'Shuffle error: $e'))),
     );
   } finally {
     setState(() => _isLoading = false);

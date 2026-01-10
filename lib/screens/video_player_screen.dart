@@ -332,7 +332,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка голосування: $e'), backgroundColor: Colors.red),
+        SnackBar(
+  content: Text(I18n.inline('Помилка голосування: $e', 'Vote error: $e')),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() { _isSubmittingVote = false; });
@@ -772,7 +775,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                               color: Colors.white70,
                               onTap: () {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Функція поширення')),
+                                  SnackBar(content: Text(I18n.inline('Функція поширення', 'Share coming soon'))),
                                 );
                               },
                             ),
@@ -977,7 +980,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   void _showVotingBottomSheet() {
     if (_hasVoted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ви вже проголосували за це відео')),
+        SnackBar(content: Text(I18n.inline('Ви вже проголосували за це відео', 'You already voted for this video'))),
       );
       return;
     }

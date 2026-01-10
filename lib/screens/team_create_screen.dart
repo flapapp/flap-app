@@ -61,7 +61,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
+        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
       );
     } finally {
       if (mounted) {

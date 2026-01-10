@@ -441,7 +441,10 @@ class _VideosScreenState extends State<VideosScreen> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка лайку: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(I18n.inline('Помилка лайку: $e', 'Like error: $e')),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -449,7 +452,7 @@ class _VideosScreenState extends State<VideosScreen> {
   void _shareVideo(String videoId, String title) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('📤 Відео "$title" поділено!'),
+        content: Text(I18n.inline('📤 Відео "$title" поділено!', '📤 Video "$title" shared!')),
         duration: const Duration(seconds: 2),
         backgroundColor: const Color(0xFF4caf50),
       ),
@@ -464,7 +467,7 @@ class _VideosScreenState extends State<VideosScreen> {
       final friends = await friendsService.getUserFriends(currentUser.uid);
       if (friends.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Немає друзів для запиту оцінки')),
+          SnackBar(content: Text(I18n.inline('Немає друзів для запиту оцінки', 'No friends to request a rating'))),
         );
         return;
       }
@@ -509,7 +512,7 @@ class _VideosScreenState extends State<VideosScreen> {
                   if (!mounted) return;
                   Navigator.pop(context, true);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('✅ Запити на оцінку надіслано')),
+                    SnackBar(content: Text(I18n.inline('✅ Запити на оцінку надіслано', '✅ Rating requests sent'))),
                   );
                 },
                 child: const Text('Надіслати'),
@@ -520,7 +523,10 @@ class _VideosScreenState extends State<VideosScreen> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Помилка: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(I18n.inline('Помилка: $e', 'Error: $e')),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -749,7 +755,7 @@ class _VideosScreenState extends State<VideosScreen> {
   void _addComment(String videoId) {
     // TODO: Implement add comment
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Додавання коментарів буде додано незабаром!')),
+      SnackBar(content: Text(I18n.inline('Додавання коментарів буде додано незабаром!', 'Comments coming soon!'))),
     );
   }
 
