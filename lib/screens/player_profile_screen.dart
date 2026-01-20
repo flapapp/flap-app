@@ -123,11 +123,13 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 
       await _loadPlayerTeams();
 
+      if (!mounted) return;
       setState(() {
         isLoading = false;
       });
     } catch (e) {
       print('Error loading player data: $e');
+      if (!mounted) return;
       setState(() {
         isLoading = false;
       });
@@ -135,6 +137,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   }
 
   Future<void> _loadPlayerTeams() async {
+    if (!mounted) return;
     setState(() => _loadingTeams = true);
     try {
       final teams = await _teamService.fetchUserTeams(widget.playerId);
@@ -236,9 +239,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   }
 }
 
-  Future<void> _loadMyVideosForRequest() async {
+    Future<void> _loadMyVideosForRequest() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
+    if (!mounted) return;
     setState(() {
       _loadingMyVideos = true;
     });
@@ -250,15 +254,19 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           .get();
       _myVideoIds = qs.docs.map((d) => d.id).toList();
     } catch (_) {}
-    if (mounted) setState(() {
-      _loadingMyVideos = false;
-    });
+    if (!mounted) return;
+    if (mounted) {
+      setState(() {
+        _loadingMyVideos = false;
+      });
+    }
   }
 
   Future<void> _pickAvatar() async {
   try {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512, imageQuality: 85);
     if (image != null) {
+      if (!mounted) return;
       setState(() => _pickedAvatar = image);
     }
   } catch (e) {
@@ -270,9 +278,18 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 }
 
 Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
+  if (!mounted) return null; // guard перед setState
+  if (_uploadingAvatar && !mounted) return null;
+
   try {
     setState(() => _uploadingAvatar = true);
-    final ref = FirebaseStorage.instance.ref().child('avatars').child(userId).child('avatar.jpg');
+
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('avatars')
+        .child(userId)
+        .child('avatar.jpg');
+
     final Uint8List bytes = await file.readAsBytes();
     await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
     final url = await ref.getDownloadURL();
@@ -284,17 +301,24 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
     );
     return null;
   } finally {
-    if (mounted) setState(() => _uploadingAvatar = false);
+    if (mounted) {
+      setState(() => _uploadingAvatar = false);
+    }
   }
 }
 
-  Future<void> _showRateMeDialog() async {
+    Future<void> _showRateMeDialog() async {
+    if (!mounted) return;
+    final parentContext = context;
+    bool dialogClosed = false;
+
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
+
     await _loadMyVideosForRequest();
     if (_myVideoIds.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(parentContext).showSnackBar(
         SnackBar(content: Text('Немає ваших відео для запиту оцінки'.i18n('No videos available for a rating request'))),
       );
       return;
@@ -310,61 +334,79 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
 
     await showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          backgroundColor: const Color(0xFF1a1a2e),
-          title: Text('Оберіть мої відео для оцінки'.i18n('Select my videos to rate'), style: const TextStyle(color: Colors.white)),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: _loadingMyVideos
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)))
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: videos.length,
-                    itemBuilder: (context, index) {
-                      final v = videos[index];
-                      final id = (v['id'] ?? '').toString();
-                      final title = (v['title'] ?? 'Відео'.i18n('Video')).toString();
-                      final isSel = selected.contains(id);
-                      return CheckboxListTile(
-                        value: isSel,
-                        onChanged: (val) => setStateDialog(() {
-                          if (val == true) {
-                            selected.add(id);
-                          } else {
-                            selected.remove(id);
-                          }
-                        }),
-                        title: Text(title, style: const TextStyle(color: Colors.white)),
-                      );
-                    },
-                  ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70))),
-            ElevatedButton(
-              onPressed: selected.isEmpty
-                  ? null
-                  : () async {
-                      final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
-                      final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач'.i18n('User')).toString();
-                      await _notificationService.sendRatingRequest(
-                        toUserIds: [widget.playerId],
-                        fromUserName: myName,
-                        videoIds: selected.toList(),
-                      );
-                      if (!mounted) return;
-                      Navigator.pop(context, true);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('✅ Запит на оцінку надіслано'.i18n('✅ Rating request sent'))),
-                      );
-                    },
-              child: Text('Надіслати'.i18n('Send')),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          void safeDialogSetState(VoidCallback fn) {
+            if (dialogClosed) return;
+            setStateDialog(fn);
+          }
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1a1a2e),
+            title: Text('Оберіть мої відео для оцінки'.i18n('Select my videos to rate'), style: const TextStyle(color: Colors.white)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: _loadingMyVideos
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)))
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: videos.length,
+                      itemBuilder: (context, index) {
+                        final v = videos[index];
+                        final id = (v['id'] ?? '').toString();
+                        final title = (v['title'] ?? 'Відео'.i18n('Video')).toString();
+                        final isSel = selected.contains(id);
+                        return CheckboxListTile(
+                          value: isSel,
+                          onChanged: (val) => safeDialogSetState(() {
+                            if (val == true) {
+                              selected.add(id);
+                            } else {
+                              selected.remove(id);
+                            }
+                          }),
+                          title: Text(title, style: const TextStyle(color: Colors.white)),
+                        );
+                      },
+                    ),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  dialogClosed = true;
+                  Navigator.pop(ctx, false);
+                },
+                child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
+              ),
+              ElevatedButton(
+                onPressed: selected.isEmpty
+                    ? null
+                    : () async {
+                        final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+                        if (dialogClosed) return;
+                        final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач'.i18n('User')).toString();
+                        await _notificationService.sendRatingRequest(
+                          toUserIds: [widget.playerId],
+                          fromUserName: myName,
+                          videoIds: selected.toList(),
+                        );
+                        if (!mounted || dialogClosed) return;
+                        dialogClosed = true;
+                        Navigator.pop(ctx, true);
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(parentContext).showSnackBar(
+                          SnackBar(content: Text('✅ Запит на оцінку надіслано'.i18n('✅ Rating request sent'))),
+                        );
+                      },
+                child: Text('Надіслати'.i18n('Send')),
+              ),
+            ],
+          );
+        },
       ),
-    );
+    ).whenComplete(() {
+      dialogClosed = true;
+    });
   }
 
   Future<bool> _areFriends() async {
@@ -393,6 +435,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
 
   Future<void> _sendFriendRequest() async {
     try {
+      if (!mounted) return;
       setState(() {
         _isSendingRequest = true;
       });
@@ -415,6 +458,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
         );
       }
     } finally {
+      if (!mounted) return;
       setState(() {
         _isSendingRequest = false;
       });
@@ -434,142 +478,181 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
     );
   }
 
-  Future<void> _showEditProfileDialog() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null || currentUser.uid != widget.playerId) return;
+  void _showEditProfileDialog() {
+  if (!mounted || playerData == null) return;
 
-    final data = Map<String, dynamic>.from(playerData ?? {});
-    final nameCtrl = TextEditingController(text: (data['name'] ?? '').toString());
-    final surnameCtrl = TextEditingController(text: (data['surname'] ?? '').toString());
-    final emailCtrl = TextEditingController(text: (data['email'] ?? '').toString());
-    final phoneCtrl = TextEditingController(text: (data['phone'] ?? '').toString());
-    final cityCtrl = TextEditingController(text: (data['city'] ?? '').toString());
-    final ageCtrl = TextEditingController(text: (data['age'] ?? '').toString());
-    String? selectedPosition = (data['position']?.toString().trim().isNotEmpty == true) ? data['position'].toString() : null;
-    String? selectedExperience = (data['experience']?.toString().trim().isNotEmpty == true) ? data['experience'].toString() : null;
-    final avatarUrlCtrl = TextEditingController(text: (data['avatarUrl'] ?? '').toString());
-    final formKey = GlobalKey<FormState>();
-    bool saving = false;
+  final parentContext = context;
+  bool dialogClosed = false;
+  final formKey = GlobalKey<FormState>();
 
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setStateDialog) => AlertDialog(
-          backgroundColor: const Color(0xFF1a1a2e),
-          title: Text(I18n.t('edit_profile'), style: const TextStyle(color: Colors.white)),
+  final nameCtrl = TextEditingController(text: playerData!['name'] ?? '');
+  final surnameCtrl = TextEditingController(text: playerData!['surname'] ?? '');
+  final emailCtrl = TextEditingController(text: playerData!['email'] ?? '');
+  final phoneCtrl = TextEditingController(text: playerData!['phone'] ?? '');
+  final cityCtrl = TextEditingController(text: playerData!['city'] ?? '');
+  final ageCtrl = TextEditingController(text: playerData!['age'] != null ? playerData!['age'].toString() : '');
+  final avatarUrlCtrl = TextEditingController(text: playerData!['avatarUrl'] ?? '');
+  String? selectedPosition = playerData!['position'];
+  String? selectedExperience = playerData!['experience'];
+
+  InputDecoration _dec(String label) => InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.08),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFF4caf50)),
+        ),
+      );
+
+  showDialog(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (context, setStateDialog) {
+        bool saving = false;
+        void safeDialogSetState(VoidCallback fn) {
+          if (dialogClosed) return;
+          setStateDialog(fn);
+        }
+
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1b1b2f),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(I18n.t('edit_profile'), style: const TextStyle(color: Colors.white, fontSize: 20)),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _textField('Ім’я'.i18n('First name'), nameCtrl),
-                  const SizedBox(height: 8),
-                  _textField('Прізвище'.i18n('Last name'), surnameCtrl),
-                  const SizedBox(height: 8),
-                  _textField('Email', emailCtrl, requiredField: false),
-                  const SizedBox(height: 8),
-                  _textField(I18n.t('phone'), phoneCtrl, requiredField: false),
-                  const SizedBox(height: 8),
-                  _textField(I18n.t('city'), cityCtrl),
-                  const SizedBox(height: 8),
-                  _textField('Вік'.i18n('Age'), ageCtrl, requiredField: false),
-                  const SizedBox(height: 8),
-
-                  // Позиція (випадаючий список)
-                  DropdownButtonFormField<String>(
-                    value: selectedPosition,
-                    items: _positions
-                        .map((p) => DropdownMenuItem(value: p, child: Text(p, style: const TextStyle(color: Colors.white))))
-                        .toList(),
-                    onChanged: (v) => selectedPosition = v,
-                    dropdownColor: const Color(0xFF1a1a2e),
+                  TextFormField(
+                    controller: nameCtrl,
                     style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: I18n.t('position'),
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.08),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
-                      focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF4caf50))),
-                    ),
-                    validator: (v) => (v == null || v.isEmpty) ? 'Оберіть позицію'.i18n('Select a position') : null,
+                    decoration: _dec('Ім’я'.i18n('First name')),
+                    validator: (v) => (v == null || v.isEmpty) ? 'Введіть імʼя'.i18n('Enter first name') : null,
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: surnameCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _dec('Прізвище'.i18n('Last name')),
+                    validator: (v) => (v == null || v.isEmpty) ? 'Введіть прізвище'.i18n('Enter last name') : null,
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: emailCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _dec('Email'),
+                    validator: (v) => (v == null || v.isEmpty) ? 'Введіть email'.i18n('Enter email') : null,
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: phoneCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _dec(I18n.t('phone')),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: cityCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _dec(I18n.t('city')),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: ageCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _dec(I18n.t('age')),
+                    keyboardType: TextInputType.number,
                   ),
                   const SizedBox(height: 8),
 
-                  // Досвід (випадаючий список)
+                  DropdownButtonFormField<String>(
+                    value: selectedPosition,
+                    dropdownColor: const Color(0xFF1b1b2f),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _dec(I18n.t('position')),
+                    items: _positions.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                    onChanged: (val) => safeDialogSetState(() => selectedPosition = val),
+                    validator: (v) => (v == null || v.isEmpty) ? 'Оберіть позицію'.i18n('Select position') : null,
+                  ),
+                  const SizedBox(height: 8),
+
                   DropdownButtonFormField<String>(
                     value: selectedExperience,
-                    items: _experiences
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(color: Colors.white))))
-                        .toList(),
-                    onChanged: (v) => selectedExperience = v,
-                    dropdownColor: const Color(0xFF1a1a2e),
+                    dropdownColor: const Color(0xFF1b1b2f),
                     style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Досвід'.i18n('Experience'),
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.08),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
-                      focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF4caf50))),
-                    ),
+                    decoration: _dec(I18n.t('experience')),
+                    items: _experiences.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    onChanged: (val) => safeDialogSetState(() => selectedExperience = val),
                     validator: (v) => (v == null || v.isEmpty) ? 'Оберіть досвід'.i18n('Select experience') : null,
                   ),
                   const SizedBox(height: 8),
 
-                  // Аватар (вибір файлу)
-Align(
-  alignment: Alignment.centerLeft,
-  child: Text(I18n.t('avatar'), style: const TextStyle(color: Colors.white70)),
-),
-const SizedBox(height: 6),
-Row(
-  children: [
-    Container(
-      width: 56, height: 56,
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white24)),
-      clipBehavior: Clip.antiAlias,
-      child: _pickedAvatar != null
-          ? FutureBuilder<Uint8List>(
-              future: _pickedAvatar!.readAsBytes(),
-              builder: (context, snap) {
-                if (!snap.hasData) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-                return Image.memory(snap.data!, fit: BoxFit.cover);
-              },
-            )
-          : (avatarUrlCtrl.text.isNotEmpty
-              ? Image.network(avatarUrlCtrl.text, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.black26))
-              : Container(color: Colors.black26, child: const Icon(Icons.person, color: Colors.white54))),
-    ),
-    const SizedBox(width: 12),
-    ElevatedButton.icon(
-      onPressed: _uploadingAvatar ? null : _pickAvatar,
-      icon: const Icon(Icons.photo_library, size: 18),
-      label: Text(_pickedAvatar == null ? 'Обрати фото'.i18n('Choose photo') : 'Змінити'.i18n('Change')),
-    ),
-    const SizedBox(width: 12),
-    if (_uploadingAvatar) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-  ],
-),
-const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(I18n.t('avatar'), style: const TextStyle(color: Colors.white70)),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: _pickedAvatar != null
+                            ? FutureBuilder<Uint8List>(
+                                future: _pickedAvatar!.readAsBytes(),
+                                builder: (context, snap) {
+                                  if (!snap.hasData) {
+                                    return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                                  }
+                                  return Image.memory(snap.data!, fit: BoxFit.cover);
+                                },
+                              )
+                            : (avatarUrlCtrl.text.isNotEmpty
+                                ? Image.network(
+                                    avatarUrlCtrl.text,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(color: Colors.black26),
+                                  )
+                                : Container(color: Colors.black26, child: const Icon(Icons.person, color: Colors.white54))),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: _uploadingAvatar ? null : _pickAvatar,
+                        icon: const Icon(Icons.photo_library, size: 18),
+                        label: Text(_pickedAvatar == null ? 'Обрати фото'.i18n('Choose photo') : 'Змінити'.i18n('Change')),
+                      ),
+                      const SizedBox(width: 12),
+                      if (_uploadingAvatar)
+                        const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
           ),
           actions: [
             TextButton(
-              onPressed: saving ? null : () => Navigator.pop(ctx),
+              onPressed: saving
+                  ? null
+                  : () {
+                      dialogClosed = true;
+                      Navigator.pop(ctx);
+                    },
               child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
             ),
             ElevatedButton(
@@ -577,41 +660,43 @@ const SizedBox(height: 8),
                   ? null
                   : () async {
                       if (!(formKey.currentState?.validate() ?? false)) return;
-                      setStateDialog(() => saving = true);
+                      safeDialogSetState(() => saving = true);
                       try {
                         final displayName = '${nameCtrl.text.trim()} ${surnameCtrl.text.trim()}'.trim();
                         String avatarUrlToSave = avatarUrlCtrl.text.trim();
-if (_pickedAvatar != null) {
-  final uploaded = await _uploadAvatarToStorage(widget.playerId, _pickedAvatar!);
-  if (uploaded != null) {
-    avatarUrlToSave = uploaded;
-  }
-}
+                        if (_pickedAvatar != null) {
+                          final uploaded = await _uploadAvatarToStorage(widget.playerId, _pickedAvatar!);
+                          if (dialogClosed) return;
+                          if (uploaded != null) avatarUrlToSave = uploaded;
+                        }
 
-await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update({
-  'name': nameCtrl.text.trim(),
-  'surname': surnameCtrl.text.trim(),
-  'displayName': displayName.isNotEmpty ? displayName : null,
-  'email': emailCtrl.text.trim(),
-  'phone': phoneCtrl.text.trim(),
-  'city': cityCtrl.text.trim(),
-  'age': int.tryParse(ageCtrl.text.trim()) ?? FieldValue.delete(),
-  'position': selectedPosition ?? FieldValue.delete(),
-  'experience': selectedExperience ?? FieldValue.delete(),
-  'avatarUrl': avatarUrlToSave,
-  'updatedAt': FieldValue.serverTimestamp(),
-});
-                        if (!mounted) return;
+                        await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update({
+                          'name': nameCtrl.text.trim(),
+                          'surname': surnameCtrl.text.trim(),
+                          'displayName': displayName.isNotEmpty ? displayName : null,
+                          'email': emailCtrl.text.trim(),
+                          'phone': phoneCtrl.text.trim(),
+                          'city': cityCtrl.text.trim(),
+                          'age': int.tryParse(ageCtrl.text.trim()) ?? FieldValue.delete(),
+                          'position': selectedPosition ?? FieldValue.delete(),
+                          'experience': selectedExperience ?? FieldValue.delete(),
+                          'avatarUrl': avatarUrlToSave,
+                          'updatedAt': FieldValue.serverTimestamp(),
+                        });
+
+                        if (!mounted || dialogClosed) return;
+                        dialogClosed = true;
                         Navigator.pop(ctx);
                         _pickedAvatar = null;
                         await _loadPlayerData();
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        if (!mounted || dialogClosed) return;
+                        ScaffoldMessenger.of(parentContext).showSnackBar(
                           SnackBar(content: Text('✅ Профіль оновлено'.i18n('✅ Profile updated'))),
                         );
                       } catch (e) {
-                        setStateDialog(() => saving = false);
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        safeDialogSetState(() => saving = false);
+                        if (!mounted || dialogClosed) return;
+                        ScaffoldMessenger.of(parentContext).showSnackBar(
                           SnackBar(content: Text(I18n.inline('Помилка збереження: $e', 'Save error: $e'))),
                         );
                       }
@@ -621,10 +706,11 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
                   : Text(I18n.t('save')),
             ),
           ],
-        ),
-      ),
-    );
-
+        );
+      },
+    ),
+  ).whenComplete(() {
+    dialogClosed = true;
     nameCtrl.dispose();
     surnameCtrl.dispose();
     emailCtrl.dispose();
@@ -632,7 +718,8 @@ await FirebaseFirestore.instance.collection('users').doc(widget.playerId).update
     cityCtrl.dispose();
     ageCtrl.dispose();
     avatarUrlCtrl.dispose();
-  }
+  });
+}
 
   @override
   Widget build(BuildContext context) {
@@ -1218,7 +1305,11 @@ const SizedBox(height: 12),
     return controller;
   }
 
-  Future<void> _showInviteToChallengeDialog() async {
+    Future<void> _showInviteToChallengeDialog() async {
+    if (!mounted) return;
+    final parentContext = context;
+    bool dialogClosed = false;
+
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
@@ -1228,6 +1319,8 @@ const SizedBox(height: 12),
           .where('creatorId', isEqualTo: currentUser.uid)
           .limit(50)
           .get();
+
+      if (dialogClosed) return;
 
       final all = snap.docs
           .map((d) {
@@ -1243,7 +1336,7 @@ const SizedBox(height: 12),
 
       if (all.isEmpty) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(parentContext).showSnackBar(
           SnackBar(content: Text('Немає доступних ваших челенджів для запрошення.'.i18n('No available challenges to invite.'))),
         );
         return;
@@ -1252,9 +1345,14 @@ const SizedBox(height: 12),
       int selectedIndex = -1;
       await showDialog<bool>(
         context: context,
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setStateDialog) => AlertDialog(
+        builder: (ctx) => StatefulBuilder(
+          builder: (context, setStateDialog) {
+            void safeDialogSetState(VoidCallback fn) {
+              if (dialogClosed) return;
+              setStateDialog(fn);
+            }
+
+            return AlertDialog(
               backgroundColor: const Color(0xFF1a1a2e),
               title: Text('Запросити до челенджу'.i18n('Invite to challenge'), style: const TextStyle(color: Colors.white)),
               content: SizedBox(
@@ -1267,18 +1365,22 @@ const SizedBox(height: 12),
                     return RadioListTile<int>(
                       value: index,
                       groupValue: selectedIndex,
-                      onChanged: (v) => setStateDialog(() => selectedIndex = v ?? -1),
+                      onChanged: (v) => safeDialogSetState(() => selectedIndex = v ?? -1),
                       title: Text(c['title'] ?? 'Челендж'.i18n('Challenge'), style: const TextStyle(color: Colors.white)),
                       subtitle: Text(
-                          'Учасників: ${(c['participants'] as List?)?.length ?? 0}'.i18n('Participants: ${(c['participants'] as List?)?.length ?? 0}'),
-                          style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                        'Учасників: ${(c['participants'] as List?)?.length ?? 0}'.i18n('Participants: ${(c['participants'] as List?)?.length ?? 0}'),
+                        style: const TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
                     );
                   },
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context, false),
+                  onPressed: () {
+                    dialogClosed = true;
+                    Navigator.pop(ctx, false);
+                  },
                   child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
                 ),
                 ElevatedButton(
@@ -1295,27 +1397,30 @@ const SizedBox(height: 12),
                             creatorName: (playerData?['displayName'] ?? 'Користувач'.i18n('User')).toString(),
                             challengeType: (selected['type'] ?? 'goal').toString(),
                           );
+                          if (!mounted || dialogClosed) return;
+                          dialogClosed = true;
+                          Navigator.pop(ctx, true);
                           if (!mounted) return;
-                          Navigator.pop(context, true);
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(parentContext).showSnackBar(
                             SnackBar(content: Text(ok ? '✅ Запрошення надіслано'.i18n('✅ Invitation sent') : '❌ Не вдалося надіслати'.i18n('❌ Failed to send'))),
                           );
                         },
                   child: Text('Запросити'.i18n('Invite')),
                 ),
               ],
-            ),
-          );
-        },
-      );
+            );
+          },
+        ),
+      ).whenComplete(() {
+        dialogClosed = true;
+      });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(parentContext).showSnackBar(
         SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
       );
     }
   }
-
   // Універсальний текстовий інпут для форм модалки
   Widget _textField(String label, TextEditingController c, {bool requiredField = true}) {
     return TextFormField(
