@@ -142,7 +142,6 @@ class MyApp extends StatelessWidget {
         '/register': (context) => RegisterScreen(),
         '/profile': (context) => new_profile.ProfileScreen(),
         '/profile-creation': (context) => ProfileCreationScreen(),
-        '/profile-edit': (context) => ProfileCreationScreen(isEditing: true),
         '/mode': (context) => ModeSelectionScreen(),
         '/friends': (context) => FriendsScreen(),
         '/teams': (context) => const TeamHubScreen(),

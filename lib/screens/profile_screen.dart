@@ -262,35 +262,6 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                       : _buildAvatarPlaceholder(displayName),
                 ),
               ),
-              // Edit button
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/profile-edit'),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4caf50),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF0f0f23), width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.edit,
-                            color: Colors.white,
-                      size: 18,
-                    ),
-                                  ),
-                          ),
-                        ),
             ],
           ),
           const SizedBox(height: 12),
