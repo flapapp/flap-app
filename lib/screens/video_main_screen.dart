@@ -34,6 +34,9 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   final Set<String> _loadingUserProfiles = {};
   final Map<String, _CachedChallengeMeta> _challengeMetaCache = {};
   final Set<String> _challengeMetaLoading = {};
+  final Set<String> _challengeMetaDenied = {};
+  late Stream<QuerySnapshot> _videosStream;
+  bool _didInitFromRouteArgs = false;
   
 
   List<String> get _cities => [
@@ -79,14 +82,29 @@ int _compareVideoDocs(
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Читаємо навігаційні аргументи (напр. з профілю)
+  void initState() {
+    super.initState();
+    _videosStream = _createVideosStream();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didInitFromRouteArgs) return;
+    _didInitFromRouteArgs = true;
+
     final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map && (args['myContent'] == 'videos' || args['myContent'] == 'challenges')) {
+    if (args is Map &&
+        (args['myContent'] == 'videos' || args['myContent'] == 'challenges')) {
       _showOnlyMyVideos = args['myContent'] == 'videos';
       _showOnlyMyChallenges = args['myContent'] == 'challenges';
       _selectedTab = _showOnlyMyChallenges ? 'challenges' : 'all';
+      _videosStream = _createVideosStream();
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0f0f23), // Темний фон як у HTML MVP
       appBar: AppBar(
@@ -202,28 +220,29 @@ int _compareVideoDocs(
         child: Column(
           children: [
             // Tabs
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  _buildTab(I18n.t('all'), 'all'),
-                  _buildTab(I18n.t('challenges'), 'challenges'),
-                  _buildTab(I18n.inline('Тренди', 'Trending'), 'trending'),
-                ],
-              ),
-            ),
+            if (!_showOnlyMyVideos && !_showOnlyMyChallenges)
+  Container(
+    margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+    padding: const EdgeInsets.all(4),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.05),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: Colors.white.withValues(alpha: 0.1),
+        width: 1,
+      ),
+    ),
+    child: Row(
+      children: [
+        _buildTab(I18n.t('all'), 'all'),
+        _buildTab(I18n.t('challenges'), 'challenges'),
+        _buildTab(I18n.inline('Тренди', 'Trending'), 'trending'),
+      ],
+    ),
+  ),
 
             // Filters (тільки для відео та трендів)
-            if (_selectedTab != 'challenges')
+            if (_selectedTab != 'challenges' && !_showOnlyMyVideos && !_showOnlyMyChallenges)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 child: Column(
@@ -630,7 +649,8 @@ int _compareVideoDocs(
 
   void _prefetchChallengeMetaForVideo(String videoId) async {
     if (_challengeMetaCache.containsKey(videoId) ||
-        _challengeMetaLoading.contains(videoId)) {
+        _challengeMetaLoading.contains(videoId) ||
+        _challengeMetaDenied.contains(videoId)) {
       return;
     }
     _challengeMetaLoading.add(videoId);
@@ -658,9 +678,20 @@ int _compareVideoDocs(
           );
         });
       }
-    } catch (e) {
-      debugPrint('Error prefetching challenge meta for video $videoId: $e');
-    } finally {
+    } on FirebaseException catch (e) {
+  if (e.code == 'permission-denied') {
+    _challengeMetaDenied.add(videoId);
+    // блокуємо повторні запити для цього videoId, щоб не було "спаму" у логах
+    _challengeMetaCache[videoId] = const _CachedChallengeMeta(
+      challengeId: '',
+      title: '',
+    );
+    return;
+  }
+  debugPrint('Error prefetching challenge meta for video $videoId: $e');
+} catch (e) {
+  debugPrint('Error prefetching challenge meta for video $videoId: $e');
+} finally {
       _challengeMetaLoading.remove(videoId);
     }
   }
@@ -962,8 +993,12 @@ int _compareVideoDocs(
     return Expanded(
       child: GestureDetector(
       onTap: () {
+        if (_selectedTab == tab) return;
         setState(() {
           _selectedTab = tab;
+          if (tab != 'challenges') {
+            _videosStream = _createVideosStream();
+          }
         });
       },
         child: AnimatedContainer(
@@ -1102,19 +1137,26 @@ int _compareVideoDocs(
   }
 
   Widget _buildContent() {
-    switch (_selectedTab) {
-      case 'challenges':
-        return _buildChallengesList(); // Вбудований список челенджів
-      case 'trending':
-        return _buildTrendingVideos(); // Трендові відео
-      default:
-        return _buildVideosList(); // Загальні відео (без челенджів)
-    }
+  if (_showOnlyMyVideos) {
+    return _buildMyVideosList();
   }
+  if (_showOnlyMyChallenges) {
+    return _buildChallengesList();
+  }
+
+  switch (_selectedTab) {
+    case 'challenges':
+      return _buildChallengesList();
+    case 'trending':
+      return _buildTrendingVideos();
+    default:
+      return _buildVideosList();
+  }
+}
 
   Widget _buildVideosList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: _getVideosStream(),
+      stream: _videosStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -1208,6 +1250,9 @@ int _compareVideoDocs(
           ..sort(_compareVideoDocs);
 
         return ListView.builder(
+          key: PageStorageKey<String>(
+            'videos-list-$_selectedTab-${_showOnlyMyVideos ? "mine" : "all"}',
+          ),
           padding: const EdgeInsets.all(20),
           itemCount: docs.length,
           itemBuilder: (context, index) {
@@ -1251,7 +1296,7 @@ int _compareVideoDocs(
     );
   }
 
-  Stream<QuerySnapshot> _getVideosStream() {
+  Stream<QuerySnapshot> _createVideosStream() {
     Query query = FirebaseFirestore.instance.collection('videos');
     final filteringOwnVideos = _showOnlyMyVideos;
     
@@ -1356,7 +1401,8 @@ int _compareVideoDocs(
         if (resolvedChallengeTitle.isEmpty) {
           resolvedChallengeTitle = cachedMeta.title;
         }
-      } else if (!_challengeMetaLoading.contains(videoId)) {
+      } else if (!_challengeMetaLoading.contains(videoId) &&
+          !_challengeMetaDenied.contains(videoId)) {
         _prefetchChallengeMetaForVideo(videoId);
       }
     }
@@ -1967,7 +2013,11 @@ int _compareVideoDocs(
       })(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Помилка: ${snapshot.error}'));
+          return Center(
+            child: Text(
+              I18n.inline('Помилка: ${snapshot.error}', 'Error: ${snapshot.error}'),
+            ),
+          );
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1988,8 +2038,8 @@ int _compareVideoDocs(
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Поки що немає челенджів',
-                  style: TextStyle(
+                    I18n.inline('Поки що немає челенджів', 'No challenges yet'),
+                    style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -1997,8 +2047,11 @@ int _compareVideoDocs(
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Створіть перший челендж або дочекайтеся нових!',
-                  style: TextStyle(
+                    I18n.inline(
+                      'Створіть перший челендж або дочекайтеся нових!',
+                      'Create your first challenge or wait for new ones!',
+                    ),
+                    style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
                   ),
@@ -2013,9 +2066,9 @@ int _compareVideoDocs(
                       borderRadius: BorderRadius.circular(25),
                     ),
                   ),
-                  child: const Text(
-                    'Створити челендж',
-                    style: TextStyle(color: Colors.white),
+                  child: Text(
+                    I18n.inline('Створити челендж', 'Create challenge'),
+                    style: const TextStyle(color: Colors.white),
                   ),
                 ),
               ],
@@ -2678,8 +2731,12 @@ int _compareVideoDocs(
         }
 
         if (snapshot.hasError) {
-          return Center(child: Text('Помилка: ${snapshot.error}'));
-        }
+          return Center(
+            child: Text(
+              I18n.inline('Помилка: ${snapshot.error}', 'Error: ${snapshot.error}'),
+            ),
+          );
+                  }
 
         final videos = snapshot.data?.docs ?? [];
 
@@ -2695,7 +2752,7 @@ int _compareVideoDocs(
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'У вас поки що немає відео',
+                  I18n.inline('У вас поки що немає відео', 'You have no videos yet'),
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -2704,7 +2761,7 @@ int _compareVideoDocs(
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Завантажте своє перше відео!',
+                  I18n.inline('Завантажте своє перше відео!', 'Upload your first video!'),
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
@@ -2719,9 +2776,9 @@ int _compareVideoDocs(
                       borderRadius: BorderRadius.circular(25),
                     ),
                   ),
-                  child: const Text(
-                    'Завантажити відео',
-                    style: TextStyle(color: Colors.white),
+                  child: Text(
+                    I18n.inline('Завантажити відео', 'Upload video'),
+                    style: const TextStyle(color: Colors.white),
                   ),
                 ),
               ],
@@ -2744,18 +2801,18 @@ int _compareVideoDocs(
   // Трендові відео
   Widget _buildTrendingVideos() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('videos')
-          .orderBy('views', descending: true)
-          .limit(20)
-          .snapshots(),
+      stream: _videosStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
         if (snapshot.hasError) {
-          return Center(child: Text('Помилка: ${snapshot.error}'));
+          return Center(
+            child: Text(
+              I18n.inline('Помилка: ${snapshot.error}', 'Error: ${snapshot.error}'),
+            ),
+          );
         }
 
         final videos = snapshot.data?.docs ?? [];
@@ -2772,7 +2829,7 @@ int _compareVideoDocs(
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Поки що немає трендових відео',
+                  I18n.inline('Поки що немає трендових відео', 'No trending videos yet'),
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -2785,6 +2842,7 @@ int _compareVideoDocs(
         }
 
         return ListView.builder(
+          key: const PageStorageKey<String>('trending-videos-list'),
           padding: const EdgeInsets.all(20),
           itemCount: videos.length,
           itemBuilder: (context, index) {
