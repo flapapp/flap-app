@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_service.dart';
 import '../services/notification_service.dart';
+import '../services/user_settings_service.dart';
 import '../widgets/rating_display.dart';
 import '../widgets/user_chip.dart';
 import '../utils/i18n.dart';
@@ -61,6 +62,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   double? _videoAverageRating;
   int? _videoVoteCount;
   bool _pendingRatingPrompt = false;
+  bool _autoplayVideos = true;
 
   @override
   void initState() {
@@ -221,6 +223,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       );
 
       if (success) {
+        await _computeVideoAverage();
         setState(() {
           _hasVoted = true;
         });
@@ -372,6 +375,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Future<void> _initializePlayer() async {
     try {
+      _autoplayVideos = await UserSettingsService().isAutoplayEnabled();
       _videoPlayerController = VideoPlayerController.networkUrl(
         Uri.parse(widget.videoUrl),
       );
@@ -380,7 +384,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController,
-        autoPlay: true,
+        autoPlay: _autoplayVideos,
         looping: false,
         allowFullScreen: true,
         allowMuting: true,
@@ -550,7 +554,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   String _formatCommentDate(dynamic timestamp) {
-    if (timestamp == null) return 'Нещодавно';
+    if (timestamp == null) return I18n.inline('Нещодавно', 'Recently');
     
     try {
       final date = timestamp.toDate();
@@ -558,7 +562,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       final difference = now.difference(date);
       
       if (difference.inDays > 0) {
-        return '${difference.inDays} дн. тому';
+        return I18n.inline('${difference.inDays} дн. тому', '${difference.inDays} d ago');
       } else if (difference.inHours > 0) {
         return I18n.inline('${difference.inHours} год. тому', '${difference.inHours} h ago');
       } else if (difference.inMinutes > 0) {
@@ -646,7 +650,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
               const Icon(Icons.error_outline, color: Colors.white, size: 64),
               const SizedBox(height: 16),
               Text(
-                'Помилка завантаження відео',
+                I18n.inline('Помилка завантаження відео', 'Video loading error'),
                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
@@ -668,7 +672,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context, {
+            'ratingUpdated': _hasVoted,
+            'videoId': widget.videoId,
+          }),
         ),
         title: Text(
           widget.title,
@@ -702,9 +709,56 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     child: Chewie(controller: _chewieController!),
                   ),
                   
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.75),
+                      border: Border(
+                        top: BorderSide(color: Colors.white.withOpacity(0.08)),
+                        bottom: BorderSide(color: Colors.white.withOpacity(0.08)),
+                      ),
+                    ),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        _buildActionChip(
+                          icon: _isLiked ? Icons.favorite : Icons.favorite_border,
+                          label: '$_likesCount',
+                          color: _isLiked ? Colors.red : Colors.white70,
+                          onTap: _toggleLike,
+                        ),
+                        _buildActionChip(
+                          icon: Icons.comment_outlined,
+                          label: '${_comments.length}',
+                          color: Colors.white70,
+                          onTap: () => _showCommentsBottomSheet(),
+                        ),
+                        if (!_isChallengeSubmission)
+                          _buildActionChip(
+                            icon: Icons.how_to_vote,
+                            label: _hasVoted ? I18n.t('voted') : I18n.t('vote'),
+                            color: _hasVoted ? Colors.green : Colors.white70,
+                            onTap: () => _showVotingBottomSheet(),
+                          ),
+                        _buildActionChip(
+                          icon: Icons.share_outlined,
+                          label: I18n.t('share'),
+                          color: Colors.white70,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(I18n.inline('Функція поширення', 'Share coming soon'))),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
                   // Content below video
                   Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -742,45 +796,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                               CompactRatingDisplay(userId: _videoAuthorId!, size: 16),
                             ],
                           ),
-                        const SizedBox(height: 16),
-                        
-                        // Action buttons
-                        Wrap(
-                          spacing: 16,
-                          runSpacing: 8,
-                          children: [
-                            _buildActionChip(
-                              icon: _isLiked ? Icons.favorite : Icons.favorite_border,
-                              label: '$_likesCount',
-                              color: _isLiked ? Colors.red : Colors.white70,
-                              onTap: _toggleLike,
-                            ),
-                            _buildActionChip(
-                              icon: Icons.comment_outlined,
-                              label: '${_comments.length}',
-                              color: Colors.white70,
-                              onTap: () => _showCommentsBottomSheet(),
-                            ),
-                            // Кнопка Vote тільки для відео в секції "Відео", НЕ для челенджів
-                            if (!_isChallengeSubmission)
-                              _buildActionChip(
-                                icon: Icons.how_to_vote,
-                                label: _hasVoted ? 'Voted' : 'Vote',
-                                color: _hasVoted ? Colors.green : Colors.white70,
-                                onTap: () => _showVotingBottomSheet(),
-                              ),
-                            _buildActionChip(
-                              icon: Icons.share_outlined,
-                              label: 'Share',
-                              color: Colors.white70,
-                              onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(I18n.inline('Функція поширення', 'Share coming soon'))),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
                       ],
                     ),
                   ),
@@ -1097,7 +1112,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 
                 // Rating sliders
                 if (_isAdvancedVoting) ...[
-                  _buildSliderRow('Техніка', _technical, (v) => setModalState(() => _technical = v)),
+                  _buildSliderRow(I18n.inline('Техніка', 'Technical'), _technical, (v) => setModalState(() => _technical = v)),
                   const SizedBox(height: 16),
                   _buildSliderRow(I18n.inline('Креативність', 'Creativity'), _creativity, (v) => setModalState(() => _creativity = v)),
                   const SizedBox(height: 16),

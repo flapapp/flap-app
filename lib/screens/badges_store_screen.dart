@@ -38,18 +38,17 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
       
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser != null) {
-        // Ініціалізуємо дефолтні badges якщо їх немає
         await _badgeService.initializeDefaultBadges();
-        
-        // Завантажуємо дані
-        final badges = app_badge.Badge.getDefaultBadges();
-        final userBadges = await _badgeService.getUserBadges(currentUser.uid);
-        
-        // Отримуємо монети користувача
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUser.uid)
-            .get();
+
+        final results = await Future.wait([
+          _badgeService.getAvailableBadges().first,
+          _badgeService.getUserBadges(currentUser.uid),
+          FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get(),
+        ]);
+
+        final badges = results[0] as List<app_badge.Badge>;
+        final userBadges = results[1] as List<String>;
+        final userDoc = results[2] as DocumentSnapshot<Map<String, dynamic>>;
         final userData = userDoc.data() ?? {};
         final coins = userData['coins'] ?? 0;
         

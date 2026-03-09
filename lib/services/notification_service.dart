@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../models/match.dart' as app_models;
 import '../utils/app_navigator.dart';
 import '../utils/i18n.dart';
+import 'user_settings_service.dart';
 
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -23,6 +24,11 @@ class NotificationService {
      return;
    }
     try {
+      if (!await UserSettingsService().isNotificationsEnabled()) {
+        await _clearNotificationTokens();
+        return;
+      }
+
       print('Initializing NotificationService...');
 
       // Request permission for notifications
@@ -45,9 +51,13 @@ class NotificationService {
       _messaging.onTokenRefresh.listen(_saveFCMToken);
       FirebaseAuth.instance.authStateChanges().listen((user) async {
   if (user != null) {
-    final token = await _messaging.getToken();
-    if (token != null) {
-      await _saveFCMToken(token);
+    if (await UserSettingsService().isNotificationsEnabled()) {
+      final token = await _messaging.getToken();
+      if (token != null) {
+        await _saveFCMToken(token);
+      }
+    } else {
+      await _clearNotificationTokens(user.uid);
     }
   }
 });
@@ -72,11 +82,26 @@ if (initial != null) {
   Future<void> _saveFCMToken(String token) async {
     final currentUser = _auth.currentUser;
     if (currentUser != null) {
+      if (!await UserSettingsService().isNotificationsEnabled()) {
+        await _clearNotificationTokens(currentUser.uid);
+        return;
+      }
       await _firestore.collection('users').doc(currentUser.uid).update({
         'fcmToken': token,
         'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+        'deviceTokens': FieldValue.arrayUnion([token]),
       });
     }
+  }
+
+  Future<void> _clearNotificationTokens([String? uid]) async {
+    final userId = uid ?? _auth.currentUser?.uid;
+    if (userId == null) return;
+    await _firestore.collection('users').doc(userId).set({
+      'fcmToken': FieldValue.delete(),
+      'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+      'deviceTokens': <String>[],
+    }, SetOptions(merge: true));
   }
 
   // Handle foreground messages

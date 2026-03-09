@@ -4,6 +4,7 @@ import '../models/badge.dart';
 import '../utils/i18n.dart';
 
 class BadgeService {
+  static Future<void>? _initializationFuture;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -18,7 +19,10 @@ class BadgeService {
         .orderBy('price')
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => Badge.fromFirestore(doc))
+            .map((doc) {
+              final badge = Badge.fromFirestore(doc);
+              return badge.copyWith(price: _resolveEffectiveBadgePrice(badge));
+            })
             .toList());
   }
 
@@ -29,7 +33,10 @@ class BadgeService {
         .orderBy('price')
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => Badge.fromFirestore(doc))
+            .map((doc) {
+              final badge = Badge.fromFirestore(doc);
+              return badge.copyWith(price: _resolveEffectiveBadgePrice(badge));
+            })
             .toList());
   }
 
@@ -64,7 +71,10 @@ class BadgeService {
         throw Exception('Бейдж не знайдено');
       }
 
-      final badge = Badge.fromFirestore(badgeDoc);
+      final firestoreBadge = Badge.fromFirestore(badgeDoc);
+      final badge = firestoreBadge.copyWith(
+        price: _resolveEffectiveBadgePrice(firestoreBadge),
+      );
       if (!badge.isAvailable) {
         throw Exception('Цей бейдж недоступний для покупки');
       }
@@ -82,13 +92,15 @@ class BadgeService {
       final userData = userDoc.data() as Map<String, dynamic>;
       final userCoins = userData['coins'] ?? 0;
 
-      if (userCoins < badge.price) {
-        throw Exception('Недостатньо монет. Потрібно: ${badge.price}, у вас: $userCoins');
+      final effectivePrice = _resolveEffectiveBadgePrice(badge);
+
+      if (userCoins < effectivePrice) {
+        throw Exception('Недостатньо монет. Потрібно: $effectivePrice, у вас: $userCoins');
       }
 
       await _firestore.runTransaction((transaction) async {
         transaction.update(_usersCollection.doc(currentUser.uid), {
-          'coins': FieldValue.increment(-badge.price),
+          'coins': FieldValue.increment(-effectivePrice),
           'badges': FieldValue.arrayUnion([badgeId]),
         });
 
@@ -96,7 +108,7 @@ class BadgeService {
         transaction.set(_firestore.collection('transactions').doc(), {
           'userId': currentUser.uid,
           'type': 'badge_purchase',
-          'amount': -badge.price,
+          'amount': -effectivePrice,
           'badgeId': badgeId,
           'badgeName': localizedBadgeName,
           'timestamp': FieldValue.serverTimestamp(),
@@ -115,19 +127,8 @@ class BadgeService {
   }
 
   Future<void> initializeDefaultBadges() async {
-    try {
-      final defaultBadges = Badge.getDefaultBadges();
-
-      for (final badge in defaultBadges) {
-        final existingBadge = await _badgesCollection.doc(badge.id).get();
-        if (!existingBadge.exists) {
-          await _badgesCollection.doc(badge.id).set(badge.toFirestore());
-          print('Added badge: ${badge.localizedName}');
-        }
-      }
-    } catch (e) {
-      print('Error initializing default badges: $e');
-    }
+    _initializationFuture ??= _syncDefaultBadges();
+    await _initializationFuture;
   }
 
   Future<bool> awardBadge(String userId, String badgeId, String reason) async {
@@ -164,7 +165,8 @@ class BadgeService {
     try {
       final doc = await _badgesCollection.doc(badgeId).get();
       if (doc.exists) {
-        return Badge.fromFirestore(doc);
+        final badge = Badge.fromFirestore(doc);
+        return badge.copyWith(price: _resolveEffectiveBadgePrice(badge));
       }
       return null;
     } catch (e) {
@@ -242,6 +244,31 @@ class BadgeService {
 
     } catch (e) {
       print('Error checking activity badges: $e');
+    }
+  }
+
+  int _resolveEffectiveBadgePrice(Badge badge) {
+    for (final defaultBadge in Badge.getDefaultBadges()) {
+      if (defaultBadge.id == badge.id) {
+        return defaultBadge.price;
+      }
+    }
+    return badge.price;
+  }
+
+  Future<void> _syncDefaultBadges() async {
+    try {
+      final defaultBadges = Badge.getDefaultBadges();
+      for (final badge in defaultBadges) {
+        await _badgesCollection.doc(badge.id).set(
+          badge.toFirestore(),
+          SetOptions(merge: true),
+        );
+      }
+    } catch (e) {
+      print('Error initializing default badges: $e');
+      _initializationFuture = null;
+      rethrow;
     }
   }
 }

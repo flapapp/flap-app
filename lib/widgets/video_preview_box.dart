@@ -76,8 +76,8 @@ class _VideoPreviewBoxState extends State<VideoPreviewBox> {
       final data = await VideoThumbnail.thumbnailData(
         video: videoUrl,
         imageFormat: ImageFormat.JPEG,
-        maxHeight: 540,
-        quality: 85,
+        maxHeight: 256,
+        quality: 60,
         timeMs: 1000,
       );
       if (data != null) {

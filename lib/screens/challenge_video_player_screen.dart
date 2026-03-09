@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_tracking_service.dart';
 import '../services/rating_service.dart';
+import '../services/user_settings_service.dart';
 import '../widgets/user_chip.dart';
 import '../utils/i18n.dart';
 
@@ -48,6 +49,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   String? _submissionAuthorId;
   String? _submissionAuthorName;
   String? _submissionAuthorAvatar;
+  bool _autoplayVideos = true;
 
   @override
   void initState() {
@@ -60,6 +62,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
 
   Future<void> _initializeVideo() async {
     try {
+      _autoplayVideos = await UserSettingsService().isAutoplayEnabled();
       _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
       await _videoPlayerController.initialize();
       
@@ -68,7 +71,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         aspectRatio: _videoPlayerController.value.aspectRatio == 0
             ? 16 / 9
             : _videoPlayerController.value.aspectRatio,
-        autoPlay: false,
+        autoPlay: _autoplayVideos,
         looping: false,
         showControls: true,
         allowFullScreen: true,

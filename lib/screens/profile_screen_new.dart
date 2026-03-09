@@ -1548,9 +1548,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showSettings() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(I18n.inline('${I18n.t('settings')} (буде реалізовано)', '${I18n.t('settings')} (coming soon)'))),
-    );
+    Navigator.pushNamed(context, '/settings');
   }
 
   void _signOut() {

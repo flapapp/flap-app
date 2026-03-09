@@ -242,7 +242,7 @@ class Badge {
         name: 'Бомбардир',
         emoji: '🔥',
         description: 'Майстер голевих моментів',
-        price: 120,
+        price: 40,
         category: 'skill',
       ),
       Badge(
@@ -250,7 +250,7 @@ class Badge {
         name: 'Захисник',
         emoji: '🛡️',
         description: 'Надійний як скеля',
-        price: 100,
+        price: 33,
         category: 'skill',
       ),
       Badge(
@@ -258,7 +258,7 @@ class Badge {
         name: 'Плеймейкер',
         emoji: '🎯',
         description: 'Майстер асистів і передач',
-        price: 140,
+        price: 47,
         category: 'skill',
       ),
       Badge(
@@ -266,7 +266,7 @@ class Badge {
         name: 'Воротар',
         emoji: '🥅',
         description: 'Непереможний страж воріт',
-        price: 110,
+        price: 37,
         category: 'skill',
       ),
       Badge(
@@ -274,7 +274,7 @@ class Badge {
         name: 'Спідстер',
         emoji: '⚡',
         description: 'Швидкий як блискавка',
-        price: 90,
+        price: 30,
         category: 'skill',
       ),
       Badge(
@@ -347,12 +347,13 @@ class Badge {
           name: entry.value['name_uk']!,
           emoji: entry.value['emoji']!,
           description: entry.value['desc_uk']!,
-          price: 10,
+          price: 3,
           category: 'skill',
         ),
       ),
     ];
   }
+
 }
 
 const Map<String, Map<String, String>> _skillLocalizations = {

@@ -4,6 +4,7 @@ import 'mode_selection_screen.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/i18n.dart';
+import '../services/user_settings_service.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -181,7 +182,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 try {
                                   final token = await FirebaseMessaging.instance.getToken();
                                   final user = FirebaseAuth.instance.currentUser;
-                                  if (token != null && user != null) {
+                                  final notificationsEnabled =
+                                      await UserSettingsService().isNotificationsEnabled();
+                                  if (notificationsEnabled && token != null && user != null) {
                                     await FirebaseFirestore.instance
                                         .collection('users')
                                         .doc(user.uid)

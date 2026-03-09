@@ -775,18 +775,21 @@ setState(() {
           border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: Row(
-          children: const [
-            SizedBox(
+          children: [
+            const SizedBox(
               width: 24,
               height: 24,
               child:
                   CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
             ),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             Expanded(
               child: Text(
-                'Завантажуємо новину дня...',
-                style: TextStyle(color: Colors.white70),
+                I18n.inline(
+                  'Завантажуємо новину дня...',
+                  'Loading the news of the day...',
+                ),
+                style: const TextStyle(color: Colors.white70),
               ),
             ),
           ],

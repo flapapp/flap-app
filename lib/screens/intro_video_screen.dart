@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import '../utils/app_navigator.dart';
+import '../utils/i18n.dart';
 
 class IntroVideoScreen extends StatefulWidget {
   const IntroVideoScreen({super.key});
@@ -86,8 +87,8 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
             right: 24,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
+              children: [
+                const Text(
                   'Feel Like A Pro',
                   style: TextStyle(
                     color: Colors.white,
@@ -95,10 +96,13 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
-                  'Кращі матчі, челенджі та відео в одному застосунку',
-                  style: TextStyle(
+                  I18n.inline(
+                    'Кращі матчі, челенджі та відео в одному застосунку',
+                    'Best matches, challenges, and videos in one app',
+                  ),
+                  style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 16,
                   ),
@@ -123,7 +127,7 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
                   ),
                 ),
                 onPressed: _showSkip ? _navigateToWelcome : null,
-                child: const Text('Пропустити'),
+                child: Text(I18n.inline('Пропустити', 'Skip')),
               ),
             ),
           ),

@@ -799,6 +799,9 @@ int _compareVideoDocs(
               if (!mounted) return;
               if (success) {
                 Navigator.pop(sheetContext);
+                setState(() {
+                  _videoRatingCache.remove(videoId);
+                });
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(I18n.inline(
@@ -1228,7 +1231,14 @@ int _compareVideoDocs(
           // Фільтр рейтингу
           if (_selectedRating.isNotEmpty) {
             final minRating = double.parse(_selectedRating.replaceAll('+', ''));
-            final r = (data['rating'] ?? 0).toDouble();
+            final ratingRaw = _videoRatingCache[d.id] ??
+                data['rating'] ??
+                data['averageRating'] ??
+                data['voteAverage'] ??
+                0.0;
+            final r = ratingRaw is num
+                ? ratingRaw.toDouble()
+                : double.tryParse(ratingRaw.toString()) ?? 0.0;
             if (r < minRating) return false;
           }
           
@@ -1340,7 +1350,7 @@ int _compareVideoDocs(
     final commentsValue = (data['comments'] ?? data['commentCount'] ?? 0) as num;
     double displayRating = rating;
     final cachedRating = _videoRatingCache[videoId];
-    if (cachedRating != null) {
+    if (displayRating <= 0 && cachedRating != null) {
       displayRating = cachedRating;
     } else if (displayRating <= 0 &&
         !_videoRatingLoading.contains(videoId)) {
@@ -1619,7 +1629,7 @@ int _compareVideoDocs(
                   children: [
                     _iconCircleButton(
                       icon: isLiked ? Icons.favorite : Icons.favorite_border,
-                      tooltip: I18n.t('like'),
+                      tooltip: I18n.inline('Подобається', 'Like'),
                       iconColor: isLiked ? Colors.redAccent : Colors.white,
                       background: isLiked ? Colors.redAccent.withOpacity(0.15) : Colors.white10,
                       onPressed: () => _toggleLike(videoId, isLiked),
@@ -1653,7 +1663,7 @@ int _compareVideoDocs(
                     const SizedBox(width: 8),
                     _iconCircleButton(
                       icon: Icons.star_rate_rounded,
-                      tooltip: I18n.inline('Оцінити', 'Rate'),
+                      tooltip: I18n.inline('Проголосувати', 'Vote'),
                       background: const Color(0xFFFFC107),
                       onPressed: () => _showRateVideoSheet(
                         videoId: videoId,
@@ -1750,7 +1760,7 @@ int _compareVideoDocs(
           .update({'views': FieldValue.increment(1)});
     } catch (_) {}
     if (!mounted) return;
-    Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => VideoPlayerScreen(
@@ -1762,6 +1772,12 @@ int _compareVideoDocs(
         ),
       ),
     );
+    if (result is Map && result['ratingUpdated'] == true) {
+      setState(() {
+        _videoRatingCache.remove(videoId);
+      });
+      _prefetchVideoRating(videoId);
+    }
   }
 
   Future<void> _openChallenge(String challengeId, String title) async {
@@ -1797,20 +1813,29 @@ int _compareVideoDocs(
   }
 
   String _formatDate(Timestamp? timestamp) {
-    if (timestamp == null) return 'Нещодавно';
+    if (timestamp == null) return I18n.inline('Нещодавно', 'Recently');
     
     final now = DateTime.now();
     final date = timestamp.toDate();
     final difference = now.difference(date);
     
     if (difference.inDays > 0) {
-      return '${difference.inDays} дн. тому';
+      return I18n.inline(
+        '${difference.inDays} дн. тому',
+        '${difference.inDays} d ago',
+      );
     } else if (difference.inHours > 0) {
-      return '${difference.inHours} год. тому';
+      return I18n.inline(
+        '${difference.inHours} год. тому',
+        '${difference.inHours} h ago',
+      );
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} хв. тому';
+      return I18n.inline(
+        '${difference.inMinutes} хв. тому',
+        '${difference.inMinutes} min ago',
+      );
     } else {
-      return 'Щойно';
+      return I18n.inline('Щойно', 'Just now');
     }
   }
 
@@ -2196,7 +2221,7 @@ int _compareVideoDocs(
                   children: [
                     Expanded(
                       child: Text(
-                  challenge['title'] ?? 'Без назви',
+                  challenge['title'] ?? I18n.inline('Без назви', 'Untitled'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -2228,7 +2253,8 @@ int _compareVideoDocs(
                 _buildCategoryLabel(_challengeTypeLabel(type), accent),
                 const SizedBox(height: 8),
                 Text(
-                  challenge['description'] ?? 'Без опису',
+                  challenge['description'] ??
+                      I18n.inline('Без опису', 'No description'),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 13,
@@ -2337,7 +2363,8 @@ int _compareVideoDocs(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                           Text(
-                            'Прогрес: $currentParticipants/$maxParticipants',
+                            '${I18n.inline('Прогрес', 'Progress')}: '
+                            '$currentParticipants/$maxParticipants',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -2376,7 +2403,7 @@ int _compareVideoDocs(
                       child: _buildStatCard(
                         icon: Icons.people,
                         value: '$currentParticipants',
-                        label: 'Учасники',
+                        label: I18n.inline('Учасники', 'Participants'),
                         color: const Color(0xFF2196F3),
                       ),
                     ),
@@ -2385,7 +2412,7 @@ int _compareVideoDocs(
                       child: _buildStatCard(
                         icon: Icons.attach_money,
                         value: '$entryFee',
-                        label: 'Вхід',
+                        label: I18n.inline('Вхід', 'Entry'),
                         color: const Color(0xFFFF9800),
                       ),
                     ),
@@ -2394,7 +2421,7 @@ int _compareVideoDocs(
                       child: _buildStatCard(
                         icon: Icons.emoji_events,
                         value: '${prizePool.toInt()}',
-                        label: 'Приз',
+                        label: I18n.inline('Приз', 'Prize'),
                         color: const Color(0xFFFFD700),
                       ),
                     ),
@@ -2403,11 +2430,6 @@ int _compareVideoDocs(
                 
                 const SizedBox(height: 16),
 
-                if (participants.isNotEmpty) ...[
-                  _buildParticipantsRow(participants),
-                  const SizedBox(height: 16),
-                ],
-                
                 // Action Buttons Row
                 Row(
                   children: [
@@ -2442,8 +2464,8 @@ int _compareVideoDocs(
                             color: Colors.white,
                             size: 18,
                           ),
-                          label: const Text(
-                            'Переглянути',
+                          label: Text(
+                            I18n.inline('Переглянути', 'View'),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -2485,8 +2507,8 @@ int _compareVideoDocs(
                             color: Colors.white,
                             size: 18,
                           ),
-                          label: const Text(
-                            'Участь',
+                          label: Text(
+                            I18n.inline('Участь', 'Join'),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -2498,6 +2520,10 @@ int _compareVideoDocs(
                     ),
                   ],
                 ),
+                if (participants.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _buildParticipantsRow(participants),
+                ],
               ],
             ),
           ),
@@ -2866,28 +2892,37 @@ int _compareVideoDocs(
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1e7d32),
         title: Text(
-          'Приєднатися до челенджу',
+          I18n.inline('Приєднатися до челенджу', 'Join challenge'),
           style: const TextStyle(color: Colors.white),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Ви приєднуєтеся до челенджу "${challenge['title']}"',
-              style: TextStyle(color: Colors.white),
+              I18n.inline(
+                'Ви приєднуєтеся до челенджу "${challenge['title']}"',
+                'You are joining the challenge "${challenge['title']}"',
+              ),
+              style: const TextStyle(color: Colors.white),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             Text(
-              'Ставка входу: ${challenge['entryFee'] ?? 0} монет',
-              style: TextStyle(color: Colors.white70),
+              I18n.inline(
+                'Ставка входу: ${challenge['entryFee'] ?? 0} монет',
+                'Entry fee: ${challenge['entryFee'] ?? 0} coins',
+              ),
+              style: const TextStyle(color: Colors.white70),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
+            child: Text(
+              I18n.t('cancel'),
+              style: const TextStyle(color: Colors.white70),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -2920,7 +2955,10 @@ int _compareVideoDocs(
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4caf50)),
-            child: const Text('Завантажити відео', style: TextStyle(color: Colors.white)),
+            child: Text(
+              I18n.inline('Завантажити відео', 'Upload video'),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -3293,13 +3331,22 @@ int _compareVideoDocs(
     final difference = now.difference(commentTime);
 
     if (difference.inDays > 0) {
-      return '${difference.inDays} днів тому';
+      return I18n.inline(
+        '${difference.inDays} днів тому',
+        '${difference.inDays} d ago',
+      );
     } else if (difference.inHours > 0) {
-      return '${difference.inHours} годин тому';
+      return I18n.inline(
+        '${difference.inHours} годин тому',
+        '${difference.inHours} h ago',
+      );
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} хвилин тому';
+      return I18n.inline(
+        '${difference.inMinutes} хвилин тому',
+        '${difference.inMinutes} min ago',
+      );
     } else {
-      return 'Щойно';
+      return I18n.inline('Щойно', 'Just now');
     }
   }
 
@@ -3494,15 +3541,35 @@ int _compareVideoDocs(
                   stream: FirebaseFirestore.instance
                       .collection('transactions')
                       .where('userId', isEqualTo: uid)
-                      .orderBy('timestamp', descending: true)
                       .limit(50)
                       .snapshots(),
                   builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          I18n.inline(
+                            'Не вдалося завантажити історію монет',
+                            'Unable to load coin history',
+                          ),
+                          style: const TextStyle(color: Colors.white54),
+                        ),
+                      );
+                    }
                     if (!snapshot.hasData) {
                       return const Center(
                           child: CircularProgressIndicator(color: Color(0xFFFFD700)));
                     }
-                    final docs = snapshot.data!.docs;
+                    final docs = snapshot.data!.docs.toList()
+                      ..sort((a, b) {
+                        final ad = a.data() as Map<String, dynamic>;
+                        final bd = b.data() as Map<String, dynamic>;
+                        final at = ad['timestamp'] as Timestamp?;
+                        final bt = bd['timestamp'] as Timestamp?;
+                        if (at == null && bt == null) return 0;
+                        if (at == null) return 1;
+                        if (bt == null) return -1;
+                        return bt.compareTo(at);
+                      });
                     if (docs.isEmpty) {
                       return Center(
                         child: Text(
@@ -3585,15 +3652,10 @@ int _compareVideoDocs(
   }
 
   void _showRatingHistory(Map<String, dynamic> userData) {
-    final history = List<Map<String, dynamic>>.from(
-      (userData['ratingHistory'] as List?) ?? const [],
-    );
-    if (history.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Поки немає історії рейтингу', 'No rating history yet'))),
-      );
-      return;
-    }
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final currentRating = ((userData['rating'] ?? 0.0) as num).toDouble();
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF0f0f23),
@@ -3612,13 +3674,29 @@ int _compareVideoDocs(
                     const Icon(Icons.trending_up, color: Colors.white),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        I18n.inline('Історія рейтингу', 'Rating history'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            I18n.inline('Історія рейтингу', 'Rating history'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            I18n.inline(
+                              'Поточний рейтинг: ${currentRating.toStringAsFixed(2)}',
+                              'Current rating: ${currentRating.toStringAsFixed(2)}',
+                            ),
+                            style: const TextStyle(
+                              color: Color(0xFF4caf50),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     IconButton(
@@ -3630,61 +3708,134 @@ int _compareVideoDocs(
               ),
               const Divider(color: Colors.white10),
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: history.length,
-                  itemBuilder: (context, index) {
-                    final entry = history[index];
-                    final delta = (entry['delta'] ?? 0).toDouble();
-                    final newValue = (entry['newValue'] ?? 0).toDouble();
-                    final reason = (entry['reason'] ?? entry['source'] ?? '').toString();
-                    final ts = entry['createdAt'];
-                    DateTime? recordedAt;
-                    if (ts is Timestamp) recordedAt = ts.toDate();
-                    final deltaSign = delta >= 0 ? '+' : '';
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.03),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('rating_history')
+                      .where('userId', isEqualTo: uid)
+                      .limit(50)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          I18n.inline(
+                            'Не вдалося завантажити історію рейтингу',
+                            'Unable to load rating history',
+                          ),
+                          style: const TextStyle(color: Colors.white54),
+                        ),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+                      );
+                    }
+
+                    final docs = snapshot.data!.docs.toList()
+                      ..sort((a, b) {
+                        final ad = a.data() as Map<String, dynamic>;
+                        final bd = b.data() as Map<String, dynamic>;
+                        final at = ad['timestamp'] as Timestamp?;
+                        final bt = bd['timestamp'] as Timestamp?;
+                        if (at == null && bt == null) return 0;
+                        if (at == null) return 1;
+                        if (bt == null) return -1;
+                        return bt.compareTo(at);
+                      });
+
+                    if (docs.isEmpty) {
+                      return Center(
+                        child: Text(
+                          I18n.inline(
+                            'Поки немає історії рейтингу',
+                            'No rating history yet',
+                          ),
+                          style: const TextStyle(color: Colors.white54),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final entry = docs[index].data() as Map<String, dynamic>;
+                        final delta = (entry['change'] ?? 0.0).toDouble();
+                        final oldRating = (entry['oldRating'] ?? 0.0).toDouble();
+                        final newRating = (entry['newRating'] ?? 0.0).toDouble();
+                        final reason = (entry['reason'] ?? '').toString();
+                        final challengeTitle =
+                            (entry['challengeTitle'] ?? '').toString();
+                        final voterName = (entry['voterName'] ?? '').toString();
+                        final timestamp = entry['timestamp'] as Timestamp?;
+                        final deltaSign = delta >= 0 ? '+' : '';
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.03),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
-                                delta >= 0 ? Icons.trending_up : Icons.trending_down,
-                                color: delta >= 0 ? const Color(0xFF4caf50) : Colors.redAccent,
+                              Row(
+                                children: [
+                                  Icon(
+                                    delta >= 0 ? Icons.trending_up : Icons.trending_down,
+                                    color: delta >= 0
+                                        ? const Color(0xFF4caf50)
+                                        : Colors.redAccent,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '$deltaSign${delta.toStringAsFixed(2)} → '
+                                    '${newRating.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(height: 6),
                               Text(
-                                '$deltaSign${delta.toStringAsFixed(2)} → ${newValue.toStringAsFixed(2)}',
+                                _formatRatingHistoryReason(
+                                  reason,
+                                  challengeTitle,
+                                  voterName,
+                                ),
                                 style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white70,
+                                  fontSize: 13,
                                 ),
                               ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${oldRating.toStringAsFixed(2)} → '
+                                '${newRating.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (timestamp != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  _formatTimestamp(timestamp),
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
-                          if (reason.isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              reason,
-                              style: const TextStyle(color: Colors.white70, fontSize: 13),
-                            ),
-                          ],
-                          if (recordedAt != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              _formatTimestamp(Timestamp.fromDate(recordedAt)),
-                              style: const TextStyle(color: Colors.white38, fontSize: 11),
-                            ),
-                          ],
-                        ],
-                      ),
+                        );
+                      },
                     );
                   },
                 ),
@@ -3694,6 +3845,73 @@ int _compareVideoDocs(
         );
       },
     );
+  }
+
+  String _formatRatingHistoryReason(
+    String reason,
+    String challengeTitle,
+    String voterName,
+  ) {
+    switch (reason) {
+      case 'challenge_vote':
+      case 'video_vote':
+      case 'video_rating':
+        if (voterName.isNotEmpty && challengeTitle.isNotEmpty) {
+          return I18n.inline(
+            '$voterName оцінив ваше відео "$challengeTitle"',
+            '$voterName rated your video "$challengeTitle"',
+          );
+        }
+        if (voterName.isNotEmpty) {
+          return I18n.inline(
+            '$voterName оцінив ваше відео',
+            '$voterName rated your video',
+          );
+        }
+        if (challengeTitle.isNotEmpty) {
+          return I18n.inline(
+            'Отримано оцінку за відео "$challengeTitle"',
+            'Received a rating for video "$challengeTitle"',
+          );
+        }
+        return I18n.inline(
+          'Отримано оцінку за відео',
+          'Received a video rating',
+        );
+      case 'challenge_win':
+        return I18n.inline(
+          'Перемога в челенджі "$challengeTitle"',
+          'Challenge win "$challengeTitle"',
+        );
+      case 'challenge_second':
+        return I18n.inline(
+          '2-е місце в челенджі "$challengeTitle"',
+          '2nd place in challenge "$challengeTitle"',
+        );
+      case 'challenge_third':
+        return I18n.inline(
+          '3-є місце в челенджі "$challengeTitle"',
+          '3rd place in challenge "$challengeTitle"',
+        );
+      case 'manual_recompute':
+      case 'manual_recalculation':
+      case 'system_recompute':
+        return I18n.inline(
+          'Перерахунок рейтингу системою',
+          'System rating recalculation',
+        );
+      case 'penalty':
+        return I18n.inline(
+          'Штраф за порушення правил',
+          'Penalty for rule violation',
+        );
+      case 'bonus':
+        return I18n.inline('Бонус за активність', 'Activity bonus');
+      default:
+        return reason.isNotEmpty
+            ? reason
+            : I18n.inline('Зміна рейтингу', 'Rating change');
+    }
   }
 }
 

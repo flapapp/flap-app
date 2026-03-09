@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 /// Minimal in-app i18n without Flutter delegates.
 /// Usage: I18n.language.addListener(...) or I18n.t('key').
 class I18n {
-  static final ValueNotifier<String> language = ValueNotifier<String>('uk'); // 'uk' | 'en'
+  static final ValueNotifier<String> language = ValueNotifier<String>('en'); // 'uk' | 'en'
 
   static void setLanguage(String langCode) {
     if (langCode == 'uk' || langCode == 'en') {

@@ -32,10 +32,12 @@ import 'screens/friends_screen.dart';
 import 'services/subscription_service.dart';
 import 'services/notification_service.dart';
 import 'services/badge_service.dart';
+import 'services/user_settings_service.dart';
 import 'screens/match_management_screen.dart';
 import 'utils/i18n.dart';
 import 'utils/app_navigator.dart';
 import 'screens/profile_screen_new.dart' as new_profile;
+import 'screens/profile_settings_screen.dart';
 import 'screens/team_hub_screen.dart';
 
 
@@ -88,6 +90,9 @@ Future<void> main() async {
 }
 
 Future<void> _initMessaging() async {
+  if (!await UserSettingsService().isNotificationsEnabled()) {
+    return;
+  }
   final messaging = FirebaseMessaging.instance;
   await messaging.requestPermission(alert: true, badge: true, sound: true);
   final token = await messaging.getToken();
@@ -141,6 +146,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
         '/profile': (context) => new_profile.ProfileScreen(),
+        '/settings': (context) => const ProfileSettingsScreen(),
         '/profile-creation': (context) => ProfileCreationScreen(),
         '/mode': (context) => ModeSelectionScreen(),
         '/friends': (context) => FriendsScreen(),
@@ -290,7 +296,7 @@ class WelcomeScreen extends StatelessWidget {
                 ValueListenableBuilder<String>(
                   valueListenable: I18n.language,
                   builder: (context, lang, _) => Text(
-                    lang == 'uk' ? 'Feel Like A Pro\nТвоя футбольна соціальна мережа' : 'Feel Like A Pro\nYour football social network',
+                    'Feel Like A Pro\n${I18n.t('feel_like_a_pro')}',
                     style: TextStyle(
                       fontSize: 18,
                       color: Colors.white.withOpacity(0.9),
@@ -334,7 +340,7 @@ class WelcomeScreen extends StatelessWidget {
                             child: ValueListenableBuilder<String>(
                               valueListenable: I18n.language,
                               builder: (context, lang, _) => Text(
-                                lang == 'uk' ? 'УВІЙТИ' : 'LOG IN',
+                                I18n.t('login'),
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1,
@@ -367,7 +373,7 @@ class WelcomeScreen extends StatelessWidget {
                             child: ValueListenableBuilder<String>(
                               valueListenable: I18n.language,
                               builder: (context, lang, _) => Text(
-                                lang == 'uk' ? 'РЕЄСТРАЦІЯ' : 'REGISTER',
+                                I18n.t('register'),
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,

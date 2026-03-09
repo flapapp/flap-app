@@ -456,8 +456,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             'phone': _phoneController.text.trim(),
                             'city': _cityController.text.trim(),
                             'age': int.tryParse(_ageController.text.trim()) ?? 18,
-                            'position': _selectedPosition ?? 'Універсал',
-                            'experience': _selectedExperience ?? 'Початківець',
+                            'position': _selectedPosition ?? I18n.inline('Універсал', 'Universal'),
+                            'experience': _selectedExperience ?? I18n.inline('Початківець', 'Beginner'),
                             'avatarUrl': avatarUrl,
                             'createdAt': FieldValue.serverTimestamp(),
                             // Default ratings per spec
