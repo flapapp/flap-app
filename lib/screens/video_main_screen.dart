@@ -23,9 +23,11 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   String _selectedCity = '';
   String _selectedCategory = '';
   String _selectedRating = '';
+  String _selectedSort = 'newest';
   String _selectedTab = 'all'; // all, challenges, trending
   bool _showOnlyMyVideos = false;
   bool _showOnlyMyChallenges = false;
+  String _currentUserCity = '';
   final Map<String, double> _videoRatingCache = {};
   final Set<String> _videoRatingLoading = {};
   final Map<String, int> _commentCountCache = {};
@@ -54,6 +56,11 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     '4.5+',
   ];
 
+  List<String> get _sortOptions => [
+    I18n.inline('Нові додані зверху', 'Newest first'),
+    I18n.inline('В моєму місті', 'In my city'),
+  ];
+
   String _selectedCategoryLabel() {
     if (_selectedCategory.isEmpty) {
       return I18n.inline('Всі категорії', 'All categories');
@@ -68,6 +75,15 @@ int _compareVideoDocs(
 ) {
   final dataA = a.data() as Map<String, dynamic>? ?? const {};
   final dataB = b.data() as Map<String, dynamic>? ?? const {};
+    if (_selectedSort == 'my_city' && _currentUserCity.trim().isNotEmpty) {
+      final cityA = (dataA['city'] ?? '').toString().trim().toLowerCase();
+      final cityB = (dataB['city'] ?? '').toString().trim().toLowerCase();
+      final aMine = cityA == _currentUserCity.trim().toLowerCase();
+      final bMine = cityB == _currentUserCity.trim().toLowerCase();
+      if (aMine != bMine) {
+        return bMine ? 1 : -1;
+      }
+    }
     if (_selectedTab == 'trending' && !_showOnlyMyVideos) {
       final viewsA = (dataA['views'] ?? 0) as num;
       final viewsB = (dataB['views'] ?? 0) as num;
@@ -85,6 +101,20 @@ int _compareVideoDocs(
   void initState() {
     super.initState();
     _videosStream = _createVideosStream();
+    _loadCurrentUserCity();
+  }
+
+  Future<void> _loadCurrentUserCity() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final city = (doc.data()?['city'] ?? '').toString();
+      if (!mounted) return;
+      setState(() {
+        _currentUserCity = city;
+      });
+    } catch (_) {}
   }
 
   @override
@@ -312,6 +342,21 @@ int _compareVideoDocs(
                         });
                       },
                       '⭐',
+                    ),
+                    const SizedBox(height: 10),
+                    _buildFilterDropdown(
+                      _sortOptions,
+                      _selectedSort == 'newest'
+                          ? I18n.inline('Нові додані зверху', 'Newest first')
+                          : I18n.inline('В моєму місті', 'In my city'),
+                      (value) {
+                        setState(() {
+                          _selectedSort = value == I18n.inline('В моєму місті', 'In my city')
+                              ? 'my_city'
+                              : 'newest';
+                        });
+                      },
+                      '↕️',
                     ),
                   ],
                 ),
@@ -3893,6 +3938,17 @@ int _compareVideoDocs(
           '3-є місце в челенджі "$challengeTitle"',
           '3rd place in challenge "$challengeTitle"',
         );
+      case 'match_rating':
+        if (voterName.isNotEmpty) {
+          return I18n.inline(
+            '$voterName оцінив вас після матчу',
+            '$voterName rated you after the match',
+          );
+        }
+        return I18n.inline(
+          'Оцінка після матчу',
+          'Post-match rating',
+        );
       case 'manual_recompute':
       case 'manual_recalculation':
       case 'system_recompute':
@@ -3908,6 +3964,14 @@ int _compareVideoDocs(
       case 'bonus':
         return I18n.inline('Бонус за активність', 'Activity bonus');
       default:
+        if (reason == 'Оцінка після матчу') {
+          return voterName.isNotEmpty
+              ? I18n.inline(
+                  '$voterName оцінив вас після матчу',
+                  '$voterName rated you after the match',
+                )
+              : I18n.inline('Оцінка після матчу', 'Post-match rating');
+        }
         return reason.isNotEmpty
             ? reason
             : I18n.inline('Зміна рейтингу', 'Rating change');

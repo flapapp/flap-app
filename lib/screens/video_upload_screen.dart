@@ -399,7 +399,10 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Завантаження: ${(_uploadProgress * 100).toInt()}%',
+                        I18n.inline(
+                          'Завантаження: ${(_uploadProgress * 100).toInt()}%',
+                          'Uploading: ${(_uploadProgress * 100).toInt()}%',
+                        ),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -499,7 +502,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       final videoData = <String, dynamic>{
         'userId': user.uid,
         'authorId': user.uid,
-        'authorName': user.displayName ?? user.email?.split('@')[0] ?? 'Користувач',
+        'authorName': user.displayName ?? user.email?.split('@')[0] ?? I18n.inline('Користувач', 'User'),
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
         'category': normalizeVideoCategoryValue(_selectedCategoryId ?? 'other'),
@@ -588,7 +591,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         'videoId': videoId,
         'videoUrl': videoUrl,
         'title': _titleController.text.trim(),
-        'authorName': user.displayName ?? user.email?.split('@')[0] ?? 'Користувач',
+        'authorName': user.displayName ?? user.email?.split('@')[0] ?? I18n.inline('Користувач', 'User'),
         'createdAt': FieldValue.serverTimestamp(),
         'averageRating': 0.0,
         'voteCount': 0,

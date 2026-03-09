@@ -109,20 +109,22 @@ setState(() {
       final teamBScore = data['teamBScore'];
       final location = (data['location'] ?? 'FLAP Arena').toString();
       final time = (data['time'] ?? '').toString();
+      final organizer = (data['organizerName'] ?? I18n.inline('Організатор', 'Organizer')).toString();
+      final matchTitle = (data['title'] ?? '$teamAName vs $teamBName').toString();
       String subtitle;
       if (status == 'finished' && teamAScore != null && teamBScore != null) {
         subtitle = I18n.inline(
-          'Рахунок $teamAScore:$teamBScore • $location',
-          'Final score $teamAScore:$teamBScore • $location',
+          '$organizer завершив матч "$matchTitle" • рахунок $teamAScore:$teamBScore',
+          '$organizer finished "$matchTitle" • final score $teamAScore:$teamBScore',
         );
       } else {
         subtitle = I18n.inline(
-          'Старт о $time • потрібні гравці',
-          'Kick-off at $time • players wanted',
+          '$organizer створив матч "$matchTitle" • старт о $time',
+          '$organizer created "$matchTitle" • kick-off at $time',
         );
       }
       return _NewsEntry(
-        title: '$teamAName vs $teamBName',
+        title: matchTitle,
         subtitle: subtitle,
         icon: Icons.sports_soccer,
         color: const Color(0xFF4caf50),
@@ -145,12 +147,20 @@ setState(() {
       if (snap.docs.isEmpty) return null;
       final data = snap.docs.first.data();
       final author = (data['authorName'] ?? I18n.inline('Гравець FLAP', 'FLAP player')).toString();
-      final title = (data['title'] ?? I18n.inline('Нове відео', 'New video')).toString();
+      final rawTitle = (data['title'] ?? '').toString().trim();
+      final challengeTitle = (data['challengeTitle'] ?? '').toString().trim();
+      final title = (rawTitle.isEmpty ||
+              rawTitle == 'Відео створювача' ||
+              rawTitle == 'Creator video')
+          ? (challengeTitle.isNotEmpty
+              ? challengeTitle
+              : I18n.inline('Нове відео', 'New video'))
+          : rawTitle;
       return _NewsEntry(
         title: title,
         subtitle: I18n.inline(
-          '$author виклав новий ролик',
-          '$author dropped a fresh clip',
+          '$author завантажив відео "$title"',
+          '$author uploaded "$title"',
         ),
         icon: Icons.play_circle_fill,
         color: const Color(0xFFFF7043),

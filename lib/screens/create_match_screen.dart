@@ -23,6 +23,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
+  final _cityController = TextEditingController();
   
   DateTime _selectedDate = DateTime.now().add(Duration(days: 1));
   TimeOfDay _selectedTime = TimeOfDay.now();
@@ -55,6 +56,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   @override
   void initState() {
     super.initState();
+    _cityController.text = _selectedCity;
     _loadMyTeams();
   }
 
@@ -233,10 +235,11 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             Row(
               children: [
                 Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selectedCity,
+                  child: TextFormField(
+                    controller: _cityController,
                     decoration: InputDecoration(
                       labelText: I18n.inline('Місто *', 'City *'),
+                      hintText: I18n.inline('Введіть місто вручну', 'Type city manually'),
                       labelStyle: TextStyle(color: Colors.white70),
                       border: OutlineInputBorder(),
                       enabledBorder: OutlineInputBorder(
@@ -247,12 +250,12 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                       ),
                     ),
                     style: TextStyle(color: Colors.white),
-                    dropdownColor: Color(0xFF1a1a2e),
-                    items: _cities.map((city) => 
-                      DropdownMenuItem(value: city, child: Text(city))
-                    ).toList(),
-                    onChanged: (value) {
-                      setState(() => _selectedCity = value!);
+                    onChanged: (value) => _selectedCity = value.trim(),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return I18n.inline('Введіть місто', 'Enter city');
+                      }
+                      return null;
                     },
                   ),
                 ),
@@ -761,6 +764,8 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
         );
       }
 
+      _selectedCity = _cityController.text.trim();
+
       final match = Match(
         id: '', // Firestore згенерує ID
         title: _titleController.text,
@@ -855,10 +860,11 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       }
 
       if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-  SnackBar(content: Text(I18n.inline('Матч створено успішно!', 'Match created successfully!'))),
-);
+      await _showMatchCreatedDialog(
+        matchId,
+        _titleController.text.trim(),
+        resolvedOrganizerName,
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1410,6 +1416,275 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
     }
   }
 
+  Future<List<Map<String, dynamic>>> _loadInviteCandidates() async {
+    try {
+      final me = FirebaseAuth.instance.currentUser;
+      if (me == null) return [];
+      final snap = await FirebaseFirestore.instance.collection('users').limit(100).get();
+      final result = <Map<String, dynamic>>[];
+      for (final doc in snap.docs) {
+        if (doc.id == me.uid) continue;
+        final data = doc.data();
+        result.add({
+          'id': doc.id,
+          ...data,
+        });
+      }
+      result.sort((a, b) {
+        final aName = (a['displayName'] ?? a['name'] ?? '').toString();
+        final bName = (b['displayName'] ?? b['name'] ?? '').toString();
+        return aName.compareTo(bName);
+      });
+      return result;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _showInviteParticipantsDialog(
+    String matchId,
+    String matchTitle,
+    String organizerName,
+  ) async {
+    final candidates = await _loadInviteCandidates();
+    if (!mounted) return;
+
+    final searchController = TextEditingController();
+    String selectedCity = I18n.t('all_cities');
+    final selectedIds = <String>{};
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          final query = searchController.text.trim().toLowerCase();
+          final filtered = candidates.where((user) {
+            final name = (user['displayName'] ?? user['name'] ?? '').toString().toLowerCase();
+            final city = (user['city'] ?? '').toString();
+            final matchesQuery = query.isEmpty || name.contains(query);
+            final matchesCity = selectedCity == I18n.t('all_cities') || city == selectedCity;
+            return matchesQuery && matchesCity;
+          }).toList();
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1a1a2e),
+            title: Text(
+              I18n.inline('Запросити учасників', 'Invite participants'),
+              style: const TextStyle(color: Colors.white),
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: searchController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: I18n.inline('Пошук по імені', 'Search by name'),
+                      labelStyle: const TextStyle(color: Colors.white70),
+                    ),
+                    onChanged: (_) => setStateDialog(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedCity,
+                    dropdownColor: const Color(0xFF1a1a2e),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: I18n.inline('Місто', 'City'),
+                      labelStyle: const TextStyle(color: Colors.white70),
+                    ),
+                    items: _cities
+                        .map((city) => DropdownMenuItem<String>(
+                              value: city,
+                              child: Text(city),
+                            ))
+                        .toList()
+                      ..insert(
+                        0,
+                        DropdownMenuItem<String>(
+                          value: I18n.t('all_cities'),
+                          child: Text(I18n.t('all_cities')),
+                        ),
+                      ),
+                    onChanged: (value) {
+                      selectedCity = value ?? I18n.t('all_cities');
+                      setStateDialog(() {});
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: filtered.isEmpty
+                        ? Center(
+                            child: Text(
+                              I18n.inline('Нікого не знайдено', 'No users found'),
+                              style: const TextStyle(color: Colors.white54),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final user = filtered[index];
+                              final id = user['id'] as String;
+                              final name = (user['displayName'] ?? user['name'] ?? I18n.inline('Користувач', 'User')).toString();
+                              final city = (user['city'] ?? '').toString();
+                              final rating = ((user['rating'] ?? 0) as num).toDouble();
+                              final avatar = (user['avatarUrl'] ?? user['avatar'] ?? '').toString();
+                              final selected = selectedIds.contains(id);
+
+                              return ListTile(
+                                onTap: () {
+                                  setStateDialog(() {
+                                    if (selected) {
+                                      selectedIds.remove(id);
+                                    } else {
+                                      selectedIds.add(id);
+                                    }
+                                  });
+                                },
+                                leading: PlayerAvatarButton(
+                                  userId: id,
+                                  displayName: name,
+                                  avatarUrl: avatar,
+                                  size: 34,
+                                ),
+                                title: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        name,
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '⭐ ${rating.toStringAsFixed(2)}',
+                                      style: const TextStyle(color: Color(0xFFFFD54F), fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                                subtitle: Text(
+                                  city,
+                                  style: const TextStyle(color: Colors.white54),
+                                ),
+                                trailing: Checkbox(
+                                  value: selected,
+                                  onChanged: (value) {
+                                    setStateDialog(() {
+                                      if (value == true) {
+                                        selectedIds.add(id);
+                                      } else {
+                                        selectedIds.remove(id);
+                                      }
+                                    });
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(I18n.t('cancel')),
+              ),
+              ElevatedButton(
+                onPressed: selectedIds.isEmpty
+                    ? null
+                    : () async {
+                        final notificationService = NotificationService();
+                        for (final uid in selectedIds) {
+                          await notificationService.sendNotification(
+                            AppNotification(
+                              id: '',
+                              userId: uid,
+                              type: NotificationType.matchInvite,
+                              title: I18n.inline('Запрошення на матч', 'Match invitation'),
+                              message: I18n.inline(
+                                '$organizerName запросив вас на матч "$matchTitle"',
+                                '$organizerName invited you to the match "$matchTitle"',
+                              ),
+                              data: {
+                                'matchId': matchId,
+                                'matchTitle': matchTitle,
+                                'action': 'open_match',
+                              },
+                              createdAt: DateTime.now(),
+                            ),
+                          );
+                        }
+
+                        await FirebaseFirestore.instance.collection('matches').doc(matchId).set({
+                          'invitedFriends': FieldValue.arrayUnion(selectedIds.toList()),
+                        }, SetOptions(merge: true));
+
+                        if (context.mounted) Navigator.pop(ctx);
+                      },
+                child: Text(I18n.inline('Запросити', 'Invite')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    searchController.dispose();
+  }
+
+  Future<void> _showMatchCreatedDialog(
+    String matchId,
+    String matchTitle,
+    String organizerName,
+  ) async {
+    if (!mounted) return;
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1a1a2e),
+        title: Text(
+          I18n.inline('Матч створено!', 'Match created!'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          I18n.inline(
+            'Матч успішно створено. Можете запросити учасників прямо зараз.',
+            'The match was created successfully. You can invite participants right now.',
+          ),
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'done'),
+            child: Text(I18n.inline('Готово', 'Done')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, 'invite'),
+            child: Text(I18n.inline('Запросити учасників', 'Invite participants')),
+          ),
+        ],
+      ),
+    );
+
+    if (action == 'invite') {
+      await _showInviteParticipantsDialog(matchId, matchTitle, organizerName);
+    }
+
+    if (mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(I18n.inline('Матч створено успішно!', 'Match created successfully!')),
+        ),
+      );
+    }
+  }
+
   Future<Map<String, String>> _fetchMemberNames(List<String> ids) async {
     final map = <String, String>{};
     for (final id in ids) {
@@ -1482,6 +1757,7 @@ void dispose() {
   _titleController.dispose();
   _descriptionController.dispose();
   _locationController.dispose();
+  _cityController.dispose();
   _opponentSearchCtrl.dispose();
   _friendsScrollController.dispose();
   super.dispose();

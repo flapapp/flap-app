@@ -38,8 +38,11 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   late String _selectedCity;
   late String _selectedLevel;
   late String _selectedTime;
+  late String _selectedSort;
   String _searchQuery = '';
   bool _filtersExpanded = false;
+  final TextEditingController _cityFilterController = TextEditingController();
+  String _currentUserCity = '';
 
   // Списки опцій для фільтрів
   List<String> get _cityOptions => [
@@ -65,6 +68,8 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
     I18n.inline('Завтра', 'Tomorrow'),
     I18n.inline('Цього тижня', 'This week'),
   ];
+
+  List<String> get _sortOptions => ['newest', 'my_city'];
 
   // Змінні для "Мої матчі"
   String _selectedMyMatchesFilter = 'all'; // 'all' | 'organized' | 'participation'
@@ -109,6 +114,8 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
     _selectedCity = I18n.t('all_cities');
     _selectedLevel = I18n.t('all_levels');
     _selectedTime = I18n.t('anytime');
+    _selectedSort = 'newest';
+    _loadCurrentUserCity();
 
     // Завантажуємо топ гравців один раз
     _ratingsTopPlayersFuture = _ratingService.getTopPlayers(limit: 300);
@@ -116,8 +123,22 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   @override
   void dispose() {
   _searchDebounce?.cancel();
+    _cityFilterController.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCurrentUserCity() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final city = (doc.data()?['city'] ?? '').toString();
+      if (!mounted) return;
+      setState(() {
+        _currentUserCity = city;
+      });
+    } catch (_) {}
   }
 
 @override
@@ -135,14 +156,16 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
 void _resetFindFilters() {
   setState(() {
     _selectedCity = I18n.t('all_cities');
+    _cityFilterController.clear();
     _selectedLevel = I18n.t('all_levels');
     _selectedTime = I18n.t('anytime');
+    _selectedSort = 'newest';
     _searchQuery = '';
   });
 }
   // Метод для створення фільтрів
   bool get _hasActiveFilters =>
-      _selectedCity != I18n.t('all_cities') ||
+      _cityFilterController.text.trim().isNotEmpty ||
       _selectedLevel != I18n.t('all_levels') ||
       _selectedTime != I18n.t('anytime') ||
       _searchQuery.isNotEmpty;
@@ -236,41 +259,36 @@ void _resetFindFilters() {
   builder: (context, constraints) {
     final bool narrow = constraints.maxWidth < 380;
     final city = SizedBox(
-              width: double.infinity,
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedCity,
-                    decoration: InputDecoration(
-                      labelText: I18n.t('city_label'),
-                      labelStyle: TextStyle(color: Colors.white70),
-                  prefixIcon: Icon(Icons.location_city, color: Colors.white70, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Color(0xFF4caf50)),
-                  ),
-                    ),
-                    dropdownColor: Color(0xFF1a1a2e),
-                    style: TextStyle(color: Colors.white),
-                    items: _cityOptions.map((city) =>
-                      DropdownMenuItem(
-                        value: city,
-                    child: Text(city, style: TextStyle(color: Colors.white)),
-                      )
-                    ).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedCity = value ?? I18n.t('all_cities');
-                      });
-                    },
-                  ),
-            );
+      width: double.infinity,
+      child: TextField(
+        controller: _cityFilterController,
+        decoration: InputDecoration(
+          labelText: I18n.t('city_label'),
+          hintText: I18n.t('all_cities'),
+          labelStyle: const TextStyle(color: Colors.white70),
+          hintStyle: const TextStyle(color: Colors.white54),
+          prefixIcon: const Icon(Icons.location_city, color: Colors.white70, size: 20),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFF4caf50)),
+          ),
+        ),
+        style: const TextStyle(color: Colors.white),
+        onChanged: (value) {
+          setState(() {
+            _selectedCity = value.trim().isEmpty ? I18n.t('all_cities') : value.trim();
+          });
+        },
+      ),
+    );
     final level = SizedBox(
               width: double.infinity,
                   child: DropdownButtonFormField<String>(
@@ -1111,9 +1129,31 @@ return Column(
               ),
             ],
           ),
-          Text(
-            I18n.inline('Нові додані зверху', 'Newest first'),
-            style: const TextStyle(color: Colors.white38, fontSize: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: DropdownButton<String>(
+              value: _selectedSort,
+              underline: const SizedBox.shrink(),
+              dropdownColor: const Color(0xFF1a1a2e),
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              items: _sortOptions
+                  .map((option) => DropdownMenuItem<String>(
+                        value: option,
+                        child: Text(_sortLabel(option)),
+                      ))
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _selectedSort = value;
+                });
+              },
+            ),
           ),
           TextButton(
             onPressed: _resetFindFilters,
@@ -2136,7 +2176,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
   }
 
   // Відкритий матч і користувач не учасник — показати три компактні кнопки
-  if (userStatus == 'Подати заявку' && match.status == MatchStatus.open) {
+  if (rawUserStatus == 'none' && match.status == MatchStatus.open) {
     return LayoutBuilder(
   builder: (context, c) {
     final isNarrow = c.maxWidth < 360;
@@ -2170,7 +2210,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
     final shareBtn = OutlinedButton.icon(
       onPressed: () => _shareMatch(match),
       icon: const Icon(Icons.share, size: 16),
-      label: const Text('Поділитися', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      label: Text(I18n.inline('Поділитися', 'Share'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
       style: OutlinedButton.styleFrom(
         foregroundColor: Colors.white,
         side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
@@ -2230,7 +2270,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
         ),
       ),
       const SizedBox(width: 8),
-      // Поділитися (зелена)
+      // Share / Join CTA
       Expanded(
         child: Container(
           height: 40,
@@ -2240,12 +2280,18 @@ Widget _buildActionButtons(Match match, String currentUserId) {
           ),
           child: TextButton(
             onPressed: () {
+              if (match.status == MatchStatus.open && rawUserStatus == 'none') {
+                _applyForMatch(match.id);
+                return;
+              }
               final url = 'https://flap.app/match/${match.id}';
               Share.share(I18n.inline('Приєднуйся до матчу: ', 'Join the match: ') + url);
             },
-            child: const Text(
-              'Поділитися',
-              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+            child: Text(
+              match.status == MatchStatus.open && rawUserStatus == 'none'
+                  ? I18n.inline('Приєднатися', 'Join')
+                  : I18n.inline('Поділитися', 'Share'),
+              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -2326,15 +2372,18 @@ Widget _buildActionButtons(Match match, String currentUserId) {
         ),
         if (roster.isNotEmpty) ...[
           const SizedBox(height: 6),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: roster.take(8).map((playerId) {
-                return Container(
-                  margin: const EdgeInsets.only(right: 6),
-                  child: UserChip(userId: playerId, size: 24, showName: false),
-                );
-              }).toList(),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: roster.take(8).map((playerId) {
+                  return Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    child: UserChip(userId: playerId, size: 24, showName: false),
+                  );
+                }).toList(),
+              ),
             ),
           ),
         ],
@@ -2389,9 +2438,12 @@ Widget _buildActionButtons(Match match, String currentUserId) {
 
   Stream<List<Match>> _getFilteredMatches() {
     return _matchService.getAvailableMatches().map((matches) {
+    final cityQuery = _cityFilterController.text.trim().toLowerCase();
     final filtered = matches.where((match) {
         // Фільтр по місту
-      if (_selectedCity != I18n.t('all_cities') && match.city != _selectedCity) return false;
+      if (cityQuery.isNotEmpty && !match.city.toLowerCase().contains(cityQuery)) {
+        return false;
+      }
         // Фільтр по рівню
       if (_selectedLevel != I18n.t('all_levels') && _getLevelText(match.level) != _selectedLevel) return false;
         // Фільтр по часу
@@ -2419,10 +2471,30 @@ Widget _buildActionButtons(Match match, String currentUserId) {
       }
         return true;
       }).toList();
-    // Сортування: нові матчі зверху
-    filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // Сортування
+    filtered.sort((a, b) {
+      if (_selectedSort == 'my_city' &&
+          _currentUserCity.trim().isNotEmpty) {
+        final aMine = a.city.trim().toLowerCase() == _currentUserCity.trim().toLowerCase();
+        final bMine = b.city.trim().toLowerCase() == _currentUserCity.trim().toLowerCase();
+        if (aMine != bMine) {
+          return bMine ? 1 : -1;
+        }
+      }
+      return b.createdAt.compareTo(a.createdAt);
+    });
     return filtered;
     });
+  }
+
+  String _sortLabel(String key) {
+    switch (key) {
+      case 'my_city':
+        return I18n.inline('В моєму місті', 'In my city');
+      case 'newest':
+      default:
+        return I18n.inline('Нові додані зверху', 'Newest first');
+    }
   }
   // Метод для отримання матчів користувача
   Stream<List<Match>> _getUserMatches() {
@@ -3385,6 +3457,11 @@ Future<void> _onLeaveMatch(Match match) async {
             ),
             
             const SizedBox(height: 12),
+
+            if (match.coverPhotoUrl?.isNotEmpty == true) ...[
+              _buildMatchPhotoFooter(match),
+              const SizedBox(height: 12),
+            ],
             
             // Кнопка деталей
             Row(

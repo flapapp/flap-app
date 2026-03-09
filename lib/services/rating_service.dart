@@ -241,11 +241,27 @@ if (multiTeams.isNotEmpty) {
         'matchId': matchId,
       });
 
+      String raterName = I18n.inline('Гравець', 'Player');
+      try {
+        final raterDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(ratedBy)
+            .get();
+        if (raterDoc.exists) {
+          final raterData = raterDoc.data() as Map<String, dynamic>;
+          raterName = (raterData['displayName'] ??
+                  raterData['authorName'] ??
+                  raterData['name'] ??
+                  I18n.inline('Гравець', 'Player'))
+              .toString();
+        }
+      } catch (_) {}
+
       // Оновлення рейтингу гравця
       await _updatePlayerRating(
         playerId,
-        reason: 'Оцінка після матчу',
-        source: 'Система матчів',
+        reason: 'match_rating',
+        source: raterName,
         sourceType: 'match',
         sourceId: matchId,
       );

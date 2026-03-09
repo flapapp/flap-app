@@ -470,12 +470,9 @@ if (currentUserId == null || currentUserId != match.organizerId) {
         }
 
         // Створюємо команди
-        final names = MatchUtils.teamNames;
-        final base = DateTime.now().millisecondsSinceEpoch;
-        final idxA = base % names.length;
-        final idxB = (idxA + 1) % names.length; // ensure distinct
-        final nameA = names[idxA];
-        final nameB = names[idxB];
+        final names = MatchUtils.generateTeamNames(2);
+        final nameA = names[0];
+        final nameB = names[1];
 
         final teamA = Team(
           name: nameA,
@@ -567,12 +564,11 @@ if (currentUserId == null || currentUserId != match.organizerId) {
                 // Preserve existing team names or pick fun defaults if missing
         final existingNameA = match.teamA?.name ?? '';
         final existingNameB = match.teamB?.name ?? '';
-        final fun = MatchUtils.teamNames;
-        final seed = DateTime.now().millisecondsSinceEpoch;
-        final funA = fun[seed % fun.length];
-        final funB = fun[(seed + 1) % fun.length];
+        final generated = MatchUtils.generateTeamNames(2);
+        final funA = generated[0];
+        final funB = generated[1];
         final nameA = existingNameA.isNotEmpty ? existingNameA : funA;
-        final nameB = existingNameB.isNotEmpty ? existingNameB : (funB == nameA ? fun[(seed + 2) % fun.length] : funB);
+        final nameB = existingNameB.isNotEmpty ? existingNameB : (funB == nameA ? MatchUtils.generateTeamNames(3)[2] : funB);
 
         final teamA = Team(
           name: nameA,
@@ -605,11 +601,12 @@ if (currentUserId == null || currentUserId != match.organizerId) {
     final allPlayerIds = teams.expand((t) => t).toList();
     final ratings = await _getPlayerRatings(allPlayerIds);
 
+    final generatedNames = MatchUtils.generateTeamNames(teams.length);
     final List<Map<String, dynamic>> firestoreTeams = [];
     for (var i = 0; i < teams.length; i++) {
       final ids = teams[i];
       firestoreTeams.add({
-        'name': MatchUtils.teamNames[i % MatchUtils.teamNames.length],
+        'name': generatedNames[i],
         'playerIds': ids,
         'averageRating': _calculateTeamAverageRating(ids, ratings),
       });
@@ -780,12 +777,11 @@ if (currentUserId == null || currentUserId != match.organizerId) {
 
           final existingNameA = match.teamA?.name ?? '';
           final existingNameB = match.teamB?.name ?? '';
-          final fun = ['Леви', 'Сови', 'Тигри', 'Орли', 'Вовки'];
-          final seed = DateTime.now().millisecondsSinceEpoch % fun.length;
-          final funA = fun[seed];
-          final funB = fun[(seed + 1) % fun.length];
+          final generated = MatchUtils.generateTeamNames(2);
+          final funA = generated[0];
+          final funB = generated[1];
           final nameA = existingNameA.isNotEmpty ? existingNameA : funA;
-          final nameB = existingNameB.isNotEmpty ? existingNameB : (funB == nameA ? fun[(seed + 2) % fun.length] : funB);
+          final nameB = existingNameB.isNotEmpty ? existingNameB : funB;
 
           // Оновлюємо документ матчa з сформованими командами
           tx.update(docRef, {

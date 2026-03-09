@@ -1,5 +1,7 @@
 import 'dart:collection';
 
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Статус матчу
@@ -677,13 +679,45 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
 class MatchUtils {
   // Генерація назв команд
   static final List<String> teamNames = [
-    'Веселі Бджілки', 'Швидкі Їжаки', 'Хитрі Лисички', 'Сильні Ведмеді',
-    'Граційні Леопарди', 'Розумні Сови', 'Енергійні Кенгуру', 'Спритні Мавпи',
-    'Гордовиті Леви', 'Мирні Панди', 'Швидкі Гепарди', 'Кумедні Пінгвіни'
+    'Blaze Foxes',
+    'Storm Wolves',
+    'Iron Hawks',
+    'Shadow Panthers',
+    'Neon Falcons',
+    'Thunder Bears',
+    'Crimson Sharks',
+    'Frost Vipers',
+    'Rapid Lynx',
+    'Golden Owls',
+    'Steel Bulls',
+    'Nova Tigers',
+    'Velocity Ravens',
+    'Phantom Eagles',
+    'Rocket Pumas',
+    'Fire Cobras',
+    'Titan Rhinos',
+    'Gravity Leopards',
+    'Wild Spartans',
+    'Electric Knights',
   ];
   
   static String generateTeamName() {
-    return teamNames[DateTime.now().millisecondsSinceEpoch % teamNames.length];
+    return generateTeamNames(1).first;
+  }
+
+  static List<String> generateTeamNames(int count) {
+    final shuffled = List<String>.from(teamNames)..shuffle(Random());
+    if (count <= shuffled.length) {
+      return shuffled.take(count).toList();
+    }
+
+    final result = <String>[];
+    for (var i = 0; i < count; i++) {
+      final baseName = shuffled[i % shuffled.length];
+      final cycle = (i ~/ shuffled.length) + 1;
+      result.add(cycle == 1 ? baseName : '$baseName ${cycle + 1}');
+    }
+    return result;
   }
   
   // Розрахунок середнього рейтингу команди

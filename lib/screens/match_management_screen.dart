@@ -39,6 +39,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
   final Map<int, TextEditingController> _winsControllers = {};
   final Map<int, TextEditingController> _goalsControllers = {};
   Map<String, double> _ratingsCache = {};
+  Match? _latestMatch;
   int _teamCount = 2;
   final List<Color> _teamColors = [
     const Color(0xFF1976D2),
@@ -61,11 +62,22 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
       final profile = <String, dynamic>{
         'displayName': (data['displayName'] ?? I18n.t('player')).toString(),
         'avatarUrl': ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toString(),
+        'rating': (data['rating'] ?? 0.0),
+        'wins': (data['wins'] ?? 0),
+        'draws': (data['draws'] ?? 0),
+        'losses': (data['losses'] ?? 0),
       };
       _userCache[userId] = profile;
       return profile;
     } catch (_) {
-      final fallback = <String, dynamic>{'displayName': I18n.t('player'), 'avatarUrl': ''};
+      final fallback = <String, dynamic>{
+        'displayName': I18n.t('player'),
+        'avatarUrl': '',
+        'rating': 0.0,
+        'wins': 0,
+        'draws': 0,
+        'losses': 0,
+      };
       _userCache[userId] = fallback;
       return fallback;
     }
@@ -161,6 +173,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
       if (matchDoc.exists) {
         final updatedMatch = Match.fromFirestore(matchDoc);
         setState(() {
+          _latestMatch = updatedMatch;
           _pendingApplications = updatedMatch.pendingApplications;
           _participants = updatedMatch.participants;
         });
@@ -540,22 +553,41 @@ if (_showResultForm && (m.teamCount ?? 2) > 2)
 Widget _buildTeamsWrap(Match m) {
   final visibleTeams = m.allTeams.where((team) => team.playerIds.isNotEmpty).toList();
 
+  final cards = List.generate(visibleTeams.length, (index) {
+    final team = visibleTeams[index];
+    final players = team.playerIds;
+    final total = _teamTotalRating(players, _ratingsCache, team.averageRating);
+    return _mvpTeamCard(
+      title: team.name.isNotEmpty
+          ? team.name
+          : '${I18n.inline('Команда', 'Team')} ${index + 1}',
+      color: _teamColors[index % _teamColors.length],
+      total: total,
+      players: players,
+      ratings: _ratingsCache,
+    );
+  });
+
+  if (cards.length == 2) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: cards[0]),
+        const SizedBox(width: 16),
+        Expanded(child: cards[1]),
+      ],
+    );
+  }
+
   return Wrap(
     spacing: 16,
     runSpacing: 16,
-    children: List.generate(visibleTeams.length, (index) {
-      final team = visibleTeams[index];
-      final players = team.playerIds;
-      final total = _teamTotalRating(players, _ratingsCache, team.averageRating);
+    children: List.generate(cards.length, (index) {
       return SizedBox(
-        width: MediaQuery.of(context).size.width / (visibleTeams.length >= 2 ? 2 : 1) - 24,
-        child: _mvpTeamCard(
-          title: '${team.name.isNotEmpty ? team.name : I18n.inline('Команда', 'Team')} ${index + 1}',
-          color: _teamColors[index % _teamColors.length],
-          total: total,
-          players: players,
-          ratings: _ratingsCache,
-        ),
+        width: MediaQuery.of(context).size.width /
+                (visibleTeams.length >= 2 ? 2 : 1) -
+            24,
+        child: cards[index],
       );
     }),
   );
@@ -642,6 +674,16 @@ Widget _buildClubVsCard(Match m) {
       );
     },
   );
+}
+
+double _calculateWinRateFromProfile(Map<String, dynamic>? profile) {
+  if (profile == null) return 0.0;
+  final wins = (profile['wins'] ?? 0) as num;
+  final draws = (profile['draws'] ?? 0) as num;
+  final losses = (profile['losses'] ?? 0) as num;
+  final total = wins + draws + losses;
+  if (total <= 0) return 0.0;
+  return (wins / total) * 100;
 }
 
 Future<_ClubCardData> _prepareClubCardData(Match m) async {
@@ -2035,7 +2077,8 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
               builder: (context, snap) {
                 final name = (snap.data?['displayName'] ?? 'Гравець') as String;
                 final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as String;
-                final initials = _initialsFrom(name, id);
+                final realRating = ((snap.data?['rating'] ?? r) as num).toDouble();
+                final winRate = _calculateWinRateFromProfile(snap.data);
 
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2062,7 +2105,8 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${r.toStringAsFixed(2)} pts',
+                            '${realRating.toStringAsFixed(2)} ${I18n.inline('rating', 'rating')}'
+                            ' • ${winRate.toStringAsFixed(0)}% ${I18n.inline('вінрейт', 'win rate')}',
                             style: const TextStyle(color: Colors.white54, fontSize: 12),
                           ),
                         ],
@@ -2253,8 +2297,9 @@ setState(() {
 }
   
   void _showFinishMatchDialog() {
-  final aName = widget.match.teamA?.name ?? 'Команда A';
-  final bName = widget.match.teamB?.name ?? 'Команда B';
+  final activeMatch = _latestMatch ?? widget.match;
+  final aName = activeMatch.teamA?.name ?? I18n.inline('Команда A', 'Team A');
+  final bName = activeMatch.teamB?.name ?? I18n.inline('Команда B', 'Team B');
 
   showDialog(
     context: context,
@@ -2388,7 +2433,11 @@ setState(() {
         
         // Перезавантажуємо дані
         await _loadMatchData();
-        await Navigator.pushNamed(context, '/match_rating', arguments: widget.match);
+        await Navigator.pushNamed(
+          context,
+          '/match_rating',
+          arguments: _latestMatch ?? widget.match,
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2410,82 +2459,202 @@ setState(() {
   }
 
   Future<Map<String, int>?> _collectGoalStats() async {
-    final ids = _participants.isNotEmpty
-        ? _participants
-        : widget.match.participants;
+    final activeMatch = _latestMatch ?? widget.match;
+    final ids = _participants.isNotEmpty ? _participants : activeMatch.participants;
     if (ids.isEmpty) return {};
     final names = await _loadParticipantNames(ids);
     final controllers = <String, TextEditingController>{
       for (final id in ids) id: TextEditingController(text: '0')
     };
+    final teamAIds = activeMatch.teamA?.playerIds ?? const <String>[];
+    final teamBIds = activeMatch.teamB?.playerIds ?? const <String>[];
+    final teamAName = activeMatch.teamA?.name ?? I18n.inline('Команда A', 'Team A');
+    final teamBName = activeMatch.teamB?.name ?? I18n.inline('Команда B', 'Team B');
+
+    Widget buildTeamSection(
+      StateSetter setStateDialog,
+      String teamName,
+      List<String> teamIds,
+      Color accent,
+    ) {
+      final teamGoals = teamIds.fold<int>(
+        0,
+        (sum, id) => sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
+      );
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: accent.withOpacity(0.45)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    teamName,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${I18n.inline('Голи', 'Goals')}: $teamGoals',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ...teamIds.map((id) {
+              final name = names[id] ?? I18n.t('player');
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 78,
+                      child: TextField(
+                        controller: controllers[id],
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          labelText: I18n.inline('Голи', 'Goals'),
+                        ),
+                        onChanged: (_) => setStateDialog(() {}),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      );
+    }
+
     final result = await showDialog<Map<String, int>?>(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1a1a2e),
-          title: Text(
-            I18n.inline('Хто скільки забив?', 'Who scored?'),
-            style: const TextStyle(color: Colors.white),
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: ids.map((id) {
-                final name = names[id] ?? I18n.t('player');
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          name,
-                          style: const TextStyle(color: Colors.white),
-                        ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          final teamAGoals = teamAIds.fold<int>(
+            0,
+            (sum, id) => sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
+          );
+          final teamBGoals = teamBIds.fold<int>(
+            0,
+            (sum, id) => sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
+          );
+          final totalGoals = teamAGoals + teamBGoals;
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1a1a2e),
+            title: Text(
+              I18n.inline('Хто забив?', 'Who scored?'),
+              style: const TextStyle(color: Colors.white),
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      I18n.inline(
+                        'Розподіліть рівно $_teamAScore голів для $teamAName і $_teamBScore голів для $teamBName.',
+                        'Assign exactly $_teamAScore goals to $teamAName and $_teamBScore goals to $teamBName.',
                       ),
-                      SizedBox(
-                        width: 70,
-                        child: TextField(
-                          controller: controllers[id],
-                          keyboardType: TextInputType.number,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            labelText: 'Голи',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 12),
+                    buildTeamSection(setStateDialog, teamAName, teamAIds, _teamColors[0]),
+                    buildTeamSection(setStateDialog, teamBName, teamBIds, _teamColors[1]),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${I18n.inline('Голи команди', 'Team goals')}: '
+                            '$teamAName $teamAGoals - $teamBGoals $teamBName',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${I18n.inline('Усього голів', 'Total goals')}: $totalGoals',
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: Text(I18n.t('cancel')),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, <String, int>{}),
+                child: Text(I18n.inline('Пропустити', 'Skip')),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (teamAGoals != _teamAScore || teamBGoals != _teamBScore) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          I18n.inline(
+                            'Сума голів по гравцях має збігатися з рахунком команд',
+                            'Player goal totals must match the team score',
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, null),
-              child: Text(I18n.t('cancel')),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, <String, int>{}),
-              child: Text(I18n.inline('Пропустити', 'Skip')),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final map = <String, int>{};
-                controllers.forEach((id, ctrl) {
-                  final value = int.tryParse(ctrl.text) ?? 0;
-                  if (value > 0) {
-                    map[id] = value;
+                    );
+                    return;
                   }
-                });
-                Navigator.pop(ctx, map);
-              },
-              child: Text(I18n.t('confirm')),
-            ),
-          ],
-        );
-      },
+                  final map = <String, int>{};
+                  controllers.forEach((id, ctrl) {
+                    final value = int.tryParse(ctrl.text) ?? 0;
+                    if (value > 0) {
+                      map[id] = value;
+                    }
+                  });
+                  Navigator.pop(ctx, map);
+                },
+                child: Text(I18n.t('confirm')),
+              ),
+            ],
+          );
+        },
+      ),
     );
     for (final ctrl in controllers.values) {
       ctrl.dispose();

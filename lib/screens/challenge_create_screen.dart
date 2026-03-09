@@ -186,9 +186,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           children: [
             Icon(Icons.emoji_events, color: Colors.amber, size: 24),
             const SizedBox(width: 8),
-            const Text(
-              'Створити челендж',
-              style: TextStyle(color: Colors.white),
+            Text(
+              I18n.t('create_challenge'),
+              style: const TextStyle(color: Colors.white),
             ),
           ],
         ),
@@ -523,7 +523,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 
                 // Ставка входу
                 _buildDropdownField(
-                  label: 'Ставка входу *',
+                  label: I18n.inline('Ставка входу *', 'Entry fee *'),
                   value: _selectedEntryFee,
                   items: _entryFees,
                   onChanged: (value) {
@@ -624,8 +624,17 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         context: context,
                         builder: (context) => AlertDialog(
                           backgroundColor: const Color(0xFF1e7d32),
-                          title: const Text('Підтвердження', style: TextStyle(color: Colors.white)),
-                          content: Text('Буде списано ${_selectedEntryFee} монет за створення челенджу. Продовжити?', style: const TextStyle(color: Colors.white70)),
+                          title: Text(
+                            I18n.inline('Підтвердження', 'Confirmation'),
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          content: Text(
+                            I18n.inline(
+                              'Буде списано ${_selectedEntryFee} монет за створення челенджу. Продовжити?',
+                              '${_selectedEntryFee} coins will be charged to create the challenge. Continue?',
+                            ),
+                            style: const TextStyle(color: Colors.white70),
+                          ),
                           actions: [
                             TextButton(onPressed: () => Navigator.pop(context, false), child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70))),
                             ElevatedButton(onPressed: () => Navigator.pop(context, true), child: Text(I18n.t('confirm'))),
@@ -1022,7 +1031,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             border: Border.all(color: color.withOpacity(0.5)),
           ),
           child: Text(
-            '$coins монет',
+            I18n.inline('$coins монет', '$coins coins'),
             style: TextStyle(
               color: color,
               fontSize: 14,
@@ -1092,12 +1101,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   }
 
   String _formatDuration(int hours) {
-    if (hours == 1) return '1 година';
-    if (hours == 6) return '6 годин';
-    if (hours == 24) return '1 доба';
-    if (hours == 72) return '3 доби';
-    if (hours == 168) return '1 тиждень';
-    return '$hours год';
+    if (hours == 1) return I18n.inline('1 година', '1 hour');
+    if (hours == 6) return I18n.inline('6 годин', '6 hours');
+    if (hours == 24) return I18n.inline('1 доба', '1 day');
+    if (hours == 72) return I18n.inline('3 доби', '3 days');
+    if (hours == 168) return I18n.inline('1 тиждень', '1 week');
+    return I18n.inline('$hours год', '$hours h');
   }
 
   Future<void> _createChallenge() async {
@@ -1241,8 +1250,8 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             } else {
               print('WARNING: Creator video upload returned null/empty URL');
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('⚠️ Відео створювача не завантажено!'),
+                SnackBar(
+                  content: Text(I18n.inline('⚠️ Відео створювача не завантажено!', '⚠️ Creator video was not uploaded!')),
                   backgroundColor: Colors.orange,
                 ),
               );
@@ -1251,7 +1260,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             print('ERROR: Creator video upload failed: $e');
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('❌ Помилка завантаження відео: $e'),
+                content: Text(I18n.inline('❌ Помилка завантаження відео: $e', '❌ Video upload error: $e')),
                 backgroundColor: Colors.red,
               ),
             );
@@ -1259,8 +1268,8 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         } else {
           print('WARNING: No video file selected for creator!');
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚠️ Відео створювача обов\'язкове!'),
+            SnackBar(
+              content: Text(I18n.inline('⚠️ Відео створювача обов\'язкове!', '⚠️ Creator video is required!')),
               backgroundColor: Colors.orange,
             ),
           );
@@ -1279,8 +1288,8 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 children: [
                   const Icon(Icons.check_circle, color: Colors.white, size: 28),
                   const SizedBox(width: 12),
-                  const Text(
-                    'Челендж створено!',
+                  Text(
+                    I18n.inline('Челендж створено!', 'Challenge created!'),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -1291,8 +1300,14 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               ),
               content: Text(
                 _selectedVideoFile != null 
-                  ? 'Челендж та ваше відео успішно створені! Тепер інші гравці можуть приєднатися та завантажити свої відео.'
-                  : 'Челендж створено! Ви можете додати відео пізніше в деталях челенджу.',
+                  ? I18n.inline(
+                      'Челендж та ваше відео успішно створені! Тепер інші гравці можуть приєднатися та завантажити свої відео.',
+                      'The challenge and your video were created successfully! Other players can now join and upload their videos.',
+                    )
+                  : I18n.inline(
+                      'Челендж створено! Ви можете додати відео пізніше в деталях челенджу.',
+                      'Challenge created! You can add a video later in the challenge details.',
+                    ),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -1311,8 +1326,8 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Готово',
+                  child: Text(
+                    I18n.inline('Готово', 'Done'),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -1324,7 +1339,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           },
         );
       } else {
-        throw Exception('Помилка створення челенджу');
+        throw Exception(I18n.inline('Помилка створення челенджу', 'Failed to create challenge'));
       }
     } catch (e) {
       // Показати помилку
@@ -1336,7 +1351,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Помилка: ${e.toString()}',
+                  I18n.inline('Помилка: ${e.toString()}', 'Error: ${e.toString()}'),
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
@@ -1406,7 +1421,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       print('Error picking video: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Помилка вибору відео: ${e.toString()}'),
+          content: Text(I18n.inline('Помилка вибору відео: ${e.toString()}', 'Video selection error: ${e.toString()}')),
           backgroundColor: Colors.red,
         ),
       );
@@ -1443,7 +1458,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         uploadTask = storageRef.putData(bytes);
       } catch (e) {
         print('ERROR reading video file: $e');
-        throw Exception('Помилка читання відео файлу: $e');
+        throw Exception(I18n.inline('Помилка читання відео файлу: $e', 'Video file read error: $e'));
       }
       
       print('Upload started...');
@@ -1457,7 +1472,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         print('Video URL obtained: $videoUrl');
       } catch (e) {
         print('ERROR during upload or getting URL: $e');
-        throw Exception('Помилка завантаження або отримання URL: $e');
+        throw Exception(I18n.inline('Помилка завантаження або отримання URL: $e', 'Upload or URL retrieval error: $e'));
       }
       
       // Створюємо запис у колекції videos, щоб мати єдиний шлях голосів і агрегатів
@@ -1467,8 +1482,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           'userId': userId,
           'authorId': userId,
           'authorName': authorName,
-          'title': 'Відео створювача',
-          'description': 'Відео челенджу',
+          'title': _titleController.text.trim().isNotEmpty
+              ? _titleController.text.trim()
+              : I18n.inline('Відео створювача', 'Creator video'),
+          'description': _descriptionController.text.trim().isNotEmpty
+              ? _descriptionController.text.trim()
+              : I18n.inline('Відео челенджу', 'Challenge video'),
           'category': 'Інше',
           'difficulty': null,
           'videoUrl': videoUrl,
@@ -1493,7 +1512,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             .set({
           'userId': userId,
           'authorName': authorName,
-          'title': 'Відео створювача',
+          'title': _titleController.text.trim().isNotEmpty
+              ? _titleController.text.trim()
+              : I18n.inline('Відео створювача', 'Creator video'),
           'videoUrl': videoUrl,
           'videoId': createdVideoDocId,
           'isCreatorVideo': true,
