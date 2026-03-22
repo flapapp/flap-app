@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../services/team_service.dart';
 import '../utils/i18n.dart';
+import '../widgets/city_autocomplete_field.dart';
 
 class TeamCreateScreen extends StatefulWidget {
   final int existingTeams;
@@ -170,17 +171,25 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                               },
                             ),
                             const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _cityCtrl,
-                              cursorColor: Colors.white,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
-                              decoration: _fieldDecoration(
-                                I18n.inline('Місто (опційно)', 'City (optional)'),
-                              ),
-                            ),
+                            CityAutocompleteField(
+                          controller: _cityCtrl,
+                          label: I18n.inline('Місто (опційно)', 'City (optional)'),
+                          requiredField: false,
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                          labelStyle: const TextStyle(color: Colors.white70),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                          ),
+                          focusedBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(color: Color(0xFF36D399)),
+                          ),
+                          prefixIcon: const Icon(Icons.location_city, color: Colors.white70),
+                        ),
                             const SizedBox(height: 16),
                             Container(
                               decoration: BoxDecoration(

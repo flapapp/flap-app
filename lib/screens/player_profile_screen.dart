@@ -48,6 +48,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   bool _loadingMyVideos = false;
   final BadgeService _badgeService = BadgeService();
   double _winRate = 0.0;
+  int _wins = 0;
+  int _draws = 0;
+  int _losses = 0;
+  int _matchesPlayed = 0;
   List<String> _recentResults = const ['-', '-', '-', '-', '-'];
   List<String> _userBadgeIds = [];
   List<app_badge.Badge> _userBadges = [];
@@ -88,7 +92,11 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       }
       // Win Rate + останні 5 результатів
       final stats = await _loadMatchStats(widget.playerId);
-      _winRate = stats['winRate'] as double? ?? 0.0;
+      _winRate = (stats['winRate'] as num?)?.toDouble() ?? 0.0;
+      _wins = (stats['wins'] as num?)?.toInt() ?? 0;
+      _draws = (stats['draws'] as num?)?.toInt() ?? 0;
+      _losses = (stats['losses'] as num?)?.toInt() ?? 0;
+      _matchesPlayed = (stats['matches'] as num?)?.toInt() ?? 0;
       _recentResults = List<String>.from(
         stats['recentResults'] ?? const ['-', '-', '-', '-', '-'],
       );
@@ -232,10 +240,23 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     final total = wins + draws + losses;
     final rate = total > 0 ? (wins / total) * 100 : 0.0;
     while (recent.length < 5) recent.add('-');
-
-    return {'winRate': rate, 'recentResults': recent};
+    return {
+      'winRate': rate,
+      'wins': wins,
+      'draws': draws,
+      'losses': losses,
+      'matches': total,
+      'recentResults': recent,
+    };
   } catch (_) {
-    return {'winRate': 0.0, 'recentResults': const ['-', '-', '-', '-', '-']};
+    return {
+      'winRate': 0.0,
+      'wins': 0,
+      'draws': 0,
+      'losses': 0,
+      'matches': 0,
+      'recentResults': const ['-', '-', '-', '-', '-'],
+    };
   }
 }
 
@@ -478,6 +499,35 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
     );
   }
 
+  String _localizedPosition(String? raw) {
+  final value = (raw ?? '').toString().trim().toLowerCase();
+
+  switch (value) {
+    case 'воротар':
+    case 'goalkeeper':
+      return I18n.inline('Воротар', 'Goalkeeper');
+
+    case 'захисник':
+    case 'defender':
+      return I18n.inline('Захисник', 'Defender');
+
+    case 'півзахисник':
+    case 'midfielder':
+      return I18n.inline('Півзахисник', 'Midfielder');
+
+    case 'нападник':
+    case 'forward':
+      return I18n.inline('Нападник', 'Forward');
+
+    case 'універсал':
+    case 'utility player':
+      return I18n.inline('Універсал', 'Utility player');
+
+    default:
+      return (raw ?? '').toString();
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -531,17 +581,22 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                          playerData!['authorName'] ?? 
                          playerData!['email']?.toString().split('@').first ?? 
                          I18n.t('player')).toString();
-    final position = playerData!['position'] ?? '';
+    final position = _localizedPosition(playerData!['position']?.toString());
     final experience = playerData!['experience'] ?? '';
     final city = playerData!['city'] ?? '';
     final rating = (playerData!['rating'] ?? 0.0).toDouble();
-    final matches = ((playerData!['totalMatches'] ?? playerData!['matches'] ?? playerData!['matchesPlayed'] ?? 0) as num).toInt();
+    final matchesFromProfile = ((playerData!['totalMatches'] ?? playerData!['matches'] ?? playerData!['matchesPlayed'] ?? 0) as num).toInt();
     final averageRating = (playerData!['averageRating'] ?? rating).toDouble();
-    final wins   = ((playerData!['wins'] ?? playerData!['wonMatches']  ?? 0) as num).toInt();
-    final losses = ((playerData!['losses'] ?? playerData!['lostMatches'] ?? 0) as num).toInt();
-    final draws  = ((playerData!['draws'] ?? playerData!['drawMatches']  ?? 0) as num).toInt();
+    final winsFromProfile   = ((playerData!['wins'] ?? playerData!['wonMatches']  ?? 0) as num).toInt();
+    final lossesFromProfile = ((playerData!['losses'] ?? playerData!['lostMatches'] ?? 0) as num).toInt();
+    final drawsFromProfile  = ((playerData!['draws'] ?? playerData!['drawMatches']  ?? 0) as num).toInt();
     final goals  = ((playerData!['goals'] ?? 0) as num).toInt();
     final avatarUrl = (playerData!['avatarUrl'] ?? playerData!['avatar'] ?? playerData!['photoUrl'] ?? '').toString();
+
+    final wins = _wins > 0 ? _wins : winsFromProfile;
+    final draws = _draws > 0 ? _draws : drawsFromProfile;
+    final losses = _losses > 0 ? _losses : lossesFromProfile;
+    final matches = _matchesPlayed > 0 ? _matchesPlayed : matchesFromProfile;
 
     final me = FirebaseAuth.instance.currentUser?.uid;
     final isOwnProfile = me != null && widget.playerId == me;
@@ -619,6 +674,20 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
               Expanded(child: _statBox(value: goals.toString(), label: I18n.inline('Голи', 'Goals'), icon: Icons.sports, color: const Color(0xFFFF7043))),
             ]),
             const SizedBox(height: 20),
+
+            const SizedBox(height: 10),
+
+            
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _resultChip('W', wins, Colors.greenAccent),
+                const SizedBox(width: 8),
+                _resultChip('L', losses, Colors.redAccent),
+                const SizedBox(width: 8),
+                _resultChip('D', draws, Colors.orangeAccent),
+              ],
+            ),
 
             // Win Rate + останні 5
 Container(
@@ -961,6 +1030,23 @@ const SizedBox(height: 12),
     );
   }
 
+  Widget _resultChip(String label, int value, Color color) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.15),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Row(
+      children: [
+        Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+        const SizedBox(width: 4),
+        Text(value.toString(), style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+      ],
+    ),
+  );
+}
+
   Widget _buildDefaultAvatar(String name) {
     return Container(
       decoration: const BoxDecoration(
@@ -1300,76 +1386,93 @@ class _MiniTeamCard extends StatelessWidget {
 
   const _MiniTeamCard({required this.team, this.onTap});
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 190,
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: const Color(0xFF4caf50),
-                  backgroundImage:
-                      team.logoUrl != null && team.logoUrl!.isNotEmpty ? NetworkImage(team.logoUrl!) : null,
-                  child: (team.logoUrl == null || team.logoUrl!.isEmpty)
-                      ? Text(
-                          team.name.isNotEmpty ? team.name[0].toUpperCase() : '?',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        team.name,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        I18n.inline('${team.memberIds.length} гравців', '${team.memberIds.length} players'),
-                        style: const TextStyle(color: Colors.white60, fontSize: 11),
-                      ),
-                    ],
+ @override
+Widget build(BuildContext context) {
+  return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+    stream: FirebaseFirestore.instance
+        .collection('teamStats')
+        .doc(team.id)
+        .snapshots(),
+    builder: (context, snapshot) {
+      final stats = snapshot.data?.data() ?? const <String, dynamic>{};
+
+      final wins = (stats['wins'] as num?)?.toInt() ?? team.wins;
+      final losses = (stats['losses'] as num?)?.toInt() ?? team.losses;
+      final draws = (stats['draws'] as num?)?.toInt() ?? team.draws;
+
+      final total = wins + losses + draws;
+      final winRate = total > 0 ? ((wins / total) * 100).toStringAsFixed(0) : '0';
+
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 190,
+          margin: const EdgeInsets.only(right: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: const Color(0xFF4caf50),
+                    backgroundImage: team.logoUrl != null && team.logoUrl!.isNotEmpty
+                        ? NetworkImage(team.logoUrl!)
+                        : null,
+                    child: (team.logoUrl == null || team.logoUrl!.isEmpty)
+                        ? Text(
+                            team.name.isNotEmpty ? team.name[0].toUpperCase() : '?',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          )
+                        : null,
                   ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _teamChip('W', team.wins, Colors.greenAccent),
-                _teamChip('L', team.losses, Colors.redAccent),
-                _teamChip('D', team.draws, Colors.orangeAccent),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              I18n.inline('Win rate: ${team.winRate.toStringAsFixed(0)}%',
-                  'Win rate: ${team.winRate.toStringAsFixed(0)}%'),
-              style: const TextStyle(color: Colors.white60, fontSize: 11),
-            ),
-          ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          team.name,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          I18n.inline('${team.memberIds.length} гравців', '${team.memberIds.length} players'),
+                          style: const TextStyle(color: Colors.white60, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _teamChip('W', wins, Colors.greenAccent),
+                  _teamChip('L', losses, Colors.redAccent),
+                  _teamChip('D', draws, Colors.orangeAccent),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                I18n.inline('Win rate: $winRate%', 'Win rate: $winRate%'),
+                style: const TextStyle(color: Colors.white60, fontSize: 11),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
+      );
+    },
+  );
+}
 
   Widget _teamChip(String label, int value, Color color) {
     return Container(

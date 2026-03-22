@@ -160,11 +160,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: _getStatusColor(widget.match.status),
+              color: _getStatusColor(widget.match.status, match: widget.match),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              _getStatusText(widget.match.status),
+              _getStatusText(widget.match.status, match: widget.match),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 14,
@@ -1971,7 +1971,10 @@ String _localizedCity(String? raw) {
       return _buildTeamOnlyMessage();
     }
 
-    if (isOrganizer && widget.match.status != MatchStatus.finished) {
+    if (isOrganizer &&
+    widget.match.status != MatchStatus.finished &&
+    widget.match.status != MatchStatus.cancelled &&
+    !widget.match.isUnplayedByTimeout) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2107,7 +2110,26 @@ String _localizedCity(String? raw) {
       );
     }
 
-    return Row(
+    if (widget.match.isUnplayedByTimeout ||
+    widget.match.status == MatchStatus.cancelled) {
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.blueGrey.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.35)),
+    ),
+    child: Text(
+      I18n.inline(
+        'Матч не був розпочатий протягом 24 годин після запланованого часу. Він позначений як незіграний.',
+        'The match was not started within 24 hours after the scheduled time. It is marked as unplayed.',
+      ),
+      style: const TextStyle(color: Colors.white70),
+    ),
+  );
+}
+
+return Row(
       children: [
         Expanded(
           child: Container(
@@ -2284,41 +2306,65 @@ String _localizedCity(String? raw) {
 
 
   void _joinMatch() async {
-    setState(() => _isJoining = true);
-    
-    try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) return;
+  // Prevent double taps while request in flight.
+  if (_isJoining) return;
 
-      final success = await _matchService.applyForMatch(widget.match.id, currentUser.uid);
-      
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(I18n.t('applied_wait')),
-            backgroundColor: Color(0xFF4caf50),
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser == null) return;
+
+  if (widget.match.isUnplayedByTimeout ||
+      widget.match.status == MatchStatus.cancelled) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          I18n.inline(
+            'Цей матч позначено як незіграний. Приєднання недоступне.',
+            'This match is marked as unplayed. Joining is unavailable.',
           ),
-        );
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(I18n.t('already_applied')),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
+        ),
+      ),
+    );
+    return;
+  }
+
+  setState(() => _isJoining = true);
+
+  try {
+    final success =
+        await _matchService.applyForMatch(widget.match.id, currentUser.uid);
+
+    if (!mounted) return;
+
+    if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('Помилка: $e', 'Error: $e')),
+          content: Text(I18n.t('applied_wait')),
+          backgroundColor: const Color(0xFF4caf50),
+        ),
+      );
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(I18n.t('already_applied')),
           backgroundColor: Colors.red,
         ),
       );
-    } finally {
+    }
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(I18n.inline('Помилка: $e', 'Error: $e')),
+        backgroundColor: Colors.red,
+      ),
+    );
+  } finally {
+    if (mounted) {
       setState(() => _isJoining = false);
     }
   }
+}
 
   void _shareMatch() {
     final url = 'https://flap.app/match/${widget.match.id}';
@@ -2340,24 +2386,30 @@ String _localizedCity(String? raw) {
     }
   }
 
-  Color _getStatusColor(MatchStatus status) {
-    switch (status) {
-      case MatchStatus.open:
-        return Color(0xFF4caf50);
-      case MatchStatus.full:
-        return Colors.orange;
-      case MatchStatus.inProgress:
-        return Color(0xFF2196f3);
-      case MatchStatus.finished:
-        return Colors.grey;
-      case MatchStatus.cancelled:
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
+  Color _getStatusColor(MatchStatus status, {Match? match}) {
+  if (match?.isUnplayedByTimeout == true) {
+    return const Color(0xFF607D8B);
   }
+  switch (status) {
+    case MatchStatus.open:
+      return const Color(0xFF4caf50);
+    case MatchStatus.full:
+      return Colors.orange;
+    case MatchStatus.inProgress:
+      return const Color(0xFF2196f3);
+    case MatchStatus.finished:
+      return Colors.grey;
+    case MatchStatus.cancelled:
+      return Colors.red;
+    default:
+      return Colors.grey;
+  }
+}
 
-  String _getStatusText(MatchStatus status) {
+String _getStatusText(MatchStatus status, {Match? match}) {
+  if (match?.isUnplayedByTimeout == true) {
+    return I18n.inline('Незіграний', 'Unplayed');
+  }
   switch (status) {
     case MatchStatus.open:
       return I18n.inline('Відкритий', 'Open');

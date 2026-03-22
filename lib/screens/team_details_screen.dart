@@ -37,6 +37,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   late final Stream<List<TeamMatchRequest>> _requestsStream;
   final _auth = FirebaseAuth.instance;
   bool _isSendingJoinRequest = false;
+  bool _isLeavingTeam = false;
   final Set<String> _processingJoinRequestIds = {};
 
   @override
@@ -223,6 +224,11 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
             const SizedBox(height: 18),
             _buildJoinRequestWidget(team, uid),
           ],
+
+          if (uid != null && isMember) ...[
+            const SizedBox(height: 18),
+            _buildLeaveTeamButton(team, uid),
+          ],
         ],
       ),
     );
@@ -312,6 +318,94 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       },
     );
   }
+
+  Widget _buildLeaveTeamButton(AppTeam team, String userId) {
+  final isCaptain = userId == team.captainId;
+
+  return SizedBox(
+    width: double.infinity,
+    child: OutlinedButton.icon(
+      onPressed: _isLeavingTeam
+          ? null
+          : () async {
+              final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: const Color(0xFF111827),
+                      title: Text(
+                        I18n.inline('Покинути команду?', 'Leave team?'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      content: Text(
+                        isCaptain
+                            ? I18n.inline(
+                                'Ви капітан. Після виходу капітанство буде передано іншому учаснику.',
+                                'You are captain. On leave, captain role will be transferred to another member.',
+                              )
+                            : I18n.inline(
+                                'Ви справді хочете покинути цю команду?',
+                                'Do you really want to leave this team?',
+                              ),
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text(I18n.t('cancel'),
+                              style: const TextStyle(color: Colors.white70)),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: Text(
+                            I18n.inline('Покинути', 'Leave'),
+                            style: const TextStyle(color: Colors.redAccent),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ) ??
+                  false;
+
+              if (!confirmed) return;
+
+              try {
+                setState(() => _isLeavingTeam = true);
+                await _teamService.leaveTeam(teamId: team.id, userId: userId);
+                if (!mounted) return;
+                Navigator.pop(context); // назад зі сторінки команди
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      I18n.inline('Ви покинули команду', 'You left the team'),
+                    ),
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(I18n.inline('Помилка: $e', 'Error: $e')),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              } finally {
+                if (mounted) setState(() => _isLeavingTeam = false);
+              }
+            },
+      icon: const Icon(Icons.exit_to_app, color: Colors.redAccent),
+      label: Text(
+        _isLeavingTeam
+            ? I18n.inline('Вихід...', 'Leaving...')
+            : I18n.inline('Покинути команду', 'Leave team'),
+        style: const TextStyle(color: Colors.redAccent),
+      ),
+      style: OutlinedButton.styleFrom(
+        side: const BorderSide(color: Colors.redAccent),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+    ),
+  );
+}
 
   Widget _joinStatusBanner({
     required IconData icon,
@@ -1173,10 +1267,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         'viceCaptainIds': FieldValue.arrayRemove([memberId]),
       });
     } else if (action == 'remove') {
-      await teamRef.update({
-        'memberIds': FieldValue.arrayRemove([memberId]),
-        'viceCaptainIds': FieldValue.arrayRemove([memberId]),
-      });
+  await _teamService.leaveTeam(teamId: team.id, userId: memberId);
     }
   }
 

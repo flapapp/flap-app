@@ -515,11 +515,38 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
   }
 
   // Геттери для зручності
-  bool get isOpen => status == MatchStatus.open;
-  bool get isFull => status == MatchStatus.full;
-  bool get isInProgress => status == MatchStatus.inProgress;
-  bool get isFinished => status == MatchStatus.finished;
-  bool get isCancelled => status == MatchStatus.cancelled;
+bool get isOpen => status == MatchStatus.open;
+bool get isFull => status == MatchStatus.full;
+bool get isInProgress => status == MatchStatus.inProgress;
+bool get isFinished => status == MatchStatus.finished;
+bool get isCancelled => status == MatchStatus.cancelled;
+
+/// Нормалізований запланований час матчу (date + time).
+DateTime get scheduledDateTime {
+  final raw = time.trim();
+  final match = RegExp(r'^(\d{1,2}):(\d{1,2})$').firstMatch(raw);
+  if (match == null) {
+    return DateTime(date.year, date.month, date.day, 0, 0);
+  }
+  final h = int.tryParse(match.group(1) ?? '') ?? 0;
+  final m = int.tryParse(match.group(2) ?? '') ?? 0;
+  return DateTime(
+    date.year,
+    date.month,
+    date.day,
+    h.clamp(0, 23),
+    m.clamp(0, 59),
+  );
+}
+
+/// Незапущений матч, який "прострочився" більше ніж на 24 години.
+bool get isUnplayedByTimeout {
+  final isStillNotStarted = status == MatchStatus.open || status == MatchStatus.full;
+  if (!isStillNotStarted) return false;
+  if (startedAt != null || finishedAt != null) return false;
+  final deadline = scheduledDateTime.add(const Duration(hours: 24));
+  return DateTime.now().isAfter(deadline);
+}
 
   int confirmedPlayersForTeam(String teamKey) {
     final statusMap = teamRosterStatus[teamKey];

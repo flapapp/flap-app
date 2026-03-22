@@ -10,6 +10,7 @@ import '../models/notification.dart';
 import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
 import '../widgets/team_logo_button.dart';
+import '../widgets/city_autocomplete_field.dart';
 
 class CreateMatchScreen extends StatefulWidget {
   const CreateMatchScreen({super.key});
@@ -235,28 +236,21 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
+                  child: CityAutocompleteField(
                     controller: _cityController,
-                    decoration: InputDecoration(
-                      labelText: I18n.inline('Місто *', 'City *'),
-                      hintText: I18n.inline('Введіть місто вручну', 'Type city manually'),
-                      labelStyle: TextStyle(color: Colors.white70),
-                      border: OutlineInputBorder(),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white30),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Color(0xFF4caf50)),
-                      ),
+                    label: I18n.inline('Місто *', 'City *'),
+                    requiredField: true,
+                    style: const TextStyle(color: Colors.white),
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    border: const OutlineInputBorder(),
+                    enabledBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white30),
                     ),
-                    style: TextStyle(color: Colors.white),
-                    onChanged: (value) => _selectedCity = value.trim(),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return I18n.inline('Введіть місто', 'Enter city');
-                      }
-                      return null;
-                    },
+                    focusedBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFF4caf50)),
+                    ),
+                    prefixIcon: const Icon(Icons.location_city, color: Colors.white70),
+                    onSelected: (value) => setState(() => _selectedCity = value.trim()),
                   ),
                 ),
                 SizedBox(width: 15),
@@ -765,6 +759,12 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       }
 
       _selectedCity = _cityController.text.trim();
+      if (_selectedCity.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(I18n.inline('Оберіть місто зі списку', 'Select city from suggestions'))),
+        );
+        return;
+      }
 
       final match = Match(
         id: '', // Firestore згенерує ID

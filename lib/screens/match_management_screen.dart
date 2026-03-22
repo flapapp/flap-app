@@ -2303,95 +2303,128 @@ setState(() {
 
   showDialog(
     context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: const Color(0xFF2a2a2a),
-      title: Text(I18n.t('finish_match'), style: const TextStyle(color: Colors.white)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(I18n.inline('Введіть рахунок матчу:', 'Enter match score:'), style: const TextStyle(color: Colors.white70)),
-          const SizedBox(height: 16),
-          Row(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            aName,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 6),
-          TextField(
-            decoration: InputDecoration(
-              labelText: I18n.inline('Голи', 'Goals'),
-              labelStyle: TextStyle(color: Colors.white70),
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border: OutlineInputBorder(),
+    builder: (dialogContext) {
+      final insets = MediaQuery.of(dialogContext).viewInsets;
+      return AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.fromLTRB(16, 24, 16, 24 + insets.bottom),
+        child: Align(
+          alignment: Alignment.center,
+          child: Material(
+            color: Colors.transparent,
+            child: AlertDialog(
+              insetPadding: EdgeInsets.zero,
+              backgroundColor: const Color(0xFF2a2a2a),
+              title: Text(I18n.t('finish_match'), style: const TextStyle(color: Colors.white)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      I18n.inline('Введіть рахунок матчу:', 'Enter match score:'),
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                aName,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                decoration: InputDecoration(
+                                  labelText: I18n.inline('Голи', 'Goals'),
+                                  labelStyle: const TextStyle(color: Colors.white70),
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  border: const OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(color: Colors.white),
+                                onChanged: (v) => _teamAScore = int.tryParse(v) ?? 0,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Padding(
+                          padding: EdgeInsets.only(top: 28),
+                          child: Text(':', style: TextStyle(color: Colors.white, fontSize: 22)),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                bName,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                decoration: InputDecoration(
+                                  labelText: I18n.inline('Голи', 'Goals'),
+                                  labelStyle: const TextStyle(color: Colors.white70),
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  border: const OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(color: Colors.white),
+                                onChanged: (v) => _teamBScore = int.tryParse(v) ?? 0,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
+                ),
+                ElevatedButton(
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          Navigator.pop(dialogContext);
+                          _finishMatch();
+                        },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFf44336)),
+                  child: Text(I18n.t('finish_match')),
+                ),
+              ],
             ),
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
-            onChanged: (v) => _teamAScore = int.tryParse(v) ?? 0,
           ),
-        ],
-      ),
-    ),
-    const SizedBox(width: 12),
-    const Padding(
-      padding: EdgeInsets.only(top: 28),
-      child: Text(':', style: TextStyle(color: Colors.white, fontSize: 22)),
-    ),
-    const SizedBox(width: 12),
-    Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            bName,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 6),
-          TextField(
-            decoration: InputDecoration(
-              labelText: I18n.inline('Голи', 'Goals'),
-              labelStyle: TextStyle(color: Colors.white70),
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
-            onChanged: (v) => _teamBScore = int.tryParse(v) ?? 0,
-          ),
-        ],
-      ),
-    ),
-  ],
-),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
         ),
-        ElevatedButton(
-          onPressed: _isLoading ? null : () { Navigator.pop(context); _finishMatch(); },
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFf44336)),
-          child: Text(I18n.t('finish_match')),
-        ),
-      ],
-    ),
+      );
+    },
   );
 }
   
@@ -2459,111 +2492,117 @@ setState(() {
   }
 
   Future<Map<String, int>?> _collectGoalStats() async {
-    final activeMatch = _latestMatch ?? widget.match;
-    final ids = _participants.isNotEmpty ? _participants : activeMatch.participants;
-    if (ids.isEmpty) return {};
-    final names = await _loadParticipantNames(ids);
-    final controllers = <String, TextEditingController>{
-      for (final id in ids) id: TextEditingController(text: '0')
-    };
-    final teamAIds = activeMatch.teamA?.playerIds ?? const <String>[];
-    final teamBIds = activeMatch.teamB?.playerIds ?? const <String>[];
-    final teamAName = activeMatch.teamA?.name ?? I18n.inline('Команда A', 'Team A');
-    final teamBName = activeMatch.teamB?.name ?? I18n.inline('Команда B', 'Team B');
+  final activeMatch = _latestMatch ?? widget.match;
+  final ids = _participants.isNotEmpty ? _participants : activeMatch.participants;
+  if (ids.isEmpty) return {};
+  final names = await _loadParticipantNames(ids);
+  final controllers = <String, TextEditingController>{
+    for (final id in ids) id: TextEditingController(text: '0')
+  };
+  final teamAIds = activeMatch.teamA?.playerIds ?? const <String>[];
+  final teamBIds = activeMatch.teamB?.playerIds ?? const <String>[];
+  final teamAName = activeMatch.teamA?.name ?? I18n.inline('Команда A', 'Team A');
+  final teamBName = activeMatch.teamB?.name ?? I18n.inline('Команда B', 'Team B');
 
-    Widget buildTeamSection(
-      StateSetter setStateDialog,
-      String teamName,
-      List<String> teamIds,
-      Color accent,
-    ) {
-      final teamGoals = teamIds.fold<int>(
-        0,
-        (sum, id) => sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
-      );
+  Widget buildTeamSection(
+    StateSetter setStateDialog,
+    String teamName,
+    List<String> teamIds,
+    Color accent,
+  ) {
+    final teamGoals = teamIds.fold<int>(
+      0,
+      (sum, id) => sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
+    );
 
-      return Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: accent.withOpacity(0.45)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    teamName,
-                    style: TextStyle(
-                      color: accent,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withOpacity(0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  teamName,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                Text(
-                  '${I18n.inline('Голи', 'Goals')}: $teamGoals',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w600,
+              ),
+              Text(
+                '${I18n.inline('Голи', 'Goals')}: $teamGoals',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...teamIds.map((id) {
+            final name = names[id] ?? I18n.t('player');
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: const TextStyle(color: Colors.white),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ...teamIds.map((id) {
-              final name = names[id] ?? I18n.t('player');
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: const TextStyle(color: Colors.white),
+                  SizedBox(
+                    width: 78,
+                    child: TextField(
+                      controller: controllers[id],
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        labelText: I18n.inline('Голи', 'Goals'),
                       ),
+                      onChanged: (_) => setStateDialog(() {}),
                     ),
-                    SizedBox(
-                      width: 78,
-                      child: TextField(
-                        controller: controllers[id],
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          labelText: I18n.inline('Голи', 'Goals'),
-                        ),
-                        onChanged: (_) => setStateDialog(() {}),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      );
-    }
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
 
-    final result = await showDialog<Map<String, int>?>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setStateDialog) {
-          final teamAGoals = teamAIds.fold<int>(
-            0,
-            (sum, id) => sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
-          );
-          final teamBGoals = teamBIds.fold<int>(
-            0,
-            (sum, id) => sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
-          );
-          final totalGoals = teamAGoals + teamBGoals;
+  final result = await showDialog<Map<String, int>?>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (context, setStateDialog) {
+        final insets = MediaQuery.of(context).viewInsets;
+        final teamAGoals = teamAIds.fold<int>(
+          0,
+          (sum, id) => sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
+        );
+        final teamBGoals = teamBIds.fold<int>(
+          0,
+          (sum, id) => sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
+        );
+        final totalGoals = teamAGoals + teamBGoals;
 
-          return AlertDialog(
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.fromLTRB(16, 24, 16, 24 + insets.bottom),
+          child: AlertDialog(
+            insetPadding: EdgeInsets.zero,
             backgroundColor: const Color(0xFF1a1a2e),
             title: Text(
               I18n.inline('Хто забив?', 'Who scored?'),
@@ -2652,15 +2691,17 @@ setState(() {
                 child: Text(I18n.t('confirm')),
               ),
             ],
-          );
-        },
-      ),
-    );
-    for (final ctrl in controllers.values) {
-      ctrl.dispose();
-    }
-    return result;
+          ),
+        );
+      },
+    ),
+  );
+
+  for (final ctrl in controllers.values) {
+    ctrl.dispose();
   }
+  return result;
+}
 
   Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {
     final names = <String, String>{};

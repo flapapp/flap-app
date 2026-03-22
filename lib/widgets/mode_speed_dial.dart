@@ -55,15 +55,18 @@ class _ModeSpeedDialState extends State<ModeSpeedDial>
         ...widget.shortcuts.asMap().entries.map(
           (entry) {
             final action = entry.value;
-            return AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: _expanded ? 1 : 0,
-              child: AnimatedSlide(
+            return IgnorePointer(
+              ignoring: !_expanded,
+              child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 200),
-                offset: _expanded ? Offset.zero : const Offset(0, 0.2),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _ShortcutButton(action: action, onCollapse: _collapse),
+                opacity: _expanded ? 1 : 0,
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 200),
+                  offset: _expanded ? Offset.zero : const Offset(0, 0.2),
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _ShortcutButton(action: action, onCollapse: _collapse),
+                  ),
                 ),
               ),
             );

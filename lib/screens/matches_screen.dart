@@ -18,6 +18,7 @@ import '../widgets/player_avatar_button.dart';
 import '../widgets/mode_speed_dial.dart';
 import '../services/notification_service.dart';
 import '../utils/i18n.dart';
+import '../widgets/city_autocomplete_field.dart';
 
 
 
@@ -260,29 +261,26 @@ void _resetFindFilters() {
     final bool narrow = constraints.maxWidth < 380;
     final city = SizedBox(
       width: double.infinity,
-      child: TextField(
+      child: CityAutocompleteField(
         controller: _cityFilterController,
-        decoration: InputDecoration(
-          labelText: I18n.t('city_label'),
-          hintText: I18n.t('all_cities'),
-          labelStyle: const TextStyle(color: Colors.white70),
-          hintStyle: const TextStyle(color: Colors.white54),
-          prefixIcon: const Icon(Icons.location_city, color: Colors.white70, size: 20),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFF4caf50)),
-          ),
-        ),
+        label: I18n.t('city_label'),
+        requiredField: false,
+        includeAllOption: true,
         style: const TextStyle(color: Colors.white),
-        onChanged: (value) {
+        labelStyle: const TextStyle(color: Colors.white70),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFF4caf50)),
+        ),
+        prefixIcon: const Icon(Icons.location_city, color: Colors.white70, size: 20),
+        onSelected: (value) {
           setState(() {
             _selectedCity = value.trim().isEmpty ? I18n.t('all_cities') : value.trim();
           });
@@ -1283,7 +1281,13 @@ return Column(
                 filtered = all.where((m) => m.participants.contains(currentUserId) && m.organizerId != currentUserId).toList();
               }
               // Найближчі зверху
-          filtered.sort((a, b) => b.date.compareTo(a.date));
+              // Незіграні прострочені — вниз списку, далі найближчі зверху.
+              filtered.sort((a, b) {
+                if (a.isUnplayedByTimeout != b.isUnplayedByTimeout) {
+                  return a.isUnplayedByTimeout ? 1 : -1;
+                }
+                return b.date.compareTo(a.date);
+              });
 
               // Показуємо список матчів користувача
               return ListView.builder(
@@ -2012,7 +2016,7 @@ Row(
     Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: _getStatusColor(match.status),
+        color: _getStatusColor(match.status, match: match),
         borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -2438,12 +2442,14 @@ Widget _buildActionButtons(Match match, String currentUserId) {
 
   Stream<List<Match>> _getFilteredMatches() {
     return _matchService.getAvailableMatches().map((matches) {
-    final cityQuery = _cityFilterController.text.trim().toLowerCase();
+    final selectedCity = _selectedCity.trim();
     final filtered = matches.where((match) {
         // Фільтр по місту
-      if (cityQuery.isNotEmpty && !match.city.toLowerCase().contains(cityQuery)) {
-        return false;
-      }
+      if (selectedCity.isNotEmpty &&
+      selectedCity != I18n.t('all_cities') &&
+      match.city.trim().toLowerCase() != selectedCity.toLowerCase()) {
+    return false;
+  }
         // Фільтр по рівню
       if (_selectedLevel != I18n.t('all_levels') && _getLevelText(match.level) != _selectedLevel) return false;
         // Фільтр по часу
@@ -2472,7 +2478,11 @@ Widget _buildActionButtons(Match match, String currentUserId) {
         return true;
       }).toList();
     // Сортування
-    filtered.sort((a, b) {
+      filtered.sort((a, b) {
+      if (a.isUnplayedByTimeout != b.isUnplayedByTimeout) {
+        return a.isUnplayedByTimeout ? 1 : -1;
+      }
+
       if (_selectedSort == 'my_city' &&
           _currentUserCity.trim().isNotEmpty) {
         final aMine = a.city.trim().toLowerCase() == _currentUserCity.trim().toLowerCase();
@@ -2515,35 +2525,41 @@ Widget _buildActionButtons(Match match, String currentUserId) {
   }
 
   // Метод для отримання кольору статусу
-  Color _getStatusColor(MatchStatus status) {
-    switch (status) {
-      case MatchStatus.open:
-      return Color(0xFF4caf50); // Зелений як в MVP
-      case MatchStatus.full:
+  Color _getStatusColor(MatchStatus status, {Match? match}) {
+  if (match?.isUnplayedByTimeout == true) {
+    return const Color(0xFF607D8B);
+  }
+  switch (status) {
+    case MatchStatus.open:
+      return const Color(0xFF4caf50);
+    case MatchStatus.full:
       return Colors.blue;
-      case MatchStatus.inProgress:
+    case MatchStatus.inProgress:
       return Colors.orange;
-      case MatchStatus.finished:
+    case MatchStatus.finished:
       return Colors.grey;
-      case MatchStatus.cancelled:
+    case MatchStatus.cancelled:
       return Colors.red;
     default:
       return Colors.grey;
-    }
   }
+}
 
-  String _getStatusText(MatchStatus status) {
-    switch (status) {
-      case MatchStatus.open:
-        return I18n.t('status_open');
-      case MatchStatus.full:
-        return I18n.t('status_full');
-      case MatchStatus.inProgress:
-        return I18n.t('status_in_progress');
-      case MatchStatus.finished:
-        return I18n.t('status_finished');
-      case MatchStatus.cancelled:
-        return I18n.t('status_cancelled');
+String _getStatusText(MatchStatus status, {Match? match}) {
+  if (match?.isUnplayedByTimeout == true) {
+    return I18n.inline('Незіграний', 'Unplayed');
+  }
+  switch (status) {
+    case MatchStatus.open:
+      return I18n.t('status_open');
+    case MatchStatus.full:
+      return I18n.t('status_full');
+    case MatchStatus.inProgress:
+      return I18n.t('status_in_progress');
+    case MatchStatus.finished:
+      return I18n.t('status_finished');
+    case MatchStatus.cancelled:
+      return I18n.t('status_cancelled');
     default:
       return I18n.t('unknown');
   }
@@ -2731,7 +2747,7 @@ Column(
                 borderRadius: BorderRadius.circular(20),
               ),
       child: Text(
-                    _getStatusText(match.status),
+                    _getStatusText(match.status, match: match),
         style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -2767,7 +2783,10 @@ Column(
         // Кнопки дій
         Row(
           children: [
-    if (isOrganizer && match.status != MatchStatus.finished)
+    if (isOrganizer &&
+    match.status != MatchStatus.finished &&
+    match.status != MatchStatus.cancelled &&
+    !match.isUnplayedByTimeout)
               ElevatedButton(
                 onPressed: () {
                   Navigator.pushNamed(
@@ -2823,6 +2842,7 @@ Column(
         // Кнопка "Вийти з матчу" (учасник, не організатор, відкритий матч)
         if (!isOrganizer &&
             match.status == MatchStatus.open &&
+            !match.isUnplayedByTimeout &&
             currentUser != null &&
             match.participants.contains(currentUser.uid)) ...[
           const SizedBox(height: 8),
@@ -2853,7 +2873,9 @@ Column(
         ],
 
         // Швидкі дії для організатора
-        if (isOrganizer) ...[
+        if (isOrganizer &&
+    match.status != MatchStatus.cancelled &&
+    !match.isUnplayedByTimeout) ...[
           const SizedBox(height: 12),
           Builder(builder: (context) {
             final canStartNow = match.hasTeams

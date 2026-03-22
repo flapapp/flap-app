@@ -8,6 +8,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/i18n.dart';
+import '../widgets/city_autocomplete_field.dart';
 
 class RegisterScreen extends StatefulWidget {
   @override
@@ -273,16 +274,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     borderRadius: BorderRadius.circular(15),
                     border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
                   ),
-                  child: TextFormField(
+                  child: CityAutocompleteField(
                     controller: _cityController,
+                    label: I18n.t('city'),
+                    requiredField: true,
                     style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: I18n.t('city'),
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.all(15),
-                    ),
-                    validator: (value) => (value == null || value.isEmpty) ? I18n.inline('Введіть ваше місто', 'Enter your city') : null,
+                    labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    prefixIcon: const Icon(Icons.location_city, color: Colors.white70),
                   ),
                 ),
                 const SizedBox(height: 20),

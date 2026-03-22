@@ -22,13 +22,15 @@ class TeamService {
   final _auth = FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> get _teamsCollection =>
-      _firestore.collection('teams');
+    _firestore.collection('teams');
   CollectionReference<Map<String, dynamic>> get _invitesCollection =>
       _firestore.collection('teamInvites');
   CollectionReference<Map<String, dynamic>> get _matchRequestsCollection =>
       _firestore.collection('teamMatchRequests');
   CollectionReference<Map<String, dynamic>> get _joinRequestsCollection =>
       _firestore.collection('teamJoinRequests');
+  CollectionReference<Map<String, dynamic>> get _activityFeedCollection =>
+      _firestore.collection('activityFeed');
 
   Stream<List<AppTeam>> watchUserTeams(String userId) {
     return _teamsCollection
@@ -213,6 +215,22 @@ class TeamService {
     }
 
     await batch.commit();
+
+    if (accept) {
+      final userDoc = await _firestore.collection('users').doc(invite.userId).get();
+      final userName = (userDoc.data()?['displayName'] ??
+              userDoc.data()?['name'] ??
+              userDoc.data()?['authorName'] ??
+              'Player')
+          .toString();
+      await _publishTeamMovementNews(
+        action: 'joined_team',
+        teamId: invite.teamId,
+        teamName: invite.teamName,
+        userId: invite.userId,
+        userName: userName,
+      );
+    }
   }
 
   Stream<List<TeamJoinRequest>> watchJoinRequests(String teamId) {
@@ -344,6 +362,16 @@ class TeamService {
     }
 
     await batch.commit();
+
+    if (accept) {
+      await _publishTeamMovementNews(
+        action: 'joined_team',
+        teamId: request.teamId,
+        teamName: request.teamName,
+        userId: request.userId,
+        userName: request.userName,
+      );
+    }
   }
 
   Stream<List<TeamMatchRequest>> watchMatchRequests(String teamId) {
@@ -565,6 +593,131 @@ class TeamService {
     });
 
     return results.take(limit).toList();
+  }
+
+  Future<void> leaveTeam({
+  required String teamId,
+  required String userId,
+}) async {
+  final teamRef = _teamsCollection.doc(teamId);
+  final userRef = _firestore.collection('users').doc(userId);
+
+  // Потрібно для стрічки новин після транзакції
+  String teamNameForFeed = 'Team';
+  final teamSnapForFeed = await teamRef.get();
+  if (teamSnapForFeed.exists) {
+    teamNameForFeed = (teamSnapForFeed.data()?['name'] ?? 'Team').toString();
+  }
+
+  await _firestore.runTransaction((tx) async {
+    final teamSnap = await tx.get(teamRef);
+    if (!teamSnap.exists) {
+      throw Exception(I18n.inline('Команду не знайдено', 'Team not found'));
+    }
+
+    final data = teamSnap.data() ?? {};
+    final memberIds = List<String>.from(data['memberIds'] ?? const <String>[]);
+    final viceIds = List<String>.from(data['viceCaptainIds'] ?? const <String>[]);
+    final captainId = (data['captainId'] ?? '').toString();
+
+    if (!memberIds.contains(userId)) {
+      throw Exception(
+        I18n.inline(
+          'Ви не є учасником цієї команди',
+          'You are not a member of this team',
+        ),
+      );
+    }
+
+    // Якщо капітан останній у команді — не даємо "осиротити" команду
+    if (captainId == userId && memberIds.length == 1) {
+      throw Exception(
+        I18n.inline(
+          'Ви останній учасник. Видаліть команду або передайте капітанство.',
+          'You are the last member. Delete the team or transfer captain role.',
+        ),
+      );
+    }
+
+    final updatedMembers = List<String>.from(memberIds)..remove(userId);
+    final updatedVice = List<String>.from(viceIds)..remove(userId);
+
+    final updates = <String, dynamic>{
+      'memberIds': updatedMembers,
+      'viceCaptainIds': updatedVice,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    // Якщо виходить капітан — передаємо капітанство іншому учаснику
+    if (captainId == userId) {
+      String? nextCaptain;
+      if (updatedVice.isNotEmpty) {
+        nextCaptain = updatedVice.first;
+      } else if (updatedMembers.isNotEmpty) {
+        nextCaptain = updatedMembers.first;
+      }
+
+      if (nextCaptain == null || nextCaptain.isEmpty) {
+        throw Exception(
+          I18n.inline(
+            'Не вдалося визначити нового капітана',
+            'Failed to determine next captain',
+          ),
+        );
+      }
+
+      updates['captainId'] = nextCaptain;
+      // Новий капітан не має одночасно бути віце
+      updates['viceCaptainIds'] = List<String>.from(updatedVice)..remove(nextCaptain);
+    }
+
+    tx.update(teamRef, updates);
+
+    tx.set(
+      userRef,
+      {
+        'teamIds': FieldValue.arrayRemove([teamId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  });
+
+  // Після успішного виходу — новина в activity feed
+  final userDoc = await userRef.get();
+  final userName = (userDoc.data()?['displayName'] ??
+          userDoc.data()?['name'] ??
+          userDoc.data()?['authorName'] ??
+          'Player')
+      .toString();
+
+  await _publishTeamMovementNews(
+    action: 'left_team',
+    teamId: teamId,
+    teamName: teamNameForFeed,
+    userId: userId,
+    userName: userName,
+  );
+}
+  Future<void> _publishTeamMovementNews({
+    required String action, // joined_team | left_team
+    required String teamId,
+    required String teamName,
+    required String userId,
+    required String userName,
+  }) async {
+    try {
+      await _activityFeedCollection.add({
+        'type': action,
+        'teamId': teamId,
+        'teamName': teamName,
+        'userId': userId,
+        'userName': userName,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // best-effort feed
+    }
   }
 }
 

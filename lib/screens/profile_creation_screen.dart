@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../utils/i18n.dart';
+import '../widgets/city_autocomplete_field.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ProfileCreationScreen extends StatefulWidget {
   final bool isEditing;
@@ -109,33 +111,64 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Color(0xFF1e7d32),
+Widget build(BuildContext context) {
+  final baseTheme = Theme.of(context);
+  final robotoTextTheme = GoogleFonts.robotoTextTheme(baseTheme.textTheme);
+  final robotoFamily = GoogleFonts.roboto().fontFamily;
+
+  return Theme(
+    data: baseTheme.copyWith(
+      textTheme: robotoTextTheme,
+      primaryTextTheme: robotoTextTheme,
+      inputDecorationTheme: baseTheme.inputDecorationTheme.copyWith(
+        hintStyle: GoogleFonts.roboto(color: Colors.white.withOpacity(0.7)),
+        labelStyle: GoogleFonts.roboto(color: Colors.white70),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          textStyle: GoogleFonts.roboto(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          textStyle: GoogleFonts.roboto(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          textStyle: GoogleFonts.roboto(fontWeight: FontWeight.w600),
+        ),
+      ),
+    ),
+    child: Scaffold(
+      backgroundColor: const Color(0xFF1e7d32),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
           child: Form(
             key: _formKey,
             child: Column(
               children: [
                 Text(
-                  widget.isEditing ? I18n.inline('Редагувати профіль', 'Edit profile') : I18n.inline('Створити профіль', 'Create profile'),
+                  widget.isEditing
+                      ? I18n.inline('Редагувати профіль', 'Edit profile')
+                      : I18n.inline('Створити профіль', 'Create profile'),
                   style: TextStyle(
+                    fontFamily: robotoFamily,
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
-                SizedBox(height: 30),
+                const SizedBox(height: 30),
 
                 GestureDetector(
                   onTap: _pickImage,
@@ -159,12 +192,19 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                             children: [
                               const Icon(Icons.camera_alt, color: Colors.white, size: 40),
                               const SizedBox(height: 8),
-                              Text(I18n.inline('Додати фото', 'Add photo'), style: const TextStyle(color: Colors.white, fontSize: 12)),
+                              Text(
+                                I18n.inline('Додати фото', 'Add photo'),
+                                style: TextStyle(
+                                  fontFamily: robotoFamily,
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
                             ],
                           ),
                   ),
                 ),
-                SizedBox(height: 30),
+                const SizedBox(height: 30),
 
                 Container(
                   decoration: BoxDecoration(
@@ -173,12 +213,15 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                   ),
                   child: TextFormField(
                     controller: _nameController,
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
                     decoration: InputDecoration(
                       hintText: I18n.inline('Ім\'я', 'First name'),
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      hintStyle: TextStyle(
+                        fontFamily: robotoFamily,
+                        color: Colors.white.withOpacity(0.7),
+                      ),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -188,7 +231,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     },
                   ),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 Container(
                   decoration: BoxDecoration(
@@ -197,12 +240,15 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                   ),
                   child: TextFormField(
                     controller: _surnameController,
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
                     decoration: InputDecoration(
                       hintText: I18n.inline('Прізвище', 'Last name'),
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      hintStyle: TextStyle(
+                        fontFamily: robotoFamily,
+                        color: Colors.white.withOpacity(0.7),
+                      ),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -212,7 +258,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     },
                   ),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 Container(
                   decoration: BoxDecoration(
@@ -221,24 +267,26 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                   ),
                   child: DropdownButtonFormField<String>(
                     value: _selectedPosition,
-                    style: TextStyle(color: Colors.white),
-                    dropdownColor: Color(0xFF1e7d32),
+                    style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
+                    dropdownColor: const Color(0xFF1e7d32),
                     decoration: InputDecoration(
                       hintText: I18n.inline('Позиція', 'Position'),
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      hintStyle: TextStyle(
+                        fontFamily: robotoFamily,
+                        color: Colors.white.withOpacity(0.7),
+                      ),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     ),
                     items: _positions.asMap().entries.map((entry) {
                       final index = entry.key;
                       final position = entry.value;
-                      // Store Ukrainian values (for consistency with database)
                       final ukValues = ['Воротар', 'Захисник', 'Півзахисник', 'Нападник'];
                       return DropdownMenuItem<String>(
                         value: ukValues[index],
                         child: Text(
                           position,
-                          style: TextStyle(color: Colors.white),
+                          style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
                         ),
                       );
                     }).toList(),
@@ -255,31 +303,26 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     },
                   ),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(25),
                   ),
-                  child: TextFormField(
+                  child: CityAutocompleteField(
                     controller: _cityController,
-                    style: TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: I18n.inline('Місто', 'City'),
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return I18n.inline('Введіть місто', 'Enter city');
-                      }
-                      return null;
-                    },
+                    label: I18n.inline('Місто', 'City'),
+                    requiredField: true,
+                    style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
+                    labelStyle: TextStyle(fontFamily: robotoFamily, color: Colors.white70),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    prefixIcon: const Icon(Icons.location_city, color: Colors.white70),
                   ),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 Container(
                   decoration: BoxDecoration(
@@ -289,12 +332,15 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                   child: TextFormField(
                     controller: _ageController,
                     keyboardType: TextInputType.number,
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
                     decoration: InputDecoration(
                       hintText: I18n.inline('Вік', 'Age'),
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      hintStyle: TextStyle(
+                        fontFamily: robotoFamily,
+                        color: Colors.white.withOpacity(0.7),
+                      ),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -304,7 +350,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     },
                   ),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 Container(
                   decoration: BoxDecoration(
@@ -313,24 +359,26 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                   ),
                   child: DropdownButtonFormField<String>(
                     value: _selectedExperience,
-                    style: TextStyle(color: Colors.white),
-                    dropdownColor: Color(0xFF1e7d32),
+                    style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
+                    dropdownColor: const Color(0xFF1e7d32),
                     decoration: InputDecoration(
                       hintText: I18n.inline('Досвід', 'Experience'),
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      hintStyle: TextStyle(
+                        fontFamily: robotoFamily,
+                        color: Colors.white.withOpacity(0.7),
+                      ),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     ),
                     items: _experiences.asMap().entries.map((entry) {
                       final index = entry.key;
                       final experience = entry.value;
-                      // Store Ukrainian values (for consistency with database)
                       final ukValues = ['Початківець', 'Любитель', 'Напівпрофесіонал', 'Професіонал'];
                       return DropdownMenuItem<String>(
                         value: ukValues[index],
                         child: Text(
                           experience,
-                          style: TextStyle(color: Colors.white),
+                          style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
                         ),
                       );
                     }).toList(),
@@ -347,14 +395,14 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     },
                   ),
                 ),
-                SizedBox(height: 30),
+                const SizedBox(height: 30),
 
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                          minimumSize: Size(double.infinity, 50),
+                          minimumSize: const Size(double.infinity, 50),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
@@ -364,6 +412,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                         child: Text(
                           I18n.inline('Скасувати', 'Cancel'),
                           style: TextStyle(
+                            fontFamily: robotoFamily,
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -371,126 +420,124 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                         ),
                       ),
                     ),
-                    SizedBox(width: 15),
+                    const SizedBox(width: 15),
                     Expanded(
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          minimumSize: Size(double.infinity, 50),
+                          minimumSize: const Size(double.infinity, 50),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
-                          backgroundColor: Color(0xFF4caf50),
+                          backgroundColor: const Color(0xFF4caf50),
                         ),
                         onPressed: () async {
-  if (_formKey.currentState!.validate()) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Потрібно увійти в акаунт', 'You need to sign in'))),
-      );
-      return;
-    }
+                          if (_formKey.currentState!.validate()) {
+                            final uid = FirebaseAuth.instance.currentUser?.uid;
+                            if (uid == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    I18n.inline('Потрібно увійти в акаунт', 'You need to sign in'),
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
 
-// 1) Завантаження аватара
-String? avatarUrl;
-if (_pickedImage != null) {
-  try {
-    print('Starting image upload for user: $uid');
-    final storageRef = FirebaseStorage.instance
-        .ref()
-        .child('avatars/$uid/avatar.jpg');
-    if (kIsWeb) {
-      print('Uploading image for web platform');
-      final bytes = await _pickedImage!.readAsBytes();
-      final snap = await storageRef.putData(
-        bytes,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-      avatarUrl = await snap.ref.getDownloadURL();
-      print('Web upload successful. URL: $avatarUrl');
-    } else {
-      print('Uploading image for mobile platform');
-      final file = File(_pickedImage!.path);
-      final snap = await storageRef.putFile(
-        file,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-      avatarUrl = await snap.ref.getDownloadURL();
-      print('Mobile upload successful. URL: $avatarUrl');
-    }
-    
-    // Перевіряємо, чи URL дійсний
-    if (avatarUrl != null && avatarUrl.isNotEmpty) {
-      print('Avatar URL is valid: $avatarUrl');
-    } else {
-      print('Avatar URL is null or empty after upload');
-    }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(I18n.inline('Не вдалося завантажити фото: $e', 'Failed to upload photo: $e'))),
-    );
-  }
-}
+                            String? avatarUrl;
+                            if (_pickedImage != null) {
+                              try {
+                                final storageRef = FirebaseStorage.instance
+                                    .ref()
+                                    .child('avatars/$uid/avatar.jpg');
+                                if (kIsWeb) {
+                                  final bytes = await _pickedImage!.readAsBytes();
+                                  final snap = await storageRef.putData(
+                                    bytes,
+                                    SettableMetadata(contentType: 'image/jpeg'),
+                                  );
+                                  avatarUrl = await snap.ref.getDownloadURL();
+                                } else {
+                                  final file = File(_pickedImage!.path);
+                                  final snap = await storageRef.putFile(
+                                    file,
+                                    SettableMetadata(contentType: 'image/jpeg'),
+                                  );
+                                  avatarUrl = await snap.ref.getDownloadURL();
+                                }
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      I18n.inline(
+                                        'Не вдалося завантажити фото: $e',
+                                        'Failed to upload photo: $e',
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
 
-// 2) Збереження профілю
-        final fullName = '${_nameController.text.trim()} ${_surnameController.text.trim()}'.trim();
-        final updateData = {
-          'firstName': _nameController.text.trim(),
-          'lastName': _surnameController.text.trim(),
-          'authorName': fullName,
-          'displayName': fullName,
-          'city': _cityController.text.trim(),
-          'age': int.tryParse(_ageController.text.trim()),
-          'position': _selectedPosition,
-          'experience': _selectedExperience,
-          'updatedAt': FieldValue.serverTimestamp(),
-        };
+                            final fullName =
+                                '${_nameController.text.trim()} ${_surnameController.text.trim()}'
+                                    .trim();
+                            final updateData = {
+                              'firstName': _nameController.text.trim(),
+                              'lastName': _surnameController.text.trim(),
+                              'authorName': fullName,
+                              'displayName': fullName,
+                              'city': _cityController.text.trim(),
+                              'age': int.tryParse(_ageController.text.trim()),
+                              'position': _selectedPosition,
+                              'experience': _selectedExperience,
+                              'updatedAt': FieldValue.serverTimestamp(),
+                            };
 
-        // Не перезаписуємо avatarUrl на null, якщо не вибрано нове фото
-        if (avatarUrl != null && avatarUrl.isNotEmpty) {
-          updateData['avatarUrl'] = avatarUrl;
-        }
+                            if (avatarUrl != null && avatarUrl.isNotEmpty) {
+                              updateData['avatarUrl'] = avatarUrl;
+                            }
 
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .set(updateData, SetOptions(merge: true));
+                            await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(uid)
+                                .set(updateData, SetOptions(merge: true));
 
-    // 3) Додамо 3-4 друзів автоматично (з існуючих користувачів)
-    try {
-      final existing = await FirebaseFirestore.instance
-          .collection('users')
-          .where(FieldPath.documentId, isNotEqualTo: uid)
-          .limit(4)
-          .get();
-      final friendIds = existing.docs.map((d) => d.id).toList();
-      if (friendIds.isNotEmpty) {
-        final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-        await userRef.set({
-          'friends': FieldValue.arrayUnion(friendIds),
-        }, SetOptions(merge: true));
-        for (final fid in friendIds) {
-          final fRef = FirebaseFirestore.instance.collection('users').doc(fid);
-          await fRef.set({
-            'friends': FieldValue.arrayUnion([uid]),
-          }, SetOptions(merge: true));
-        }
-      }
-    } catch (e) {
-      // пропускаємо помилку, щоб не блокувати онбординг
-    }
+                            try {
+                              final existing = await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .where(FieldPath.documentId, isNotEqualTo: uid)
+                                  .limit(4)
+                                  .get();
+                              final friendIds = existing.docs.map((d) => d.id).toList();
+                              if (friendIds.isNotEmpty) {
+                                final userRef =
+                                    FirebaseFirestore.instance.collection('users').doc(uid);
+                                await userRef.set({
+                                  'friends': FieldValue.arrayUnion(friendIds),
+                                }, SetOptions(merge: true));
+                                for (final fid in friendIds) {
+                                  final fRef = FirebaseFirestore.instance.collection('users').doc(fid);
+                                  await fRef.set({
+                                    'friends': FieldValue.arrayUnion([uid]),
+                                  }, SetOptions(merge: true));
+                                }
+                              }
+                            } catch (_) {}
 
-    // 4) Перехід
-    if (widget.isEditing) {
-      Navigator.pop(context); // Повертаємось на попередній екран
-    } else {
-      Navigator.pushReplacementNamed(context, '/mode');
-    }
-  }
-},
+                            if (widget.isEditing) {
+                              Navigator.pop(context);
+                            } else {
+                              Navigator.pushReplacementNamed(context, '/mode');
+                            }
+                          }
+                        },
                         child: Text(
-                          widget.isEditing ? I18n.inline('Зберегти зміни', 'Save changes') : I18n.inline('Створити профіль', 'Create profile'),
+                          widget.isEditing
+                              ? I18n.inline('Зберегти зміни', 'Save changes')
+                              : I18n.inline('Створити профіль', 'Create profile'),
                           style: TextStyle(
+                            fontFamily: robotoFamily,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                             color: Colors.white,
@@ -505,6 +552,7 @@ if (_pickedImage != null) {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

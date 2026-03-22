@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
+import '../services/notification_service.dart';
 
 class ModeSelectionScreen extends StatefulWidget {
   const ModeSelectionScreen({super.key});
@@ -18,11 +18,12 @@ class ModeSelectionScreen extends StatefulWidget {
 class ModeSelectionScreenState extends State<ModeSelectionScreen> {
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
   final Random _random = Random();
+  final NotificationService _notificationService = NotificationService();
 
   String _currentGreeting = '';
   String _currentRatingText = '';
   String _currentInstruction = '';
-  _NewsEntry? _newsEntry;
+  List<_NewsEntry> _newsEntries = const [];
   bool _newsLoading = true;
   Future<_HeroStats>? _heroStatsFuture;
   String? _heroStatsUserId;
@@ -79,15 +80,22 @@ setState(() {
         _fetchLatestVideoNews(),
         _fetchLatestTeamNews(),
       ]);
-      final available = results.whereType<_NewsEntry>().toList()
-        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+      final movement = await _fetchTeamMovementNews();
+
+      final available = <_NewsEntry>[
+        ...results.whereType<_NewsEntry>(),
+        ...movement,
+      ]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
       setState(() {
-        _newsEntry = available.isNotEmpty ? available.first : _defaultNewsEntry();
+        _newsEntries = available.isNotEmpty
+            ? available.take(3).toList(growable: false)
+            : <_NewsEntry>[_defaultNewsEntry()];
         _newsLoading = false;
       });
     } catch (_) {
       setState(() {
-        _newsEntry = _defaultNewsEntry();
+        _newsEntries = <_NewsEntry>[_defaultNewsEntry()];
         _newsLoading = false;
       });
     }
@@ -136,6 +144,44 @@ setState(() {
       return null;
     }
   }
+
+  Future<List<_NewsEntry>> _fetchTeamMovementNews() async {
+  try {
+    final snap = await FirebaseFirestore.instance
+        .collection('activityFeed')
+        .orderBy('createdAt', descending: true)
+        .limit(20)
+        .get();
+
+    final items = <_NewsEntry>[];
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final type = (data['type'] ?? '').toString();
+      if (type != 'joined_team' && type != 'left_team') continue;
+
+      final userName = (data['userName'] ?? I18n.inline('Гравець', 'Player')).toString();
+      final teamName = (data['teamName'] ?? I18n.inline('Команда', 'Team')).toString();
+
+      final isJoin = type == 'joined_team';
+      items.add(
+        _NewsEntry(
+          title: teamName,
+          subtitle: isJoin
+              ? I18n.inline('$userName приєднався до команди', '$userName joined the team')
+              : I18n.inline('$userName покинув команду', '$userName left the team'),
+          icon: isJoin ? Icons.person_add_alt_1 : Icons.exit_to_app,
+          color: isJoin ? const Color(0xFF26A69A) : const Color(0xFFEF5350),
+          timestamp: _resolveTimestamp(data, const ['createdAt']),
+          route: '/teams',
+          ctaLabel: I18n.inline('Відкрити клуби', 'Open clubs'),
+        ),
+      );
+    }
+    return items;
+  } catch (_) {
+    return const [];
+  }
+}
 
   Future<_NewsEntry?> _fetchLatestVideoNews() async {
     try {
@@ -221,122 +267,313 @@ setState(() {
     return DateTime.now();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0f1923),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: _userStream,
-            builder: (context, snapshot) {
-              final data = snapshot.data?.data();
-              final rating = (data?['rating'] ?? 0.0).toDouble();
-              return Row(
-                children: [
-                  Text(
-                    '⭐ ${rating.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.sports_soccer, color: Colors.white),
-                    onPressed: () => Navigator.pushNamed(context, '/matches'),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.video_collection, color: Colors.white),
-                    onPressed: () => Navigator.pushNamed(context, '/video-main'),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.person, color: Colors.white),
-                    onPressed: () => Navigator.pushNamed(context, '/profile'),
-                  ),
-                ],
-              );
-            },
+  Widget _buildNewsSection() {
+  if (_newsLoading) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              I18n.inline('Завантажуємо новини...', 'Loading news...'),
+              style: const TextStyle(color: Colors.white70),
+            ),
           ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: _userStream,
-            builder: (context, snapshot) {
-              final data = snapshot.data?.data();
-              const matchColors = [Color(0xFF0f9d58), Color(0xFF0c6f3c)];
-              const videoColors = [Color(0xFFc62828), Color(0xFF8e24aa)];
-              const teamColors = [Color(0xFF1976d2), Color(0xFF0d47a1)];
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeroCard(data),
-                  const SizedBox(height: 20),
-                  _buildNewsCard(),
-                  const SizedBox(height: 24),
-                  _ModeCard(
-                    title: I18n.t('matches'),
-                    subtitle: I18n.inline(
-                        'Знаходь матчі поблизу, керуй командами',
-                        'Find matches, manage squads'),
-                    highlights: [
-                      I18n.inline('Новий Team Hub', 'New Team Hub'),
-                      I18n.inline('Гнучкі формати', 'Flexible formats'),
-                      I18n.inline('Рейтинг гравців', 'Player rating'),
-                    ],
-                    icon: Icons.sports_soccer,
-                    colors: matchColors,
-                    badge: I18n.inline('Матч-день', 'Match day'),
-                    actionLabel: I18n.inline('До матчів', 'Browse matches'),
-                    illustration: _ModeArt(type: _ModeArtType.matches, colors: matchColors),
-                    onTap: () => Navigator.pushNamed(context, '/matches'),
-                  ),
-                  const SizedBox(height: 16),
-                  _ModeCard(
-                    title: I18n.t('videos'),
-                    subtitle: I18n.inline(
-                        'Кидай челенджі, збирай перегляди',
-                        'Join challenges, grow your audience'),
-                    highlights: [
-                      I18n.inline('16:9 превʼю', '16:9 previews'),
-                      I18n.inline('Челендж-стрічка', 'Challenge feed'),
-                      I18n.inline('Запити на оцінку', 'Rating requests'),
-                    ],
-                    icon: Icons.video_collection,
-                    colors: videoColors,
-                    badge: I18n.inline('Пульс контенту', 'Content pulse'),
-                    actionLabel: I18n.inline('До відео', 'Open videos'),
-                    illustration: _ModeArt(type: _ModeArtType.videos, colors: videoColors),
-                    onTap: () => Navigator.pushNamed(context, '/video-main'),
-                  ),
-                  const SizedBox(height: 16),
-                  _ModeCard(
-                    title: I18n.inline('Команди', 'Teams'),
-                    subtitle: I18n.inline(
-                        'Створюй клуби, керуй ростером',
-                        'Create clubs, manage rosters'),
-                    highlights: [
-                      I18n.inline('Запрошення в 1 клік', 'One-tap invites'),
-                      I18n.inline('Матчі між командами', 'Team-only matches'),
-                      I18n.inline('Статистика голів', 'Goal tracking'),
-                    ],
-                    icon: Icons.groups_2,
-                    colors: teamColors,
-                    badge: I18n.inline('Club DNA', 'Club DNA'),
-                    actionLabel: I18n.inline('Мої команди', 'Your clubs'),
-                    illustration: _ModeArt(type: _ModeArtType.teams, colors: teamColors),
-                    onTap: () => Navigator.pushNamed(context, '/teams'),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
     );
   }
+
+  final items = _newsEntries.isNotEmpty
+      ? _newsEntries.take(3).toList(growable: false)
+      : <_NewsEntry>[_defaultNewsEntry()];
+
+  return Column(
+    children: [
+      for (int i = 0; i < items.length; i++) ...[
+        _buildNewsCardItem(items[i], primary: i == 0),
+        if (i != items.length - 1) const SizedBox(height: 12),
+      ],
+    ],
+  );
+}
+
+Widget _buildNewsCardItem(_NewsEntry entry, {required bool primary}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(28),
+      color: Colors.white.withValues(alpha: 0.04),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                gradient: LinearGradient(
+                  colors: [entry.color, entry.color.withValues(alpha: 0.5)],
+                ),
+              ),
+              child: Text(
+                primary
+                    ? I18n.inline('Новина дня', 'News of the day')
+                    : I18n.inline('Свіжа новина', 'Fresh news'),
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            const Spacer(),
+            Text(
+              _formatNewsTime(entry.timestamp),
+              style: const TextStyle(color: Colors.white60, fontSize: 12),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          entry.title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          entry.subtitle,
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: entry.color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(entry.icon, color: entry.color, size: 24),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                I18n.inline(
+                  'FLAP Live • Оновлено зі стрічки матчів, відео та клубів',
+                  'FLAP Live • Pulled from matches, videos & clubs feed',
+                ),
+                style: const TextStyle(color: Colors.white60, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        if (entry.ctaLabel != null && entry.route != null) ...[
+          const SizedBox(height: 18),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => Navigator.pushNamed(context, entry.route!),
+              icon: const Icon(Icons.open_in_new, color: Colors.white70, size: 18),
+              label: Text(
+                entry.ctaLabel!,
+                style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+              ),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.06),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
+  @override
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: const Color(0xFF0f1923),
+    appBar: AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      actions: [
+        StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: _userStream,
+          builder: (context, snapshot) {
+            final data = snapshot.data?.data();
+            final rating = (data?['rating'] ?? 0.0).toDouble();
+            return Row(
+              children: [
+                Text(
+                  '⭐ ${rating.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.sports_soccer, color: Colors.white),
+                  onPressed: () => Navigator.pushNamed(context, '/matches'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.video_collection, color: Colors.white),
+                  onPressed: () => Navigator.pushNamed(context, '/video-main'),
+                ),
+                StreamBuilder<int>(
+                  stream: _notificationService.getUnreadCount(),
+                  builder: (context, notifSnapshot) {
+                    final unreadCount = notifSnapshot.data ?? 0;
+                    return Stack(
+                      children: [
+                        IconButton(
+                          tooltip: I18n.t('notifications'),
+                          icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                          onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                        ),
+                        if (unreadCount > 0)
+                          Positioned(
+                            right: 6,
+                            top: 6,
+                            child: IgnorePointer(
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
+                                ),
+                                child: Text(
+                                  unreadCount > 99 ? '99+' : unreadCount.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.person, color: Colors.white),
+                  onPressed: () => Navigator.pushNamed(context, '/profile'),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    ),
+    body: SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: _userStream,
+          builder: (context, snapshot) {
+            final data = snapshot.data?.data();
+            const matchColors = [Color(0xFF0f9d58), Color(0xFF0c6f3c)];
+            const videoColors = [Color(0xFFc62828), Color(0xFF8e24aa)];
+            const teamColors = [Color(0xFF1976d2), Color(0xFF0d47a1)];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeroCard(data),
+                const SizedBox(height: 20),
+                _buildNewsSection(),
+                const SizedBox(height: 24),
+                _ModeCard(
+                  title: I18n.t('matches'),
+                  subtitle: I18n.inline(
+                    'Знаходь матчі поблизу, керуй командами',
+                    'Find matches, manage squads',
+                  ),
+                  highlights: [
+                    I18n.inline('Новий Team Hub', 'New Team Hub'),
+                    I18n.inline('Гнучкі формати', 'Flexible formats'),
+                    I18n.inline('Рейтинг гравців', 'Player rating'),
+                  ],
+                  icon: Icons.sports_soccer,
+                  colors: matchColors,
+                  badge: I18n.inline('Матч-день', 'Match day'),
+                  actionLabel: I18n.inline('До матчів', 'Browse matches'),
+                  illustration: _ModeArt(type: _ModeArtType.matches, colors: matchColors),
+                  onTap: () => Navigator.pushNamed(context, '/matches'),
+                ),
+                const SizedBox(height: 16),
+                _ModeCard(
+                  title: I18n.t('videos'),
+                  subtitle: I18n.inline(
+                    'Кидай челенджі, збирай перегляди',
+                    'Join challenges, grow your audience',
+                  ),
+                  highlights: [
+                    I18n.inline('16:9 превʼю', '16:9 previews'),
+                    I18n.inline('Челендж-стрічка', 'Challenge feed'),
+                    I18n.inline('Запити на оцінку', 'Rating requests'),
+                  ],
+                  icon: Icons.video_collection,
+                  colors: videoColors,
+                  badge: I18n.inline('Пульс контенту', 'Content pulse'),
+                  actionLabel: I18n.inline('До відео', 'Open videos'),
+                  illustration: _ModeArt(type: _ModeArtType.videos, colors: videoColors),
+                  onTap: () => Navigator.pushNamed(context, '/video-main'),
+                ),
+                const SizedBox(height: 16),
+                _ModeCard(
+                  title: I18n.inline('Команди', 'Teams'),
+                  subtitle: I18n.inline(
+                    'Створюй клуби, керуй ростером',
+                    'Create clubs, manage rosters',
+                  ),
+                  highlights: [
+                    I18n.inline('Запрошення в 1 клік', 'One-tap invites'),
+                    I18n.inline('Матчі між командами', 'Team-only matches'),
+                    I18n.inline('Статистика голів', 'Goal tracking'),
+                  ],
+                  icon: Icons.groups_2,
+                  colors: teamColors,
+                  badge: I18n.inline('Club DNA', 'Club DNA'),
+                  actionLabel: I18n.inline('Мої команди', 'Your clubs'),
+                  illustration: _ModeArt(type: _ModeArtType.teams, colors: teamColors),
+                  onTap: () => Navigator.pushNamed(context, '/teams'),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    ),
+  );
+}
 
   Widget _buildHeroCard(Map<String, dynamic>? data) {
     final displayName = data?['displayName'] ??
@@ -773,139 +1010,6 @@ setState(() {
     } catch (_) {
       return _HeroStats.empty;
     }
-  }
-
-  Widget _buildNewsCard() {
-    if (_newsLoading) {
-      return Container(
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        child: Row(
-          children: [
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child:
-                  CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                I18n.inline(
-                  'Завантажуємо новину дня...',
-                  'Loading the news of the day...',
-                ),
-                style: const TextStyle(color: Colors.white70),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final entry = _newsEntry ?? _defaultNewsEntry();
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        color: Colors.white.withValues(alpha: 0.04),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  gradient: LinearGradient(
-                    colors: [entry.color, entry.color.withValues(alpha: 0.5)],
-                  ),
-                ),
-                child: Text(
-                  I18n.inline('Новина дня', 'News of the day'),
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Text(
-                _formatNewsTime(entry.timestamp),
-                style: const TextStyle(color: Colors.white60, fontSize: 12),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            entry.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            entry.subtitle,
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: entry.color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(entry.icon, color: entry.color, size: 24),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  I18n.inline(
-                    'FLAP Live • Оновлено зі стрічки матчів, відео та клубів',
-                    'FLAP Live • Pulled from matches, videos & clubs feed',
-                  ),
-                  style: const TextStyle(color: Colors.white60, fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-          if (entry.ctaLabel != null && entry.route != null) ...[
-            const SizedBox(height: 18),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => Navigator.pushNamed(context, entry.route!),
-                icon: const Icon(Icons.open_in_new, color: Colors.white70, size: 18),
-                label: Text(
-                  entry.ctaLabel!,
-                  style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
-                ),
-                style: TextButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.06),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
   }
 
   String _formatNewsTime(DateTime timestamp) {

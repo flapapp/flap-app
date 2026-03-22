@@ -10,15 +10,37 @@ class MatchService {
 
   // Отримати всі доступні матчі (тільки відкриті)
   Stream<List<Match>> getAvailableMatches() {
-    return _firestore
-        .collection('matches')
-        .where('status', isEqualTo: 'open')
-        .orderBy('date', descending: false)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
+  return _firestore
+      .collection('matches')
+      .where('status', isEqualTo: 'open')
+      .orderBy('date', descending: false)
+      .snapshots()
+      .map((snapshot) {
+        final matches = snapshot.docs
             .map((doc) => Match.fromFirestore(doc))
-            .toList());
+            .toList();
+
+        // Прострочені незапущені матчі не мають лишатися "доступними".
+        for (final m in matches.where((m) => m.isUnplayedByTimeout)) {
+          _markAsUnplayedTimedOut(m.id); // fire-and-forget
+        }
+
+        return matches.where((m) => !m.isUnplayedByTimeout).toList();
+      });
+}
+
+Future<void> _markAsUnplayedTimedOut(String matchId) async {
+  try {
+    await _firestore.collection('matches').doc(matchId).update({
+      'status': 'cancelled',
+      'unplayed': true,
+      'unplayedReason': 'timeout_24h_no_start',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  } catch (_) {
+    // best-effort
   }
+}
 
     // Отримати матчі користувача (де він учасник)
   Stream<List<Match>> getUserMatches(String userId) {
@@ -173,13 +195,19 @@ if (match.status == MatchStatus.full &&
       if (!doc.exists) return false;
 
       final match = Match.fromFirestore(doc);
+
+      if (match.isUnplayedByTimeout) {
+        await _markAsUnplayedTimedOut(matchId);
+        return false;
+      }
+
       if (match.isTeamMatch) {
         return false;
       }
       // Приватний матч: заявки лише від запрошених
-if (match.isPrivate && !match.invitedFriends.contains(userId)) {
-  return false;
-}
+      if (match.isPrivate && !match.invitedFriends.contains(userId)) {
+        return false;
+      }
 
       // Перевірити чи користувач вже учасник
       if (match.participants.contains(userId)) {
@@ -233,6 +261,11 @@ if (match.isPrivate && !match.invitedFriends.contains(userId)) {
         if (!snap.exists) throw Exception('Match not found');
 
         final match = Match.fromFirestore(snap);
+
+        if (match.isUnplayedByTimeout) {
+          await _markAsUnplayedTimedOut(matchId);
+          throw Exception('Match expired and marked as unplayed');
+        }
 
         final currentUserId = FirebaseAuth.instance.currentUser?.uid;
         if (currentUserId == null || currentUserId != match.organizerId) {
@@ -757,11 +790,16 @@ Future<void> ensureFixtures(String matchId) async {
         
         final match = Match.fromFirestore(snap);
 
-final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-if (currentUserId == null || currentUserId != match.organizerId) {
-  throw Exception('Only organizer can perform this action');
-}
-        
+        if (match.isUnplayedByTimeout) {
+          await _markAsUnplayedTimedOut(matchId);
+          throw Exception('Match expired and marked as unplayed');
+        }
+
+        final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        if (currentUserId == null || currentUserId != match.organizerId) {
+          throw Exception('Only organizer can perform this action');
+        }
+                
         // Перевіряємо чи можна почати матч
         // Дозволяємо старт, якщо щонайменше 2 учасники. Якщо команди відсутні — формуємо 2 команди автоматично
         if (!match.hasTeams) {

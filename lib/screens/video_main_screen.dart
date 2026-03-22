@@ -11,6 +11,8 @@ import '../services/rating_service.dart';
 import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
 import '../widgets/mode_speed_dial.dart';
+import '../widgets/city_autocomplete_field.dart';
+import '../utils/city_catalog.dart';
 
 class VideoMainScreen extends StatefulWidget {
   @override
@@ -21,6 +23,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   final NotificationService _notificationService = NotificationService();
   final RatingService _ratingService = RatingService();
   String _selectedCity = '';
+  final TextEditingController _cityFilterController = TextEditingController();
   String _selectedCategory = '';
   String _selectedRating = '';
   String _selectedSort = 'newest';
@@ -97,12 +100,18 @@ int _compareVideoDocs(
     return tsB.compareTo(tsA);
   }
 
-  @override
   void initState() {
-    super.initState();
-    _videosStream = _createVideosStream();
-    _loadCurrentUserCity();
-  }
+  super.initState();
+  _videosStream = _createVideosStream();
+  _cityFilterController.text = '';
+  _loadCurrentUserCity();
+}
+
+@override
+void dispose() {
+  _cityFilterController.dispose();
+  super.dispose();
+}
 
   Future<void> _loadCurrentUserCity() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -134,261 +143,331 @@ int _compareVideoDocs(
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0f0f23), // Темний фон як у HTML MVP
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0f0f23).withValues(alpha: 0.95),
-        elevation: 0,
-        title: InkWell(
-          onTap: () => Navigator.pushNamed(context, '/mode'),
-          borderRadius: BorderRadius.circular(10),
-          child: Row(
-            children: [
-              Container(
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: const Color(0xFF0f0f23), // Темний фон як у HTML MVP
+    appBar: AppBar(
+      backgroundColor: const Color(0xFF0f0f23).withValues(alpha: 0.95),
+      elevation: 0,
+      title: InkWell(
+        onTap: () => Navigator.pushNamed(context, '/mode'),
+        borderRadius: BorderRadius.circular(10),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Image.asset(
+                'assets/logo/flap_logo.jpg',
+                fit: BoxFit.cover,
                 width: 28,
                 height: 28,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(6),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Image.asset('assets/logo/flap_logo.jpg',
-                    fit: BoxFit.cover, width: 28, height: 28),
               ),
-              const SizedBox(width: 8),
-            ],
-          ),
-        ),
-        actions: [
-          // User chips: coins and rating
-          _buildUserChips(),
-          // Notifications
-          StreamBuilder<int>(
-            stream: _notificationService.getUnreadCount(),
-            builder: (context, snapshot) {
-              final unreadCount = snapshot.data ?? 0;
-              return Stack(
-                children: [
-                  IconButton(
-                    tooltip: I18n.t('notifications'),
-                    icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                    onPressed: () => Navigator.pushNamed(context, '/notifications'),
-                  ),
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          unreadCount > 99 ? '99+' : unreadCount.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-          // Profile button with avatar
-          StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(FirebaseAuth.instance.currentUser?.uid)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData || !snapshot.data!.exists) {
-                return IconButton(
-                  icon: const Icon(Icons.person, color: Colors.white),
-                  onPressed: () => _showProfile(context),
-                );
-              }
-
-              final userData = snapshot.data!.data() as Map<String, dynamic>;
-              final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-              final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? 'User';
-
-              return IconButton(
-                onPressed: () => _showProfile(context),
-                icon: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: const Color(0xFF4caf50),
-                  backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                  child: avatarUrl.isEmpty
-                      ? Text(
-                          userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                        )
-                      : null,
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Tabs
-            if (!_showOnlyMyVideos && !_showOnlyMyChallenges)
-  Container(
-    margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-    padding: const EdgeInsets.all(4),
-    decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.05),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(
-        color: Colors.white.withValues(alpha: 0.1),
-        width: 1,
-      ),
-    ),
-    child: Row(
-      children: [
-        _buildTab(I18n.t('all'), 'all'),
-        _buildTab(I18n.t('challenges'), 'challenges'),
-        _buildTab(I18n.inline('Тренди', 'Trending'), 'trending'),
-      ],
-    ),
-  ),
-
-            // Filters (тільки для відео та трендів)
-            if (_selectedTab != 'challenges' && !_showOnlyMyVideos && !_showOnlyMyChallenges)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                child: Column(
-                  children: [
-                    // Швидкі категорії (як у HTML MVP)
-                    SizedBox(
-                      height: 36,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: quickVideoCategories()
-                            .map(
-                              (category) => Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: ChoiceChip(
-                                  selected: _selectedCategory == category.id,
-                                  onSelected: (selected) {
-                                    setState(() {
-                                      _selectedCategory =
-                                          selected ? category.id : '';
-                                    });
-                                  },
-                                  label: Text(category.label()),
-                                  selectedColor: const Color(0xFF4caf50),
-                                  labelStyle: TextStyle(
-                                    color: _selectedCategory == category.id
-                                        ? Colors.white
-                                        : Colors.black87,
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    // City and Category filters
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildFilterDropdown(
-                            _cities,
-                            _selectedCity.isEmpty
-                                ? I18n.t('all_cities')
-                                : _selectedCity,
-                            (value) {
-                              setState(() {
-                                _selectedCity = value == I18n.t('all_cities') ? '' : value;
-                              });
-                            },
-                            '🏙️',
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildCategoryFilterDropdown(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    // Rating filter
-                    _buildFilterDropdown(
-                      _ratings,
-                      _selectedRating.isEmpty ? I18n.inline('Всі рейтинги', 'All ratings') : _selectedRating,
-                      (value) {
-                        setState(() {
-                          _selectedRating = value == I18n.inline('Всі рейтинги', 'All ratings') ? '' : value;
-                        });
-                      },
-                      '⭐',
-                    ),
-                    const SizedBox(height: 10),
-                    _buildFilterDropdown(
-                      _sortOptions,
-                      _selectedSort == 'newest'
-                          ? I18n.inline('Нові додані зверху', 'Newest first')
-                          : I18n.inline('В моєму місті', 'In my city'),
-                      (value) {
-                        setState(() {
-                          _selectedSort = value == I18n.inline('В моєму місті', 'In my city')
-                              ? 'my_city'
-                              : 'newest';
-                        });
-                      },
-                      '↕️',
-                    ),
-                  ],
-                ),
-              ),
-
-            // Content based on selected tab
-            Expanded(
-              child: _buildContent(),
             ),
+            const SizedBox(width: 8),
           ],
         ),
       ),
-      floatingActionButton: ModeSpeedDial(
-        shortcuts: [
-          ModeDialAction(
-            icon: Icons.sports_soccer,
-            tooltip: I18n.t('matches'),
-            onTap: () => Navigator.pushNamed(context, '/matches'),
-          ),
-          ModeDialAction(
-            icon: Icons.groups_outlined,
-            tooltip: I18n.t('teams'),
-            onTap: () => Navigator.pushNamed(context, '/teams'),
+      actions: [
+        // User chips: coins and rating
+        _buildUserChips(),
+
+        // Notifications
+        StreamBuilder<int>(
+          stream: _notificationService.getUnreadCount(),
+          builder: (context, snapshot) {
+            final unreadCount = snapshot.data ?? 0;
+            return Stack(
+              children: [
+                IconButton(
+                  tooltip: I18n.t('notifications'),
+                  icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                  onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        unreadCount > 99 ? '99+' : unreadCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+
+        // Profile button with avatar
+        StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(FirebaseAuth.instance.currentUser?.uid)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData || !snapshot.data!.exists) {
+              return IconButton(
+                icon: const Icon(Icons.person, color: Colors.white),
+                onPressed: () => _showProfile(context),
+              );
+            }
+
+            final userData = snapshot.data!.data() as Map<String, dynamic>;
+            final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
+            final userName = userData['displayName'] ??
+                userData['name'] ??
+                userData['email']?.split('@')[0] ??
+                'User';
+
+            return IconButton(
+              onPressed: () => _showProfile(context),
+              icon: CircleAvatar(
+                radius: 16,
+                backgroundColor: const Color(0xFF4caf50),
+                backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                child: avatarUrl.isEmpty
+                    ? Text(
+                        userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    : null,
+              ),
+            );
+          },
+        ),
+      ],
+    ),
+    body: SafeArea(
+      child: Column(
+        children: [
+          // Tabs
+          if (!_showOnlyMyVideos && !_showOnlyMyChallenges)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  _buildTab(I18n.t('all'), 'all'),
+                  _buildTab(I18n.t('challenges'), 'challenges'),
+                  _buildTab(I18n.inline('Тренди', 'Trending'), 'trending'),
+                ],
+              ),
+            ),
+
+          // Filters (тільки для відео та трендів)
+          if (_selectedTab != 'challenges' &&
+              !_showOnlyMyVideos &&
+              !_showOnlyMyChallenges)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Column(
+                children: [
+                  // Швидкі категорії
+                  SizedBox(
+                    height: 36,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: quickVideoCategories()
+                          .map(
+                            (category) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                selected: _selectedCategory == category.id,
+                                onSelected: (selected) {
+                                  setState(() {
+                                    _selectedCategory = selected ? category.id : '';
+                                  });
+                                },
+                                label: Text(category.label()),
+                                selectedColor: const Color(0xFF4caf50),
+                                labelStyle: TextStyle(
+                                  color: _selectedCategory == category.id
+                                      ? Colors.white
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // City and Category filters
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CityAutocompleteField(
+                          controller: _cityFilterController,
+                          label: '',
+                          hint: I18n.inline('Введіть місто', 'Enter city'),
+                          includeAllOption: true,
+                          requiredField: false,
+                          style: const TextStyle(color: Colors.black87, fontSize: 14),
+                          labelStyle: const TextStyle(color: Colors.black54),
+                          filled: true,
+                          fillColor: Colors.white.withValues(alpha: 0.9),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          focusedBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(color: Color(0xFF4caf50)),
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.location_city,
+                            color: Colors.black54,
+                            size: 18,
+                          ),
+                          onSelected: (value) {
+                        final v = value.trim();
+                        final allValues = <String>{
+                          I18n.t('all_cities').toLowerCase(),
+                          'all cities',
+                          'всі міста',
+                        };
+
+                        if (v.isEmpty) {
+                          setState(() {
+                            _selectedCity = '';
+                            _cityFilterController.text = '';
+                          });
+                          return;
+                        }
+
+                        if (!CityCatalog.isAllowed(v, includeAll: true)) return;
+
+                        final isAll = allValues.contains(v.toLowerCase());
+
+                        setState(() {
+                          _selectedCity = isAll ? '' : v;
+                          _cityFilterController.text = isAll ? '' : v;
+                          _cityFilterController.selection = TextSelection.collapsed(
+                            offset: _cityFilterController.text.length,
+                          );
+                        });
+                      },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildCategoryFilterDropdown(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Rating filter
+                  _buildFilterDropdown(
+                    _ratings,
+                    _selectedRating.isEmpty
+                        ? I18n.inline('Всі рейтинги', 'All ratings')
+                        : _selectedRating,
+                    (value) {
+                      setState(() {
+                        _selectedRating =
+                            value == I18n.inline('Всі рейтинги', 'All ratings')
+                                ? ''
+                                : value;
+                      });
+                    },
+                    '⭐',
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildFilterDropdown(
+                    _sortOptions,
+                    _selectedSort == 'newest'
+                        ? I18n.inline('Нові додані зверху', 'Newest first')
+                        : I18n.inline('В моєму місті', 'In my city'),
+                    (value) {
+                      setState(() {
+                        _selectedSort =
+                            value == I18n.inline('В моєму місті', 'In my city')
+                                ? 'my_city'
+                                : 'newest';
+                      });
+                    },
+                    '↕️',
+                  ),
+                ],
+              ),
+            ),
+
+          // Content based on selected tab
+          Expanded(
+            child: _buildContent(),
           ),
         ],
-        onCreate: _showVideoCreateSheet,
-        createTooltip: I18n.inline('Додати контент', 'Create content'),
-        createGradient: const [Color(0xFFFF6B35), Color(0xFFFF8A65)],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-    );
-  }
+    ),
+    floatingActionButton: ModeSpeedDial(
+      shortcuts: [
+        ModeDialAction(
+          icon: Icons.sports_soccer,
+          tooltip: I18n.t('matches'),
+          onTap: () => Navigator.pushNamed(context, '/matches'),
+        ),
+        ModeDialAction(
+          icon: Icons.groups_outlined,
+          tooltip: I18n.t('teams'),
+          onTap: () => Navigator.pushNamed(context, '/teams'),
+        ),
+      ],
+      onCreate: _showVideoCreateSheet,
+      createTooltip: I18n.inline('Додати контент', 'Create content'),
+      createGradient: const [Color(0xFFFF6B35), Color(0xFFFF8A65)],
+    ),
+    floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+  );
+}
 
   void _showVideoCreateSheet() {
     showModalBottomSheet(
@@ -1296,9 +1375,10 @@ int _compareVideoDocs(
           
           // Фільтр міста
           if (_selectedCity.isNotEmpty) {
-            final city = data['city'] ?? '';
-            if (city != _selectedCity) return false;
-          }
+        final city = (data['city'] ?? '').toString().trim().toLowerCase();
+        final selected = _selectedCity.trim().toLowerCase();
+        if (city != selected) return false;
+      }
           
           return true;
         }).toList()
