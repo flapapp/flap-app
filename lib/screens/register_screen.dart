@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/i18n.dart';
@@ -27,7 +26,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   
   String? _selectedPosition;
   String? _selectedExperience;
-  File? _selectedImage;
   XFile? _pickedImage;
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
@@ -58,14 +56,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       
       if (image != null) {
         setState(() {
-          // Для web не використовуємо File(), зберігаємо XFile
-          if (kIsWeb) {
-            _selectedImage = null; // Не використовуємо File для web
-            _pickedImage = image;  // Зберігаємо XFile
-          } else {
-            _selectedImage = File(image.path);
-            _pickedImage = image;
-          }
+          _pickedImage = image;
         });
       }
     } catch (e) {
@@ -162,7 +153,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       return const CircularProgressIndicator();
                                     },
                                   )
-                                : Image.file(_selectedImage!, fit: BoxFit.cover, width: 120, height: 120),
+                                : FutureBuilder<Uint8List>(
+                                    future: _pickedImage!.readAsBytes(),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.hasData) {
+                                        return Image.memory(
+                                          snapshot.data!,
+                                          fit: BoxFit.cover,
+                                          width: 120,
+                                          height: 120,
+                                        );
+                                      }
+                                      return const CircularProgressIndicator();
+                                    },
+                                  ),
                           )
                         : Column(
                             mainAxisAlignment: MainAxisAlignment.center,

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-import 'mode_selection_screen.dart';
+import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -66,7 +65,6 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
 
   String? _selectedPosition;
   String? _selectedExperience;
-  File? _imageFile;
   XFile? _pickedImage;
 
   List<String> get _positions => [
@@ -100,9 +98,6 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
 
     setState(() {
       _pickedImage = picked;
-      if (!kIsWeb) {
-        _imageFile = File(picked.path);
-      }
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -184,8 +179,34 @@ Widget build(BuildContext context) {
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(58),
                             child: kIsWeb
-                                ? Image.network(_pickedImage!.path, fit: BoxFit.cover)
-                                : Image.file(File(_pickedImage!.path), fit: BoxFit.cover),
+                                ? FutureBuilder<Uint8List>(
+                                    future: _pickedImage!.readAsBytes(),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.hasData) {
+                                        return Image.memory(
+                                          snapshot.data!,
+                                          fit: BoxFit.cover,
+                                        );
+                                      }
+                                      return const Center(
+                                        child: CircularProgressIndicator(),
+                                      );
+                                    },
+                                  )
+                                : FutureBuilder<Uint8List>(
+                                    future: _pickedImage!.readAsBytes(),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.hasData) {
+                                        return Image.memory(
+                                          snapshot.data!,
+                                          fit: BoxFit.cover,
+                                        );
+                                      }
+                                      return const Center(
+                                        child: CircularProgressIndicator(),
+                                      );
+                                    },
+                                  ),
                           )
                         : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -458,9 +479,9 @@ Widget build(BuildContext context) {
                                   );
                                   avatarUrl = await snap.ref.getDownloadURL();
                                 } else {
-                                  final file = File(_pickedImage!.path);
-                                  final snap = await storageRef.putFile(
-                                    file,
+                                  final bytes = await _pickedImage!.readAsBytes();
+                                  final snap = await storageRef.putData(
+                                    bytes,
                                     SettableMetadata(contentType: 'image/jpeg'),
                                   );
                                   avatarUrl = await snap.ref.getDownloadURL();

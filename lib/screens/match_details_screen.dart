@@ -1,9 +1,6 @@
-import 'dart:io' as io show File;
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
@@ -361,14 +358,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           .child(fileName);
 
       final metadata = SettableMetadata(contentType: 'image/jpeg');
-      UploadTask uploadTask;
-      if (kIsWeb) {
-        final data = await pickedFile.readAsBytes();
-        uploadTask = storageRef.putData(data, metadata);
-      } else {
-        final file = io.File(pickedFile.path);
-        uploadTask = storageRef.putFile(file, metadata);
-      }
+      final data = await pickedFile.readAsBytes();
+      final uploadTask = storageRef.putData(data, metadata);
 
       final snapshot = await uploadTask.whenComplete(() {});
       final downloadUrl = await snapshot.ref.getDownloadURL();

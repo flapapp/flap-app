@@ -12,6 +12,10 @@ class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  static const String _webVapidKey = String.fromEnvironment(
+    'FIREBASE_WEB_PUSH_CERT_KEY',
+    defaultValue: '',
+  );
 
   // Collection reference
   CollectionReference get _notificationsCollection => 
@@ -19,10 +23,6 @@ class NotificationService {
 
   // Initialize notifications
   Future<void> initialize() async {
-    if (kIsWeb) {
-     print('Running on web - skipping notification initialization');
-     return;
-   }
     try {
       if (!await UserSettingsService().isNotificationsEnabled()) {
         await _clearNotificationTokens();
@@ -39,7 +39,7 @@ class NotificationService {
       );
 
       // Get FCM token
-      final token = await _messaging.getToken();
+      final token = await _getCurrentMessagingToken();
       if (token != null) {
         print('FCM token obtained: ${token.substring(0, 20)}...');
         await _saveFCMToken(token);
@@ -52,7 +52,7 @@ class NotificationService {
       FirebaseAuth.instance.authStateChanges().listen((user) async {
   if (user != null) {
     if (await UserSettingsService().isNotificationsEnabled()) {
-      final token = await _messaging.getToken();
+      final token = await _getCurrentMessagingToken();
       if (token != null) {
         await _saveFCMToken(token);
       }
@@ -75,6 +75,27 @@ if (initial != null) {
       print('NotificationService initialized successfully');
     } catch (e) {
       print('Error initializing NotificationService: $e');
+    }
+  }
+
+  Future<String?> _getCurrentMessagingToken() async {
+    if (!kIsWeb) {
+      return _messaging.getToken();
+    }
+    if (_webVapidKey.isNotEmpty) {
+      return _messaging.getToken(vapidKey: _webVapidKey);
+    }
+    return _messaging.getToken();
+  }
+
+  Future<void> syncCurrentUserToken() async {
+    if (!await UserSettingsService().isNotificationsEnabled()) {
+      await _clearNotificationTokens();
+      return;
+    }
+    final token = await _getCurrentMessagingToken();
+    if (token != null) {
+      await _saveFCMToken(token);
     }
   }
 

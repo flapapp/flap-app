@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'mode_selection_screen.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/i18n.dart';
-import '../services/user_settings_service.dart';
+import '../services/notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -200,19 +197,8 @@ Widget build(BuildContext context) {
                                         password: _passwordController.text.trim(),
                                       );
                                       try {
-                                        final token = await FirebaseMessaging.instance.getToken();
-                                        final user = FirebaseAuth.instance.currentUser;
-                                        final notificationsEnabled =
-                                            await UserSettingsService().isNotificationsEnabled();
-                                        if (notificationsEnabled && token != null && user != null) {
-                                          await FirebaseFirestore.instance
-                                              .collection('users')
-                                              .doc(user.uid)
-                                              .set({
-                                            'deviceTokens': FieldValue.arrayUnion([token])
-                                          }, SetOptions(merge: true));
-                                        }
-                                      } catch (e) {}
+                                        await NotificationService().syncCurrentUserToken();
+                                      } catch (_) {}
                                       if (!mounted) return;
                                       Navigator.pushReplacementNamed(context, '/mode');
                                     } on FirebaseAuthException catch (e) {
