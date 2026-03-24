@@ -89,14 +89,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1e7d32),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Form(
-            key: _formKey,
-            child: Column(
+    return WillPopScope(
+      onWillPop: () async {
+        final focused = FocusScope.of(context);
+        if (!focused.hasPrimaryFocus) {
+          focused.unfocus();
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF1e7d32),
+        resizeToAvoidBottomInset: true,
+        body: SafeArea(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => FocusScope.of(context).unfocus(),
+            child: ListView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.all(20),
+              children: [
+                Form(
+                  key: _formKey,
+                  child: Column(
               children: [
                 Align(
                   alignment: Alignment.topLeft,
@@ -241,11 +256,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: I18n.inline('Телефон', 'Phone'),
+                      hintText: I18n.inline('Необовʼязково', 'Optional'),
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
-                    validator: (value) => (value == null || value.isEmpty) ? I18n.inline('Введіть номер телефону', 'Enter phone number') : null,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -513,6 +528,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
 
+              ],
+                  ),
+                ),
               ],
             ),
           ),

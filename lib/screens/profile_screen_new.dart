@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/badge.dart' as app_badge;
 import '../services/badge_service.dart';
 import 'badges_store_screen.dart';
@@ -41,6 +42,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _userId;
   Future<Map<String, dynamic>>? _matchStatsFuture;
   String? _matchStatsUserId;
+  bool _donationPromptCheckStarted = false;
+  bool _donationDialogVisible = false;
 
   @override
   void initState() {
@@ -53,7 +56,153 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _loadFriendsCount();
       _teamsStream = _teamService.watchUserTeams(uid);
       _teamInvitesStream = _teamService.watchInvites(uid);
+      _checkAndShowDonationPrompt(uid);
     }
+  }
+
+  Future<void> _checkAndShowDonationPrompt(String uid) async {
+    if (_donationPromptCheckStarted) return;
+    _donationPromptCheckStarted = true;
+    try {
+      final userDoc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final data = userDoc.data() ?? const <String, dynamic>{};
+      final settings =
+          Map<String, dynamic>.from(data['settings'] ?? const <String, dynamic>{});
+      final isDismissed = settings['hideDonationPrompt'] == true;
+      if (isDismissed || !mounted) return;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _donationDialogVisible) return;
+        _showDonationDialog();
+      });
+    } catch (_) {
+      // If settings cannot be loaded, do not block profile rendering.
+    }
+  }
+
+  _DonationConfig _getDonationConfig() {
+    final isEnglish = I18n.language.value.toLowerCase().startsWith('en');
+    if (isEnglish) {
+      return const _DonationConfig(
+        imageAssetPath: 'assets/donate/en_donate.png',
+        donateUrl: 'https://www.privat24.ua/send/j1gih',
+      );
+    }
+    return const _DonationConfig(
+      imageAssetPath: 'assets/donate/ua_donate.png',
+      donateUrl: 'https://www.privat24.ua/send/j1gh1',
+    );
+  }
+
+  Future<void> _setDonationPromptDismissed() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance.collection('users').doc(uid).set(
+      {
+        'settings': {'hideDonationPrompt': true}
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> _openDonationLink(String link) async {
+    final uri = Uri.parse(link);
+    var launched = false;
+    try {
+      launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+    } catch (_) {}
+    if (!launched) {
+      try {
+        launched = await launchUrl(uri, mode: LaunchMode.inAppWebView);
+      } catch (_) {}
+    }
+    if (launched) return;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          I18n.inline(
+            'Не вдалося відкрити посилання для донату',
+            'Failed to open donation link',
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDonationDialog() {
+    _donationDialogVisible = true;
+    final config = _getDonationConfig();
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1a1a2e),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          I18n.inline('Підтримайте розвиток проєкту', 'Support project growth'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                I18n.inline(
+                  'Ваша підтримка допомагає швидше запускати нові фішки.',
+                  'Your support helps us ship new features faster.',
+                ),
+                style: const TextStyle(color: Colors.white70),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () async => _openDonationLink(config.donateUrl),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(config.imageAssetPath, fit: BoxFit.contain),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                I18n.inline(
+                  'Натисніть на QR-код, щоб перейти до донату',
+                  'Tap the QR code to open donation page',
+                ),
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await _setDonationPromptDismissed();
+              if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+            },
+            child: Text(I18n.inline('Більше не нагадувати', 'Don\'t remind again')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(I18n.inline('Закрити', 'Close')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+              await _openDonationLink(config.donateUrl);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4caf50),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(I18n.inline('Підтримати', 'Donate')),
+          ),
+        ],
+      ),
+    ).whenComplete(() {
+      _donationDialogVisible = false;
+    });
   }
 
   void _loadUserBadges() async {
@@ -1915,6 +2064,16 @@ class ProfileStatsPage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DonationConfig {
+  final String imageAssetPath;
+  final String donateUrl;
+
+  const _DonationConfig({
+    required this.imageAssetPath,
+    required this.donateUrl,
+  });
 }
 
 Widget buildPerformanceStat(

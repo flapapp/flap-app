@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'video_player_screen.dart';
 import '../constants/video_categories.dart';
 import '../models/challenge.dart';
@@ -40,6 +41,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   final Map<String, _CachedChallengeMeta> _challengeMetaCache = {};
   final Set<String> _challengeMetaLoading = {};
   final Set<String> _challengeMetaDenied = {};
+  final Map<String, String?> _challengeCreatorThumbCache = {};
+  final Set<String> _challengeCreatorThumbLoading = {};
   late Stream<QuerySnapshot> _videosStream;
   bool _didInitFromRouteArgs = false;
   
@@ -59,10 +62,26 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     '4.5+',
   ];
 
-  List<String> get _sortOptions => [
-    I18n.inline('Нові додані зверху', 'Newest first'),
-    I18n.inline('В моєму місті', 'In my city'),
+  static const List<String> _sortModes = <String>[
+    'newest',
+    'my_city',
+    'rating_asc',
+    'rating_desc',
   ];
+
+  String _sortLabel(String mode) {
+    switch (mode) {
+      case 'my_city':
+        return I18n.inline('В моєму місті', 'In my city');
+      case 'rating_asc':
+        return I18n.inline('Рейтинг: за зростанням', 'Rating: low to high');
+      case 'rating_desc':
+        return I18n.inline('Рейтинг: за спаданням', 'Rating: high to low');
+      case 'newest':
+      default:
+        return I18n.inline('Нові додані зверху', 'Newest first');
+    }
+  }
 
   String _selectedCategoryLabel() {
     if (_selectedCategory.isEmpty) {
@@ -79,25 +98,161 @@ int _compareVideoDocs(
   final dataA = a.data() as Map<String, dynamic>? ?? const {};
   final dataB = b.data() as Map<String, dynamic>? ?? const {};
     if (_selectedSort == 'my_city' && _currentUserCity.trim().isNotEmpty) {
-      final cityA = (dataA['city'] ?? '').toString().trim().toLowerCase();
-      final cityB = (dataB['city'] ?? '').toString().trim().toLowerCase();
-      final aMine = cityA == _currentUserCity.trim().toLowerCase();
-      final bMine = cityB == _currentUserCity.trim().toLowerCase();
+      final cityA = _normalizeCity((dataA['city'] ?? '').toString());
+      final cityB = _normalizeCity((dataB['city'] ?? '').toString());
+      final myCity = _normalizeCity(_currentUserCity);
+      final aMine = cityA == myCity;
+      final bMine = cityB == myCity;
       if (aMine != bMine) {
         return bMine ? 1 : -1;
       }
     }
-    if (_selectedTab == 'trending' && !_showOnlyMyVideos) {
+    if (_selectedSort == 'rating_asc' || _selectedSort == 'rating_desc') {
+      final ratingA = _extractVideoRating(dataA);
+      final ratingB = _extractVideoRating(dataB);
+      final cmp = _selectedSort == 'rating_asc'
+          ? ratingA.compareTo(ratingB)
+          : ratingB.compareTo(ratingA);
+      if (cmp != 0) return cmp;
+    } else if (_selectedTab == 'trending' && !_showOnlyMyVideos) {
       final viewsA = (dataA['views'] ?? 0) as num;
       final viewsB = (dataB['views'] ?? 0) as num;
       final cmp = viewsB.compareTo(viewsA);
       if (cmp != 0) return cmp;
     }
-    final tsA =
-        (dataA['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-    final tsB =
-        (dataB['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+    final tsA = _extractCreatedAtMillis(dataA);
+    final tsB = _extractCreatedAtMillis(dataB);
     return tsB.compareTo(tsA);
+  }
+
+  double _extractVideoRating(Map<String, dynamic> data) {
+    final raw = data['rating'] ?? data['averageRating'] ?? data['voteAverage'] ?? 0.0;
+    if (raw is num) return raw.toDouble();
+    return double.tryParse(raw.toString()) ?? 0.0;
+  }
+
+  int _extractCreatedAtMillis(Map<String, dynamic> data) {
+    final ts =
+        data['createdAt'] ?? data['uploadedAt'] ?? data['timestamp'] ?? data['updatedAt'];
+    if (ts is Timestamp) return ts.millisecondsSinceEpoch;
+    if (ts is DateTime) return ts.millisecondsSinceEpoch;
+    if (ts is int) return ts;
+    return 0;
+  }
+
+  bool _isChallengeVideoData(Map<String, dynamic> data) {
+    final challengeId = (data['challengeId'] ?? '').toString().trim();
+    final challengeTitle = (data['challengeTitle'] ?? '').toString().trim();
+    final title = (data['title'] ?? '').toString().trim().toLowerCase();
+    final description = (data['description'] ?? '').toString().trim().toLowerCase();
+    final explicitFlag = data['isChallengeVideo'] == true;
+
+    if (explicitFlag) return true;
+    if (challengeId.isNotEmpty || challengeTitle.isNotEmpty) return true;
+
+    // Legacy fallback markers for old challenge submissions.
+    return title == 'відео челенджу' ||
+        title == 'challenge video' ||
+        description == 'відео челенджу' ||
+        description == 'challenge video';
+  }
+
+  String _normalizeCity(String city) {
+    final v = _primaryCityToken(city);
+    const aliases = <String, String>{
+      'kyiv': 'kyiv',
+      'київ': 'kyiv',
+      'kiev': 'kyiv',
+      'lviv': 'lviv',
+      'львів': 'lviv',
+      'odesa': 'odesa',
+      'odessa': 'odesa',
+      'одеса': 'odesa',
+      'kharkiv': 'kharkiv',
+      'харків': 'kharkiv',
+      'dnipro': 'dnipro',
+      'дніпро': 'dnipro',
+      'днепр': 'dnipro',
+      'london': 'london',
+      'лондон': 'london',
+    };
+    return aliases[v] ?? v;
+  }
+
+  String _primaryCityToken(String city) {
+    final raw = city.trim().toLowerCase();
+    if (raw.isEmpty) return '';
+    final noParens = raw.replaceAll(RegExp(r'\(.*?\)'), '');
+    final beforeComma = noParens.split(',').first;
+    final beforeSlash = beforeComma.split('/').first;
+    return beforeSlash.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  bool _cityMatchesFilter(String cityValue) {
+    if (_selectedCity.isEmpty) return true;
+    final cityNorm = _normalizeCity(cityValue);
+    final selectedNorm = _normalizeCity(_selectedCity);
+    return cityNorm.isNotEmpty && selectedNorm.isNotEmpty && cityNorm == selectedNorm;
+  }
+
+  String _resolveVideoCityForFilter(
+    Map<String, dynamic> data,
+  ) {
+    final directCity = (data['city'] ?? '').toString().trim();
+    if (directCity.isNotEmpty) return directCity;
+
+    final userId = (data['userId'] ?? '').toString().trim();
+    if (userId.isEmpty) return '';
+
+    final cached = _userProfileCache[userId]?.city.trim() ?? '';
+    if (cached.isNotEmpty) return cached;
+
+    if (!_loadingUserProfiles.contains(userId)) {
+      _prefetchUserProfile(userId);
+    }
+    return '';
+  }
+
+  void _prefetchChallengeCreatorThumbnail(String challengeId, String creatorId) async {
+    if (challengeId.isEmpty || creatorId.isEmpty) return;
+    if (_challengeCreatorThumbCache.containsKey(challengeId) ||
+        _challengeCreatorThumbLoading.contains(challengeId)) {
+      return;
+    }
+    _challengeCreatorThumbLoading.add(challengeId);
+    try {
+      String? thumbUrl;
+      final directDoc = await FirebaseFirestore.instance
+          .collection('challenges')
+          .doc(challengeId)
+          .collection('submissions')
+          .doc(creatorId)
+          .get();
+      final directData = directDoc.data();
+      thumbUrl = (directData?['thumbnailUrl'] ?? '').toString().trim();
+
+      if (thumbUrl.isEmpty) {
+        final fallback = await FirebaseFirestore.instance
+            .collection('challenges')
+            .doc(challengeId)
+            .collection('submissions')
+            .where('isCreatorVideo', isEqualTo: true)
+            .limit(1)
+            .get();
+        if (fallback.docs.isNotEmpty) {
+          thumbUrl =
+              (fallback.docs.first.data()['thumbnailUrl'] ?? '').toString().trim();
+        }
+      }
+
+      _challengeCreatorThumbCache[challengeId] =
+          thumbUrl.isEmpty ? null : thumbUrl;
+      if (mounted) setState(() {});
+    } catch (_) {
+      _challengeCreatorThumbCache[challengeId] = null;
+    } finally {
+      _challengeCreatorThumbLoading.remove(challengeId);
+    }
   }
 
   void initState() {
@@ -382,8 +537,6 @@ Widget build(BuildContext context) {
                           return;
                         }
 
-                        if (!CityCatalog.isAllowed(v, includeAll: true)) return;
-
                         final isAll = allValues.contains(v.toLowerCase());
 
                         setState(() {
@@ -422,21 +575,7 @@ Widget build(BuildContext context) {
                   ),
                   const SizedBox(height: 10),
 
-                  _buildFilterDropdown(
-                    _sortOptions,
-                    _selectedSort == 'newest'
-                        ? I18n.inline('Нові додані зверху', 'Newest first')
-                        : I18n.inline('В моєму місті', 'In my city'),
-                    (value) {
-                      setState(() {
-                        _selectedSort =
-                            value == I18n.inline('В моєму місті', 'In my city')
-                                ? 'my_city'
-                                : 'newest';
-                      });
-                    },
-                    '↕️',
-                  ),
+                  _buildSortDropdown(),
                 ],
               ),
             ),
@@ -462,7 +601,7 @@ Widget build(BuildContext context) {
         ),
       ],
       onCreate: _showVideoCreateSheet,
-      createTooltip: I18n.inline('Додати контент', 'Create content'),
+      createTooltip: I18n.inline('Створити', 'Create'),
       createGradient: const [Color(0xFFFF6B35), Color(0xFFFF8A65)],
     ),
     floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -1206,6 +1345,43 @@ Widget build(BuildContext context) {
     );
   }
 
+  Widget _buildSortDropdown() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedSort,
+          isExpanded: true,
+          padding: const EdgeInsets.symmetric(horizontal: 15),
+          dropdownColor: Colors.white,
+          style: const TextStyle(color: Colors.black87, fontSize: 14),
+          items: _sortModes
+              .map(
+                (mode) => DropdownMenuItem<String>(
+                  value: mode,
+                  child: Row(
+                    children: [
+                      const Text('↕️'),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(_sortLabel(mode))),
+                    ],
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (String? mode) {
+            if (mode == null) return;
+            setState(() => _selectedSort = mode);
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildCategoryFilterDropdown() {
     final items = [
       DropdownMenuItem<String>(
@@ -1281,6 +1457,69 @@ Widget build(BuildContext context) {
   }
 }
 
+  List<QueryDocumentSnapshot> _filterAndSortVideoDocs(
+    Iterable<QueryDocumentSnapshot> source, {
+    bool excludeChallengeVideos = true,
+  }) {
+    final docs = source.where((d) {
+      final data = d.data() as Map<String, dynamic>;
+
+      if (excludeChallengeVideos && _isChallengeVideoData(data)) return false;
+
+      if (_selectedRating.isNotEmpty) {
+        final minRating = double.tryParse(_selectedRating.replaceAll('+', '')) ?? 0.0;
+        final ratingRaw = _videoRatingCache[d.id] ?? _extractVideoRating(data);
+        if (ratingRaw < minRating) return false;
+      }
+
+      if (_selectedCategory.isNotEmpty) {
+        final categoryValue = (data['category'] ?? '').toString();
+        final normalized = normalizeVideoCategoryValue(categoryValue);
+        if (normalized != _selectedCategory) return false;
+      }
+
+      if (_selectedCity.isNotEmpty) {
+        final city = _resolveVideoCityForFilter(data);
+        if (!_cityMatchesFilter(city)) return false;
+      }
+
+      return true;
+    }).toList();
+
+    docs.sort((a, b) {
+      final dataA = a.data() as Map<String, dynamic>? ?? const {};
+      final dataB = b.data() as Map<String, dynamic>? ?? const {};
+
+      if (_selectedSort == 'rating_asc' || _selectedSort == 'rating_desc') {
+        final ratingA = _videoRatingCache[a.id] ?? _extractVideoRating(dataA);
+        final ratingB = _videoRatingCache[b.id] ?? _extractVideoRating(dataB);
+        final cmp = _selectedSort == 'rating_asc'
+            ? ratingA.compareTo(ratingB)
+            : ratingB.compareTo(ratingA);
+        if (cmp != 0) return cmp;
+      } else if (_selectedSort == 'my_city' &&
+          _currentUserCity.trim().isNotEmpty) {
+        final cityA = _normalizeCity(_resolveVideoCityForFilter(dataA));
+        final cityB = _normalizeCity(_resolveVideoCityForFilter(dataB));
+        final mine = _normalizeCity(_currentUserCity);
+        final aMine = cityA == mine;
+        final bMine = cityB == mine;
+        if (aMine != bMine) return bMine ? 1 : -1;
+      } else if (_selectedTab == 'trending' && !_showOnlyMyVideos) {
+        final viewsA = (dataA['views'] ?? 0) as num;
+        final viewsB = (dataB['views'] ?? 0) as num;
+        final cmp = viewsB.compareTo(viewsA);
+        if (cmp != 0) return cmp;
+      }
+
+      final tsA = _extractCreatedAtMillis(dataA);
+      final tsB = _extractCreatedAtMillis(dataB);
+      return tsB.compareTo(tsA);
+    });
+
+    return docs;
+  }
+
   Widget _buildVideosList() {
     return StreamBuilder<QuerySnapshot>(
       stream: _videosStream,
@@ -1348,41 +1587,7 @@ Widget build(BuildContext context) {
           );
         }
 
-        // Клієнтська фільтрація (щоб не вимагати композитні індекси)
-        final docs = snapshot.data!.docs.where((d) {
-          final data = d.data() as Map<String, dynamic>;
-          
-          // Фільтр рейтингу
-          if (_selectedRating.isNotEmpty) {
-            final minRating = double.parse(_selectedRating.replaceAll('+', ''));
-            final ratingRaw = _videoRatingCache[d.id] ??
-                data['rating'] ??
-                data['averageRating'] ??
-                data['voteAverage'] ??
-                0.0;
-            final r = ratingRaw is num
-                ? ratingRaw.toDouble()
-                : double.tryParse(ratingRaw.toString()) ?? 0.0;
-            if (r < minRating) return false;
-          }
-          
-          // Фільтр категорії
-          if (_selectedCategory.isNotEmpty) {
-            final categoryValue = (data['category'] ?? '').toString();
-            final normalized = normalizeVideoCategoryValue(categoryValue);
-            if (normalized != _selectedCategory) return false;
-          }
-          
-          // Фільтр міста
-          if (_selectedCity.isNotEmpty) {
-        final city = (data['city'] ?? '').toString().trim().toLowerCase();
-        final selected = _selectedCity.trim().toLowerCase();
-        if (city != selected) return false;
-      }
-          
-          return true;
-        }).toList()
-          ..sort(_compareVideoDocs);
+        final docs = _filterAndSortVideoDocs(snapshot.data!.docs);
 
         return ListView.builder(
           key: PageStorageKey<String>(
@@ -1393,38 +1598,7 @@ Widget build(BuildContext context) {
           itemBuilder: (context, index) {
             final video = docs[index];
             final data = video.data() as Map<String, dynamic>;
-            
-            return AnimatedContainer(
-              duration: Duration(milliseconds: 300 + (index * 100)),
-              curve: Curves.easeOutBack,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0.5, 0.5),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: AlwaysStoppedAnimation(1.0),
-                    curve: Curves.easeOutBack,
-                  ),
-                ),
-                child: FadeTransition(
-                  opacity: Tween<double>(
-                    begin: 0.0,
-                    end: 1.0,
-                  ).animate(
-                    CurvedAnimation(
-                      parent: AlwaysStoppedAnimation(1.0),
-                      curve: Interval(
-                        (index * 0.1).clamp(0.0, 1.0),
-                        1.0,
-                        curve: Curves.easeOut,
-                      ),
-                    ),
-                  ),
-                  child: _buildVideoCard(data, video.id),
-                ),
-              ),
-            );
+            return _buildVideoCard(data, video.id);
           },
         );
       },
@@ -1443,20 +1617,8 @@ Widget build(BuildContext context) {
     // Remove city and category filters from Firestore query to avoid composite index issues
     // These will be applied on the client side in _buildVideosList()
     
-    // Apply tab filters
-    if (!filteringOwnVideos) {
-      switch (_selectedTab) {
-        case 'trending':
-          query = query.orderBy('views', descending: true);
-          break;
-        default:
-          query = query.orderBy('createdAt', descending: true);
-      }
-    } else {
-      // Sorting for personal feed handled client-side to avoid composite indexes
-    }
-    
-    return query.snapshots();
+    // All sorting/filtering is handled client-side for consistency.
+    return query.limit(400).snapshots();
   }
 
   Widget _buildVideoCard(Map<String, dynamic> data, String videoId) {
@@ -2227,41 +2389,12 @@ Widget build(BuildContext context) {
         }
 
         return ListView.builder(
+          key: const PageStorageKey<String>('challenges-list'),
           padding: const EdgeInsets.all(20),
           itemCount: challenges.length,
           itemBuilder: (context, index) {
             final challenge = challenges[index].data() as Map<String, dynamic>;
-            return AnimatedContainer(
-              duration: Duration(milliseconds: 400 + (index * 150)),
-              curve: Curves.elasticOut,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(-0.5, 0.3),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: AlwaysStoppedAnimation(1.0),
-                    curve: Curves.elasticOut,
-                  ),
-                ),
-                child: FadeTransition(
-                  opacity: Tween<double>(
-                    begin: 0.0,
-                    end: 1.0,
-                  ).animate(
-                    CurvedAnimation(
-                      parent: AlwaysStoppedAnimation(1.0),
-                      curve: Interval(
-                        (index * 0.15).clamp(0.0, 1.0),
-                        1.0,
-                        curve: Curves.easeOut,
-                      ),
-                    ),
-                  ),
-                  child: _buildChallengeCard(challenge, challenges[index].id),
-                ),
-              ),
-            );
+            return _buildChallengeCard(challenge, challenges[index].id);
           },
         );
       },
@@ -2270,7 +2403,7 @@ Widget build(BuildContext context) {
 
   // Картка челенджу
   Widget _buildChallengeCard(Map<String, dynamic> challenge, String challengeId) {
-    final status = challenge['status'] ?? 'recruiting';
+    final status = (challenge['status'] ?? 'recruiting').toString();
     final type = (challenge['type'] ?? 'goal').toString();
     final accent = _challengeTypeColor(type);
     final currentParticipants = challenge['currentParticipants'] ?? 0;
@@ -2284,11 +2417,41 @@ Widget build(BuildContext context) {
         .toString();
     final creatorVideoUrl =
         (challenge['creatorVideoUrl'] ?? '').toString();
-    final creatorThumbnailUrl =
+    String creatorThumbnailUrl =
         (challenge['creatorThumbnailUrl'] ?? challenge['thumbnailUrl'] ?? '')
             .toString();
+    if (creatorThumbnailUrl.isEmpty && creatorId.isNotEmpty) {
+      final cachedThumb = _challengeCreatorThumbCache[challengeId];
+      if (cachedThumb != null && cachedThumb.isNotEmpty) {
+        creatorThumbnailUrl = cachedThumb;
+      } else if (!_challengeCreatorThumbCache.containsKey(challengeId)) {
+        _prefetchChallengeCreatorThumbnail(challengeId, creatorId);
+      }
+    }
     final participants =
         List<String>.from(challenge['participants'] ?? const []);
+    final now = DateTime.now();
+    final createdAtTs = challenge['createdAt'] as Timestamp?;
+    final votingDeadlineTs = challenge['votingDeadline'] as Timestamp?;
+    final endDateTs = challenge['endDate'] as Timestamp?;
+    final votingDeadline = votingDeadlineTs?.toDate() ?? endDateTs?.toDate();
+    final createdAt = createdAtTs?.toDate() ?? now;
+    final isCompletedByDate =
+        votingDeadline != null && now.isAfter(votingDeadline);
+    final isCompleted = status == 'completed' || isCompletedByDate;
+    final displayStatus = isCompleted ? 'completed' : status;
+    final remaining = votingDeadline?.difference(now) ?? Duration.zero;
+    final remainingDays =
+        remaining.inSeconds <= 0 ? 0 : (remaining.inHours / 24).ceil();
+    final totalSeconds = votingDeadline != null
+        ? votingDeadline.difference(createdAt).inSeconds
+        : 0;
+    final elapsedSeconds = votingDeadline != null
+        ? now.difference(createdAt).inSeconds.clamp(0, totalSeconds)
+        : 0;
+    final timelineProgress = totalSeconds > 0
+        ? (elapsedSeconds / totalSeconds).clamp(0.0, 1.0)
+        : 0.0;
     
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -2364,7 +2527,7 @@ Widget build(BuildContext context) {
                         ),
                       ),
                       child: Text(
-                        _getStatusText(status),
+                        _getStatusText(displayStatus),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -2488,8 +2651,12 @@ Widget build(BuildContext context) {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                           Text(
-                            '${I18n.inline('Прогрес', 'Progress')}: '
-                            '$currentParticipants/$maxParticipants',
+                            isCompleted
+                                ? I18n.inline('Статус: завершено', 'Status: completed')
+                                : I18n.inline(
+                                    'До завершення голосування: $remainingDays дн.',
+                                    'Voting ends in: $remainingDays days',
+                                  ),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -2497,7 +2664,9 @@ Widget build(BuildContext context) {
                             ),
                           ),
                           Text(
-                            '${((currentParticipants / maxParticipants) * 100).toInt()}%',
+                            isCompleted
+                                ? I18n.inline('Завершено', 'Completed')
+                                : '$remainingDays ${I18n.inline('дн.', 'd')}',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 12,
@@ -2507,7 +2676,7 @@ Widget build(BuildContext context) {
                 ),
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
-                        value: currentParticipants / maxParticipants,
+                        value: isCompleted ? 1.0 : timelineProgress,
                         backgroundColor: Colors.white.withValues(alpha: 0.2),
                         valueColor: const AlwaysStoppedAnimation<Color>(
                           Color(0xFF66bb6a),
@@ -2618,7 +2787,9 @@ Widget build(BuildContext context) {
                           ],
                         ),
                         child: ElevatedButton.icon(
-                          onPressed: () => _joinChallenge(challengeId, challenge),
+                          onPressed: isCompleted
+                              ? null
+                              : () => _joinChallenge(challengeId, challenge),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
@@ -2633,7 +2804,9 @@ Widget build(BuildContext context) {
                             size: 18,
                           ),
                           label: Text(
-                            I18n.inline('Участь', 'Join'),
+                            isCompleted
+                                ? I18n.inline('Завершено', 'Completed')
+                                : I18n.inline('Участь', 'Join'),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -2889,7 +3062,7 @@ Widget build(BuildContext context) {
           );
                   }
 
-        final videos = snapshot.data?.docs ?? [];
+        final videos = _filterAndSortVideoDocs(snapshot.data?.docs ?? const []);
 
         if (videos.isEmpty) {
           return Center(
@@ -2938,15 +3111,95 @@ Widget build(BuildContext context) {
         }
 
         return ListView.builder(
+          key: const PageStorageKey<String>('my-videos-list'),
           padding: const EdgeInsets.all(20),
           itemCount: videos.length,
           itemBuilder: (context, index) {
             final video = videos[index].data() as Map<String, dynamic>;
-            return _buildVideoCard(video, videos[index].id);
+            final videoId = videos[index].id;
+            return Dismissible(
+              key: ValueKey('my-video-$videoId'),
+              direction: DismissDirection.endToStart,
+              background: Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: const Icon(Icons.delete_outline, color: Colors.white),
+              ),
+              confirmDismiss: (_) => _confirmDeleteVideo(videoId),
+              onDismissed: (_) => _deleteVideo(videoId, video),
+              child: _buildVideoCard(video, videoId),
+            );
           },
         );
       },
     );
+  }
+
+  Future<bool> _confirmDeleteVideo(String videoId) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1a1a2e),
+        title: Text(
+          I18n.inline('Видалити відео?', 'Delete video?'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          I18n.inline(
+            'Цю дію неможливо скасувати.',
+            'This action cannot be undone.',
+          ),
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(I18n.t('cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: Text(I18n.inline('Видалити', 'Delete')),
+          ),
+        ],
+      ),
+    );
+    return result == true;
+  }
+
+  Future<void> _deleteVideo(String videoId, Map<String, dynamic> data) async {
+    try {
+      await FirebaseFirestore.instance.collection('videos').doc(videoId).delete();
+
+      final urls = <String>[
+        (data['videoUrl'] ?? '').toString(),
+        (data['thumbnailUrl'] ?? '').toString(),
+      ].where((u) => u.isNotEmpty).toSet();
+      for (final url in urls) {
+        try {
+          await FirebaseStorage.instance.refFromURL(url).delete();
+        } catch (_) {}
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.inline('Відео видалено', 'Video deleted'))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline('Не вдалося видалити відео', 'Failed to delete video'),
+          ),
+        ),
+      );
+    }
   }
 
   // Трендові відео
@@ -2966,7 +3219,7 @@ Widget build(BuildContext context) {
           );
         }
 
-        final videos = snapshot.data?.docs ?? [];
+        final videos = _filterAndSortVideoDocs(snapshot.data?.docs ?? const []);
 
         if (videos.isEmpty) {
           return Center(
@@ -3010,6 +3263,24 @@ Widget build(BuildContext context) {
     // Перевірити чи користувач вже учасник
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
+    final votingDeadline = (challenge['votingDeadline'] as Timestamp?)?.toDate();
+    final endDate = (challenge['endDate'] as Timestamp?)?.toDate();
+    final isCompletedByDate = (votingDeadline != null &&
+            DateTime.now().isAfter(votingDeadline)) ||
+        (endDate != null && DateTime.now().isAfter(endDate));
+    if ((challenge['status'] ?? '') == 'completed' || isCompletedByDate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline(
+              'Челендж завершено. Подати відео вже неможливо.',
+              'Challenge is completed. Video submission is closed.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
     
     // Показуємо підтвердження участі
     showDialog(

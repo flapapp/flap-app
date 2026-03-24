@@ -598,7 +598,7 @@ void _resetFindFilters() {
           ),
         ],
         onCreate: () => Navigator.pushNamed(context, '/create-match'),
-        createTooltip: I18n.t('create_match'),
+        createTooltip: I18n.inline('Створити', 'Create'),
       ),
     );
   }

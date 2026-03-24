@@ -57,6 +57,7 @@ class I18n {
     'videos': {'uk': 'Відео', 'en': 'Videos'},
     'challenges': {'uk': 'Челенджі', 'en': 'Challenges'},
     'matches': {'uk': 'Матчі', 'en': 'Matches'},
+    'teams': {'uk': 'Команди', 'en': 'Teams'},
     'notifications': {'uk': 'Сповіщення', 'en': 'Notifications'},
     'friends': {'uk': 'Друзі', 'en': 'Friends'},
     'profile': {'uk': 'Профіль', 'en': 'Profile'},

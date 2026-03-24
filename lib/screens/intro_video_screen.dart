@@ -1,8 +1,6 @@
-import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
-import '../utils/app_navigator.dart';
 import '../utils/i18n.dart';
 
 class IntroVideoScreen extends StatefulWidget {
@@ -13,45 +11,42 @@ class IntroVideoScreen extends StatefulWidget {
 }
 
 class _IntroVideoScreenState extends State<IntroVideoScreen> {
-  late final VideoPlayerController _controller;
-  bool _isReady = false;
-  bool _showSkip = false;
   bool _navigated = false;
-  Timer? _skipDelayTimer;
+  bool _imageReady = false;
+  late final FocusNode _focusNode;
+  late final String _startupImage;
+  static const List<String> _startupImages = [
+    'assets/startup/start_1.png',
+    'assets/startup/start_2.png',
+    'assets/startup/start_3.png',
+    'assets/startup/start_4.png',
+    'assets/startup/start_5.png',
+    'assets/startup/start_6.png',
+    'assets/startup/start_7.png',
+    'assets/startup/start_8.png',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.asset('assets/videos/intro.mp4')
-      ..setLooping(false)
-      ..initialize().then((_) {
-        if (!mounted) return;
-        setState(() => _isReady = true);
-        _controller.play();
-        _controller.addListener(_handlePlaybackState);
-      }).catchError((_) {
-        _navigateToWelcome();
-      });
-
-    _skipDelayTimer = Timer(const Duration(seconds: 3), () {
-      if (!mounted) return;
-      setState(() => _showSkip = true);
+    _focusNode = FocusNode();
+    _startupImage = _startupImages[Random().nextInt(_startupImages.length)];
+    precacheImage(AssetImage(_startupImage), context).whenComplete(() {
+      if (mounted) {
+        setState(() => _imageReady = true);
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusNode.requestFocus();
+      }
     });
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_handlePlaybackState);
-    _controller.dispose();
-    _skipDelayTimer?.cancel();
+    _focusNode.dispose();
     super.dispose();
-  }
-
-  void _handlePlaybackState() {
-    if (!_controller.value.isPlaying &&
-        _controller.value.position >= _controller.value.duration) {
-      _navigateToWelcome();
-    }
   }
 
   void _navigateToWelcome() {
@@ -65,137 +60,83 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
     final media = MediaQuery.of(context);
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350),
-            child: _isReady ? _buildVideoSurface() : _buildFallback(key: const ValueKey('intro-fallback')),
-          ),
-          DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Colors.black54],
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: media.padding.bottom + 32,
-            left: 24,
-            right: 24,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Feel Like A Pro',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
+      body: KeyboardListener(
+        focusNode: _focusNode,
+        onKeyEvent: (_) => _navigateToWelcome(),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _navigateToWelcome,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (_imageReady)
+                Image.asset(
+                  _startupImage,
+                  fit: BoxFit.cover,
+                )
+              else
+                const ColoredBox(
+                  color: Colors.black,
+                  child: Center(
+                    child: CircularProgressIndicator(color: Colors.white70),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  I18n.inline(
-                    'Кращі матчі, челенджі та відео в одному застосунку',
-                    'Best matches, challenges, and videos in one app',
-                  ),
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 16,
+              DecoratedBox(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.black26, Colors.black87],
                   ),
                 ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: media.padding.top + 16,
-            right: 16,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 300),
-              opacity: _showSkip ? 1 : 0,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black45,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
+              ),
+              Positioned(
+                bottom: media.padding.bottom + 34,
+                left: 24,
+                right: 24,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Feel Like A Pro',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      I18n.inline(
+                        'Натисніть будь-яку клавішу або торкніться екрана',
+                        'Press any key or tap anywhere to continue',
+                      ),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
                 ),
-                onPressed: _showSkip ? _navigateToWelcome : null,
-                child: Text(I18n.inline('Пропустити', 'Skip')),
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVideoSurface() {
-    final size = _controller.value.size;
-    final aspectRatio = (size.width <= 0 || size.height <= 0)
-        ? 16 / 9
-        : size.width / size.height;
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 420),
-      opacity: _isReady ? 1 : 0,
-      child: Container(
-        color: Colors.black,
-        alignment: Alignment.center,
-        child: AspectRatio(
-          aspectRatio: aspectRatio,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: VideoPlayer(_controller),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFallback({Key? key}) {
-    return Container(
-      key: key,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF1e7d32), Color(0xFF0f0f23)],
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 140,
-              height: 140,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.25),
-                    blurRadius: 30,
-                    offset: const Offset(0, 12),
+              Positioned(
+                top: media.padding.top + 16,
+                right: 16,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black45,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
                   ),
-                ],
+                  onPressed: _navigateToWelcome,
+                  child: Text(I18n.inline('Далі', 'Continue')),
+                ),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: Image.asset(
-                'assets/logo/flap_logo.jpg',
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

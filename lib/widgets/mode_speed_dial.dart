@@ -36,6 +36,7 @@ class ModeSpeedDial extends StatefulWidget {
 
 class _ModeSpeedDialState extends State<ModeSpeedDial>
     with SingleTickerProviderStateMixin {
+  static const double _labelWidth = 124;
   bool _expanded = false;
 
   void _toggleOrCreate() {
@@ -50,6 +51,7 @@ class _ModeSpeedDialState extends State<ModeSpeedDial>
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
         ...widget.shortcuts.asMap().entries.map(
@@ -84,29 +86,45 @@ class _ModeSpeedDialState extends State<ModeSpeedDial>
   }
 
   Widget _buildCreateButton() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: widget.createGradient),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: widget.createGradient.first.withOpacity(0.35),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: FloatingActionButton(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        onPressed: _toggleOrCreate,
-        tooltip: widget.createTooltip,
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 200),
-          scale: _expanded ? 0.9 : 1.0,
-          child: const Icon(Icons.add, color: Colors.white),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: _expanded
+              ? _ActionLabel(
+                  key: const ValueKey('create-label'),
+                  text: widget.createTooltip,
+                  width: _labelWidth,
+                )
+              : const SizedBox.shrink(),
         ),
-      ),
+        if (_expanded) const SizedBox(width: 10),
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: widget.createGradient),
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: widget.createGradient.first.withOpacity(0.35),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: FloatingActionButton(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            onPressed: _toggleOrCreate,
+            tooltip: widget.createTooltip,
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 200),
+              scale: _expanded ? 0.9 : 1.0,
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -122,20 +140,64 @@ class _ShortcutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ActionLabel(text: action.tooltip, width: _ModeSpeedDialState._labelWidth),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 52,
+          height: 52,
+          child: Material(
+            color: action.background,
+            shape: const CircleBorder(),
+            elevation: 4,
+            child: IconButton(
+              tooltip: action.tooltip,
+              icon: Icon(action.icon, color: action.iconColor),
+              onPressed: () {
+                onCollapse();
+                action.onTap();
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionLabel extends StatelessWidget {
+  final String text;
+  final double width;
+
+  const _ActionLabel({
+    super.key,
+    required this.text,
+    required this.width,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
-      width: 52,
-      height: 52,
-      child: Material(
-        color: action.background,
-        shape: const CircleBorder(),
-        elevation: 4,
-        child: IconButton(
-          tooltip: action.tooltip,
-          icon: Icon(action.icon, color: action.iconColor),
-          onPressed: () {
-            onCollapse();
-            action.onTap();
-          },
+      width: width,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F1424).withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.right,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

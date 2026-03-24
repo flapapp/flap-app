@@ -1,9 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
-
 import 'web_video_thumbnail.dart';
 
 class VideoPreviewBox extends StatefulWidget {
@@ -62,9 +59,16 @@ class _VideoPreviewBoxState extends State<VideoPreviewBox> {
   }
 
   Future<void> _maybeGenerateThumbnail() async {
-    if (widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty) return;
+    final thumbUrl = widget.thumbnailUrl;
+    final hasImageThumb =
+        thumbUrl != null && thumbUrl.isNotEmpty && !_looksLikeVideoUrl(thumbUrl);
+    if (hasImageThumb) return;
+
     if (kIsWeb) return;
-    final videoUrl = widget.videoUrl;
+
+    final videoUrl = (widget.videoUrl?.isNotEmpty == true)
+        ? widget.videoUrl
+        : ((_looksLikeVideoUrl(thumbUrl ?? '')) ? thumbUrl : null);
     if (videoUrl == null || videoUrl.isEmpty) return;
     if (_thumbMemoryCache.containsKey(videoUrl)) {
       setState(() => _localThumb = _thumbMemoryCache[videoUrl]);
@@ -167,10 +171,14 @@ class _VideoPreviewBoxState extends State<VideoPreviewBox> {
 
   Widget _buildMedia() {
     final thumbUrl = widget.thumbnailUrl;
-    if (thumbUrl != null && thumbUrl.isNotEmpty) {
+    if (thumbUrl != null &&
+        thumbUrl.isNotEmpty &&
+        !_looksLikeVideoUrl(thumbUrl)) {
       return Image.network(
         thumbUrl,
         fit: BoxFit.cover,
+        filterQuality: FilterQuality.low,
+        cacheWidth: 720,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
           return _buildPlaceholder();
@@ -184,13 +192,29 @@ class _VideoPreviewBoxState extends State<VideoPreviewBox> {
         fit: BoxFit.cover,
       );
     }
-    if (kIsWeb && widget.videoUrl != null && widget.videoUrl!.isNotEmpty) {
+
+    final previewVideoUrl = (widget.videoUrl?.isNotEmpty == true)
+        ? widget.videoUrl!
+        : ((_looksLikeVideoUrl(thumbUrl ?? '')) ? thumbUrl! : '');
+
+    if (kIsWeb && previewVideoUrl.isNotEmpty) {
       return WebVideoThumbnail(
-        videoUrl: widget.videoUrl!,
+        videoUrl: previewVideoUrl,
         borderRadius: BorderRadius.circular(widget.borderRadius),
       );
     }
+
+    // Web video frame extraction is expensive for large lists.
+    // A fast placeholder keeps scrolling responsive; full video is loaded on open.
     return _buildPlaceholder();
+  }
+
+  bool _looksLikeVideoUrl(String url) {
+    final u = url.toLowerCase();
+    return u.contains('.mp4') ||
+        u.contains('.mov') ||
+        u.contains('.webm') ||
+        u.contains('video');
   }
 
   Widget _buildPlaceholder() {

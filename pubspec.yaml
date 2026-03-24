@@ -48,6 +48,8 @@ dependencies:
   intl: ^0.18.1 
   share_plus: ^10.0.0
   firebase_auth: ^4.19.2
+  url_launcher: 6.2.6
+  url_launcher_android: 6.3.14
 
 dev_dependencies:
   flutter_test:
@@ -76,6 +78,8 @@ flutter:
   assets:
     - assets/logo/
     - assets/videos/intro.mp4
+    - assets/startup/
+    - assets/donate/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

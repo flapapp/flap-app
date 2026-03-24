@@ -1,16 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/intro_video_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/profile_creation_screen.dart';
-import 'screens/profile_screen.dart';
 import 'screens/mode_selection_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/video_upload_screen.dart';
 import 'screens/video_main_screen.dart';
-import 'screens/video_player_screen.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -51,12 +51,21 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  runApp(const MyApp());
+  unawaited(_bootstrapAppServices());
+}
+
+Future<void> _bootstrapAppServices() async {
+  // Keep user logged in between browser sessions.
+  if (kIsWeb) {
+    try {
+      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+    } catch (_) {}
+  }
 
   // Initialize NotificationService
   try {
     await NotificationService().initialize();
-    
-    // Створюємо тестові дані
   } catch (e) {
     print('Failed to initialize NotificationService: $e');
   }
@@ -86,7 +95,6 @@ Future<void> main() async {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
     await _initMessaging();
   }
-  runApp(const MyApp());
 }
 
 Future<void> _initMessaging() async {
@@ -205,6 +213,56 @@ class MyApp extends StatelessWidget {
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({Key? key}) : super(key: key);
+
+  Widget _buildLanguageButton({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      decoration: BoxDecoration(
+        gradient: selected
+            ? const LinearGradient(
+                colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+              )
+            : null,
+        color: selected ? null : Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: selected ? Colors.white70 : Colors.white24,
+          width: 1.4,
+        ),
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF4caf50).withValues(alpha: 0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
   
   @override
   Widget build(BuildContext context) {
@@ -250,7 +308,7 @@ class WelcomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 30),
-                // Назва + language selector
+                // App name + language selector
                 const Text(
                   'FLAP',
                     style: TextStyle(
@@ -268,27 +326,23 @@ class WelcomeScreen extends StatelessWidget {
                     ),
                   ),
                 const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: ValueListenableBuilder<String>(
-                    valueListenable: I18n.language,
-                    builder: (context, lang, _) => DropdownButton<String>(
-                      value: lang,
-                      underline: const SizedBox.shrink(),
-                      dropdownColor: const Color(0xFF1e7d32),
-                      icon: const Icon(Icons.language, color: Colors.white),
-                      style: const TextStyle(color: Colors.white),
-                      items: [
-                        DropdownMenuItem(value: 'uk', child: Text(I18n.inline('Українська', 'Ukrainian'))),
-                        const DropdownMenuItem(value: 'en', child: Text('English')),
-                      ],
-                      onChanged: (v) { if (v != null) I18n.setLanguage(v); },
-                    ),
+                ValueListenableBuilder<String>(
+                  valueListenable: I18n.language,
+                  builder: (context, lang, _) => Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildLanguageButton(
+                        label: 'Українська',
+                        selected: lang == 'uk',
+                        onTap: () => I18n.setLanguage('uk'),
+                      ),
+                      const SizedBox(width: 12),
+                      _buildLanguageButton(
+                        label: 'English',
+                        selected: lang == 'en',
+                        onTap: () => I18n.setLanguage('en'),
+                      ),
+                    ],
                   ),
                 ),
                   const SizedBox(height: 10),

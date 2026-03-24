@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/i18n.dart';
 import '../services/notification_service.dart';
 
@@ -16,32 +17,38 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
 Widget build(BuildContext context) {
-  return Scaffold(
-    backgroundColor: const Color(0xFF1e7d32),
-    resizeToAvoidBottomInset: true,
-    appBar: AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () => Navigator.pop(context),
+  return WillPopScope(
+    onWillPop: () async {
+      final focused = FocusScope.of(context);
+      if (!focused.hasPrimaryFocus) {
+        focused.unfocus();
+        return false;
+      }
+      return true;
+    },
+    child: Scaffold(
+      backgroundColor: const Color(0xFF1e7d32),
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-    ),
-    body: SafeArea(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
-          return SingleChildScrollView(
+      body: SafeArea(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: ListView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: EdgeInsets.fromLTRB(30, 30, 30, 30 + keyboardInset),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight - 60),
-              child: IntrinsicHeight(
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+            padding: const EdgeInsets.fromLTRB(30, 30, 30, 30),
+            children: [
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
                       Container(
                         width: 90,
                         height: 90,
@@ -192,6 +199,12 @@ Widget build(BuildContext context) {
                                   if (_formKey.currentState!.validate()) {
                                     setState(() => _isLoading = true);
                                     try {
+                                      if (kIsWeb) {
+                                        try {
+                                          await FirebaseAuth.instance
+                                              .setPersistence(Persistence.LOCAL);
+                                        } catch (_) {}
+                                      }
                                       await FirebaseAuth.instance.signInWithEmailAndPassword(
                                         email: _emailController.text.trim(),
                                         password: _passwordController.text.trim(),
@@ -259,13 +272,12 @@ Widget build(BuildContext context) {
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
-            ),
-          );
-        },
+            ],
+          ),
+        ),
       ),
     ),
   );

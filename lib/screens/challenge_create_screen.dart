@@ -18,6 +18,8 @@ class ChallengeCreateScreen extends StatefulWidget {
 }
 
 class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
+  static const int _maxVideoBytes = 25 * 1024 * 1024;
+  static const Duration _maxVideoDuration = Duration(seconds: 10);
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -244,6 +246,18 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          I18n.inline(
+                            'Ліміт: до 10 секунд, максимум 25 МБ',
+                            'Limit: up to 10 seconds, maximum 25 MB',
+                          ),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.75),
+                            fontSize: 12,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -1409,10 +1423,26 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       final ImagePicker picker = ImagePicker();
       final XFile? video = await picker.pickVideo(
         source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-        maxDuration: const Duration(minutes: 5),
+        maxDuration: _maxVideoDuration,
       );
       
       if (video != null) {
+        final fileSize = await video.length();
+        if (fileSize > _maxVideoBytes) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.redAccent,
+              content: Text(
+                I18n.inline(
+                  'Файл занадто великий. Максимум 25 МБ.',
+                  'File is too large. Maximum size is 25 MB.',
+                ),
+              ),
+            ),
+          );
+          return;
+        }
         setState(() {
           _selectedVideoFile = video;
         });
@@ -1454,6 +1484,14 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         // Універсальний підхід: читаємо байти і виконуємо putData (працює і на web, і на mobile)
         print('Reading video file as bytes...');
         final bytes = await _selectedVideoFile!.readAsBytes();
+        if (bytes.length > _maxVideoBytes) {
+          throw Exception(
+            I18n.inline(
+              'Розмір відео перевищує 25 МБ.',
+              'Video size exceeds 25 MB.',
+            ),
+          );
+        }
         print('Video file size: ${bytes.length} bytes');
         uploadTask = storageRef.putData(bytes);
       } catch (e) {
@@ -1491,6 +1529,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           'category': 'Інше',
           'difficulty': null,
           'videoUrl': videoUrl,
+          'challengeId': challengeId,
+          'challengeTitle': _titleController.text.trim(),
+          'isChallengeVideo': true,
           'createdAt': FieldValue.serverTimestamp(),
           'likes': 0,
           'rating': 0.0,
@@ -1604,6 +1645,13 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               'thumbnailUrl': thumbnailUrl,
               'thumbnailGenerated': true,
             });
+            await FirebaseFirestore.instance
+                .collection('challenges')
+                .doc(challengeId)
+                .update({
+              'creatorThumbnailUrl': thumbnailUrl,
+              'thumbnailUrl': thumbnailUrl,
+            });
             print('✅ Creator video thumbnail generated: $thumbnailUrl');
           }
         } else {
@@ -1615,6 +1663,13 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             userId: userId,
           );
           if (thumbnailUrl != null) {
+            await FirebaseFirestore.instance
+                .collection('challenges')
+                .doc(challengeId)
+                .update({
+              'creatorThumbnailUrl': thumbnailUrl,
+              'thumbnailUrl': thumbnailUrl,
+            });
             print('✅ Creator submission thumbnail generated: $thumbnailUrl');
           }
         }

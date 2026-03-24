@@ -10,7 +10,6 @@ import 'profile_screen_sparkline.dart';
 import 'subscription_screen.dart';
 import 'video_player_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import '../widgets/web_video_thumbnail.dart';
 import '../utils/i18n.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -710,11 +709,10 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                                       width: 160,
                                       height: 110,
                                       fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.low,
+                                      cacheWidth: 320,
                                       errorBuilder: (_, __, ___) => _videoThumbFallback(title),
                                     );
-                                  }
-                                  if (videoUrl.isNotEmpty) {
-                                    return WebVideoThumbnail(videoUrl: videoUrl);
                                   }
                                   return _videoThumbFallback(title);
                                 } else {
@@ -724,6 +722,8 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                                       width: 160,
                                       height: 110,
                                       fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.low,
+                                      cacheWidth: 320,
                                       errorBuilder: (_, __, ___) => _videoThumbFallback(title),
                                     );
                                   }

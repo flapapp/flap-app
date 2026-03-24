@@ -3,7 +3,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../constants/video_categories.dart';
 import '../services/challenge_service.dart';
 import '../services/thumbnail_service.dart';
@@ -24,6 +23,8 @@ class VideoUploadScreen extends StatefulWidget {
 }
 
 class _VideoUploadScreenState extends State<VideoUploadScreen> {
+  static const int _maxVideoBytes = 25 * 1024 * 1024;
+  static const Duration _maxVideoDuration = Duration(seconds: 10);
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -45,13 +46,31 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     final picker = ImagePicker();
     final XFile? picked = await picker.pickVideo(
       source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-      maxDuration: const Duration(minutes: 5), // Максимум 5 хвилин
+      maxDuration: _maxVideoDuration,
     );
 
     if (picked == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(I18n.inline('Вибір відео скасовано', 'Video selection cancelled'))),
+        );
+      }
+      return;
+    }
+
+    final fileSize = await picked.length();
+    if (fileSize > _maxVideoBytes) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text(
+              I18n.inline(
+                'Файл занадто великий. Максимум 25 МБ.',
+                'File is too large. Maximum size is 25 MB.',
+              ),
+            ),
+          ),
         );
       }
       return;
@@ -178,7 +197,10 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                               ),
                               const SizedBox(height: 5),
                               Text(
-                                I18n.inline('MP4, максимум 5 хвилин', 'MP4, max 5 minutes'),
+                                I18n.inline(
+                                  'MP4, до 10 секунд і 25 МБ',
+                                  'MP4, up to 10 seconds and 25 MB',
+                                ),
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.7),
                                   fontSize: 14,
@@ -468,6 +490,16 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         throw Exception(I18n.inline('Користувач не авторизований', 'User not authorized'));
+      }
+
+      final fileSize = await _pickedVideo!.length();
+      if (fileSize > _maxVideoBytes) {
+        throw Exception(
+          I18n.inline(
+            'Розмір відео перевищує 25 МБ.',
+            'Video size exceeds 25 MB.',
+          ),
+        );
       }
 
       // Генеруємо унікальні імена файлів
