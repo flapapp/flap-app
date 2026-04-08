@@ -1,12 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../core/app_auth_context.dart';
 
 class UserSettingsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<Map<String, dynamic>> getCurrentSettings() async {
-    final uid = _auth.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid == null) return const {};
 
     try {

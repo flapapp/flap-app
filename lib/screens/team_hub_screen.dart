@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../models/app_team.dart';
@@ -11,6 +10,7 @@ import '../widgets/player_avatar_button.dart';
 import '../widgets/team_logo_button.dart';
 import 'team_create_screen.dart';
 import 'team_details_screen.dart';
+import '../core/app_auth_context.dart';
 
 class TeamHubScreen extends StatefulWidget {
   const TeamHubScreen({super.key});
@@ -21,7 +21,6 @@ class TeamHubScreen extends StatefulWidget {
 
 class _TeamHubScreenState extends State<TeamHubScreen> {
   final TeamService _teamService = TeamService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _teamsStream;
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _teamStatsStream;
@@ -36,7 +35,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         .snapshots();
     _teamStatsStream =
         FirebaseFirestore.instance.collection('teamStats').snapshots();
-    final uid = _auth.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     _myTeamsStream = uid != null
         ? _teamService.watchUserTeams(uid)
         : Stream<List<AppTeam>>.value(const []);
@@ -156,7 +155,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
   }
 
   Future<void> _onCreateTeamPressed() async {
-    final user = _auth.currentUser;
+    final user = AppAuthContext.currentUser;
     if (user == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -171,7 +170,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
     }
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
-        .doc(user.uid)
+        .doc(user.id)
         .get();
     final teamIds = (userDoc.data()?['teamIds'] as List<dynamic>?) ?? [];
     if (!mounted) return;

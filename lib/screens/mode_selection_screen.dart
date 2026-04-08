@@ -2,11 +2,11 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
 import '../services/notification_service.dart';
+import '../core/app_auth_context.dart';
 
 class ModeSelectionScreen extends StatefulWidget {
   const ModeSelectionScreen({super.key});
@@ -31,7 +31,7 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid != null) {
       _userStream =
           FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
@@ -43,7 +43,7 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
 
   void _updateGreeting() {
     final phrase = _motivationPhrases[_random.nextInt(_motivationPhrases.length)];
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid == null) {
       setState(() {
         _currentGreeting = I18n.inline(phrase.ua, phrase.en);
@@ -586,7 +586,7 @@ Widget build(BuildContext context) {
     final rating = (data?['rating'] ?? 0.0).toDouble();
     final matches = (data?['totalMatches'] ?? 0).toString();
     final coins = (data?['coins'] ?? data?['flCoins'] ?? 0).toString();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid != null) {
       _primeHeroStats(uid);
     }
@@ -599,7 +599,7 @@ Widget build(BuildContext context) {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             PlayerAvatarButton(
-              userId: FirebaseAuth.instance.currentUser?.uid ?? '',
+              userId: AppAuthContext.userId ?? '',
               displayName: displayName,
               avatarUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
               size: 84,

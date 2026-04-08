@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:video_player/video_player.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
 import 'challenge_create_screen.dart';
@@ -12,6 +11,7 @@ import '../widgets/user_chip.dart';
 import '../utils/i18n.dart';
 import '../widgets/video_preview_box.dart';
 import '../widgets/player_avatar_button.dart';
+import '../core/app_auth_context.dart';
 
 class ChallengesScreen extends StatefulWidget {
   final bool showOnlyMyChallenges;
@@ -94,7 +94,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 }
 
                 final all = snapshot.data!.docs;
-                final currentUser = FirebaseAuth.instance.currentUser;
+                final currentUser = AppAuthContext.currentUser;
                 final filtered = all.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   switch (_selectedFilter) {
@@ -103,7 +103,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       return status == 'recruiting' || status == 'submission' || status == 'voting';
                     case 'my':
                       if (currentUser == null) return false;
-                      return (data['creatorId'] ?? '') == currentUser.uid;
+                      return (data['creatorId'] ?? '') == currentUser.id;
                     case 'completed':
                       return (data['status'] ?? '') == 'completed';
                     default:
@@ -595,7 +595,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                     child: Text(I18n.inline('📹 Переглянути ($submissions)', '📹 View ($submissions)'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
-                if (FirebaseAuth.instance.currentUser?.uid == creatorId && status == 'voting') ...[
+                if (AppAuthContext.userId == creatorId && status == 'voting') ...[
                   const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton(
@@ -673,7 +673,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
 
   void _joinChallenge(String challengeId) async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) return;
 
       // Отримуємо дані челенджу для показу вартості

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/app_auth_context.dart';
+import '../core/auth_sign_out_helper.dart';
 import '../models/badge.dart' as app_badge;
 import '../services/badge_service.dart';
 import '../services/friends_service.dart';
@@ -18,7 +19,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserver {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final BadgeService _badgeService = BadgeService();
   final FriendsService _friendsService = FriendsService();
   
@@ -33,7 +33,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    final uid = _auth.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid != null) {
       _userStream = FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
       _loadUserBadges();
@@ -57,7 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   }
 
   Future<void> _loadUserBadges() async {
-    final uid = _auth.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid != null) {
       final badges = await _badgeService.getUserBadgeObjects(uid);
       setState(() {
@@ -67,7 +67,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   }
 
   void _loadFriendsCount() async {
-    final uid = _auth.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid != null) {
       final friends = await _friendsService.getUserFriends(uid);
       setState(() {
@@ -990,9 +990,10 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   }
 
   void _signOut() {
+    final parentContext = context;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
         title: const Text(
           'Вийти з акаунту?',
@@ -1004,13 +1005,15 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Скасувати', style: TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () async {
-              await _auth.signOut();
-              Navigator.of(context).pushReplacementNamed('/login');
+              Navigator.of(dialogContext).pop();
+              await signOutViaBlocAndWait(parentContext);
+              if (!parentContext.mounted) return;
+              Navigator.of(parentContext).pushReplacementNamed('/login');
             },
             child: const Text('Вийти', style: TextStyle(color: Colors.red)),
           ),

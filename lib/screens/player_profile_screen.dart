@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:video_player/video_player.dart';
 import 'package:image_picker/image_picker.dart';
@@ -16,6 +15,7 @@ import '../utils/i18n.dart';
 import 'team_details_screen.dart';
 import '../widgets/video_preview_box.dart';
 import 'video_player_screen.dart';
+import '../core/app_auth_context.dart';
 
 class PlayerProfileScreen extends StatefulWidget {
   final String playerId;
@@ -32,7 +32,6 @@ class PlayerProfileScreen extends StatefulWidget {
 }
 
 class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final TeamService _teamService = TeamService();
   Map<String, dynamic>? playerData;
   List<Map<String, dynamic>> playerVideos = [];
@@ -261,7 +260,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 }
 
     Future<void> _loadMyVideosForRequest() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return;
     if (!mounted) return;
     setState(() {
@@ -270,7 +269,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     try {
       final qs = await FirebaseFirestore.instance
           .collection('videos')
-          .where('userId', isEqualTo: currentUser.uid)
+          .where('userId', isEqualTo: currentUser.id)
           .limit(50)
           .get();
       _myVideoIds = qs.docs.map((d) => d.id).toList();
@@ -333,7 +332,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
     final parentContext = context;
     bool dialogClosed = false;
 
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return;
 
     await _loadMyVideosForRequest();
@@ -347,7 +346,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
 
     final qs = await FirebaseFirestore.instance
         .collection('videos')
-        .where('userId', isEqualTo: currentUser.uid)
+        .where('userId', isEqualTo: currentUser.id)
         .limit(50)
         .get();
     final videos = qs.docs.map((d) => {'id': d.id, ...(d.data() as Map<String, dynamic>)}).toList();
@@ -403,7 +402,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                 onPressed: selected.isEmpty
                     ? null
                     : () async {
-                        final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+                        final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.id).get();
                         if (dialogClosed) return;
                         final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач'.i18n('User')).toString();
                         await _notificationService.sendRatingRequest(
@@ -431,18 +430,18 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
   }
 
   Future<bool> _areFriends() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return false;
 
     try {
-      return await _friendsService.areUsersFriends(currentUser.uid, widget.playerId);
+      return await _friendsService.areUsersFriends(currentUser.id, widget.playerId);
     } catch (e) {
       return false;
     }
   }
 
   Future<bool> _hasPendingRequest() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return false;
 
     try {
@@ -598,7 +597,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
     final losses = _losses > 0 ? _losses : lossesFromProfile;
     final matches = _matchesPlayed > 0 ? _matchesPlayed : matchesFromProfile;
 
-    final me = FirebaseAuth.instance.currentUser?.uid;
+    final me = AppAuthContext.userId;
     final isOwnProfile = me != null && widget.playerId == me;
 
       return Scaffold(
@@ -778,7 +777,7 @@ const SizedBox(height: 12),
             // Кнопки (приховані на власному профілі)
             Builder(
               builder: (context) {
-                final me = FirebaseAuth.instance.currentUser?.uid;
+                final me = AppAuthContext.userId;
                 final isOwnProfile = me != null && widget.playerId == me;
                 if (isOwnProfile) return const SizedBox.shrink();
 
@@ -1146,13 +1145,13 @@ const SizedBox(height: 12),
     final parentContext = context;
     bool dialogClosed = false;
 
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return;
 
     try {
       final snap = await FirebaseFirestore.instance
           .collection('challenges')
-          .where('creatorId', isEqualTo: currentUser.uid)
+          .where('creatorId', isEqualTo: currentUser.id)
           .limit(50)
           .get();
 
@@ -1223,7 +1222,7 @@ const SizedBox(height: 12),
                   onPressed: selectedIndex < 0
                       ? null
                       : () async {
-                          final me = FirebaseAuth.instance.currentUser?.uid;
+                          final me = AppAuthContext.userId;
                           if (me == null || widget.playerId == me) return;
                           final selected = all[selectedIndex];
                           final ok = await _notificationService.sendChallengeInvitation(
@@ -1293,7 +1292,7 @@ const SizedBox(height: 12),
           .collection('badge_endorsements')
           .doc(badgeId)
           .get();
-      final currentUid = _auth.currentUser?.uid;
+      final currentUid = AppAuthContext.userId;
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         final endorsers = List<String>.from(data['endorsers'] ?? []);
@@ -1307,7 +1306,7 @@ const SizedBox(height: 12),
   }
 
   Future<void> _endorseBadge(String ownerId, app_badge.Badge badge) async {
-    final currentUserId = _auth.currentUser?.uid;
+    final currentUserId = AppAuthContext.userId;
     if (currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Увійдіть, щоб підтверджувати бейджі'.i18n('Sign in to endorse badges'))),

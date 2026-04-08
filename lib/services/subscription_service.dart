@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../core/app_auth_context.dart';
 import '../models/subscription.dart';
 import '../utils/i18n.dart';
 
 class SubscriptionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  String? _resolveUserId([String? explicit]) =>
+      explicit ?? AppAuthContext.userId;
 
   // Collection references
   CollectionReference get _subscriptionsCollection => 
@@ -52,7 +54,7 @@ class SubscriptionService {
 
   // Check if user has active subscription
   Future<bool> hasActiveSubscription([String? userId]) async {
-    userId ??= _auth.currentUser?.uid;
+    userId = _resolveUserId(userId);
     if (userId == null) return false;
 
     final subscription = await getUserSubscription(userId);
@@ -63,7 +65,7 @@ class SubscriptionService {
 
   // Get subscription type
   Future<SubscriptionType> getSubscriptionType([String? userId]) async {
-    userId ??= _auth.currentUser?.uid;
+    userId = _resolveUserId(userId);
     if (userId == null) return SubscriptionType.free;
 
     final subscription = await getUserSubscription(userId);
@@ -92,14 +94,14 @@ class SubscriptionService {
   // Start Champions League trial
   Future<Subscription?> startChampionsTrialSubscription() async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) {
+      final userId = _resolveUserId();
+      if (userId == null) {
         throw Exception('Користувач не авторизований');
       }
 
       // Check if user already had trial
       final existingSubscriptions = await _subscriptionsCollection
-          .where('userId', isEqualTo: currentUser.uid)
+          .where('userId', isEqualTo: userId)
           .where('type', isEqualTo: 'champions')
           .get();
 
@@ -111,7 +113,7 @@ class SubscriptionService {
       }
 
       // Deactivate current subscription
-      await _deactivateCurrentSubscription(currentUser.uid);
+      await _deactivateCurrentSubscription(userId);
 
       // Create trial subscription
       final now = DateTime.now();
@@ -119,7 +121,7 @@ class SubscriptionService {
       
       final subscription = Subscription(
         id: '',
-        userId: currentUser.uid,
+        userId: userId,
         type: SubscriptionType.champions,
         status: SubscriptionStatus.trial,
         startDate: now,
@@ -134,7 +136,7 @@ class SubscriptionService {
       final newSubscription = subscription.copyWith(id: docRef.id);
 
       // Award trial coins
-      await _awardMonthlyCoins(currentUser.uid, SubscriptionType.champions);
+      await _awardMonthlyCoins(userId, SubscriptionType.champions);
 
       return newSubscription;
     } catch (e) {
@@ -146,13 +148,13 @@ class SubscriptionService {
   // Purchase subscription (mock implementation)
   Future<Subscription?> purchaseSubscription(SubscriptionType type) async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) {
+      final userId = _resolveUserId();
+      if (userId == null) {
         throw Exception('Користувач не авторизований');
       }
 
       // Deactivate current subscription
-      await _deactivateCurrentSubscription(currentUser.uid);
+      await _deactivateCurrentSubscription(userId);
 
       // Create new subscription
       final now = DateTime.now();
@@ -160,7 +162,7 @@ class SubscriptionService {
       
       final subscription = Subscription(
         id: '',
-        userId: currentUser.uid,
+        userId: userId,
         type: type,
         status: SubscriptionStatus.active,
         startDate: now,
@@ -175,7 +177,7 @@ class SubscriptionService {
       final newSubscription = subscription.copyWith(id: docRef.id);
 
       // Award monthly coins
-      await _awardMonthlyCoins(currentUser.uid, type);
+      await _awardMonthlyCoins(userId, type);
 
       return newSubscription;
     } catch (e) {
@@ -234,12 +236,12 @@ class SubscriptionService {
   // Cancel subscription
   Future<void> cancelSubscription() async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) {
+      final userId = _resolveUserId();
+      if (userId == null) {
         throw Exception('Користувач не авторизований');
       }
 
-      final subscription = await getUserSubscription(currentUser.uid);
+      final subscription = await getUserSubscription(userId);
       if (subscription == null || subscription.type == SubscriptionType.free) {
         throw Exception('У вас немає активної підписки');
       }
@@ -251,7 +253,7 @@ class SubscriptionService {
       });
 
       // Create free subscription
-      await _createFreeSubscription(currentUser.uid);
+      await _createFreeSubscription(userId);
     } catch (e) {
       print('Error cancelling subscription: $e');
       rethrow;
@@ -260,7 +262,7 @@ class SubscriptionService {
 
   // Check if feature is available for user
   Future<bool> hasFeature(String feature, [String? userId]) async {
-    userId ??= _auth.currentUser?.uid;
+    userId = _resolveUserId(userId);
     if (userId == null) return false;
 
     final subscription = await getUserSubscription(userId);
@@ -269,7 +271,7 @@ class SubscriptionService {
 
   // Get challenge limit for user
   Future<int> getChallengeLimit([String? userId]) async {
-    userId ??= _auth.currentUser?.uid;
+    userId = _resolveUserId(userId);
     if (userId == null) return 1;
 
     final subscription = await getUserSubscription(userId);
@@ -285,7 +287,7 @@ class SubscriptionService {
 
   // Check if user can create more challenges this month
   Future<bool> canCreateChallenge([String? userId]) async {
-    userId ??= _auth.currentUser?.uid;
+    userId = _resolveUserId(userId);
     if (userId == null) return false;
 
     final limit = await getChallengeLimit(userId);
@@ -318,13 +320,13 @@ class SubscriptionService {
 
   // LEGACY METHODS FOR COMPATIBILITY
   Future<Subscription?> getCurrent() async {
-    final userId = _auth.currentUser?.uid;
+    final userId = _resolveUserId();
     if (userId == null) return null;
     return getUserSubscription(userId);
   }
 
   Future<void> grantChampionsTrialIfMissing() async {
-    final userId = _auth.currentUser?.uid;
+    final userId = _resolveUserId();
     if (userId == null) return;
     
     final subscription = await getUserSubscription(userId);
@@ -334,7 +336,7 @@ class SubscriptionService {
   }
 
   Future<Subscription?> getActiveSubscription() async {
-    final userId = _auth.currentUser?.uid;
+    final userId = _resolveUserId();
     if (userId == null) return null;
     return getUserSubscription(userId);
   }

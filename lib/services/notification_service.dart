@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import '../core/app_auth_context.dart';
 import '../models/notification.dart';
 import 'package:flutter/foundation.dart';
 import '../models/match.dart' as app_models;
@@ -10,10 +10,11 @@ import 'user_settings_service.dart';
 
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+
+  String? get _userId => AppAuthContext.userId;
   static const String _webVapidKey = String.fromEnvironment(
-    'FIREBASE_WEB_PUSH_CERT_KEY',
+    'WEB_PUSH_VAPID_KEY',
     defaultValue: '',
   );
 
@@ -49,18 +50,18 @@ class NotificationService {
 
       // Listen for token refresh
       _messaging.onTokenRefresh.listen(_saveFCMToken);
-      FirebaseAuth.instance.authStateChanges().listen((user) async {
-  if (user != null) {
-    if (await UserSettingsService().isNotificationsEnabled()) {
-      final token = await _getCurrentMessagingToken();
-      if (token != null) {
-        await _saveFCMToken(token);
-      }
-    } else {
-      await _clearNotificationTokens(user.uid);
-    }
-  }
-});
+      AppAuthContext.repository?.authStateChanges.listen((user) async {
+        if (user != null) {
+          if (await UserSettingsService().isNotificationsEnabled()) {
+            final token = await _getCurrentMessagingToken();
+            if (token != null) {
+              await _saveFCMToken(token);
+            }
+          } else {
+            await _clearNotificationTokens(user.id);
+          }
+        }
+      });
 
       // Handle foreground messages
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
@@ -101,13 +102,13 @@ if (initial != null) {
 
   // Save FCM token to user document
   Future<void> _saveFCMToken(String token) async {
-    final currentUser = _auth.currentUser;
-    if (currentUser != null) {
+    final uid = _userId;
+    if (uid != null) {
       if (!await UserSettingsService().isNotificationsEnabled()) {
-        await _clearNotificationTokens(currentUser.uid);
+        await _clearNotificationTokens(uid);
         return;
       }
-      await _firestore.collection('users').doc(currentUser.uid).update({
+      await _firestore.collection('users').doc(uid).update({
         'fcmToken': token,
         'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
         'deviceTokens': FieldValue.arrayUnion([token]),
@@ -116,7 +117,7 @@ if (initial != null) {
   }
 
   Future<void> _clearNotificationTokens([String? uid]) async {
-    final userId = uid ?? _auth.currentUser?.uid;
+    final userId = uid ?? _userId;
     if (userId == null) return;
     await _firestore.collection('users').doc(userId).set({
       'fcmToken': FieldValue.delete(),
@@ -226,14 +227,14 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
 
   // Get user's notifications
   Stream<List<AppNotification>> getUserNotifications() {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) {
+    final uid = _userId;
+    if (uid == null) {
       return Stream.value([]);
     }
 
     // Simplified query to avoid composite index requirement
     return _notificationsCollection
-        .where('userId', isEqualTo: currentUser.uid)
+        .where('userId', isEqualTo: uid)
         .limit(50)
         .snapshots()
         .map((snapshot) {
@@ -263,13 +264,13 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
 
   // Get unread notifications count
   Stream<int> getUnreadCount() {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) {
+    final uid = _userId;
+    if (uid == null) {
       return Stream.value(0);
     }
 
     return _notificationsCollection
-        .where('userId', isEqualTo: currentUser.uid)
+        .where('userId', isEqualTo: uid)
         .where('isRead', isEqualTo: false)
         .snapshots()
         .map((snapshot) => snapshot.docs.length);
@@ -292,12 +293,12 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   // Mark all notifications as read
   Future<bool> markAllAsRead() async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) return false;
+      final uid = _userId;
+      if (uid == null) return false;
 
       final batch = _firestore.batch();
       final unreadNotifications = await _notificationsCollection
-          .where('userId', isEqualTo: currentUser.uid)
+          .where('userId', isEqualTo: uid)
         .where('isRead', isEqualTo: false)
           .get();
 
@@ -528,11 +529,11 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   // Get notification statistics
   Future<Map<String, int>> getNotificationStats() async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) return {};
+      final uid = _userId;
+      if (uid == null) return {};
 
       final notifications = await _notificationsCollection
-          .where('userId', isEqualTo: currentUser.uid)
+          .where('userId', isEqualTo: uid)
           .get();
 
       final stats = <String, int>{};
@@ -553,13 +554,13 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   // Clear old notifications (older than 30 days)
   Future<bool> clearOldNotifications() async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) return false;
+      final uid = _userId;
+      if (uid == null) return false;
 
       final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
       
       final oldNotifications = await _notificationsCollection
-          .where('userId', isEqualTo: currentUser.uid)
+          .where('userId', isEqualTo: uid)
           .where('createdAt', isLessThan: Timestamp.fromDate(thirtyDaysAgo))
           .get();
 

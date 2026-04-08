@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/notification_service.dart';
 import '../utils/i18n.dart';
 import 'profile_creation_screen.dart';
+import '../core/app_auth_context.dart';
 
 class ProfileSettingsScreen extends StatefulWidget {
   const ProfileSettingsScreen({super.key});
@@ -29,7 +29,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid == null) {
       if (mounted) setState(() => _isLoading = false);
       return;
@@ -55,7 +55,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   }
 
   Future<void> _saveSettings() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid == null || _saving) return;
 
     setState(() => _saving = true);

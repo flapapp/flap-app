@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,6 +12,7 @@ import '../services/rating_service.dart';
 import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
 import '../widgets/user_chip.dart';
+import '../core/app_auth_context.dart';
 
 class MatchDetailsScreen extends StatefulWidget {
   final Match match;
@@ -175,8 +175,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildCoverPhotoSection() {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    final bool isOrganizer = currentUser?.uid == widget.match.organizerId;
+    final currentUser = AppAuthContext.currentUser;
+    final bool isOrganizer = currentUser?.id == widget.match.organizerId;
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('matches')
@@ -636,7 +636,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildCaptainControlCard() {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null || !widget.match.isTeamMatch) {
       return const SizedBox.shrink();
     }
@@ -654,11 +654,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         final sections = <Widget>[];
 
         final teamASection =
-            _buildCaptainSectionForTeam(liveMatch, 'teamA', currentUser.uid);
+            _buildCaptainSectionForTeam(liveMatch, 'teamA', currentUser.id);
         if (teamASection != null) sections.add(teamASection);
 
         final teamBSection =
-            _buildCaptainSectionForTeam(liveMatch, 'teamB', currentUser.uid);
+            _buildCaptainSectionForTeam(liveMatch, 'teamB', currentUser.id);
         if (teamBSection != null) sections.add(teamBSection);
 
         if (sections.isEmpty) return const SizedBox.shrink();
@@ -916,7 +916,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildRosterInviteBanner() {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) {
       return const SizedBox.shrink();
     }
@@ -943,9 +943,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         String playerStatus = '';
         rawStatus.forEach((key, value) {
           if (teamKey != null) return;
-          if (value is Map && value.containsKey(currentUser.uid)) {
+          if (value is Map && value.containsKey(currentUser.id)) {
             teamKey = key.toString();
-            playerStatus = value[currentUser.uid]?.toString() ?? '';
+            playerStatus = value[currentUser.id]?.toString() ?? '';
           }
         });
 
@@ -1951,12 +1951,12 @@ String _localizedCity(String? raw) {
 
 
   Widget _buildActionButtons() {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return const SizedBox.shrink();
 
-    final isParticipant = widget.match.participants.contains(currentUser.uid);
+    final isParticipant = widget.match.participants.contains(currentUser.id);
     final isFull = widget.match.currentPlayers >= widget.match.maxPlayers;
-    final isOrganizer = widget.match.organizerId == currentUser.uid;
+    final isOrganizer = widget.match.organizerId == currentUser.id;
 
     if (widget.match.isTeamMatch && !isParticipant && !isOrganizer) {
       return _buildTeamOnlyMessage();
@@ -2005,7 +2005,7 @@ String _localizedCity(String? raw) {
     }
 
     if (isParticipant && widget.match.status == MatchStatus.finished) {
-      final userId = currentUser.uid;
+      final userId = currentUser.id;
       return FutureBuilder<double>(
         future: _getMyMatchAverageRating(widget.match.id, userId),
         builder: (context, snap) {
@@ -2300,7 +2300,7 @@ return Row(
   // Prevent double taps while request in flight.
   if (_isJoining) return;
 
-  final currentUser = FirebaseAuth.instance.currentUser;
+  final currentUser = AppAuthContext.currentUser;
   if (currentUser == null) return;
 
   if (widget.match.isUnplayedByTimeout ||
@@ -2322,7 +2322,7 @@ return Row(
 
   try {
     final success =
-        await _matchService.applyForMatch(widget.match.id, currentUser.uid);
+        await _matchService.applyForMatch(widget.match.id, currentUser.id);
 
     if (!mounted) return;
 

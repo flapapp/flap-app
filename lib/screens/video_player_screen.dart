@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_service.dart';
 import '../services/notification_service.dart';
 import '../services/user_settings_service.dart';
 import '../widgets/rating_display.dart';
 import '../widgets/user_chip.dart';
 import '../utils/i18n.dart';
+import '../core/app_auth_context.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
@@ -112,13 +112,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             }
           }
           await _computeVideoAverage();
-          final currentUser = FirebaseAuth.instance.currentUser;
+          final currentUser = AppAuthContext.currentUser;
           if (currentUser != null) {
             final likeDoc = await FirebaseFirestore.instance
                 .collection('videos')
                 .doc(widget.videoId)
                 .collection('likes')
-                .doc(currentUser.uid)
+                .doc(currentUser.id)
                 .get();
             setState(() { _isLiked = likeDoc.exists; });
 
@@ -126,7 +126,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 .collection('videos')
                 .doc(widget.videoId)
                 .collection('votes')
-                .doc(currentUser.uid)
+                .doc(currentUser.id)
                 .get();
             if (voteDoc.exists) {
               final v = voteDoc.data() as Map<String, dynamic>;
@@ -193,10 +193,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     if (_isChallengeSubmission) {
       return _submitChallengeVote();
     }
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return;
     if (_hasVoted) return;
-    if (_videoAuthorId != null && _videoAuthorId == currentUser.uid) {
+    if (_videoAuthorId != null && _videoAuthorId == currentUser.id) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(I18n.inline('Не можна голосувати за власне відео', 'Cannot vote for own video'))),
       );
@@ -218,7 +218,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
       final success = await RatingService().rateVideo(
         videoId: widget.videoId,
-        ratedBy: currentUser.uid,
+        ratedBy: currentUser.id,
         criteria: criteria,
       );
 
@@ -262,10 +262,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   Future<void> _submitChallengeVote() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null || !_isChallengeSubmission) return;
     if (_hasVoted) return;
-    if (widget.submissionUserId == currentUser.uid) {
+    if (widget.submissionUserId == currentUser.id) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(I18n.inline('Не можна голосувати за власне відео', 'Cannot vote for own video'))),
       );
@@ -284,7 +284,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           .collection('challenges')
           .doc(challengeId)
           .collection('votes')
-          .doc('${currentUser.uid}_$targetUserId')
+          .doc('${currentUser.id}_$targetUserId')
           .get();
       if (voteDoc.exists) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -297,9 +297,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           .collection('challenges')
           .doc(challengeId)
           .collection('votes')
-          .doc('${currentUser.uid}_$targetUserId')
+          .doc('${currentUser.id}_$targetUserId')
           .set({
-        'voterId': currentUser.uid,
+        'voterId': currentUser.id,
         'targetUserId': targetUserId,
         'rating': weighted,
         'criteria': {
@@ -445,14 +445,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Future<void> _toggleLike() async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) return;
       
       final likeRef = FirebaseFirestore.instance
           .collection('videos')
           .doc(widget.videoId)
           .collection('likes')
-          .doc(currentUser.uid);
+          .doc(currentUser.id);
       
       if (_isLiked) {
         // Видаляємо лайк
@@ -470,7 +470,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       } else {
         // Додаємо лайк
         await likeRef.set({
-          'userId': currentUser.uid,
+          'userId': currentUser.id,
           'createdAt': FieldValue.serverTimestamp(),
         });
         setState(() {
@@ -504,13 +504,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
     
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) return;
       
       // Отримуємо ім'я користувача
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(currentUser.uid)
+          .doc(currentUser.id)
           .get();
       
       final authorName = userDoc.exists 
@@ -524,7 +524,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           .collection('comments')
           .add({
         'text': _commentController.text.trim(),
-        'authorId': currentUser.uid,
+        'authorId': currentUser.id,
         'authorName': authorName,
         'createdAt': FieldValue.serverTimestamp(),
       });

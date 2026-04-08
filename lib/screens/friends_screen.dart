@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/friend_request.dart';
 import '../services/friends_service.dart';
 import 'dart:async';
 import '../utils/i18n.dart';
+import '../core/app_auth_context.dart';
 
 class FriendsScreen extends StatefulWidget {
   @override
@@ -13,7 +13,6 @@ class FriendsScreen extends StatefulWidget {
 
 class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateMixin {
   final FriendsService _friendsService = FriendsService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   late TabController _tabController;
   
   List<Friend> _friends = [];
@@ -37,9 +36,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   }
 
   void _loadFriends() async {
-    final currentUser = _auth.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser != null) {
-      final friends = await _friendsService.getUserFriends(currentUser.uid);
+      final friends = await _friendsService.getUserFriends(currentUser.id);
       if (!mounted) return;
       setState(() {
         _friends = friends;
@@ -943,7 +942,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
   Future<void> _ensureTestUsers() async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) return;
 
       // Перевіряємо чи є інші користувачі крім поточного
@@ -953,7 +952,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
           .get();
 
       final otherUsers = existingUsers.docs
-          .where((doc) => doc.id != currentUser.uid)
+          .where((doc) => doc.id != currentUser.id)
           .toList();
 
       if (otherUsers.length < 3) {

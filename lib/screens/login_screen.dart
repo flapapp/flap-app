@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../utils/i18n.dart';
 import '../services/notification_service.dart';
+import '../features/auth/presentation/bloc/auth_bloc.dart';
+import '../features/auth/presentation/bloc/auth_event.dart';
+import '../features/auth/presentation/bloc/auth_state.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -14,6 +16,20 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+
+  String _messageForRejected(AuthCredentialsRejected state) {
+    final code = state.code;
+    switch (code) {
+      case 'invalid-credential':
+      case 'wrong-password':
+      case 'user-not-found':
+        return I18n.t('invalid_email_or_password');
+      case 'too-many-requests':
+        return I18n.t('too_many_requests');
+      default:
+        return state.message ?? I18n.t('login_error');
+    }
+  }
 
   @override
 Widget build(BuildContext context) {
@@ -38,7 +54,37 @@ Widget build(BuildContext context) {
         ),
       ),
       body: SafeArea(
-        child: GestureDetector(
+        child: BlocListener<AuthBloc, AuthState>(
+          listenWhen: (prev, curr) =>
+              curr is AuthLoading ||
+              curr is AuthAuthenticated ||
+              curr is AuthCredentialsRejected,
+          listener: (context, state) {
+            if (state is AuthLoading) {
+              setState(() => _isLoading = true);
+            }
+            if (state is AuthCredentialsRejected) {
+              setState(() => _isLoading = false);
+              final message = _messageForRejected(state);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    I18n.inline('Помилка: $message', 'Error: $message'),
+                  ),
+                ),
+              );
+            }
+            if (state is AuthAuthenticated) {
+              setState(() => _isLoading = false);
+              try {
+                NotificationService().syncCurrentUserToken();
+              } catch (_) {}
+              if (context.mounted) {
+                Navigator.pushReplacementNamed(context, '/mode');
+              }
+            }
+          },
+          child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => FocusScope.of(context).unfocus(),
           child: ListView(
@@ -195,50 +241,14 @@ Widget build(BuildContext context) {
                           ),
                           onPressed: _isLoading
                               ? null
-                              : () async {
+                              : () {
                                   if (_formKey.currentState!.validate()) {
-                                    setState(() => _isLoading = true);
-                                    try {
-                                      if (kIsWeb) {
-                                        try {
-                                          await FirebaseAuth.instance
-                                              .setPersistence(Persistence.LOCAL);
-                                        } catch (_) {}
-                                      }
-                                      await FirebaseAuth.instance.signInWithEmailAndPassword(
-                                        email: _emailController.text.trim(),
-                                        password: _passwordController.text.trim(),
-                                      );
-                                      try {
-                                        await NotificationService().syncCurrentUserToken();
-                                      } catch (_) {}
-                                      if (!mounted) return;
-                                      Navigator.pushReplacementNamed(context, '/mode');
-                                    } on FirebaseAuthException catch (e) {
-                                      final code = e.code;
-                                      String message;
-                                      switch (code) {
-                                        case 'invalid-credential':
-                                        case 'wrong-password':
-                                        case 'user-not-found':
-                                          message = I18n.t('invalid_email_or_password');
-                                          break;
-                                        case 'too-many-requests':
-                                          message = I18n.t('too_many_requests');
-                                          break;
-                                        default:
-                                          message = e.message ?? I18n.t('login_error');
-                                      }
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            I18n.inline('Помилка: $message', 'Error: $message'),
+                                    context.read<AuthBloc>().add(
+                                          AuthSignInRequested(
+                                            email: _emailController.text.trim(),
+                                            password: _passwordController.text.trim(),
                                           ),
-                                        ),
-                                      );
-                                    } finally {
-                                      if (mounted) setState(() => _isLoading = false);
-                                    }
+                                        );
                                   }
                                 },
                           child: _isLoading
@@ -277,6 +287,7 @@ Widget build(BuildContext context) {
               ),
             ],
           ),
+        ),
         ),
       ),
     ),

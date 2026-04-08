@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
 import '../services/match_service.dart';
 import '../utils/i18n.dart';
 import '../widgets/team_logo_button.dart';
 import '../widgets/player_avatar_button.dart';
 import 'dart:math';
+import '../core/app_auth_context.dart';
 
 class MatchManagementScreen extends StatefulWidget {
   final Match match;
@@ -361,7 +361,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
         }
 
         final match = Match.fromFirestore(snap.data!);
-        final isOrganizer = FirebaseAuth.instance.currentUser?.uid == match.organizerId;
+        final isOrganizer = AppAuthContext.userId == match.organizerId;
         return _buildTeamsContent(match, isOrganizer);
       },
     );
@@ -722,7 +722,7 @@ Widget _buildManagementButtons(Match m) {
   final totalTeams = m.teamCount ?? m.allTeams.length;
   final awaitingTeamConfirmations =
       m.isTeamMatch && !m.hasConfirmedPlayersForBothTeams;
-  final isOrganizer = FirebaseAuth.instance.currentUser?.uid == m.organizerId;
+  final isOrganizer = AppAuthContext.userId == m.organizerId;
 
   VoidCallback? primaryAction;
   IconData primaryIcon = Icons.play_arrow;

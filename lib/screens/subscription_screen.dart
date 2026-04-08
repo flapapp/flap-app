@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/subscription.dart';
 import '../services/subscription_service.dart';
 import '../utils/i18n.dart';
+import '../core/app_auth_context.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   @override
@@ -23,7 +23,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Future<void> _loadCurrentSubscription() async {
     try {
       setState(() => _isLoading = true);
-      final userId = FirebaseAuth.instance.currentUser?.uid;
+      final userId = AppAuthContext.userId;
       if (userId != null) {
         final subscription = await _subscriptionService.getUserSubscription(userId);
         setState(() {

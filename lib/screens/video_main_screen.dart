@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../core/app_auth_context.dart';
+import '../core/auth_sign_out_helper.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'video_player_screen.dart';
 import '../constants/video_categories.dart';
@@ -269,7 +270,7 @@ void dispose() {
 }
 
   Future<void> _loadCurrentUserCity() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid == null) return;
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
@@ -384,7 +385,7 @@ Widget build(BuildContext context) {
         StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance
               .collection('users')
-              .doc(FirebaseAuth.instance.currentUser?.uid)
+              .doc(AppAuthContext.userId)
               .snapshots(),
           builder: (context, snapshot) {
             if (!snapshot.hasData || !snapshot.data!.exists) {
@@ -963,7 +964,7 @@ Widget build(BuildContext context) {
     required String videoId,
     required String videoTitle,
   }) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -979,7 +980,7 @@ Widget build(BuildContext context) {
           .collection('videos')
           .doc(videoId)
           .collection('votes')
-          .doc(currentUser.uid)
+          .doc(currentUser.id)
           .get();
       if (existingVote.exists) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1056,7 +1057,7 @@ Widget build(BuildContext context) {
             try {
               final success = await _ratingService.rateVideo(
                 videoId: videoId,
-                ratedBy: currentUser.uid,
+                ratedBy: currentUser.id,
                 criteria: criteria,
               );
               if (!mounted) return;
@@ -1610,7 +1611,7 @@ Widget build(BuildContext context) {
     final filteringOwnVideos = _showOnlyMyVideos;
     
     if (filteringOwnVideos) {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final uid = AppAuthContext.userId;
       if (uid != null) query = query.where('userId', isEqualTo: uid);
     }
     
@@ -2149,7 +2150,7 @@ Widget build(BuildContext context) {
       child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('users')
-            .doc(FirebaseAuth.instance.currentUser?.uid)
+            .doc(AppAuthContext.userId)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -2273,7 +2274,8 @@ Widget build(BuildContext context) {
                       icon: Icons.logout,
                       title: 'Вийти',
                       onTap: () async {
-                        await FirebaseAuth.instance.signOut();
+                        await signOutViaBlocAndWait(context);
+                        if (!context.mounted) return;
                         Navigator.pop(context);
                         Navigator.pushReplacementNamed(context, '/login');
                       },
@@ -2313,7 +2315,7 @@ Widget build(BuildContext context) {
       stream: (() {
         Query q = FirebaseFirestore.instance.collection('challenges');
         if (_showOnlyMyChallenges) {
-          final uid = FirebaseAuth.instance.currentUser?.uid;
+          final uid = AppAuthContext.userId;
           if (uid != null) {
             q = q.where('creatorId', isEqualTo: uid);
           }
@@ -3041,13 +3043,13 @@ Widget build(BuildContext context) {
 
   // Мої відео
   Widget _buildMyVideosList() {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return const SizedBox.shrink();
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('videos')
-          .where('userId', isEqualTo: currentUser.uid)
+          .where('userId', isEqualTo: currentUser.id)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -3261,7 +3263,7 @@ Widget build(BuildContext context) {
   // Методи для роботи з челенджами
   void _joinChallenge(String challengeId, Map<String, dynamic> challenge) {
     // Перевірити чи користувач вже учасник
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return;
     final votingDeadline = (challenge['votingDeadline'] as Timestamp?)?.toDate();
     final endDate = (challenge['endDate'] as Timestamp?)?.toDate();
@@ -3330,7 +3332,7 @@ Widget build(BuildContext context) {
                     .collection('challenges')
                     .doc(challengeId)
                     .update({
-                  'participants': FieldValue.arrayUnion([currentUser.uid]),
+                  'participants': FieldValue.arrayUnion([currentUser.id]),
                   'currentParticipants': FieldValue.increment(1),
                 });
                 
@@ -3410,7 +3412,7 @@ Widget build(BuildContext context) {
 
   // Interactive methods
   Future<void> _toggleLike(String videoId, bool isCurrentlyLiked) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid == null) return;
     try {
       final likeRef = FirebaseFirestore.instance
@@ -3747,7 +3749,7 @@ Widget build(BuildContext context) {
   }
 
   void _addComment(String videoId, String comment) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return;
 
     // Перевірка чи videoId не порожній
@@ -3769,7 +3771,7 @@ Widget build(BuildContext context) {
           .doc(videoId)
           .collection('comments')
           .add({
-        'userId': currentUser.uid,
+        'userId': currentUser.id,
         'comment': comment,
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -3809,7 +3811,7 @@ Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
-          .doc(FirebaseAuth.instance.currentUser?.uid)
+          .doc(AppAuthContext.userId)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists) {
@@ -3888,7 +3890,7 @@ Widget build(BuildContext context) {
   }
 
   void _showCoinsHistory(int currentCoins) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid == null) return;
     showModalBottomSheet(
       context: context,
@@ -4048,7 +4050,7 @@ Widget build(BuildContext context) {
   }
 
   void _showRatingHistory(Map<String, dynamic> userData) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid == null) return;
     final currentRating = ((userData['rating'] ?? 0.0) as num).toDouble();
 

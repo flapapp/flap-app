@@ -31,15 +31,15 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
     super.initState();
     _focusNode = FocusNode();
     _startupImage = _startupImages[Random().nextInt(_startupImages.length)];
-    precacheImage(AssetImage(_startupImage), context).whenComplete(() {
-      if (mounted) {
-        setState(() => _imageReady = true);
-      }
-    });
+    // precacheImage uses MediaQuery via context — must run after first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _focusNode.requestFocus();
-      }
+      if (!mounted) return;
+      precacheImage(AssetImage(_startupImage), context).whenComplete(() {
+        if (mounted) {
+          setState(() => _imageReady = true);
+        }
+      });
+      _focusNode.requestFocus();
     });
   }
 

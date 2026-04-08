@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../utils/i18n.dart';
 import '../widgets/city_autocomplete_field.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/app_auth_context.dart';
 
 class ProfileCreationScreen extends StatefulWidget {
   final bool isEditing;
@@ -29,11 +29,11 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser != null) {
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
-            .doc(currentUser.uid)
+            .doc(currentUser.id)
             .get();
         
         if (userDoc.exists) {
@@ -453,7 +453,7 @@ Widget build(BuildContext context) {
                         ),
                         onPressed: () async {
                           if (_formKey.currentState!.validate()) {
-                            final uid = FirebaseAuth.instance.currentUser?.uid;
+                            final uid = AppAuthContext.userId;
                             if (uid == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(

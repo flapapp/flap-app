@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_service.dart';
 import '../models/match.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/i18n.dart';
+import '../core/app_auth_context.dart';
 
 enum RatingMode { simple, advanced }
 class MatchRatingScreen extends StatefulWidget {
@@ -94,7 +94,7 @@ void initState() {
     // Ініціалізуємо оцінки для всіх гравців
     // Використовуємо participants як fallback, якщо teamA/teamB не існують
     _playerRatings.clear();
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final currentUserId = AppAuthContext.userId;
 final participantsSet = widget.match.participants.toSet();
 final allTeams = widget.match.allTeams;
 
@@ -564,7 +564,7 @@ final alreadyRatedIds = existingSnap.docs
     try {
       int successCount = 0;
       final List<String> failureMessages = [];
-      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      final currentUserId = AppAuthContext.userId;
       final idsToRate = _playerRatings.keys.where((id) => id != currentUserId).toList();
       final int totalCount = idsToRate.length;
       if (totalCount == 0) {
@@ -589,7 +589,7 @@ final alreadyRatedIds = existingSnap.docs
           await _ratingService.ratePlayerAfterMatch(
             matchId: widget.match.id,
             playerId: playerId,
-            ratedBy: FirebaseAuth.instance.currentUser!.uid,
+            ratedBy: (AppAuthContext.currentUser!.id),
             criteria: effectiveCriteria,
           );
           successCount++;

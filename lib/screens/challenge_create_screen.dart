@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,6 +10,7 @@ import '../services/notification_service.dart';
 import '../services/thumbnail_service.dart';
 import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
+import '../core/app_auth_context.dart';
 
 class ChallengeCreateScreen extends StatefulWidget {
   @override
@@ -37,7 +37,6 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   XFile? _selectedVideoFile;
   
   final ChallengeService _challengeService = ChallengeService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final Set<String> _selectedInviteFriendIds = <String>{};
 
   final List<String> _cities = [
@@ -747,9 +746,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
   Future<List<Map<String, dynamic>>> _loadMyFriends() async {
     try {
-      final me = _auth.currentUser;
+      final me = AppAuthContext.currentUser;
       if (me == null) return [];
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.uid).get();
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.id).get();
       final ids = List<String>.from(userDoc.data()?['friends'] ?? []);
       if (ids.isEmpty) return [];
       final result = <Map<String, dynamic>>[];
@@ -1158,7 +1157,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     });
 
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) {
         throw Exception(I18n.inline('Користувач не авторизований', 'User not authorized'));
       }
@@ -1166,7 +1165,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       // Отримати дані користувача
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(currentUser.uid)
+          .doc(currentUser.id)
           .get();
       
       if (!userDoc.exists) {
@@ -1194,7 +1193,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         description: _descriptionController.text.trim(),
         type: _selectedType,
         audience: _selectedAudience,
-        creatorId: currentUser.uid,
+        creatorId: currentUser.id,
         creatorName: userName,
         creatorVideoUrl: null, // Буде оновлено після завантаження відео
         city: userCity,
@@ -1227,7 +1226,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             .collection('challenges')
             .doc(challengeId)
             .update({
-          'participants': FieldValue.arrayUnion([currentUser.uid]),
+          'participants': FieldValue.arrayUnion([currentUser.id]),
           'currentParticipants': FieldValue.increment(1),
         });
 
@@ -1248,7 +1247,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         if (_selectedVideoFile != null) {
           print('Starting creator video upload for challenge: $challengeId');
           try {
-            final creatorVideoUrl = await _uploadCreatorVideo(challengeId, currentUser.uid, userName);
+            final creatorVideoUrl = await _uploadCreatorVideo(challengeId, currentUser.id, userName);
             if (creatorVideoUrl != null && creatorVideoUrl.isNotEmpty) {
               print('Creator video upload completed successfully with URL: $creatorVideoUrl');
               

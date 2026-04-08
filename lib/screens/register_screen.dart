@@ -1,13 +1,17 @@
 // lib/screens/register_screen.dart
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/i18n.dart';
 import '../widgets/city_autocomplete_field.dart';
+import '../features/auth/presentation/bloc/auth_bloc.dart';
+import '../features/auth/presentation/bloc/auth_event.dart';
+import '../features/auth/presentation/bloc/auth_state.dart';
 
 class RegisterScreen extends StatefulWidget {
   @override
@@ -29,7 +33,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   XFile? _pickedImage;
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
-  
+  bool _awaitingRegistrationProfile = false;
+
   List<String> get _positions => [
     I18n.inline('Воротар', 'Goalkeeper'),
     I18n.inline('Захисник', 'Defender'),
@@ -87,6 +92,79 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  Future<void> _completeRegistration(String userId) async {
+    try {
+      String? avatarUrl;
+      if (_pickedImage != null) {
+        avatarUrl = await _uploadAvatar(userId);
+      }
+
+      final now = DateTime.now();
+      final premiumExpiry = now.add(const Duration(days: 14));
+
+      final fullName =
+          '${_nameController.text.trim()} ${_surnameController.text.trim()}'.trim();
+
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
+        'authorName': fullName,
+        'displayName': fullName,
+        'name': _nameController.text.trim(),
+        'surname': _surnameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'city': _cityController.text.trim(),
+        'age': int.tryParse(_ageController.text.trim()) ?? 18,
+        'position': _selectedPosition ?? I18n.inline('Універсал', 'Universal'),
+        'experience':
+            _selectedExperience ?? I18n.inline('Початківець', 'Beginner'),
+        'avatarUrl': avatarUrl,
+        'createdAt': FieldValue.serverTimestamp(),
+        'rating': 3.0,
+        'matchRating': 3.0,
+        'videoRating': 3.0,
+        'totalMatches': 0,
+        'totalVideos': 0,
+        'ratingHistory': [],
+        'lastRatingUpdate': FieldValue.serverTimestamp(),
+        'coins': 160,
+        'matches': 0,
+        'goals': 0,
+        'assists': 0,
+        'subscription': 'champions_league',
+        'subscriptionExpiry': Timestamp.fromDate(premiumExpiry),
+        'subscriptionActive': true,
+        'challengesCreated': 0,
+        'maxChallengesPerMonth': 999,
+      });
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(I18n.inline(
+            '🎉 Вітаємо! Ви отримали 2 тижні Champions League преміум!',
+            '🎉 Congratulations! You received 2 weeks of Champions League premium!',
+          )),
+          duration: const Duration(seconds: 3),
+          backgroundColor: const Color(0xFF4caf50),
+        ),
+      );
+      Navigator.pushReplacementNamed(context, '/mode');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(I18n.inline(
+              'Помилка збереження профілю: $e',
+              'Error saving profile: $e',
+            )),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -102,7 +180,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
         backgroundColor: const Color(0xFF1e7d32),
         resizeToAvoidBottomInset: true,
         body: SafeArea(
-          child: GestureDetector(
+          child: BlocListener<AuthBloc, AuthState>(
+            listenWhen: (prev, curr) =>
+                curr is AuthLoading ||
+                curr is AuthAuthenticated ||
+                curr is AuthCredentialsRejected,
+            listener: (context, state) {
+              if (state is AuthLoading && _awaitingRegistrationProfile) {
+                setState(() => _isLoading = true);
+              }
+              if (state is AuthCredentialsRejected) {
+                if (_awaitingRegistrationProfile) {
+                  _awaitingRegistrationProfile = false;
+                  setState(() => _isLoading = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(state.message ??
+                          I18n.inline('Помилка реєстрації', 'Registration error')),
+                    ),
+                  );
+                }
+              }
+              if (state is AuthAuthenticated && _awaitingRegistrationProfile) {
+                _awaitingRegistrationProfile = false;
+                _completeRegistration(state.user.id);
+              }
+            },
+            child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => FocusScope.of(context).unfocus(),
             child: ListView(
@@ -433,90 +537,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       shadowColor: Colors.transparent,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                     ),
-                    onPressed: () async {
+                    onPressed: () {
                       if (_formKey.currentState!.validate()) {
-                        try {
-                          // Створюємо користувача
-                          UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-                            email: _emailController.text.trim(),
-                            password: _passwordController.text.trim(),
-                          );
-                          
-                          setState(() {
-                            _isLoading = true;
-                          });
-                          
-                          // Завантажуємо аватар якщо є
-                          String? avatarUrl;
-                          if (_pickedImage != null) {
-                            print('Uploading avatar for user: ${userCredential.user!.uid}');
-                            print('Image file exists: ${_pickedImage != null}');
-                            avatarUrl = await _uploadAvatar(userCredential.user!.uid);
-                            print('Final Avatar URL: $avatarUrl');
-                          } else {
-                            print('No image selected for upload');
-                          }
-                          
-                          // Створюємо профіль в Firestore одразу з преміум підпискою
-                          final now = DateTime.now();
-                          final premiumExpiry = now.add(const Duration(days: 14)); // 2 тижні преміум
-                          
-                          final fullName =
-                              '${_nameController.text.trim()} ${_surnameController.text.trim()}'.trim();
-
-                          await FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(userCredential.user!.uid)
-                              .set({
-                            'authorName': fullName,
-                            'displayName': fullName,
-                            'name': _nameController.text.trim(),
-                            'surname': _surnameController.text.trim(),
-                            'email': _emailController.text.trim(),
-                            'phone': _phoneController.text.trim(),
-                            'city': _cityController.text.trim(),
-                            'age': int.tryParse(_ageController.text.trim()) ?? 18,
-                            'position': _selectedPosition ?? I18n.inline('Універсал', 'Universal'),
-                            'experience': _selectedExperience ?? I18n.inline('Початківець', 'Beginner'),
-                            'avatarUrl': avatarUrl,
-                            'createdAt': FieldValue.serverTimestamp(),
-                            // Default ratings per spec
-                            'rating': 3.0,
-                            'matchRating': 3.0,
-                            'videoRating': 3.0,
-                            'totalMatches': 0,
-                            'totalVideos': 0,
-                            'ratingHistory': [],
-                            'lastRatingUpdate': FieldValue.serverTimestamp(),
-                            'coins': 160, // 100 базових + 60 за преміум
-                            'matches': 0,
-                            'goals': 0,
-                            'assists': 0,
-                            // Преміум підписка
-                            'subscription': 'champions_league',
-                            'subscriptionExpiry': Timestamp.fromDate(premiumExpiry),
-                            'subscriptionActive': true,
-                            'challengesCreated': 0,
-                            'maxChallengesPerMonth': 999, // Необмежено для преміум
-                          });
-                          
-                          setState(() {
-                            _isLoading = false;
-                          });
-                          
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(I18n.inline('🎉 Вітаємо! Ви отримали 2 тижні Champions League преміум!', '🎉 Congratulations! You received 2 weeks of Champions League premium!')),
-                              duration: const Duration(seconds: 3),
-                              backgroundColor: const Color(0xFF4caf50),
-                            ),
-                          );
-                          Navigator.pushReplacementNamed(context, '/mode');
-                        } on FirebaseAuthException catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(e.message ?? I18n.inline('Помилка реєстрації', 'Registration error'))),
-                          );
-                        }
+                        setState(() {
+                          _isLoading = true;
+                          _awaitingRegistrationProfile = true;
+                        });
+                        context.read<AuthBloc>().add(
+                              AuthRegisterRequested(
+                                email: _emailController.text.trim(),
+                                password: _passwordController.text.trim(),
+                              ),
+                            );
                       }
                     },
                     child: _isLoading
@@ -533,6 +565,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -19,6 +18,7 @@ import '../widgets/player_avatar_button.dart';
 import 'create_match_screen.dart';
 import 'match_details_screen.dart';
 import 'match_details_screen.dart';
+import '../core/app_auth_context.dart';
 
 class TeamDetailsScreen extends StatefulWidget {
   final String teamId;
@@ -35,7 +35,6 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _teamStream;
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _teamStatsStream;
   late final Stream<List<TeamMatchRequest>> _requestsStream;
-  final _auth = FirebaseAuth.instance;
   bool _isSendingJoinRequest = false;
   bool _isLeavingTeam = false;
   final Set<String> _processingJoinRequestIds = {};
@@ -70,7 +69,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final team = AppTeam.fromDoc(snapshot.data!);
-          final uid = _auth.currentUser?.uid;
+          final uid = AppAuthContext.userId;
           final isCaptain = uid == team.captainId;
           final isVice = team.viceCaptainIds.contains(uid);
           final canManage = isCaptain || isVice;
@@ -119,7 +118,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   Widget _buildHeroSection(AppTeam team, bool canManage, TeamStats stats) {
     final totalMatches = stats.matches;
     final DateFormat formatter = DateFormat('MMM yyyy');
-    final uid = _auth.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     final isMember = uid != null && team.memberIds.contains(uid);
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1482,7 +1481,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     final maxPlayers = (data['maxPlayers'] ?? 10) as int;
     final limit = (maxPlayers / 2).ceil();
     final current = members.take(limit).toSet();
-    final currentUserId = _auth.currentUser?.uid;
+    final currentUserId = AppAuthContext.userId;
     if (currentUserId != null) {
       current.add(currentUserId);
       if (current.length > limit) {

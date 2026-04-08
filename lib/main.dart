@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/intro_video_screen.dart';
 import 'screens/login_screen.dart';
@@ -13,7 +14,14 @@ import 'screens/video_upload_screen.dart';
 import 'screens/video_main_screen.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/app_auth_context.dart';
+import 'core/supabase_config.dart';
+import 'features/auth/data/datasources/supabase_auth_data_source.dart';
+import 'features/auth/data/repositories/auth_repository_impl.dart';
+import 'features/auth/domain/repositories/auth_repository.dart';
+import 'features/auth/presentation/bloc/auth_bloc.dart';
+import 'features/auth/presentation/bloc/auth_event.dart';
 import 'screens/challenge_list_screen.dart';
 import 'screens/challenge_create_screen.dart';
 import 'screens/challenge_details_screen.dart';
@@ -42,7 +50,7 @@ import 'screens/team_hub_screen.dart';
 
 
 @pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+Future<void> _pushBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 }
 
@@ -51,15 +59,24 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(const MyApp());
+
+  SupabaseConfig.assertConfigured();
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
+  );
+
+  final authRepo = AuthRepositoryImpl(SupabaseAuthDataSource());
+  AppAuthContext.repository = authRepo;
+
+  runApp(MyApp(authRepository: authRepo));
   unawaited(_bootstrapAppServices());
 }
 
 Future<void> _bootstrapAppServices() async {
-  // Keep user logged in between browser sessions.
   if (kIsWeb) {
     try {
-      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+      await AppAuthContext.repository?.setWebPersistenceLocal();
     } catch (_) {}
   }
 
@@ -79,11 +96,13 @@ Future<void> _bootstrapAppServices() async {
 
   // Grant Champions trial silently (per user)
   try {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      await SubscriptionService().grantChampionsTrialIfMissing();
-    } else {
-      FirebaseAuth.instance.authStateChanges().listen((u) async {
+    final repo = AppAuthContext.repository;
+    if (repo != null) {
+      final initial = repo.currentUser;
+      if (initial != null) {
+        await SubscriptionService().grantChampionsTrialIfMissing();
+      }
+      repo.authStateChanges.listen((u) async {
         if (u != null) {
           await SubscriptionService().grantChampionsTrialIfMissing();
         }
@@ -92,7 +111,7 @@ Future<void> _bootstrapAppServices() async {
   } catch (_) {}
 
   if (!kIsWeb) {
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    FirebaseMessaging.onBackgroundMessage(_pushBackgroundHandler);
     await _initMessaging();
   }
 }
@@ -104,9 +123,9 @@ Future<void> _initMessaging() async {
   final messaging = FirebaseMessaging.instance;
   await messaging.requestPermission(alert: true, badge: true, sound: true);
   final token = await messaging.getToken();
-  final user = FirebaseAuth.instance.currentUser;
-  if (user != null && token != null) {
-    final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+  final userId = AppAuthContext.userId;
+  if (userId != null && token != null) {
+    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
     await userRef.set({
       'deviceTokens': FieldValue.arrayUnion([token])
     }, SetOptions(merge: true));
@@ -118,7 +137,9 @@ Future<void> _initMessaging() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  MyApp({super.key, required this.authRepository});
+
+  final AuthRepository authRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +148,9 @@ class MyApp extends StatelessWidget {
       useMaterial3: true,
     );
 
-    return ValueListenableBuilder<String>(
+    return BlocProvider(
+      create: (_) => AuthBloc(authRepository)..add(const AuthStarted()),
+      child: ValueListenableBuilder<String>(
       valueListenable: I18n.language,
       builder: (context, lang, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -207,6 +230,7 @@ class MyApp extends StatelessWidget {
         // VideoPlayerScreen не має маршруту, оскільки він викликається з параметрами
         },
       ),
+    ),
     );
   }
 }

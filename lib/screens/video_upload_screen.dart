@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../constants/video_categories.dart';
 import '../services/challenge_service.dart';
 import '../services/thumbnail_service.dart';
 import '../utils/i18n.dart';
+import '../core/app_auth_context.dart';
 
 class VideoUploadScreen extends StatefulWidget {
   final String? challengeId;
@@ -487,7 +487,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     });
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = AppAuthContext.currentUser;
       if (user == null) {
         throw Exception(I18n.inline('Користувач не авторизований', 'User not authorized'));
       }
@@ -504,12 +504,12 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
 
       // Генеруємо унікальні імена файлів
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'video_${user.uid}_$timestamp.mp4';
+      final fileName = 'video_${user.id}_$timestamp.mp4';
       
       // Створюємо посилання на Storage
       final storageRef = FirebaseStorage.instance
           .ref()
-          .child('videos/${user.uid}/$fileName');
+          .child('videos/${user.id}/$fileName');
 
       print('🎬 Starting video upload: $fileName');
 
@@ -532,8 +532,8 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       print('✅ Video uploaded successfully: $videoUrl');
 
       final videoData = <String, dynamic>{
-        'userId': user.uid,
-        'authorId': user.uid,
+        'userId': user.id,
+        'authorId': user.id,
         'authorName': user.displayName ?? user.email?.split('@')[0] ?? I18n.inline('Користувач', 'User'),
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
@@ -568,7 +568,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       }
 
       // Генеруємо thumbnail в фоновому режимі
-      _generateThumbnailInBackground(videoDoc.id, videoUrl, user.uid);
+      _generateThumbnailInBackground(videoDoc.id, videoUrl, user.id);
 
       // Показуємо успішне повідомлення
       if (mounted) {
@@ -606,20 +606,20 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
 
   Future<void> _submitVideoToChallenge(String videoId, String videoUrl) async {
     try {
-      final user = FirebaseAuth.instance.currentUser!;
+      final user = AppAuthContext.currentUser!;
       final challengeService = ChallengeService();
       
       // Додаємо відео до челенджу
-      await challengeService.addVideoToChallenge(widget.challengeId!, user.uid);
+      await challengeService.addVideoToChallenge(widget.challengeId!, user.id);
       
       // Створюємо submission документ
       await FirebaseFirestore.instance
           .collection('challenges')
           .doc(widget.challengeId!)
           .collection('submissions')
-          .doc(user.uid)
+          .doc(user.id)
           .set({
-        'userId': user.uid,
+        'userId': user.id,
         'videoId': videoId,
         'videoUrl': videoUrl,
         'title': _titleController.text.trim(),

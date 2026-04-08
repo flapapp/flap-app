@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_screen_sparkline.dart';
+import '../core/app_auth_context.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({Key? key}) : super(key: key);
@@ -10,7 +10,7 @@ class StatsScreen extends StatefulWidget {
 }
 
 class _StatsScreenState extends State<StatsScreen> {
-  final String? _uid = FirebaseAuth.instance.currentUser?.uid;
+  final String? _uid = AppAuthContext.userId;
   List<Map<String, dynamic>> _history7 = [];
   List<Map<String, dynamic>> _history30 = [];
   List<Map<String, dynamic>> _topVideos = [];

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/badge.dart' as app_badge;
 import '../services/badge_service.dart';
 import '../utils/i18n.dart';
+import '../core/app_auth_context.dart';
 
 class BadgesStoreScreen extends StatefulWidget {
   @override
@@ -36,14 +36,14 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
     try {
       setState(() => _isLoading = true);
       
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser != null) {
         await _badgeService.initializeDefaultBadges();
 
         final results = await Future.wait([
           _badgeService.getAvailableBadges().first,
-          _badgeService.getUserBadges(currentUser.uid),
-          FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get(),
+          _badgeService.getUserBadges(currentUser.id),
+          FirebaseFirestore.instance.collection('users').doc(currentUser.id).get(),
         ]);
 
         final badges = results[0] as List<app_badge.Badge>;

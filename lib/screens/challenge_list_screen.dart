@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
 import 'challenge_create_screen.dart';
@@ -14,7 +13,6 @@ class ChallengeListScreen extends StatefulWidget {
 
 class _ChallengeListScreenState extends State<ChallengeListScreen> {
   final ChallengeService _challengeService = ChallengeService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   
   String _selectedStatus = 'all';
   String _selectedType = 'all';

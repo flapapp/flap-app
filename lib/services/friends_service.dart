@@ -1,12 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/friend_request.dart';
 import '../services/notification_service.dart';
 import '../utils/i18n.dart';
+import '../core/app_auth_context.dart';
 
 class FriendsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final NotificationService _notificationService = NotificationService();
 
   // Collection references
@@ -19,23 +18,23 @@ class FriendsService {
   // Send friend request
   Future<bool> sendFriendRequest(String toUserId, {String? message}) async {
   try {
-    final currentUser = _auth.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) {
       throw Exception('Користувач не авторизований');
     }
-    if (toUserId == currentUser.uid) {
+    if (toUserId == currentUser.id) {
       throw Exception('Неможливо додати себе у друзі');
     }
 
       // Check if users are already friends
-      final areFriends = await areUsersFriends(currentUser.uid, toUserId);
+      final areFriends = await areUsersFriends(currentUser.id, toUserId);
       if (areFriends) {
         throw Exception('Ви вже друзі з цим користувачем');
       }
 
       // Check if request already exists
       final existingRequest = await _friendRequestsCollection
-          .where('fromUserId', isEqualTo: currentUser.uid)
+          .where('fromUserId', isEqualTo: currentUser.id)
           .where('toUserId', isEqualTo: toUserId)
           .where('status', isEqualTo: 'pending')
           .limit(1)
@@ -46,7 +45,7 @@ class FriendsService {
       }
 
       // Get user data
-      final fromUserDoc = await _usersCollection.doc(currentUser.uid).get();
+      final fromUserDoc = await _usersCollection.doc(currentUser.id).get();
       final toUserDoc = await _usersCollection.doc(toUserId).get();
 
       if (!fromUserDoc.exists || !toUserDoc.exists) {
@@ -59,7 +58,7 @@ class FriendsService {
       // Create friend request
       final friendRequest = FriendRequest(
         id: '', // Will be set by Firestore
-        fromUserId: currentUser.uid,
+        fromUserId: currentUser.id,
         fromUserName: fromUserData['displayName'] ?? fromUserData['name'] ?? fromUserData['email']?.split('@')[0] ?? 'Користувач',
         fromUserAvatar: fromUserData['avatarUrl'] ?? fromUserData['avatar'] ?? '',
         toUserId: toUserId,
@@ -80,13 +79,13 @@ class FriendsService {
       );
 
       // Award coins for social activity
-      await _usersCollection.doc(currentUser.uid).update({
+      await _usersCollection.doc(currentUser.id).update({
         'coins': FieldValue.increment(3), // +3 coins for adding friend
       });
 
       // Record transaction
       await _firestore.collection('transactions').add({
-        'userId': currentUser.uid,
+        'userId': currentUser.id,
         'type': 'friend_request_sent',
         'amount': 3,
         'timestamp': FieldValue.serverTimestamp(),
@@ -105,13 +104,13 @@ class FriendsService {
 
   // Get incoming friend requests
   Stream<List<FriendRequest>> getIncomingFriendRequests() {
-    final currentUser = _auth.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) {
       return Stream.value([]);
     }
 
     return _friendRequestsCollection
-        .where('toUserId', isEqualTo: currentUser.uid)
+        .where('toUserId', isEqualTo: currentUser.id)
         .where('status', isEqualTo: 'pending')
         .snapshots()
         .map((snapshot) {
@@ -125,13 +124,13 @@ class FriendsService {
 
   // Get outgoing friend requests
   Stream<List<FriendRequest>> getOutgoingFriendRequests() {
-    final currentUser = _auth.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) {
       return Stream.value([]);
     }
 
     return _friendRequestsCollection
-        .where('fromUserId', isEqualTo: currentUser.uid)
+        .where('fromUserId', isEqualTo: currentUser.id)
         .where('status', isEqualTo: 'pending')
         .snapshots()
         .map((snapshot) {
@@ -146,7 +145,7 @@ class FriendsService {
   // Respond to friend request
   Future<bool> respondToFriendRequest(String requestId, bool accept) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
@@ -158,7 +157,7 @@ class FriendsService {
 
       final request = FriendRequest.fromFirestore(requestDoc);
       
-      if (request.toUserId != currentUser.uid) {
+      if (request.toUserId != currentUser.id) {
         throw Exception('Це не ваше запрошення');
       }
 
@@ -233,7 +232,7 @@ class FriendsService {
   // Cancel friend request
   Future<bool> cancelFriendRequest(String requestId) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
@@ -245,7 +244,7 @@ class FriendsService {
 
       final request = FriendRequest.fromFirestore(requestDoc);
       
-      if (request.fromUserId != currentUser.uid) {
+      if (request.fromUserId != currentUser.id) {
         throw Exception('Це не ваше запрошення');
       }
 
@@ -320,26 +319,26 @@ class FriendsService {
   // Remove friend
   Future<bool> removeFriend(String friendId) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
 
       // Check if they are friends
-      final areFriends = await areUsersFriends(currentUser.uid, friendId);
+      final areFriends = await areUsersFriends(currentUser.id, friendId);
       if (!areFriends) {
         throw Exception('Ви не друзі з цим користувачем');
       }
 
       await _firestore.runTransaction((transaction) async {
         // Remove from both friends lists
-        transaction.update(_usersCollection.doc(currentUser.uid), {
+        transaction.update(_usersCollection.doc(currentUser.id), {
           'friends': FieldValue.arrayRemove([friendId]),
           'friendsCount': FieldValue.increment(-1),
         });
 
         transaction.update(_usersCollection.doc(friendId), {
-          'friends': FieldValue.arrayRemove([currentUser.uid]),
+          'friends': FieldValue.arrayRemove([currentUser.id]),
           'friendsCount': FieldValue.increment(-1),
         });
       });
@@ -354,7 +353,7 @@ class FriendsService {
   // Search users (potential friends)
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) return [];
 
       if (query.trim().length < 2) return [];
@@ -370,7 +369,7 @@ class FriendsService {
       final users = <Map<String, dynamic>>[];
       
       for (final doc in querySnapshot.docs) {
-        if (doc.id != currentUser.uid) { // Exclude current user
+        if (doc.id != currentUser.id) { // Exclude current user
           final userData = doc.data() as Map<String, dynamic>;
           final name = (userData['name'] ?? userData['displayName'] ?? '').toString().toLowerCase();
           final displayName = (userData['displayName'] ?? userData['name'] ?? '').toString().toLowerCase();
@@ -471,11 +470,11 @@ class FriendsService {
   // Get pending requests count
   Future<int> getPendingRequestsCount() async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) return 0;
 
       final snapshot = await _friendRequestsCollection
-          .where('toUserId', isEqualTo: currentUser.uid)
+          .where('toUserId', isEqualTo: currentUser.id)
           .where('status', isEqualTo: 'pending')
           .get();
 

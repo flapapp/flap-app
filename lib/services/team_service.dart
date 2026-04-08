@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 import '../models/app_team.dart';
@@ -11,6 +10,7 @@ import '../models/team_match_request.dart';
 import '../models/notification.dart';
 import 'notification_service.dart';
 import '../utils/i18n.dart';
+import '../core/app_auth_context.dart';
 
 class TeamService {
   TeamService._();
@@ -19,7 +19,6 @@ class TeamService {
 
   final _firestore = FirebaseFirestore.instance;
   final _storage = FirebaseStorage.instance;
-  final _auth = FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> get _teamsCollection =>
     _firestore.collection('teams');
@@ -59,12 +58,12 @@ class TeamService {
     bool isPublic = true,
     Uint8List? logoBytes,
   }) async {
-    final user = _auth.currentUser;
+    final user = AppAuthContext.currentUser;
     if (user == null) {
       throw Exception('Користувач не авторизований');
     }
 
-    final userRef = _firestore.collection('users').doc(user.uid);
+    final userRef = _firestore.collection('users').doc(user.id);
     final now = DateTime.now();
     final teamRef = _teamsCollection.doc();
 
@@ -80,9 +79,9 @@ class TeamService {
         'name': name,
         'nameLower': name.toLowerCase(),
         'description': description,
-        'captainId': user.uid,
+        'captainId': user.id,
         'viceCaptainIds': <String>[],
-        'memberIds': [user.uid],
+        'memberIds': [user.id],
         'isPublic': isPublic,
         'logoUrl': null,
         'city': city,
@@ -146,7 +145,7 @@ class TeamService {
     required String teamName,
     required List<String> userIds,
   }) async {
-    final user = _auth.currentUser;
+    final user = AppAuthContext.currentUser;
     if (user == null) return;
     final batch = _firestore.batch();
     for (final targetId in userIds) {
@@ -156,7 +155,7 @@ class TeamService {
         teamId: teamId,
         teamName: teamName,
         userId: targetId,
-        invitedBy: user.uid,
+        invitedBy: user.id,
         status: TeamInviteStatus.pending,
         createdAt: DateTime.now(),
       ).toFirestore());
@@ -257,7 +256,7 @@ class TeamService {
     required String teamId,
     required String teamName,
   }) async {
-    final user = _auth.currentUser;
+    final user = AppAuthContext.currentUser;
     if (user == null) {
       throw Exception('Потрібна авторизація');
     }
@@ -267,13 +266,13 @@ class TeamService {
     }
     final memberIds =
         List<String>.from(teamDoc.data()?['memberIds'] ?? const []);
-    if (memberIds.contains(user.uid)) {
+    if (memberIds.contains(user.id)) {
       throw Exception('Ви вже у цій команді');
     }
 
     final pendingExisting = await _joinRequestsCollection
         .where('teamId', isEqualTo: teamId)
-        .where('userId', isEqualTo: user.uid)
+        .where('userId', isEqualTo: user.id)
         .where('status', isEqualTo: 'pending')
         .limit(1)
         .get();
@@ -282,12 +281,12 @@ class TeamService {
     }
 
     final requesterName = user.displayName ??
-        user.photoURL ??
-        (user.email?.split('@').first ?? 'Player');
+        user.email?.split('@').first ??
+        'Player';
     final reqRef = await _joinRequestsCollection.add({
       'teamId': teamId,
       'teamName': teamName,
-      'userId': user.uid,
+      'userId': user.id,
       'userName': requesterName,
       'status': 'pending',
       'createdAt': Timestamp.fromDate(DateTime.now()),
@@ -301,7 +300,7 @@ class TeamService {
       final recipients = {
         if (captainId.isNotEmpty) captainId,
         ...viceIds.where((id) => id.isNotEmpty),
-      }..remove(user.uid);
+      }..remove(user.id);
       if (recipients.isNotEmpty) {
         final notifier = NotificationService();
         final resolvedTeamName =
@@ -323,7 +322,7 @@ class TeamService {
     required TeamJoinRequest request,
     required bool accept,
   }) async {
-    final currentUser = _auth.currentUser;
+    final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return;
     final teamDoc = await _teamsCollection.doc(request.teamId).get();
     if (!teamDoc.exists) {
@@ -334,7 +333,7 @@ class TeamService {
     final viceIds =
         List<String>.from(data['viceCaptainIds'] ?? const <String>[]);
     final canManage =
-        captainId == currentUser.uid || viceIds.contains(currentUser.uid);
+        captainId == currentUser.id || viceIds.contains(currentUser.id);
     if (!canManage) {
       throw Exception('Недостатньо прав');
     }
@@ -389,7 +388,7 @@ class TeamService {
     required String matchId,
     List<String> proposedRoster = const [],
   }) async {
-    final user = _auth.currentUser;
+    final user = AppAuthContext.currentUser;
     if (user == null) return;
     final docRef = await _matchRequestsCollection.add(TeamMatchRequest(
       id: '',
@@ -397,7 +396,7 @@ class TeamService {
       teamId: teamId,
       opponentTeamId: opponentTeamId,
       opponentName: opponentName,
-      createdBy: user.uid,
+      createdBy: user.id,
       status: TeamMatchRequestStatus.pending,
       createdAt: DateTime.now(),
       proposedRoster: proposedRoster,

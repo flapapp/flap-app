@@ -3,7 +3,8 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../core/app_auth_context.dart';
+import '../core/auth_sign_out_helper.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -27,7 +28,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final BadgeService _badgeService = BadgeService();
   final FriendsService _friendsService = FriendsService();
@@ -48,7 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final uid = _auth.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid != null) {
       _userId = uid;
       _userStream = FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
@@ -96,7 +96,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _setDonationPromptDismissed() async {
-    final uid = _auth.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid == null) return;
     await FirebaseFirestore.instance.collection('users').doc(uid).set(
       {
@@ -206,7 +206,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _loadUserBadges() async {
-    final uid = _auth.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid != null) {
       final badges = await _badgeService.getUserBadgeObjects(uid);
       setState(() {
@@ -216,7 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _loadFriendsCount() async {
-    final uid = _auth.currentUser?.uid;
+    final uid = AppAuthContext.userId;
     if (uid != null) {
       final friends = await _friendsService.getUserFriends(uid);
       setState(() {
@@ -597,7 +597,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final avatarUrl = userData['avatar'] ?? userData['avatarUrl'];
     final rating = (userData['rating'] ?? 0.0).toDouble();
     final coins = userData['coins'] ?? 0;
-    final profileUserId = userData['uid'] ?? _auth.currentUser?.uid ?? '';
+    final profileUserId = userData['uid'] ?? AppAuthContext.userId ?? '';
     if (profileUserId.isNotEmpty) {
       _ensureMatchStatsFuture(profileUserId);
     }
@@ -667,7 +667,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       double rating,
       int coins,
       Future<Map<String, dynamic>>? statsFuture) {
-    final userId = userData['uid'] ?? _auth.currentUser?.uid ?? '';
+    final userId = userData['uid'] ?? AppAuthContext.userId ?? '';
     return FutureBuilder<Map<String, dynamic>>(
       future: statsFuture ?? _loadMatchStats(userId),
       builder: (context, snapshot) {
@@ -1042,7 +1042,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildBadgesSection(Map<String, dynamic> userData) {
-  final String userId = userData['uid'] ?? _auth.currentUser?.uid ?? '';
+  final String userId = userData['uid'] ?? AppAuthContext.userId ?? '';
   return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -1558,7 +1558,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _endorseBadge(String userId, app_badge.Badge badge) async {
-    final currentUserId = _auth.currentUser?.uid;
+    final currentUserId = AppAuthContext.userId;
     if (currentUserId == null) return;
     
     if (currentUserId == userId) {
@@ -1663,7 +1663,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _openStats(Map<String, dynamic> userData) {
     final statsFuture = _matchStatsFuture ??
-        _loadMatchStats(userData['uid'] ?? _auth.currentUser?.uid ?? '');
+        _loadMatchStats(userData['uid'] ?? AppAuthContext.userId ?? '');
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1701,9 +1701,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _signOut() {
+    final parentContext = context;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
         title: Text(
   I18n.t('logout_confirm'),
@@ -1715,13 +1716,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () async {
-              await _auth.signOut();
-              Navigator.of(context).pushReplacementNamed('/login');
+              Navigator.of(dialogContext).pop();
+              await signOutViaBlocAndWait(parentContext);
+              if (!parentContext.mounted) return;
+              Navigator.of(parentContext).pushReplacementNamed('/login');
             },
             child: Text(I18n.t('logout'), style: const TextStyle(color: Colors.red)),
           ),
