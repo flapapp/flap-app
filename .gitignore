@@ -1,3 +1,6 @@
+# Root-level npm (not used by Flutter; avoids accidental commits)
+/node_modules/
+
 # Miscellaneous
 *.class
 *.log
