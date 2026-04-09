@@ -25,8 +25,10 @@ import 'features/auth/presentation/bloc/auth_event.dart';
 import 'features/admin/data/datasources/supabase_admin_remote_data_source.dart';
 import 'features/admin/data/repositories/admin_repository_impl.dart';
 import 'features/admin/domain/repositories/admin_repository.dart';
+import 'features/badges/data/datasources/supabase_badge_remote_data_source.dart';
+import 'features/badges/data/repositories/badge_repository_impl.dart';
+import 'features/badges/domain/repositories/badge_repository.dart';
 import 'firebase_options.dart';
-import 'package:flap_app/features/badges/data/badge_service.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/subscription/data/subscription_service.dart';
 import 'package:flap_app/features/profile/data/user_settings_service.dart';
@@ -59,6 +61,7 @@ Future<void> main() async {
   AppUserProfileContext.repository = userProfileRepo;
 
   final adminRepo = AdminRepositoryImpl(SupabaseAdminRemoteDataSource());
+  final badgeRepo = BadgeRepositoryImpl(SupabaseBadgeRemoteDataSource());
 
   runApp(
     MultiRepositoryProvider(
@@ -68,14 +71,15 @@ Future<void> main() async {
           value: userProfileRepo,
         ),
         RepositoryProvider<AdminRepository>.value(value: adminRepo),
+        RepositoryProvider<BadgeRepository>.value(value: badgeRepo),
       ],
       child: MyApp(authRepository: authRepo),
     ),
   );
-  unawaited(_bootstrapAppServices());
+  unawaited(_bootstrapAppServices(badgeRepo));
 }
 
-Future<void> _bootstrapAppServices() async {
+Future<void> _bootstrapAppServices(BadgeRepository badgeRepo) async {
   if (kIsWeb) {
     try {
       await AppAuthContext.repository?.setWebPersistenceLocal();
@@ -91,7 +95,7 @@ Future<void> _bootstrapAppServices() async {
 
   // Initialize default badges
   try {
-    await BadgeService().initializeDefaultBadges();
+    await badgeRepo.initializeDefaultBadges();
   } catch (e) {
     print('Failed to initialize badges: $e');
   }

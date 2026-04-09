@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:video_player/video_player.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,7 +9,7 @@ import 'dart:typed_data';
 import 'package:flap_app/core/storage/supabase_avatar_storage.dart';
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/models/badge.dart' as app_badge;
-import 'package:flap_app/features/badges/data/badge_service.dart';
+import 'package:flap_app/features/badges/domain/repositories/badge_repository.dart';
 import 'package:flap_app/features/friends/data/friends_service.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/teams/data/team_service.dart';
@@ -44,7 +45,6 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   final NotificationService _notificationService = NotificationService();
   List<String> _myVideoIds = [];
   bool _loadingMyVideos = false;
-  final BadgeService _badgeService = BadgeService();
   double _winRate = 0.0;
   int _wins = 0;
   int _draws = 0;
@@ -74,7 +74,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPlayerData();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPlayerData());
   }
 
   Future<void> _loadPlayerData() async {
@@ -101,9 +101,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 
       // Бейджі гравця
       try {
-        final badgeObjects = await _badgeService.getUserBadgeObjects(
-          widget.playerId,
-        );
+        if (!mounted) return;
+        final badgeObjects = await context
+            .read<BadgeRepository>()
+            .getUserBadgeObjects(widget.playerId);
         _userBadges = badgeObjects;
         _userBadgeIds = badgeObjects.map((b) => b.id).toList();
       } catch (_) {}

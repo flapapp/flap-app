@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/auth_sign_out_helper.dart';
 import 'package:flap_app/models/badge.dart' as app_badge;
-import 'package:flap_app/features/badges/data/badge_service.dart';
+import 'package:flap_app/features/badges/domain/repositories/badge_repository.dart';
 import 'package:flap_app/features/friends/data/friends_service.dart';
 import 'package:flap_app/features/badges/presentation/screens/badges_store_screen.dart';
 import 'package:flap_app/features/friends/presentation/screens/friends_screen.dart';
@@ -19,7 +20,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserver {
-  final BadgeService _badgeService = BadgeService();
   final FriendsService _friendsService = FriendsService();
   
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
@@ -36,7 +36,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     final uid = AppAuthContext.userId;
     if (uid != null) {
       _userStream = FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
-      _loadUserBadges();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadUserBadges());
       _loadFriendsCount();
       _loadRatingDynamics(uid);
       _loadTopVideos(uid);
@@ -58,12 +58,12 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
 
   Future<void> _loadUserBadges() async {
     final uid = AppAuthContext.userId;
-    if (uid != null) {
-      final badges = await _badgeService.getUserBadgeObjects(uid);
-      setState(() {
-        _userBadges = badges;
-      });
-    }
+    if (uid == null || !mounted) return;
+    final badges = await context.read<BadgeRepository>().getUserBadgeObjects(uid);
+    if (!mounted) return;
+    setState(() {
+      _userBadges = badges;
+    });
   }
 
   void _loadFriendsCount() async {

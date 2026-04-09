@@ -1,29 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import 'package:flap_app/features/badges/domain/badge_failure.dart';
+import 'package:flap_app/features/badges/domain/repositories/badge_repository.dart';
+import 'package:flap_app/features/badges/presentation/bloc/badge_store_bloc.dart';
+import 'package:flap_app/features/badges/presentation/bloc/badge_store_event.dart';
+import 'package:flap_app/features/badges/presentation/bloc/badge_store_state.dart';
 import 'package:flap_app/models/badge.dart' as app_badge;
-import 'package:flap_app/features/badges/data/badge_service.dart';
 import 'package:flap_app/utils/i18n.dart';
-import 'package:flap_app/core/app_auth_context.dart';
 
 class BadgesStoreScreen extends StatefulWidget {
+  const BadgesStoreScreen({super.key});
+
   @override
-  _BadgesStoreScreenState createState() => _BadgesStoreScreenState();
+  State<BadgesStoreScreen> createState() => _BadgesStoreScreenState();
 }
 
 class _BadgesStoreScreenState extends State<BadgesStoreScreen>
     with SingleTickerProviderStateMixin {
-  final BadgeService _badgeService = BadgeService();
   late TabController _tabController;
-  List<app_badge.Badge> _allBadges = [];
-  List<String> _userBadges = [];
-  int _userCoins = 0;
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
-    _loadData();
   }
 
   @override
@@ -32,41 +32,91 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    try {
-      setState(() => _isLoading = true);
-      
-      final currentUser = AppAuthContext.currentUser;
-      if (currentUser != null) {
-        await _badgeService.initializeDefaultBadges();
-
-        final results = await Future.wait([
-          _badgeService.getAvailableBadges().first,
-          _badgeService.getUserBadges(currentUser.id),
-          FirebaseFirestore.instance.collection('users').doc(currentUser.id).get(),
-        ]);
-
-        final badges = results[0] as List<app_badge.Badge>;
-        final userBadges = results[1] as List<String>;
-        final userDoc = results[2] as DocumentSnapshot<Map<String, dynamic>>;
-        final userData = userDoc.data() ?? {};
-        final coins = userData['coins'] ?? 0;
-        
-        setState(() {
-          _allBadges = badges;
-          _userBadges = userBadges;
-          _userCoins = coins;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      print('Error loading badges data: $e');
-      setState(() => _isLoading = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => BadgeStoreBloc(context.read<BadgeRepository>())
+        ..add(const BadgeStoreLoadRequested()),
+      child: BlocBuilder<BadgeStoreBloc, BadgeStoreState>(
+          builder: (context, state) {
+            if (state is BadgeStoreLoading || state is BadgeStoreInitial) {
+              return _scaffoldShell(
+                context,
+                body: const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+                ),
+                coins: 0,
+              );
+            }
+            if (state is BadgeStoreFailure) {
+              return _scaffoldShell(
+                context,
+                body: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          state.message,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => context
+                              .read<BadgeStoreBloc>()
+                              .add(const BadgeStoreLoadRequested()),
+                          child: Text(I18n.inline('Повторити', 'Retry')),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                coins: 0,
+              );
+            }
+            final ready = state as BadgeStoreReady;
+            return _scaffoldShell(
+              context,
+              coins: ready.coins,
+              body: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildBadgesGrid(context, ready, ready.allBadges),
+                  _buildBadgesGrid(
+                    context,
+                    ready,
+                    _getBadgesByCategory(ready.allBadges, 'starter'),
+                  ),
+                  _buildBadgesGrid(
+                    context,
+                    ready,
+                    _getBadgesByCategory(ready.allBadges, 'skill'),
+                  ),
+                  _buildBadgesGrid(
+                    context,
+                    ready,
+                    _getBadgesByCategory(ready.allBadges, 'achievement'),
+                  ),
+                  _buildBadgesGrid(
+                    context,
+                    ready,
+                    _getBadgesByCategory(ready.allBadges, 'legendary'),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+    );
+  }
+
+  Widget _scaffoldShell(
+    BuildContext context, {
+    required Widget body,
+    required int coins,
+  }) {
     return Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
       appBar: AppBar(
@@ -90,7 +140,6 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          // Показуємо поточний баланс монет
           Container(
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -105,7 +154,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                 const Icon(Icons.monetization_on, color: Color(0xFFffc107), size: 16),
                 const SizedBox(width: 4),
                 Text(
-                  _userCoins.toString(),
+                  coins.toString(),
                   style: const TextStyle(
                     color: Color(0xFFffc107),
                     fontSize: 14,
@@ -131,28 +180,22 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
           ],
         ),
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF4caf50)),
-            )
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildBadgesGrid(_allBadges),
-                _buildBadgesGrid(_getBadgesByCategory('starter')),
-                _buildBadgesGrid(_getBadgesByCategory('skill')),
-                _buildBadgesGrid(_getBadgesByCategory('achievement')),
-                _buildBadgesGrid(_getBadgesByCategory('legendary')),
-              ],
-            ),
+      body: body,
     );
   }
 
-  List<app_badge.Badge> _getBadgesByCategory(String category) {
-    return _allBadges.where((badge) => badge.category == category).toList();
+  List<app_badge.Badge> _getBadgesByCategory(
+    List<app_badge.Badge> all,
+    String category,
+  ) {
+    return all.where((badge) => badge.category == category).toList();
   }
 
-  Widget _buildBadgesGrid(List<app_badge.Badge> badges) {
+  Widget _buildBadgesGrid(
+    BuildContext context,
+    BadgeStoreReady ready,
+    List<app_badge.Badge> badges,
+  ) {
     if (badges.isEmpty) {
       return Center(
         child: Column(
@@ -187,26 +230,30 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
       itemCount: badges.length,
       itemBuilder: (context, index) {
         final badge = badges[index];
-        return _buildBadgeCard(badge);
+        return _buildBadgeCard(context, ready, badge);
       },
     );
   }
 
-  Widget _buildBadgeCard(app_badge.Badge badge) {
-    final isOwned = _userBadges.contains(badge.id);
-    final canAfford = _userCoins >= badge.price;
+  Widget _buildBadgeCard(
+    BuildContext context,
+    BadgeStoreReady ready,
+    app_badge.Badge badge,
+  ) {
+    final isOwned = ready.userBadgeIds.contains(badge.id);
+    final canAfford = ready.coins >= badge.price;
     final categoryColor = Color(badge.categoryColor);
 
     return GestureDetector(
-      onTap: isOwned ? null : () => _showPurchaseDialog(badge),
+      onTap: isOwned ? null : () => _showPurchaseDialog(context, ready, badge),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isOwned 
-                ? const Color(0xFF4caf50) 
-                : canAfford 
+            color: isOwned
+                ? const Color(0xFF4caf50)
+                : canAfford
                     ? categoryColor.withOpacity(0.5)
                     : Colors.white.withOpacity(0.1),
             width: isOwned ? 2 : 1,
@@ -226,7 +273,6 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Badge emoji and status
               Column(
                 children: [
                   Container(
@@ -267,8 +313,6 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                   ],
                 ],
               ),
-              
-              // Badge info
               Column(
                 children: [
                   ValueListenableBuilder<String>(
@@ -320,16 +364,14 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                   ),
                 ],
               ),
-              
-              // Price and purchase button
               if (!isOwned) ...[
-                Container(
+                SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: canAfford ? () => _showPurchaseDialog(badge) : null,
+                    onPressed: canAfford ? () => _showPurchaseDialog(context, ready, badge) : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: canAfford 
-                          ? const Color(0xFF4caf50) 
+                      backgroundColor: canAfford
+                          ? const Color(0xFF4caf50)
                           : Colors.grey.withOpacity(0.3),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -385,10 +427,14 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
     );
   }
 
-  void _showPurchaseDialog(app_badge.Badge badge) {
-    showDialog(
+  void _showPurchaseDialog(
+    BuildContext context,
+    BadgeStoreReady ready,
+    app_badge.Badge badge,
+  ) {
+    showDialog<void>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1a1a2e),
           shape: RoundedRectangleBorder(
@@ -506,7 +552,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          _userCoins.toString(),
+                          ready.coins.toString(),
                           style: const TextStyle(
                             color: Color(0xFFffc107),
                             fontSize: 18,
@@ -518,7 +564,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                   ],
                 ),
               ),
-              if (_userCoins < badge.price) ...[
+              if (ready.coins < badge.price) ...[
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -527,8 +573,8 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'Недостатньо монет! Потрібно ще ${badge.price - _userCoins} монет.'
-                        .i18n('Not enough coins! You need ${badge.price - _userCoins} more.'),
+                    'Недостатньо монет! Потрібно ще ${badge.price - ready.coins} монет.'
+                        .i18n('Not enough coins! You need ${badge.price - ready.coins} more.'),
                     style: const TextStyle(
                       color: Colors.red,
                       fontSize: 12,
@@ -540,17 +586,19 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: Text(
                 I18n.t('cancel'),
                 style: const TextStyle(color: Colors.white54),
               ),
             ),
             ElevatedButton(
-              onPressed: _userCoins >= badge.price ? () => _purchaseBadge(badge) : null,
+              onPressed: ready.coins >= badge.price
+                  ? () => _purchaseBadge(context, badge)
+                  : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: _userCoins >= badge.price 
-                    ? const Color(0xFF4caf50) 
+                backgroundColor: ready.coins >= badge.price
+                    ? const Color(0xFF4caf50)
                     : Colors.grey,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
@@ -568,28 +616,25 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
     );
   }
 
-  Future<void> _purchaseBadge(app_badge.Badge badge) async {
+  Future<void> _purchaseBadge(BuildContext context, app_badge.Badge badge) async {
+    Navigator.pop(context);
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+      ),
+    );
+
+    final repo = context.read<BadgeRepository>();
     try {
-      Navigator.pop(context); // Закриваємо діалог
-      
-      // Показуємо індикатор завантаження
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(color: Color(0xFF4caf50)),
-        ),
-      );
-      
-      // Купуємо бейдж
-      await _badgeService.purchaseBadge(badge.id);
-      
-      Navigator.pop(context); // Закриваємо індикатор
-      
-      // Оновлюємо дані
-      await _loadData();
-      
-      // Показуємо повідомлення про успіх
+      await repo.purchaseBadge(badge.id);
+      if (!context.mounted) return;
+      Navigator.pop(context);
+
+      context.read<BadgeStoreBloc>().add(const BadgeStoreLoadRequested());
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -600,7 +645,10 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                 child: ValueListenableBuilder<String>(
                   valueListenable: I18n.language,
                   builder: (context, _, __) => Text(
-                    I18n.inline('Бейдж "${badge.localizedName}" успішно куплено!', 'Badge "${badge.localizedName}" purchased successfully!'),
+                    I18n.inline(
+                      'Бейдж "${badge.localizedName}" успішно куплено!',
+                      'Badge "${badge.localizedName}" purchased successfully!',
+                    ),
                     style: const TextStyle(fontSize: 16),
                   ),
                 ),
@@ -614,9 +662,10 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
           ),
         ),
       );
-    } catch (e) {
-      Navigator.pop(context); // Закриваємо індикатор якщо є помилка
-      
+    } on BadgeFailure catch (e) {
+      if (context.mounted) Navigator.pop(context);
+      if (!context.mounted) return;
+      final msg = _messageForBadgeFailure(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -625,7 +674,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  I18n.inline('Помилка покупки: ${e.toString()}', 'Purchase error: ${e.toString()}'),
+                  I18n.inline('Помилка покупки: $msg', 'Purchase error: $msg'),
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
@@ -638,6 +687,36 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
           ),
         ),
       );
+    } catch (e) {
+      if (context.mounted) Navigator.pop(context);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline('Помилка покупки: $e', 'Purchase error: $e'),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  String _messageForBadgeFailure(BadgeFailure e) {
+    switch (e.code) {
+      case 'not-authenticated':
+        return I18n.inline('Увійдіть у систему', 'Sign in required');
+      case 'badge-not-found':
+        return I18n.inline('Бейдж не знайдено', 'Badge not found');
+      case 'badge-unavailable':
+        return I18n.inline('Бейдж недоступний', 'Badge unavailable');
+      case 'already-owned':
+        return I18n.inline('Ви вже маєте цей бейдж', 'You already own this badge');
+      case 'profile-not-found':
+        return I18n.inline('Профіль не знайдено', 'Profile not found');
+      case 'insufficient-coins':
+        return I18n.inline('Недостатньо монет', 'Not enough coins');
+      default:
+        return e.message ?? e.code;
     }
   }
 }

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 class Badge {
@@ -22,36 +21,36 @@ class Badge {
     this.releaseDate,
   });
 
-  // Factory constructor from Firestore
-  factory Badge.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    
+  /// Row from Supabase `public.badges` (snake_case keys).
+  factory Badge.fromJson(Map<String, dynamic> json) {
+    final release = json['release_date'];
+    DateTime? releaseDate;
+    if (release is String) {
+      releaseDate = DateTime.tryParse(release);
+    }
     return Badge(
-      id: doc.id,
-      name: data['name'] ?? '',
-      emoji: data['emoji'] ?? '🏆',
-      description: data['description'] ?? '',
-      price: data['price'] ?? 0,
-      category: data['category'] ?? 'general',
-      isAvailable: data['isAvailable'] ?? true,
-      releaseDate: data['releaseDate'] != null 
-          ? (data['releaseDate'] as Timestamp).toDate() 
-          : null,
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      emoji: json['emoji'] as String? ?? '🏆',
+      description: json['description'] as String? ?? '',
+      price: (json['price'] as num?)?.toInt() ?? 0,
+      category: json['category'] as String? ?? 'general',
+      isAvailable: json['is_available'] as bool? ?? true,
+      releaseDate: releaseDate,
     );
   }
 
-  // Convert to Map for Firestore
-  Map<String, dynamic> toFirestore() {
+  /// Upsert payload for `public.badges`.
+  Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'name': name,
       'emoji': emoji,
       'description': description,
       'price': price,
       'category': category,
-      'isAvailable': isAvailable,
-      'releaseDate': releaseDate != null 
-          ? Timestamp.fromDate(releaseDate!) 
-          : null,
+      'is_available': isAvailable,
+      'release_date': releaseDate?.toUtc().toIso8601String(),
     };
   }
 

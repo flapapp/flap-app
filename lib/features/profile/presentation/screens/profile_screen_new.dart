@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -10,7 +11,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flap_app/models/badge.dart' as app_badge;
-import 'package:flap_app/features/badges/data/badge_service.dart';
+import 'package:flap_app/features/badges/domain/repositories/badge_repository.dart';
 import 'package:flap_app/features/badges/presentation/screens/badges_store_screen.dart';
 import 'package:flap_app/features/friends/data/friends_service.dart';
 import 'package:flap_app/features/friends/presentation/screens/friends_screen.dart';
@@ -33,7 +34,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseStorage _storage = FirebaseStorage.instance;
-  final BadgeService _badgeService = BadgeService();
   final FriendsService _friendsService = FriendsService();
   final TeamService _teamService = TeamService();
   final ImagePicker _picker = ImagePicker();
@@ -56,7 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (uid != null) {
       _userId = uid;
       _userStream = FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
-      _loadUserBadges();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadUserBadges());
       _loadFriendsCount();
       _teamsStream = _teamService.watchUserTeams(uid);
       _teamInvitesStream = _teamService.watchInvites(uid);
@@ -211,12 +211,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _loadUserBadges() async {
     final uid = AppAuthContext.userId;
-    if (uid != null) {
-      final badges = await _badgeService.getUserBadgeObjects(uid);
-      setState(() {
-        _userBadges = badges;
-      });
-    }
+    if (uid == null || !mounted) return;
+    final badges = await context.read<BadgeRepository>().getUserBadgeObjects(uid);
+    if (!mounted) return;
+    setState(() {
+      _userBadges = badges;
+    });
   }
 
   void _loadFriendsCount() async {
