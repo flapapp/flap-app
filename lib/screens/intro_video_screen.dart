@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
+import '../core/app_auth_context.dart';
 import '../core/router/app_router.dart';
 import '../utils/i18n.dart';
 
@@ -56,7 +57,12 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
   void _navigateToWelcome() {
     if (_navigated || !mounted) return;
     _navigated = true;
-    context.replaceRoute(WelcomeRoute());
+    final isAuthenticated = AppAuthContext.repository?.currentUser != null;
+    if (isAuthenticated) {
+      context.replaceRoute(const ModeSelectionRoute());
+      return;
+    }
+    context.replaceRoute(const WelcomeRoute());
   }
 
   @override

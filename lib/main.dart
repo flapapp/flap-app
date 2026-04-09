@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -129,10 +130,30 @@ Future<void> _initMessaging() async {
   });
 }
 
-class MyApp extends StatelessWidget {
-  MyApp({super.key, required this.authRepository});
+class MyApp extends StatefulWidget {
+  const MyApp({super.key, required this.authRepository});
 
   final AuthRepository authRepository;
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final ReevaluateListenable _authReevaluateListenable;
+
+  @override
+  void initState() {
+    super.initState();
+    _authReevaluateListenable =
+        ReevaluateListenable.stream(widget.authRepository.authStateChanges);
+  }
+
+  @override
+  void dispose() {
+    _authReevaluateListenable.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +164,7 @@ class MyApp extends StatelessWidget {
 
     return BlocProvider(
       create: (context) => AuthBloc(
-            authRepository,
+            widget.authRepository,
             context.read<UserProfileRepository>(),
           )..add(const AuthStarted()),
       child: ValueListenableBuilder<String>(
@@ -165,7 +186,9 @@ class MyApp extends StatelessWidget {
             foregroundColor: Colors.white,
           ),
         ),
-        routerConfig: appRouter.config(),
+        routerConfig: appRouter.config(
+          reevaluateListenable: _authReevaluateListenable,
+        ),
       ),
     ),
     );

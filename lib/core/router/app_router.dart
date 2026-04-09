@@ -30,6 +30,7 @@ import 'package:flap_app/screens/welcome_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../../utils/app_navigator.dart';
+import 'auth_guards.dart';
 
 part 'app_router.gr.dart';
 
@@ -37,34 +38,42 @@ part 'app_router.gr.dart';
 class AppRouter extends _$AppRouter {
   AppRouter({super.navigatorKey});
 
+  final _authGuard = const AuthGuard();
+  final _guestOnlyGuard = const GuestOnlyGuard();
+  final _firstLaunchGuard = const FirstLaunchGuard();
+
   @override
   List<AutoRoute> get routes => [
-        AutoRoute(page: IntroVideoRoute.page, initial: true),
-        AutoRoute(page: WelcomeRoute.page),
-        AutoRoute(page: LoginRoute.page),
-        AutoRoute(page: RegisterRoute.page),
-        AutoRoute(page: AppProfileRoute.page),
-        AutoRoute(page: ProfileSettingsRoute.page),
-        AutoRoute(page: ProfileCreationRoute.page),
-        AutoRoute(page: ModeSelectionRoute.page),
-        AutoRoute(page: FriendsRoute.page),
-        AutoRoute(page: TeamHubRoute.page),
-        AutoRoute(page: VideoUploadRoute.page),
-        AutoRoute(page: VideoMainRoute.page),
-        AutoRoute(page: ChallengeListRoute.page),
-        AutoRoute(page: ChallengeCreateRoute.page),
-        AutoRoute(page: ChallengeDetailsRoute.page),
-        AutoRoute(page: MatchesRoute.page),
-        AutoRoute(page: RatingsRoute.page),
-        AutoRoute(page: MatchRatingRoute.page),
-        AutoRoute(page: MatchDetailsRoute.page),
-        AutoRoute(page: MatchManagementRoute.page),
-        AutoRoute(page: CreateMatchRoute.page),
-        AutoRoute(page: PlayerProfileRoute.page),
-        AutoRoute(page: NotificationsRoute.page),
-        AutoRoute(page: AdminRoute.page),
-        AutoRoute(page: TeamDetailsRoute.page),
-        AutoRoute(page: StatsRoute.page),
+        AutoRoute(
+          page: IntroVideoRoute.page,
+          initial: true,
+          guards: [_firstLaunchGuard],
+        ),
+        AutoRoute(page: WelcomeRoute.page, guards: [_guestOnlyGuard]),
+        AutoRoute(page: LoginRoute.page, guards: [_guestOnlyGuard]),
+        AutoRoute(page: RegisterRoute.page, guards: [_guestOnlyGuard]),
+        AutoRoute(page: AppProfileRoute.page, guards: [_authGuard]),
+        AutoRoute(page: ProfileSettingsRoute.page, guards: [_authGuard]),
+        AutoRoute(page: ProfileCreationRoute.page, guards: [_authGuard]),
+        AutoRoute(page: ModeSelectionRoute.page, guards: [_authGuard]),
+        AutoRoute(page: FriendsRoute.page, guards: [_authGuard]),
+        AutoRoute(page: TeamHubRoute.page, guards: [_authGuard]),
+        AutoRoute(page: VideoUploadRoute.page, guards: [_authGuard]),
+        AutoRoute(page: VideoMainRoute.page, guards: [_authGuard]),
+        AutoRoute(page: ChallengeListRoute.page, guards: [_authGuard]),
+        AutoRoute(page: ChallengeCreateRoute.page, guards: [_authGuard]),
+        AutoRoute(page: ChallengeDetailsRoute.page, guards: [_authGuard]),
+        AutoRoute(page: MatchesRoute.page, guards: [_authGuard]),
+        AutoRoute(page: RatingsRoute.page, guards: [_authGuard]),
+        AutoRoute(page: MatchRatingRoute.page, guards: [_authGuard]),
+        AutoRoute(page: MatchDetailsRoute.page, guards: [_authGuard]),
+        AutoRoute(page: MatchManagementRoute.page, guards: [_authGuard]),
+        AutoRoute(page: CreateMatchRoute.page, guards: [_authGuard]),
+        AutoRoute(page: PlayerProfileRoute.page, guards: [_authGuard]),
+        AutoRoute(page: NotificationsRoute.page, guards: [_authGuard]),
+        AutoRoute(page: AdminRoute.page, guards: [_authGuard]),
+        AutoRoute(page: TeamDetailsRoute.page, guards: [_authGuard]),
+        AutoRoute(page: StatsRoute.page, guards: [_authGuard]),
       ];
 }
 
