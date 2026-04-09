@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/features/challenges/domain/challenge_failure.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/features/matches/data/rating_service.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/profile/data/user_settings_service.dart';
@@ -86,6 +89,29 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             setState(() {
               _videoAuthorName = ud['displayName'] ?? ud['name'] ?? ud['email']?.toString().split('@').first ?? I18n.inline('Користувач', 'User');
               _videoAuthorAvatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
+            });
+          }
+        }
+        final cid = widget.challengeId;
+        final sid = widget.submissionUserId;
+        if (cid != null && sid != null && cid.isNotEmpty && sid.isNotEmpty && mounted) {
+          final repo = context.read<ChallengeRepository>();
+          final myVotes = await repo.loadMyVotes(cid);
+          final existing = myVotes[sid];
+          if (existing != null && mounted) {
+            setState(() {
+              _hasVoted = true;
+              _technical = existing;
+              _creativity = existing;
+              _difficulty = existing;
+              _quality = existing;
+            });
+          }
+          final sub = await repo.getSubmission(challengeId: cid, submissionUserId: sid);
+          if (sub != null && mounted) {
+            setState(() {
+              _videoAverageRating = sub.averageRating;
+              _videoVoteCount = sub.voteCount;
             });
           }
         }
@@ -274,72 +300,75 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
     setState(() { _isSubmittingVote = true; });
     try {
-      // Зважений рейтинг як у відео
       final weighted = (_technical * 0.4) + (_creativity * 0.3) + (_difficulty * 0.2) + (_quality * 0.1);
       final challengeId = widget.challengeId!;
       final targetUserId = widget.submissionUserId!;
 
-      // Уникнути дублю голосів
-      final voteDoc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .collection('votes')
-          .doc('${currentUser.id}_$targetUserId')
-          .get();
-      if (voteDoc.exists) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(I18n.inline('❌ Ви вже голосували за це відео!', '❌ You already voted for this video!')), backgroundColor: Colors.red),
-        );
+      final repo = context.read<ChallengeRepository>();
+      final prior = await repo.loadMyVotes(challengeId);
+      if (prior[targetUserId] != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(I18n.inline('❌ Ви вже голосували за це відео!', '❌ You already voted for this video!')),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
         return;
       }
 
-      await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .collection('votes')
-          .doc('${currentUser.id}_$targetUserId')
-          .set({
-        'voterId': currentUser.id,
-        'targetUserId': targetUserId,
-        'rating': weighted,
-        'criteria': {
-          'technical': _technical,
-          'creativity': _creativity,
-          'difficulty': _difficulty,
-          'quality': _quality,
-        },
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      await repo.castVote(
+        challengeId: challengeId,
+        submissionUserId: targetUserId,
+        rating: weighted,
+        awardCoin: false,
+      );
 
-      // Оновити агрегат у submissions
-      final submissionQuery = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .collection('submissions')
-          .where('userId', isEqualTo: targetUserId)
-          .limit(1)
-          .get();
-      if (submissionQuery.docs.isNotEmpty) {
-        final doc = submissionQuery.docs.first;
-        final data = doc.data();
-        final currentRating = (data['rating'] ?? 0.0).toDouble();
-        final currentVotes = (data['voteCount'] ?? 0).toInt();
-        final newVoteCount = currentVotes + 1;
-        final newRating = ((currentRating * currentVotes) + weighted) / newVoteCount;
-        await doc.reference.update({'rating': newRating, 'voteCount': newVoteCount});
+      try {
+        await RatingService().recomputeOverallRating(
+          targetUserId,
+          reason: 'challenge_vote',
+          source: currentUser.displayName ?? '',
+          sourceType: 'challenge',
+          sourceId: challengeId,
+        );
+      } catch (_) {}
+
+      final sub = await repo.getSubmission(
+        challengeId: challengeId,
+        submissionUserId: targetUserId,
+      );
+      if (!mounted) return;
+      if (sub != null) {
+        setState(() {
+          _videoAverageRating = sub.averageRating;
+          _videoVoteCount = sub.voteCount;
+        });
       }
 
       setState(() { _hasVoted = true; });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(I18n.inline('✅ Голос збережено (${weighted.toStringAsFixed(1)} ⭐)', '✅ Vote saved (${weighted.toStringAsFixed(1)} ⭐)'))),
       );
+    } on ChallengeFailure catch (f) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(I18n.inline('Помилка голосування: ${f.message}', 'Vote error: ${f.message}')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-  content: Text(I18n.inline('Помилка голосування: $e', 'Vote error: $e')),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(I18n.inline('Помилка голосування: $e', 'Vote error: $e')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() { _isSubmittingVote = false; });
     }

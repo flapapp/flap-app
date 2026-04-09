@@ -28,6 +28,9 @@ import 'features/admin/domain/repositories/admin_repository.dart';
 import 'features/badges/data/datasources/supabase_badge_remote_data_source.dart';
 import 'features/badges/data/repositories/badge_repository_impl.dart';
 import 'features/badges/domain/repositories/badge_repository.dart';
+import 'features/challenges/data/datasources/supabase_challenge_remote_data_source.dart';
+import 'features/challenges/data/repositories/challenge_repository_impl.dart';
+import 'features/challenges/domain/repositories/challenge_repository.dart';
 import 'firebase_options.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/subscription/data/subscription_service.dart';
@@ -62,6 +65,8 @@ Future<void> main() async {
 
   final adminRepo = AdminRepositoryImpl(SupabaseAdminRemoteDataSource());
   final badgeRepo = BadgeRepositoryImpl(SupabaseBadgeRemoteDataSource());
+  final challengeRepo =
+      ChallengeRepositoryImpl(SupabaseChallengeRemoteDataSource());
 
   runApp(
     MultiRepositoryProvider(
@@ -72,6 +77,7 @@ Future<void> main() async {
         ),
         RepositoryProvider<AdminRepository>.value(value: adminRepo),
         RepositoryProvider<BadgeRepository>.value(value: badgeRepo),
+        RepositoryProvider<ChallengeRepository>.value(value: challengeRepo),
       ],
       child: MyApp(authRepository: authRepo),
     ),

@@ -1,9 +1,10 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/models/notification.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flap_app/models/challenge.dart';
 import 'package:flap_app/features/videos/presentation/screens/video_player_screen.dart';
 import 'package:flap_app/models/match.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -481,15 +482,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _openChallengeById(String challengeId) async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('challenges').doc(challengeId).get();
-      if (!doc.exists) {
+      final challenge =
+          await context.read<ChallengeRepository>().getChallenge(challengeId);
+      if (challenge == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(I18n.inline('Челендж не знайдено', 'Challenge not found'))),
         );
         return;
       }
-      final challenge = Challenge.fromFirestore(doc);
       if (!mounted) return;
       Navigator.pushNamed(context, '/challenge-details', arguments: challenge);
     } catch (e) {

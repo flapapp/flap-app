@@ -1,10 +1,11 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flap_app/constants/video_categories.dart';
-import 'package:flap_app/features/challenges/data/challenge_service.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/features/videos/data/thumbnail_service.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/core/app_auth_context.dart';
@@ -609,30 +610,17 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   Future<void> _submitVideoToChallenge(String videoId, String videoUrl) async {
     try {
       final user = AppAuthContext.currentUser!;
-      final challengeService = ChallengeService();
-      
-      // Додаємо відео до челенджу
-      await challengeService.addVideoToChallenge(widget.challengeId!, user.id);
-      
-      // Створюємо submission документ
-      await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challengeId!)
-          .collection('submissions')
-          .doc(user.id)
-          .set({
-        'userId': user.id,
-        'videoId': videoId,
-        'videoUrl': videoUrl,
-        'title': _titleController.text.trim(),
-        'authorName': user.displayName ?? user.email?.split('@')[0] ?? I18n.inline('Користувач', 'User'),
-        'createdAt': FieldValue.serverTimestamp(),
-        'averageRating': 0.0,
-        'voteCount': 0,
-        'votes': <String, dynamic>{},
-        'thumbnailUrl': null, // Буде оновлено після генерації
-        'isCreatorVideo': false,
-      });
+      final author =
+          user.displayName ?? user.email?.split('@')[0] ?? I18n.inline('Користувач', 'User');
+      await context.read<ChallengeRepository>().upsertSubmission(
+            challengeId: widget.challengeId!,
+            userId: user.id,
+            videoId: videoId,
+            videoUrl: videoUrl,
+            title: _titleController.text.trim(),
+            authorName: author,
+            isCreatorVideo: false,
+          );
 
       print('✅ Video submitted to challenge: ${widget.challengeId}');
       
@@ -661,15 +649,15 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
           // Якщо це відео для челенджу, оновлюємо submission з thumbnailUrl
           if (widget.challengeId != null) {
             try {
-              await FirebaseFirestore.instance
-                  .collection('challenges')
-                  .doc(widget.challengeId!)
-                  .collection('submissions')
-                  .doc(userId)
-                  .update({
-                'thumbnailUrl': thumbnailUrl,
-                'thumbnailGenerated': true,
-              });
+              // ignore: use_build_context_synchronously
+              final ctx = context;
+              if (ctx.mounted) {
+                await ctx.read<ChallengeRepository>().setSubmissionThumbnail(
+                      challengeId: widget.challengeId!,
+                      userId: userId,
+                      thumbnailUrl: thumbnailUrl,
+                    );
+              }
               print('✅ Submission thumbnail updated for challenge: ${widget.challengeId}');
             } catch (e) {
               print('⚠️ Failed to update submission thumbnail: $e');

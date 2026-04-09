@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:video_player/video_player.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class WebThumbnailService {
   static final WebThumbnailService _instance = WebThumbnailService._internal();
@@ -84,15 +85,15 @@ class WebThumbnailService {
     required String userId,
   }) async {
     try {
-      // Для челенджів також використовуємо відео URL
-      await _firestore
-          .collection('challenges')
-          .doc(challengeId)
-          .update({
-        'creatorThumbnailUrl': videoUrl,
-        'thumbnailGenerated': true,
-        'thumbnailType': 'web_video_preview',
-      });
+      // Web preview: store video URL as creator thumbnail (RPC keeps video URL if empty).
+      await Supabase.instance.client.rpc<void>(
+        'challenge_set_creator_video',
+        params: <String, dynamic>{
+          'p_challenge_id': challengeId,
+          'p_creator_video_url': '',
+          'p_creator_thumbnail_url': videoUrl,
+        },
+      );
 
       print('✅ Web challenge thumbnail created: $challengeId');
       return videoUrl;

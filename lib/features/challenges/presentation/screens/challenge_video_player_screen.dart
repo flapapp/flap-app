@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flap_app/features/matches/data/rating_tracking_service.dart';
+import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
+import 'package:flap_app/features/challenges/domain/challenge_failure.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/features/matches/data/rating_service.dart';
 import 'package:flap_app/features/profile/data/user_settings_service.dart';
 import 'package:flap_app/widgets/user_chip.dart';
@@ -36,8 +38,6 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   ChewieController? _chewieController;
   bool _isLoading = true;
   String? _error;
-  final RatingTrackingService _ratingService = RatingTrackingService();
-  
   // Голосування за відео в челенджі (0.00 - 5.00 з кроком 0.01) - ОДНИМ повзунком
   double _rating = 2.50;
   double _tempRating = 2.50; // Тимчасове значення для плавності
@@ -55,9 +55,11 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   void initState() {
     super.initState();
     _initializeVideo();
-    _checkIfVoted();
     _tempRatingNotifier.value = _tempRating;
-    _loadSubmissionAggregate();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkIfVoted();
+      _loadSubmissionAggregate();
+    });
   }
 
   Future<void> _initializeVideo() async {
@@ -173,54 +175,64 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   }
 
   Future<void> _loadSubmissionAggregate() async {
+    if (!mounted) return;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challengeId)
-          .collection('submissions')
-          .doc(widget.submissionId)
-          .get();
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
+      final entry = await context.read<ChallengeRepository>().getSubmission(
+            challengeId: widget.challengeId,
+            submissionUserId: widget.submissionId,
+          );
+      if (!mounted) return;
+      if (entry != null) {
         setState(() {
-          _submissionAverageRating = (data['averageRating'] ?? data['rating'] ?? 0.0).toDouble();
-          _submissionVoteCount = (data['voteCount'] ?? 0).toInt();
-          _submissionAuthorId = (data['userId'] ?? '') as String?;
+          _submissionAverageRating = entry.averageRating;
+          _submissionVoteCount = entry.voteCount;
+          _submissionAuthorId = entry.userId.isNotEmpty ? entry.userId : widget.submissionId;
         });
-        // Load author profile
-        if (_submissionAuthorId != null && _submissionAuthorId!.isNotEmpty) {
+        final aid = _submissionAuthorId;
+        if (aid != null && aid.isNotEmpty) {
           try {
-            final userDoc = await FirebaseFirestore.instance.collection('users').doc(_submissionAuthorId!).get();
-            if (userDoc.exists) {
-              final u = userDoc.data() as Map<String, dynamic>;
+            final prof = await context.read<UserProfileRepository>().loadProfile(aid);
+            if (!mounted) return;
+            if (prof != null) {
               setState(() {
-                _submissionAuthorName = u['displayName'] ?? u['name'] ?? u['email']?.toString().split('@').first ?? I18n.inline('Користувач', 'User');
-                _submissionAuthorAvatar = u['avatarUrl'] ?? u['avatar'] ?? '';
+                _submissionAuthorName = prof.resolveDisplayName().isNotEmpty
+                    ? prof.resolveDisplayName()
+                    : (entry.authorName.isNotEmpty
+                        ? entry.authorName
+                        : I18n.inline('Користувач', 'User'));
+                _submissionAuthorAvatar = prof.avatarUrl ?? '';
+              });
+            } else if (entry.authorName.isNotEmpty) {
+              setState(() {
+                _submissionAuthorName = entry.authorName;
               });
             }
           } catch (_) {}
         }
+      } else {
+        setState(() {
+          _submissionAuthorId = widget.submissionId;
+          _submissionAuthorName = widget.authorName;
+        });
       }
     } catch (_) {}
   }
 
   Future<void> _checkIfVoted() async {
+    if (!mounted) return;
     try {
       final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) return;
 
-      final voteDoc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challengeId)
-          .collection('votes')
-          .doc('${currentUser.id}_${widget.submissionId}')
-          .get();
-
-      if (voteDoc.exists) {
-        final voteData = voteDoc.data() as Map<String, dynamic>;
+      final myVotes = await context.read<ChallengeRepository>().loadMyVotes(widget.challengeId);
+      final existing = myVotes[widget.submissionId];
+      if (!mounted) return;
+      if (existing != null) {
         setState(() {
           _hasVoted = true;
-          _rating = (voteData['rating'] ?? 2.50).toDouble();
+          _rating = existing;
+          _tempRating = existing;
+          _tempRatingNotifier.value = existing;
         });
       }
     } catch (e) {
@@ -597,78 +609,34 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         throw Exception(I18n.inline('Користувач не авторизований', 'User not authorized'));
       }
 
-      // Перевіряємо чи користувач не голосує за себе та зберігаємо videoId
-      String? submissionVideoId;
-      String? submissionAuthorId;
-
-      final submissionDoc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challengeId)
-          .collection('submissions')
-          .doc(widget.submissionId)
-          .get();
-          
-      if (submissionDoc.exists) {
-        final submissionData = submissionDoc.data() as Map<String, dynamic>;
-        final submissionUserId = (submissionData['userId'] ?? '') as String;
-        submissionVideoId = (submissionData['videoId'] ?? '') as String?;
-        submissionAuthorId = submissionUserId;
-        
-        if (submissionUserId == currentUser.id) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(I18n.inline('❌ Не можна голосувати за себе!', '❌ Cannot vote for yourself!')),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          setState(() => _isVoting = false);
-          return;
+      final submissionUserId = widget.submissionId;
+      if (submissionUserId == currentUser.id) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(I18n.inline('❌ Не можна голосувати за себе!', '❌ Cannot vote for yourself!')),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
+        setState(() => _isVoting = false);
+        return;
       }
 
-      // Save vote to challenge votes subcollection
-      await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challengeId)
-          .collection('votes')
-          .doc('${currentUser.id}_${widget.submissionId}')
-          .set({
-        'userId': currentUser.id,
-        'submissionId': widget.submissionId,
-        'challengeId': widget.challengeId,
-        'rating': _rating,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      final repo = context.read<ChallengeRepository>();
+      final entry = await repo.getSubmission(
+        challengeId: widget.challengeId,
+        submissionUserId: submissionUserId,
+      );
+      final submissionVideoId = entry?.videoId;
 
-      // Update submission rating
-      final submissionRef = FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challengeId)
-          .collection('submissions')
-          .doc(widget.submissionId);
-          
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final submissionDoc = await transaction.get(submissionRef);
-        if (!submissionDoc.exists) return;
+      await repo.castVote(
+        challengeId: widget.challengeId,
+        submissionUserId: submissionUserId,
+        rating: _rating,
+        awardCoin: true,
+      );
 
-        final data = submissionDoc.data() as Map<String, dynamic>;
-        final currentRating = (data['averageRating'] ?? 0.0).toDouble();
-        final currentVotes = (data['voteCount'] ?? 0).toInt();
-        
-        final newVotes = currentVotes + 1;
-        final newRating = ((currentRating * currentVotes) + _rating) / newVotes;
-
-        transaction.update(submissionRef, {
-          'averageRating': newRating,
-          'voteCount': newVotes,
-        });
-        _submissionAverageRating = newRating;
-        _submissionVoteCount = newVotes;
-      });
-
-      // Записуємо голос у «відео» стандартним шляхом, щоб перерахунок рейтингу автора був ідентичним
       if (submissionVideoId != null && submissionVideoId.isNotEmpty) {
         try {
           await RatingService().rateVideo(
@@ -684,23 +652,17 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         } catch (_) {}
       }
 
-      // Award coins for voting
-      await FirebaseFirestore.instance.collection('users').doc(currentUser.id).update({
-        'coins': FieldValue.increment(1), // +1 coin for voting
-      });
-
-      // Record transaction with unified type 'voting_reward'
-      await FirebaseFirestore.instance.collection('transactions').add({
-        'userId': currentUser.id,
-        'type': 'voting_reward',
-        'amount': 1,
-        'challengeId': widget.challengeId,
-        'submissionId': widget.submissionId,
-        'timestamp': FieldValue.serverTimestamp(),
-        'description': I18n.inline('Нагорода за голосування в челенджі', 'Reward for voting in challenge'),
-      });
-
-      // Додатковий recompute не потрібен — rateVideo вже зробив оновлення рейтингу автора
+      final updated = await repo.getSubmission(
+        challengeId: widget.challengeId,
+        submissionUserId: submissionUserId,
+      );
+      if (!mounted) return;
+      if (updated != null) {
+        setState(() {
+          _submissionAverageRating = updated.averageRating;
+          _submissionVoteCount = updated.voteCount;
+        });
+      }
 
       setState(() {
         _hasVoted = true;
@@ -710,20 +672,33 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('✅ Ваша оцінка ${_rating.toStringAsFixed(2)} збережена! +1 монета', '✅ Your rating ${_rating.toStringAsFixed(2)} saved! +1 coin')),
+            content: Text(I18n.inline(
+              '✅ Ваша оцінка ${_rating.toStringAsFixed(2)} збережена! +1 монета',
+              '✅ Your rating ${_rating.toStringAsFixed(2)} saved! +1 coin',
+            )),
             backgroundColor: const Color(0xFF4caf50),
           ),
         );
       }
-    } catch (e) {
-      setState(() {
-        _isVoting = false;
-      });
-      
+    } on ChallengeFailure catch (f) {
       if (mounted) {
+        setState(() => _isVoting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('❌ Помилка збереження оцінки: ${e.toString()}', '❌ Error saving rating: ${e.toString()}')),
+            content: Text(I18n.inline('❌ ${f.message}', '❌ ${f.message}')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isVoting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(I18n.inline(
+              '❌ Помилка збереження оцінки: ${e.toString()}',
+              '❌ Error saving rating: ${e.toString()}',
+            )),
             backgroundColor: Colors.red,
           ),
         );

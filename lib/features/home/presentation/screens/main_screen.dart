@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
+import 'package:flap_app/features/challenges/presentation/bloc/challenges_bloc.dart';
+import 'package:flap_app/features/challenges/presentation/bloc/challenges_event.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/videos/presentation/screens/videos_screen.dart';
 import 'package:flap_app/features/challenges/presentation/screens/challenges_screen.dart';
@@ -229,7 +233,13 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         controller: _tabController,
         children: [
           VideosScreen(showOnlyMyVideos: widget.showOnlyMyVideos),
-          ChallengesScreen(showOnlyMyChallenges: widget.showOnlyMyChallenges),
+          BlocProvider(
+            create: (ctx) => ChallengesBloc(ctx.read<ChallengeRepository>())
+              ..add(const ChallengesStarted()),
+            child: ChallengesScreen(
+              showOnlyMyChallenges: widget.showOnlyMyChallenges,
+            ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(

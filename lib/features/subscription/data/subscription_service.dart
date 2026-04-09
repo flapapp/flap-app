@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/models/subscription.dart';
 import 'package:flap_app/utils/i18n.dart';
 
@@ -293,17 +294,18 @@ class SubscriptionService {
     final limit = await getChallengeLimit(userId);
     if (limit == -1) return true; // Unlimited
 
-    // Count challenges created this month
     final now = DateTime.now();
     final monthStart = DateTime(now.year, now.month, 1);
-    
-    final challengesCount = await _firestore.collection('challenges')
-        .where('creatorId', isEqualTo: userId)
-        .where('createdAt', isGreaterThan: Timestamp.fromDate(monthStart))
-        .count()
-        .get();
+    final isoStart = monthStart.toUtc().toIso8601String();
 
-    return challengesCount.count! < limit;
+    final rows = await Supabase.instance.client
+        .from('challenges')
+        .select('id')
+        .eq('creator_id', userId)
+        .gte('created_at', isoStart);
+    final challengesCount = (rows as List).length;
+
+    return challengesCount < limit;
   }
 
   // Get subscription benefits text

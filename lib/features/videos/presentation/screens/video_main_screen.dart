@@ -1,6 +1,9 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/features/challenges/domain/challenge_failure.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/auth_sign_out_helper.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -230,32 +233,17 @@ int _compareVideoDocs(
     }
     _challengeCreatorThumbLoading.add(challengeId);
     try {
-      String? thumbUrl;
-      final directDoc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .collection('submissions')
-          .doc(creatorId)
-          .get();
-      final directData = directDoc.data();
-      thumbUrl = (directData?['thumbnailUrl'] ?? '').toString().trim();
+      if (!mounted) return;
+      final repo = context.read<ChallengeRepository>();
+      var thumbUrl = (await repo.getSubmission(
+                challengeId: challengeId,
+                submissionUserId: creatorId,
+              ))
+          ?.thumbnailUrl
+          .trim();
+      if (thumbUrl != null && thumbUrl.isEmpty) thumbUrl = null;
 
-      if (thumbUrl.isEmpty) {
-        final fallback = await FirebaseFirestore.instance
-            .collection('challenges')
-            .doc(challengeId)
-            .collection('submissions')
-            .where('isCreatorVideo', isEqualTo: true)
-            .limit(1)
-            .get();
-        if (fallback.docs.isNotEmpty) {
-          thumbUrl =
-              (fallback.docs.first.data()['thumbnailUrl'] ?? '').toString().trim();
-        }
-      }
-
-      _challengeCreatorThumbCache[challengeId] =
-          thumbUrl.isEmpty ? null : thumbUrl;
+      _challengeCreatorThumbCache[challengeId] = thumbUrl;
       if (mounted) setState(() {});
     } catch (_) {
       _challengeCreatorThumbCache[challengeId] = null;
@@ -932,43 +920,21 @@ Widget build(BuildContext context) {
     }
     _challengeMetaLoading.add(videoId);
     try {
-      final submissions = await FirebaseFirestore.instance
-          .collectionGroup('submissions')
-          .where('videoId', isEqualTo: videoId)
-          .limit(1)
-          .get();
-      if (submissions.docs.isEmpty) return;
-      final doc = submissions.docs.first;
-      final challengeRef = doc.reference.parent.parent;
-      if (challengeRef == null) return;
-      final challengeSnap = await challengeRef.get();
-      if (!challengeSnap.exists) return;
-      final challengeData =
-          challengeSnap.data() as Map<String, dynamic>? ?? const {};
-      final title = (challengeData['title'] ?? '').toString();
-      final challengeId = challengeRef.id;
+      if (!mounted) return;
+      final link =
+          await context.read<ChallengeRepository>().findChallengeForVideo(videoId);
+      if (link == null) return;
       if (mounted) {
         setState(() {
           _challengeMetaCache[videoId] = _CachedChallengeMeta(
-            challengeId: challengeId,
-            title: title,
+            challengeId: link.challengeId,
+            title: link.title,
           );
         });
       }
-    } on FirebaseException catch (e) {
-  if (e.code == 'permission-denied') {
-    _challengeMetaDenied.add(videoId);
-    // блокуємо повторні запити для цього videoId, щоб не було "спаму" у логах
-    _challengeMetaCache[videoId] = const _CachedChallengeMeta(
-      challengeId: '',
-      title: '',
-    );
-    return;
-  }
-  debugPrint('Error prefetching challenge meta for video $videoId: $e');
-} catch (e) {
-  debugPrint('Error prefetching challenge meta for video $videoId: $e');
-} finally {
+    } catch (e) {
+      debugPrint('Error prefetching challenge meta for video $videoId: $e');
+    } finally {
       _challengeMetaLoading.remove(videoId);
     }
   }
@@ -2083,14 +2049,10 @@ Widget build(BuildContext context) {
 
   Future<void> _openChallenge(String challengeId, String title) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .get();
-      if (!doc.exists) {
+      final challenge = await context.read<ChallengeRepository>().getChallenge(challengeId);
+      if (challenge == null) {
         throw Exception('Challenge not found');
       }
-      final challenge = Challenge.fromFirestore(doc);
       if (!mounted) return;
       Navigator.pushNamed(
         context,
@@ -2324,20 +2286,8 @@ Widget build(BuildContext context) {
 
   // Список челенджів
   Widget _buildChallengesList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: (() {
-        Query q = FirebaseFirestore.instance.collection('challenges');
-        if (_showOnlyMyChallenges) {
-          final uid = AppAuthContext.userId;
-          if (uid != null) {
-            q = q.where('creatorId', isEqualTo: uid);
-          }
-          q = q.limit(20);
-        } else {
-          q = q.orderBy('createdAt', descending: true).limit(20);
-        }
-        return q.snapshots();
-      })(),
+    return StreamBuilder<List<Challenge>>(
+      stream: context.read<ChallengeRepository>().watchChallenges(limit: 100),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
@@ -2347,11 +2297,18 @@ Widget build(BuildContext context) {
           );
         }
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final challenges = snapshot.data?.docs ?? [];
+        var challenges = snapshot.data ?? [];
+        if (_showOnlyMyChallenges) {
+          final uid = AppAuthContext.userId;
+          challenges = uid == null
+              ? <Challenge>[]
+              : challenges.where((c) => c.creatorId == uid).toList();
+        }
+        challenges = challenges.take(20).toList();
 
         if (challenges.isEmpty) {
           return Center(
@@ -2408,8 +2365,7 @@ Widget build(BuildContext context) {
           padding: const EdgeInsets.all(20),
           itemCount: challenges.length,
           itemBuilder: (context, index) {
-            final challenge = challenges[index].data() as Map<String, dynamic>;
-            return _buildChallengeCard(challenge, challenges[index].id);
+            return _buildChallengeCard(challenges[index]);
           },
         );
       },
@@ -2417,24 +2373,21 @@ Widget build(BuildContext context) {
   }
 
   // Картка челенджу
-  Widget _buildChallengeCard(Map<String, dynamic> challenge, String challengeId) {
-    final status = (challenge['status'] ?? 'recruiting').toString();
-    final type = (challenge['type'] ?? 'goal').toString();
+  Widget _buildChallengeCard(Challenge challenge) {
+    final challengeId = challenge.id;
+    final status = challenge.status.name;
+    final type = challenge.type.name;
     final accent = _challengeTypeColor(type);
-    final currentParticipants = challenge['currentParticipants'] ?? 0;
-    final maxParticipants = challenge['maxParticipants'] ?? 50;
-    final prizePool = (challenge['prizePool'] ?? 0.0).toDouble();
-    final entryFee = challenge['entryFee'] ?? 10;
-    final duration = challenge['duration'] ?? 7;
-    final creatorId = (challenge['creatorId'] ?? '').toString();
-    final creatorName = (challenge['creatorName'] ??
-            I18n.inline('Невідомо', 'Unknown'))
-        .toString();
-    final creatorVideoUrl =
-        (challenge['creatorVideoUrl'] ?? '').toString();
-    String creatorThumbnailUrl =
-        (challenge['creatorThumbnailUrl'] ?? challenge['thumbnailUrl'] ?? '')
-            .toString();
+    final currentParticipants = challenge.currentParticipants;
+    final prizePool = challenge.prizePool;
+    final entryFee = challenge.entryFee;
+    final duration = challenge.duration;
+    final creatorId = challenge.creatorId;
+    final creatorName = challenge.creatorName.isNotEmpty
+        ? challenge.creatorName
+        : I18n.inline('Невідомо', 'Unknown');
+    final creatorVideoUrl = challenge.creatorVideoUrl ?? '';
+    String creatorThumbnailUrl = challenge.creatorThumbnailUrl ?? '';
     if (creatorThumbnailUrl.isEmpty && creatorId.isNotEmpty) {
       final cachedThumb = _challengeCreatorThumbCache[challengeId];
       if (cachedThumb != null && cachedThumb.isNotEmpty) {
@@ -2443,27 +2396,19 @@ Widget build(BuildContext context) {
         _prefetchChallengeCreatorThumbnail(challengeId, creatorId);
       }
     }
-    final participants =
-        List<String>.from(challenge['participants'] ?? const []);
+    final participants = challenge.participants;
     final now = DateTime.now();
-    final createdAtTs = challenge['createdAt'] as Timestamp?;
-    final votingDeadlineTs = challenge['votingDeadline'] as Timestamp?;
-    final endDateTs = challenge['endDate'] as Timestamp?;
-    final votingDeadline = votingDeadlineTs?.toDate() ?? endDateTs?.toDate();
-    final createdAt = createdAtTs?.toDate() ?? now;
-    final isCompletedByDate =
-        votingDeadline != null && now.isAfter(votingDeadline);
+    final votingDeadline = challenge.votingDeadline;
+    final createdAt = challenge.createdAt;
+    final isCompletedByDate = now.isAfter(votingDeadline);
     final isCompleted = status == 'completed' || isCompletedByDate;
     final displayStatus = isCompleted ? 'completed' : status;
-    final remaining = votingDeadline?.difference(now) ?? Duration.zero;
+    final remaining = votingDeadline.difference(now);
     final remainingDays =
         remaining.inSeconds <= 0 ? 0 : (remaining.inHours / 24).ceil();
-    final totalSeconds = votingDeadline != null
-        ? votingDeadline.difference(createdAt).inSeconds
-        : 0;
-    final elapsedSeconds = votingDeadline != null
-        ? now.difference(createdAt).inSeconds.clamp(0, totalSeconds)
-        : 0;
+    final totalSeconds = votingDeadline.difference(createdAt).inSeconds;
+    final elapsedSeconds =
+        now.difference(createdAt).inSeconds.clamp(0, totalSeconds);
     final timelineProgress = totalSeconds > 0
         ? (elapsedSeconds / totalSeconds).clamp(0.0, 1.0)
         : 0.0;
@@ -2524,7 +2469,9 @@ Widget build(BuildContext context) {
                   children: [
                     Expanded(
                       child: Text(
-                  challenge['title'] ?? I18n.inline('Без назви', 'Untitled'),
+                  challenge.title.isNotEmpty
+                      ? challenge.title
+                      : I18n.inline('Без назви', 'Untitled'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -2556,8 +2503,9 @@ Widget build(BuildContext context) {
                 _buildCategoryLabel(_challengeTypeLabel(type), accent),
                 const SizedBox(height: 8),
                 Text(
-                  challenge['description'] ??
-                      I18n.inline('Без опису', 'No description'),
+                  challenge.description.isNotEmpty
+                      ? challenge.description
+                      : I18n.inline('Без опису', 'No description'),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 13,
@@ -2630,8 +2578,9 @@ Widget build(BuildContext context) {
                           MaterialPageRoute(
                             builder: (_) => VideoPlayerScreen(
                               videoUrl: creatorVideoUrl,
-                              title: challenge['title'] ??
-                                  I18n.inline('Відео челенджу', 'Challenge video'),
+                              title: challenge.title.isNotEmpty
+                                  ? challenge.title
+                                  : I18n.inline('Відео челенджу', 'Challenge video'),
                               authorName: creatorName,
                               videoId: challengeId,
                             ),
@@ -2759,7 +2708,7 @@ Widget build(BuildContext context) {
                           ],
                         ),
                       child: ElevatedButton.icon(
-                          onPressed: () => _viewChallengeDetails(challengeId, challenge),
+                          onPressed: () => _viewChallengeDetails(challenge),
                         style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
@@ -2804,7 +2753,7 @@ Widget build(BuildContext context) {
                         child: ElevatedButton.icon(
                           onPressed: isCompleted
                               ? null
-                              : () => _joinChallenge(challengeId, challenge),
+                              : () => _joinChallenge(challenge),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
@@ -3274,16 +3223,14 @@ Widget build(BuildContext context) {
   }
 
   // Методи для роботи з челенджами
-  void _joinChallenge(String challengeId, Map<String, dynamic> challenge) {
-    // Перевірити чи користувач вже учасник
+  void _joinChallenge(Challenge challenge) {
+    final challengeId = challenge.id;
     final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return;
-    final votingDeadline = (challenge['votingDeadline'] as Timestamp?)?.toDate();
-    final endDate = (challenge['endDate'] as Timestamp?)?.toDate();
-    final isCompletedByDate = (votingDeadline != null &&
-            DateTime.now().isAfter(votingDeadline)) ||
-        (endDate != null && DateTime.now().isAfter(endDate));
-    if ((challenge['status'] ?? '') == 'completed' || isCompletedByDate) {
+    final now = DateTime.now();
+    final isCompletedByDate =
+        now.isAfter(challenge.votingDeadline) || now.isAfter(challenge.endDate);
+    if (challenge.status == ChallengeStatus.completed || isCompletedByDate) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -3311,8 +3258,8 @@ Widget build(BuildContext context) {
           children: [
             Text(
               I18n.inline(
-                'Ви приєднуєтеся до челенджу "${challenge['title']}"',
-                'You are joining the challenge "${challenge['title']}"',
+                'Ви приєднуєтеся до челенджу "${challenge.title}"',
+                'You are joining the challenge "${challenge.title}"',
               ),
               style: const TextStyle(color: Colors.white),
               textAlign: TextAlign.center,
@@ -3320,8 +3267,8 @@ Widget build(BuildContext context) {
             const SizedBox(height: 16),
             Text(
               I18n.inline(
-                'Ставка входу: ${challenge['entryFee'] ?? 0} монет',
-                'Entry fee: ${challenge['entryFee'] ?? 0} coins',
+                'Ставка входу: ${challenge.entryFee} монет',
+                'Entry fee: ${challenge.entryFee} coins',
               ),
               style: const TextStyle(color: Colors.white70),
             ),
@@ -3338,28 +3285,28 @@ Widget build(BuildContext context) {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              
-              // Спочатку додаємо користувача в учасники
+
               try {
-                await FirebaseFirestore.instance
-                    .collection('challenges')
-                    .doc(challengeId)
-                    .update({
-                  'participants': FieldValue.arrayUnion([currentUser.id]),
-                  'currentParticipants': FieldValue.increment(1),
-                });
-                
-                // Тепер переходимо до завантаження відео
-    Navigator.pushNamed(
-      context,
-      '/video-upload',
-      arguments: {
-        'challengeId': challengeId,
-        'challengeTitle': challenge['title'],
-        'isChallengeVideo': true,
-      },
+                await context.read<ChallengeRepository>().joinChallenge(challengeId);
+                if (!mounted) return;
+                Navigator.pushNamed(
+                  context,
+                  '/video-upload',
+                  arguments: {
+                    'challengeId': challengeId,
+                    'challengeTitle': challenge.title,
+                    'isChallengeVideo': true,
+                  },
+                );
+              } on ChallengeFailure catch (f) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(I18n.inline('Помилка приєднання: ${f.message}', 'Join error: ${f.message}')),
+                  ),
                 );
               } catch (e) {
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(I18n.inline('Помилка приєднання: $e', 'Join error: $e'))),
                 );
@@ -3376,46 +3323,7 @@ Widget build(BuildContext context) {
     );
   }
 
-  void _viewChallengeDetails(String challengeId, Map<String, dynamic> challengeData) {
-    // Створюємо Challenge об'єкт з даних
-    final challenge = Challenge(
-      id: challengeId,
-      title: challengeData['title'] ?? '',
-      description: challengeData['description'] ?? '',
-      type: parseChallengeType(challengeData['type'] as String?),
-      audience: ChallengeAudience.values.firstWhere(
-        (e) => e.toString() == 'ChallengeAudience.${challengeData['audience']}',
-        orElse: () => ChallengeAudience.city,
-      ),
-      creatorId: challengeData['creatorId'] ?? '',
-      creatorName: challengeData['creatorName'] ?? '',
-      city: challengeData['city'] ?? '',
-      entryFee: challengeData['entryFee'] ?? 10,
-      duration: challengeData['duration'] ?? 7,
-      createdAt: (challengeData['createdAt'] as Timestamp).toDate(),
-      startDate: (challengeData['startDate'] as Timestamp).toDate(),
-      submissionDeadline: (challengeData['submissionDeadline'] as Timestamp).toDate(),
-      votingDeadline: (challengeData['votingDeadline'] as Timestamp).toDate(),
-      endDate: (challengeData['endDate'] as Timestamp).toDate(),
-      status: ChallengeStatus.values.firstWhere(
-        (e) => e.toString() == 'ChallengeStatus.${challengeData['status']}',
-        orElse: () => ChallengeStatus.recruiting,
-      ),
-      maxParticipants: challengeData['maxParticipants'] ?? 50,
-      currentParticipants: challengeData['currentParticipants'] ?? 0,
-      prizePool: (challengeData['prizePool'] ?? 0.0).toDouble(),
-      participants: List<String>.from(challengeData['participants'] ?? []),
-      submissions: List<String>.from(challengeData['submissions'] ?? []),
-      votes: Map<String, double>.from(challengeData['votes'] ?? {}),
-      detailedVotes: Map<String, Map<String, double>>.from(challengeData['detailedVotes'] ?? {}),
-      winners: List<String>.from(challengeData['winners'] ?? []),
-      finalScores: Map<String, double>.from(challengeData['finalScores'] ?? {}),
-      isActive: challengeData['isActive'] ?? true,
-      imageUrl: challengeData['imageUrl'],
-      tags: List<String>.from(challengeData['tags'] ?? []),
-    );
-    
-    // Переходимо на екран деталей челенджу
+  void _viewChallengeDetails(Challenge challenge) {
     Navigator.pushNamed(
       context,
       '/challenge-details',

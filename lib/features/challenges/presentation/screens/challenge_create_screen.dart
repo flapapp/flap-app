@@ -5,8 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 // Removed dart:io to support web build
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flap_app/models/challenge.dart';
-import 'package:flap_app/features/challenges/data/challenge_service.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/videos/data/thumbnail_service.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -38,7 +39,6 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   bool _isCreating = false;
   XFile? _selectedVideoFile;
   
-  final ChallengeService _challengeService = ChallengeService();
   final Set<String> _selectedInviteFriendIds = <String>{};
 
   final List<String> _cities = [
@@ -1220,17 +1220,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         tags: _generateTags(),
       );
 
-      final challengeId = await _challengeService.createChallenge(challenge);
-      
-      if (challengeId != null) {
-        // Додаємо створювача як учасника (статус вже правильний)
-        await FirebaseFirestore.instance
-            .collection('challenges')
-            .doc(challengeId)
-            .update({
-          'participants': FieldValue.arrayUnion([currentUser.id]),
-          'currentParticipants': FieldValue.increment(1),
-        });
+      final challengeId =
+          await context.read<ChallengeRepository>().createChallenge(challenge);
+
+      {
+        await context.read<ChallengeRepository>().addCreatorParticipant(challengeId);
 
         // Надсилаємо інвайти обраним друзям (якщо обрали)
         if (_selectedInviteFriendIds.isNotEmpty) {
@@ -1253,13 +1247,10 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             if (creatorVideoUrl != null && creatorVideoUrl.isNotEmpty) {
               print('Creator video upload completed successfully with URL: $creatorVideoUrl');
               
-              // Оновлюємо челендж з URL відео творця
-              await FirebaseFirestore.instance
-                  .collection('challenges')
-                  .doc(challengeId)
-                  .update({
-                'creatorVideoUrl': creatorVideoUrl,
-              });
+              await context.read<ChallengeRepository>().setCreatorVideo(
+                    challengeId,
+                    creatorVideoUrl,
+                  );
               print('Updated challenge $challengeId with creatorVideoUrl: $creatorVideoUrl');
               
             } else {
@@ -1353,8 +1344,6 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             );
           },
         );
-      } else {
-        throw Exception(I18n.inline('Помилка створення челенджу', 'Failed to create challenge'));
       }
     } catch (e) {
       // Показати помилку
@@ -1543,48 +1532,24 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         createdVideoDocId = videoDoc.id;
       } catch (_) {}
 
-      // Зберігаємо відео створювача в submissions і помічаємо як головне
-      print('Saving creator video to submissions collection...');
+      print('Saving creator video to submissions (Supabase)...');
       try {
-        await FirebaseFirestore.instance
-            .collection('challenges')
-            .doc(challengeId)
-            .collection('submissions')
-            .doc(userId)
-            .set({
-          'userId': userId,
-          'authorName': authorName,
-          'title': _titleController.text.trim().isNotEmpty
-              ? _titleController.text.trim()
-              : I18n.inline('Відео створювача', 'Creator video'),
-          'videoUrl': videoUrl,
-          'videoId': createdVideoDocId,
-          'isCreatorVideo': true,
-          'createdAt': FieldValue.serverTimestamp(),
-          'averageRating': 0.0,
-          'voteCount': 0,
-          'votes': <String, dynamic>{},
-          'thumbnailUrl': null, // Буде оновлено після генерації
-        });
-        print('Creator video saved to submissions collection');
+        final titleText = _titleController.text.trim().isNotEmpty
+            ? _titleController.text.trim()
+            : I18n.inline('Відео створювача', 'Creator video');
+        await context.read<ChallengeRepository>().upsertSubmission(
+              challengeId: challengeId,
+              userId: userId,
+              videoId: createdVideoDocId,
+              videoUrl: videoUrl,
+              title: titleText,
+              authorName: authorName,
+              isCreatorVideo: true,
+            );
+        print('Creator video saved to submissions');
       } catch (e) {
-        print('ERROR saving to submissions collection: $e');
+        print('ERROR saving submission: $e');
         throw Exception('Помилка збереження в submissions: $e');
-      }
-      
-      // Додаємо до списку submissions
-      print('Updating challenge document with submissions...');
-      try {
-        await FirebaseFirestore.instance
-            .collection('challenges')
-            .doc(challengeId)
-            .update({
-          'submissions': FieldValue.arrayUnion([userId]),
-        });
-        print('Challenge document updated successfully');
-      } catch (e) {
-        print('ERROR updating challenge document: $e');
-        throw Exception('Помилка оновлення челенджу: $e');
       }
       
       print('Successfully uploaded creator video: $videoUrl');
@@ -1635,42 +1600,34 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             userId: userId,
           );
           
-          if (thumbnailUrl != null) {
-            // Оновлюємо submission з thumbnailUrl
-            await FirebaseFirestore.instance
-                .collection('challenges')
-                .doc(challengeId)
-                .collection('submissions')
-                .doc(userId)
-                .update({
-              'thumbnailUrl': thumbnailUrl,
-              'thumbnailGenerated': true,
-            });
-            await FirebaseFirestore.instance
-                .collection('challenges')
-                .doc(challengeId)
-                .update({
-              'creatorThumbnailUrl': thumbnailUrl,
-              'thumbnailUrl': thumbnailUrl,
-            });
+          if (thumbnailUrl != null && mounted) {
+            final repo = context.read<ChallengeRepository>();
+            await repo.setSubmissionThumbnail(
+              challengeId: challengeId,
+              userId: userId,
+              thumbnailUrl: thumbnailUrl,
+            );
+            await repo.setCreatorVideo(
+              challengeId,
+              videoUrl,
+              thumbnailUrl: thumbnailUrl,
+            );
             print('✅ Creator video thumbnail generated: $thumbnailUrl');
           }
         } else {
-          // Якщо не знайшли відео документ, генеруємо thumbnail для submission
           final thumbnailUrl = await thumbnailService.generateSubmissionThumbnail(
             videoUrl: videoUrl,
             challengeId: challengeId,
             submissionId: userId,
             userId: userId,
           );
-          if (thumbnailUrl != null) {
-            await FirebaseFirestore.instance
-                .collection('challenges')
-                .doc(challengeId)
-                .update({
-              'creatorThumbnailUrl': thumbnailUrl,
-              'thumbnailUrl': thumbnailUrl,
-            });
+          if (thumbnailUrl != null && mounted) {
+            final repo = context.read<ChallengeRepository>();
+            await repo.setCreatorVideo(
+              challengeId,
+              videoUrl,
+              thumbnailUrl: thumbnailUrl,
+            );
             print('✅ Creator submission thumbnail generated: $thumbnailUrl');
           }
         }

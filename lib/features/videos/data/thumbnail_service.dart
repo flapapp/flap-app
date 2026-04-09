@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'web_thumbnail_service.dart';
 
 class ThumbnailService {
@@ -187,14 +188,14 @@ class ThumbnailService {
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      // Оновлюємо челендж з thumbnail
-      await _firestore
-          .collection('challenges')
-          .doc(challengeId)
-          .update({
-        'creatorThumbnailUrl': downloadUrl,
-        'thumbnailGenerated': true,
-      });
+      await Supabase.instance.client.rpc<void>(
+        'challenge_set_creator_video',
+        params: <String, dynamic>{
+          'p_challenge_id': challengeId,
+          'p_creator_video_url': '',
+          'p_creator_thumbnail_url': downloadUrl,
+        },
+      );
 
       print('✅ Challenge thumbnail generated: $downloadUrl');
       return downloadUrl;

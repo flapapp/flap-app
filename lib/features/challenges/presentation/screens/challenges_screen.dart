@@ -1,8 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flap_app/models/challenge.dart';
-import 'package:flap_app/features/challenges/data/challenge_service.dart';
+import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
+import 'package:flap_app/features/challenges/domain/entities/challenge_submission_entry.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
+import 'package:flap_app/features/challenges/presentation/bloc/challenges_bloc.dart';
+import 'package:flap_app/features/challenges/presentation/bloc/challenges_state.dart';
 import 'challenge_create_screen.dart';
 import 'challenge_details_screen.dart';
 import 'package:flap_app/features/videos/presentation/screens/video_player_screen.dart';
@@ -23,7 +29,6 @@ class ChallengesScreen extends StatefulWidget {
 }
 
 class _ChallengesScreenState extends State<ChallengesScreen> {
-  final ChallengeService _challengeService = ChallengeService();
   String _selectedFilter = 'all'; // all, active, my, completed
   String _selectedSort = 'new'; // 'new', 'rating', 'views'
   
@@ -80,65 +85,65 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           
           // Challenges list
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _getChallengesStream(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+            child: BlocBuilder<ChallengesBloc, ChallengesState>(
+              builder: (context, state) {
+                if (state is ChallengesInitial || state is ChallengesLoading) {
                   return const Center(
                     child: CircularProgressIndicator(color: Color(0xFF4caf50)),
                   );
                 }
+                if (state is ChallengesFailure) {
+                  return Center(
+                    child: Text(
+                      state.message,
+                      style: const TextStyle(color: Colors.white70),
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                }
+                if (state is! ChallengesReady) {
+                  return const SizedBox.shrink();
+                }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                final all = state.challenges;
+                if (all.isEmpty) {
                   return _buildEmptyState();
                 }
 
-                final all = snapshot.data!.docs;
                 final currentUser = AppAuthContext.currentUser;
-                final filtered = all.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
+                final filtered = all.where((c) {
                   switch (_selectedFilter) {
                     case 'active':
-                      final status = (data['status'] ?? '').toString();
-                      return status == 'recruiting' || status == 'submission' || status == 'voting';
+                      final s = c.status.toString().split('.').last;
+                      return s == 'recruiting' || s == 'submission' || s == 'voting';
                     case 'my':
                       if (currentUser == null) return false;
-                      return (data['creatorId'] ?? '') == currentUser.id;
+                      return c.creatorId == currentUser.id;
                     case 'completed':
-                      return (data['status'] ?? '') == 'completed';
+                      return c.status == ChallengeStatus.completed;
                     default:
                       return true;
                   }
                 }).toList()
-                ..sort((a, b) {
-                  final ad = a.data() as Map<String, dynamic>;
-                  final bd = b.data() as Map<String, dynamic>;
-                  switch (_selectedSort) {
-                    case 'rating':
-                      final ar = (ad['averageRating'] ?? 0.0) as num; // якщо є агрегований рейтинг
-                      final br = (bd['averageRating'] ?? 0.0) as num;
-                      return br.compareTo(ar);
-                    case 'views':
-                      final av = (ad['views'] ?? 0) as num;
-                      final bv = (bd['views'] ?? 0) as num;
-                      return bv.compareTo(av);
-                    case 'new':
-                    default:
-                      final at = ad['createdAt'];
-                      final bt = bd['createdAt'];
-                      if (at is Timestamp && bt is Timestamp) {
-                        return bt.compareTo(at);
-                      }
-                      return 0;
-                  }
-                });
+                  ..sort((a, b) {
+                    switch (_selectedSort) {
+                      case 'rating':
+                        final ar = 0.0;
+                        final br = 0.0;
+                        return br.compareTo(ar);
+                      case 'views':
+                        return 0;
+                      case 'new':
+                      default:
+                        return b.createdAt.compareTo(a.createdAt);
+                    }
+                  });
+
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
-                    final challengeData = filtered[index].data() as Map<String, dynamic>;
-                    challengeData['id'] = filtered[index].id;
-                    return _buildChallengeCard(challengeData);
+                    return _buildChallengeCard(filtered[index]);
                   },
                 );
               },
@@ -172,15 +177,6 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         ),
       ),
     );
-  }
-
-  Stream<QuerySnapshot> _getChallengesStream() {
-    // Базовий потік усіх челенджів, далі фільтр на клієнті для стабільності
-    return FirebaseFirestore.instance
-        .collection('challenges')
-        .orderBy('createdAt', descending: true)
-        .limit(50)
-        .snapshots();
   }
 
   Widget _buildEmptyState() {
@@ -217,33 +213,24 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     );
   }
 
-  Widget _buildChallengeCard(Map<String, dynamic> challengeData) {
-    final challengeId = challengeData['id'];
-    final title = challengeData['title'] ?? I18n.inline('Челендж', 'Challenge');
-    final description = challengeData['description'] ?? '';
-    final creatorName = challengeData['creatorName'] ?? I18n.inline('Невідомий', 'Unknown');
-    final creatorVideoUrl = challengeData['creatorVideoUrl'] ?? '';
-    final creatorThumbnailUrl = challengeData['creatorThumbnailUrl'] ?? challengeData['thumbnailUrl'];
-    final participants = (challengeData['participants'] as List?)?.length ?? 0;
-    final submissions = (challengeData['submissions'] as List?)?.length ?? 0;
-    final entryFee = challengeData['entryFee'] ?? 10;
-    final actualPrizePool = participants * entryFee; // Реальний призовий фонд
-    final status = challengeData['status'] ?? 'recruiting';
-    final endDate = challengeData['endDate'] as Timestamp?;
-    final votingDeadline = challengeData['votingDeadline'] as Timestamp?;
-    final creatorId = challengeData['creatorId'] ?? '';
-    
-    print('Challenge $challengeId: creatorVideoUrl = "$creatorVideoUrl"');
-    print('Challenge $challengeId: title = "$title"');
-    print('Challenge $challengeId: creatorName = "$creatorName"');
-    print('Challenge $challengeId: participants = $participants');
-    print('Challenge $challengeId: submissions = $submissions');
-    
+  Widget _buildChallengeCard(Challenge c) {
+    final challengeId = c.id;
+    final title = c.title.isNotEmpty ? c.title : I18n.inline('Челендж', 'Challenge');
+    final description = c.description;
+    final creatorName =
+        c.creatorName.isNotEmpty ? c.creatorName : I18n.inline('Невідомий', 'Unknown');
+    final creatorVideoUrl = c.creatorVideoUrl ?? '';
+    final creatorThumbnailUrl = c.creatorThumbnailUrl ?? c.imageUrl;
+    final participants = c.participants.length;
+    final submissions = c.submissions.length;
+    final entryFee = c.entryFee;
+    final actualPrizePool = participants * entryFee;
+    final status = c.status.toString().split('.').last;
+    final creatorId = c.creatorId;
+
     final now = DateTime.now();
-    final targetDate = (votingDeadline ?? endDate)?.toDate();
-    final daysLeft = targetDate != null
-        ? targetDate.difference(now).inDays.clamp(0, 999)
-        : 0;
+    final targetDate = c.votingDeadline.isBefore(c.endDate) ? c.endDate : c.votingDeadline;
+    final daysLeft = targetDate.difference(now).inDays.clamp(0, 999);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -369,6 +356,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                     title,
                     creatorName,
                     challengeId,
+                    creatorId,
                     thumbnailUrl: creatorThumbnailUrl,
                   ),
                   topRight: _buildCreatorRatingBadge(challengeId),
@@ -390,159 +378,154 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               const SizedBox(height: 8),
               SizedBox(
                 height: 60,
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('challenges')
-                      .doc(challengeId)
-                      .collection('submissions')
-                          .where('isCreatorVideo', isEqualTo: false)
-                          .limit(8)
-                      .snapshots(),
+                child: StreamBuilder<List<ChallengeSubmissionEntry>>(
+                  stream: context.read<ChallengeRepository>().watchSubmissions(challengeId).map(
+                        (list) => list.where((s) => !s.isCreatorVideo).take(8).toList(),
+                      ),
                   builder: (context, submissionSnapshot) {
                     if (!submissionSnapshot.hasData) {
-                          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
                     }
-                    
-                    final submissionDocs = submissionSnapshot.data!.docs;
-                        
-                        if (submissionDocs.isEmpty) {
-                          return Container(
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.white.withOpacity(0.1)),
+
+                    final submissionDocs = submissionSnapshot.data!;
+
+                    if (submissionDocs.isEmpty) {
+                      return Container(
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white.withOpacity(0.1)),
+                        ),
+                        child: Center(
+                          child: Text(
+                            I18n.inline('Поки немає відео учасників', 'No participant videos yet'),
+                            style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount:
+                          submissionDocs.length + (submissionDocs.length < submissions ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index < submissionDocs.length) {
+                          final s = submissionDocs[index];
+                          final authorName =
+                              s.authorName.isNotEmpty ? s.authorName : I18n.t('participant');
+                          final submissionUserId = s.userId;
+                          final videoUrl = s.videoUrl;
+                          final submissionId = s.userId;
+                          final submissionThumb = s.thumbnailUrl;
+
+                          return GestureDetector(
+                            onTap: () => _playParticipantVideo(
+                              videoUrl: videoUrl,
+                              title: s.title.isNotEmpty
+                                  ? s.title
+                                  : I18n.inline('Відео учасника', 'Participant video'),
+                              authorName: authorName,
+                              challengeId: challengeId,
+                              submissionId: submissionId,
+                              thumbnailUrl: submissionThumb,
                             ),
-                              child: Center(
+                            child: Container(
+                              width: 60,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.white.withOpacity(0.2)),
+                              ),
+                              child: FutureBuilder(
+                                future: context
+                                    .read<UserProfileRepository>()
+                                    .loadProfile(submissionUserId),
+                                builder: (context, userSnapshot) {
+                                  final snap = userSnapshot.data;
+                                  final avatarUrl = snap?.avatarUrl ?? '';
+
+                                  return Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () {
+                                          Navigator.pushNamed(
+                                            context,
+                                            '/player-profile',
+                                            arguments: {
+                                              'playerId': submissionUserId,
+                                              'playerName': authorName,
+                                            },
+                                          );
+                                        },
+                                        child: Container(
+                                          width: 32,
+                                          height: 32,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: Colors.white.withOpacity(0.3)),
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(16),
+                                            child: avatarUrl.isNotEmpty
+                                                ? Image.network(
+                                                    avatarUrl,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context, error, stackTrace) =>
+                                                        _buildMiniAvatar(authorName),
+                                                  )
+                                                : _buildMiniAvatar(authorName),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        authorName.length > 8
+                                            ? '${authorName.substring(0, 8)}...'
+                                            : authorName,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                          );
+                        } else {
+                          final remainingCount = submissions - submissionDocs.length;
+                          return Container(
+                            width: 60,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4caf50).withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF4caf50)),
+                            ),
+                            child: Center(
                               child: Text(
-                                I18n.inline('Поки немає відео учасників', 'No participant videos yet'),
-                                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                '+$remainingCount',
+                                style: const TextStyle(
+                                  color: Color(0xFF4caf50),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           );
                         }
-                        
-                    return ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                          itemCount: submissionDocs.length + (submissionDocs.length < submissions ? 1 : 0), // +1 для показу кількості
-                      itemBuilder: (context, index) {
-                            if (index < submissionDocs.length) {
-                        final submissionData = submissionDocs[index].data() as Map<String, dynamic>;
-                              final authorName = submissionData['authorName'] ?? I18n.t('participant');
-                              final submissionUserId = submissionData['userId'] ?? '';
-                              final videoUrl = submissionData['videoUrl'] ?? '';
-                              final submissionId = submissionDocs[index].id;
-                              final submissionThumb = (submissionData['thumbnailUrl'] ?? '').toString();
-                              
-                        return GestureDetector(
-                          onTap: () => _playParticipantVideo(
-                            videoUrl: videoUrl,
-                            title: submissionData['title'] ?? I18n.inline('Відео учасника', 'Participant video'),
-                            authorName: authorName,
-                            challengeId: challengeId,
-                            submissionId: submissionId,
-                            thumbnailUrl: submissionThumb,
-                          ),
-                          child: Container(
-                          width: 60,
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.white.withOpacity(0.2)),
-                                  ),
-                                  child: FutureBuilder<DocumentSnapshot>(
-                                    future: FirebaseFirestore.instance
-                                        .collection('users')
-                                        .doc(submissionUserId)
-                                        .get(),
-                                    builder: (context, userSnapshot) {
-                                      final userData = userSnapshot.hasData 
-                                          ? userSnapshot.data!.data() as Map<String, dynamic>? ?? {}
-                                          : <String, dynamic>{};
-                                      final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-                                      
-                                      return Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          // Avatar clickable to profile
-                                          GestureDetector(
-                                            onTap: () {
-                                              Navigator.pushNamed(
-                                                context,
-                                                '/player-profile',
-                                                arguments: {
-                                                  'playerId': submissionUserId,
-                                                  'playerName': authorName,
                       },
                     );
                   },
-                                            child: Container(
-                                              width: 32,
-                                              height: 32,
-                                              decoration: BoxDecoration(
-                                                borderRadius: BorderRadius.circular(16),
-                                                border: Border.all(color: Colors.white.withOpacity(0.3)),
-                                              ),
-                                              child: ClipRRect(
-                                                borderRadius: BorderRadius.circular(16),
-                                                child: avatarUrl.isNotEmpty
-                                                    ? Image.network(
-                                                        avatarUrl,
-                                                        fit: BoxFit.cover,
-                                                        errorBuilder: (context, error, stackTrace) =>
-                                                            _buildMiniAvatar(authorName),
-                                                      )
-                                                    : _buildMiniAvatar(authorName),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                      Text(
-                                            authorName.length > 8 
-                                              ? '${authorName.substring(0, 8)}...' 
-                                              : authorName,
-                                            style: const TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                ),
-                        );
-                            } else {
-                              // Показуємо кількість якщо є більше відео
-                              final remainingCount = submissions - submissionDocs.length;
-                              return Container(
-                                width: 60,
-                                margin: const EdgeInsets.only(right: 8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF4caf50).withOpacity(0.3),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: const Color(0xFF4caf50)),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '+$remainingCount',
-                                    style: const TextStyle(
-                                      color: Color(0xFF4caf50),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                        );
-                      },
-                    ),
-                  ),
+                ),
+              ),
                 ] else ...[
                   Container(
                     height: 60,
@@ -582,7 +565,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => _viewChallengeDetails(challengeId, challengeData),
+                    onPressed: () => _viewChallengeDetails(c),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white.withOpacity(0.1),
                       foregroundColor: Colors.white,
@@ -641,12 +624,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     String videoUrl,
     String title,
     String creatorName,
-    String challengeId, {
+    String challengeId,
+    String creatorSubmissionUserId, {
     String? thumbnailUrl,
   }) {
     print('Playing creator video: $videoUrl');
     if (videoUrl.isNotEmpty) {
-      // Відкриваємо відео творця з голосуванням (як учасника челенджу)
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -655,7 +638,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
             title: I18n.inline('Відео творця: $title', 'Creator video: $title'),
             authorName: creatorName,
             challengeId: challengeId,
-            submissionId: 'creator', // Спеціальний ID для відео творця
+            submissionId: creatorSubmissionUserId,
             thumbnailUrl: thumbnailUrl,
           ),
         ),
@@ -676,19 +659,13 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) return;
 
-      // Отримуємо дані челенджу для показу вартості
-      final challengeDoc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .get();
-      
-      if (!challengeDoc.exists) {
+      final loaded = await context.read<ChallengeRepository>().getChallenge(challengeId);
+      if (loaded == null) {
         throw Exception(I18n.inline('Челендж не знайдено', 'Challenge not found'));
       }
-      
-      final challengeData = challengeDoc.data() as Map<String, dynamic>;
-      final entryFee = challengeData['entryFee'] ?? 10;
-      final challengeTitle = challengeData['title'] ?? I18n.inline('Челендж', 'Challenge');
+      final entryFee = loaded.entryFee;
+      final challengeTitle =
+          loaded.title.isNotEmpty ? loaded.title : I18n.inline('Челендж', 'Challenge');
 
       // Показуємо діалог підтвердження оплати
       final shouldJoin = await showDialog<bool>(
@@ -759,8 +736,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       );
 
       if (shouldJoin == true) {
-        // Приєднуємося до челенджу (платимо вступну плату)
-        await _challengeService.joinChallenge(challengeId);
+        await context.read<ChallengeRepository>().joinChallenge(challengeId);
         
         // Показуємо повідомлення про успіх
         ScaffoldMessenger.of(context).showSnackBar(
@@ -796,67 +772,13 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     }
   }
 
-  void _viewChallengeDetails(String challengeId, Map<String, dynamic> challengeData) {
-    try {
-      final challenge = Challenge(
-        id: challengeId,
-        title: challengeData['title'] ?? '',
-        description: challengeData['description'] ?? '',
-        type: parseChallengeType(challengeData['type'] as String?),
-        audience: ChallengeAudience.values.firstWhere(
-          (e) => e.toString().split('.').last == challengeData['audience'],
-          orElse: () => ChallengeAudience.city,
-        ),
-        creatorId: challengeData['creatorId'] ?? '',
-        creatorName: challengeData['creatorName'] ?? '',
-        creatorVideoUrl: challengeData['creatorVideoUrl'],
-        city: challengeData['city'] ?? '',
-        entryFee: challengeData['entryFee'] ?? 10,
-        duration: challengeData['duration'] ?? 7,
-        createdAt: challengeData['createdAt'] != null
-            ? (challengeData['createdAt'] as Timestamp).toDate()
-            : DateTime.now(),
-        startDate: challengeData['startDate'] != null
-            ? (challengeData['startDate'] as Timestamp).toDate()
-            : DateTime.now(),
-        submissionDeadline: challengeData['submissionDeadline'] != null
-            ? (challengeData['submissionDeadline'] as Timestamp).toDate()
-            : DateTime.now().add(const Duration(days: 7)),
-        votingDeadline: challengeData['votingDeadline'] != null
-            ? (challengeData['votingDeadline'] as Timestamp).toDate()
-            : DateTime.now().add(const Duration(days: 14)),
-        endDate: challengeData['endDate'] != null
-            ? (challengeData['endDate'] as Timestamp).toDate()
-            : DateTime.now().add(const Duration(days: 19)),
-        status: ChallengeStatus.values.firstWhere(
-          (e) => e.toString().split('.').last == challengeData['status'],
-          orElse: () => ChallengeStatus.recruiting,
-        ),
-        maxParticipants: challengeData['maxParticipants'] ?? 50,
-        currentParticipants: challengeData['currentParticipants'] ?? 0,
-        prizePool: (challengeData['prizePool'] ?? 0.0).toDouble(),
-        participants: List<String>.from(challengeData['participants'] ?? []),
-        submissions: List<String>.from(challengeData['submissions'] ?? []),
-        votes: Map<String, double>.from(challengeData['votes'] ?? {}),
-        detailedVotes: Map<String, Map<String, double>>.from(challengeData['detailedVotes'] ?? {}),
-        winners: List<String>.from(challengeData['winners'] ?? []),
-        finalScores: Map<String, double>.from(challengeData['finalScores'] ?? {}),
-        isActive: challengeData['isActive'] ?? true,
-        tags: List<String>.from(challengeData['tags'] ?? []),
-      );
-      
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChallengeDetailsScreen(challenge: challenge),
-        ),
-      );
-    } catch (e) {
-      print('Error creating Challenge object: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.t('error'))),
-      );
-    }
+  void _viewChallengeDetails(Challenge challenge) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChallengeDetailsScreen(challenge: challenge),
+      ),
+    );
   }
 
   void _showParticipants(Map<String, dynamic> challengeData) {
@@ -928,11 +850,8 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                         itemCount: participants.length,
                         itemBuilder: (context, index) {
                           final participantId = participants[index];
-                          return FutureBuilder<DocumentSnapshot>(
-                            future: FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(participantId)
-                                .get(),
+                          return FutureBuilder(
+                            future: context.read<UserProfileRepository>().loadProfile(participantId),
                             builder: (context, snapshot) {
                               if (!snapshot.hasData) {
                                 return ListTile(
@@ -944,11 +863,13 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                 );
                               }
 
-                              final userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-                              final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? 'Користувач';
-                              final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-                              final rating = (userData['rating'] ?? 0.0).toDouble();
-                              final city = userData['city'] ?? 'Невідоме місто';
+                              final prof = snapshot.data!;
+                              final userName = prof.resolveDisplayName().isNotEmpty
+                                  ? prof.resolveDisplayName()
+                                  : I18n.inline('Користувач', 'User');
+                              final avatarUrl = prof.avatarUrl ?? '';
+                              final rating = prof.rating ?? 0.0;
+                              final city = prof.city ?? I18n.inline('Невідоме місто', 'Unknown city');
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -1113,19 +1034,14 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
   }
 
   Widget _buildCreatorRatingBadge(String challengeId) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .collection('submissions')
-          .where('isCreatorVideo', isEqualTo: true)
-          .limit(1)
-          .snapshots(),
+    return StreamBuilder<List<ChallengeSubmissionEntry>>(
+      stream: context.read<ChallengeRepository>().watchSubmissions(challengeId).map(
+            (list) => list.where((s) => s.isCreatorVideo).take(1).toList(),
+          ),
       builder: (context, snap) {
         double avg = 0;
-        if (snap.hasData && snap.data!.docs.isNotEmpty) {
-          final data = snap.data!.docs.first.data() as Map<String, dynamic>;
-          avg = (data['averageRating'] ?? data['rating'] ?? 0.0).toDouble();
+        if (snap.hasData && snap.data!.isNotEmpty) {
+          avg = snap.data!.first.averageRating;
         }
         if (avg <= 0) return const SizedBox.shrink();
         return Container(
@@ -1157,13 +1073,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
 
   Future<void> _finishChallenge(String challengeId) async {
     try {
-      final ok = await ChallengeService().completeChallenge(challengeId);
-      if (!ok) return;
-
-      // Reload winners and show
-      final doc = await FirebaseFirestore.instance.collection('challenges').doc(challengeId).get();
-      final data = doc.data() as Map<String, dynamic>? ?? {};
-      final winners = List<String>.from(data['winners'] ?? []);
+      await context.read<ChallengeRepository>().completeChallenge(challengeId);
+      final updated = await context.read<ChallengeRepository>().getChallenge(challengeId);
+      final winners = updated?.winners ?? [];
 
       showModalBottomSheet(
         context: context,
@@ -1202,12 +1114,14 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
   }
 
   Widget _winnerTile(String userId, {required int place}) {
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+    return FutureBuilder(
+      future: context.read<UserProfileRepository>().loadProfile(userId),
       builder: (context, snap) {
-        final ud = snap.data?.data() as Map<String, dynamic>? ?? {};
-        final name = ud['displayName'] ?? ud['name'] ?? ud['email']?.split('@')[0] ?? 'Користувач';
-        final avatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
+        final prof = snap.data;
+        final name = prof != null && prof.resolveDisplayName().isNotEmpty
+            ? prof.resolveDisplayName()
+            : I18n.inline('Користувач', 'User');
+        final avatar = prof?.avatarUrl ?? '';
         final medal = place == 1 ? '🥇' : place == 2 ? '🥈' : '🥉';
         return ListTile(
           onTap: () => Navigator.pushNamed(context, '/player-profile', arguments: {'playerId': userId, 'playerName': name}),

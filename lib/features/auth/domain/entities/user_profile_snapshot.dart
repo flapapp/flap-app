@@ -5,22 +5,28 @@ class UserProfileSnapshot extends Equatable {
   const UserProfileSnapshot({
     this.name,
     this.surname,
+    this.displayName,
+    this.email,
     this.phone,
     this.city,
     this.age,
     this.position,
     this.experience,
     this.avatarUrl,
+    this.rating,
   });
 
   final String? name;
   final String? surname;
+  final String? displayName;
+  final String? email;
   final String? phone;
   final String? city;
   final int? age;
   final String? position;
   final String? experience;
   final String? avatarUrl;
+  final double? rating;
 
   factory UserProfileSnapshot.fromSupabaseRow(Map<String, dynamic> row) {
     final ageVal = row['age'];
@@ -31,15 +37,24 @@ class UserProfileSnapshot extends Equatable {
       age = ageVal.toInt();
     }
 
+    final r = row['rating'];
+    double? rating;
+    if (r is num) {
+      rating = r.toDouble();
+    }
+
     return UserProfileSnapshot(
       name: row['name'] as String?,
       surname: row['surname'] as String?,
+      displayName: row['display_name'] as String?,
+      email: row['email'] as String?,
       phone: row['phone'] as String?,
       city: row['city'] as String?,
       age: age,
       position: row['position'] as String?,
       experience: row['experience'] as String?,
       avatarUrl: row['avatar_url'] as String?,
+      rating: rating,
     );
   }
 
@@ -47,11 +62,34 @@ class UserProfileSnapshot extends Equatable {
   List<Object?> get props => [
     name,
     surname,
+    displayName,
+    email,
     phone,
     city,
     age,
     position,
     experience,
     avatarUrl,
+    rating,
   ];
+
+  /// Display label for UI (challenges, profiles).
+  String resolveDisplayName() {
+    if (displayName != null && displayName!.trim().isNotEmpty) {
+      return displayName!.trim();
+    }
+    final n = name;
+    final s = surname;
+    if (n != null && n.trim().isNotEmpty) {
+      if (s != null && s.trim().isNotEmpty) {
+        return '$n $s'.trim();
+      }
+      return n.trim();
+    }
+    final em = email;
+    if (em != null && em.contains('@')) {
+      return em.split('@').first;
+    }
+    return '';
+  }
 }

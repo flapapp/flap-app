@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flap_app/models/challenge.dart';
-import 'package:flap_app/features/challenges/data/challenge_service.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'challenge_create_screen.dart';
 import 'challenge_details_screen.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -14,8 +17,6 @@ class ChallengeListScreen extends StatefulWidget {
 }
 
 class _ChallengeListScreenState extends State<ChallengeListScreen> {
-  final ChallengeService _challengeService = ChallengeService();
-  
   String _selectedStatus = 'all';
   String _selectedType = 'all';
   String _selectedCity = '';
@@ -626,40 +627,38 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   }
 
   Stream<List<Challenge>> _getFilteredChallengesStream() {
-    Stream<List<Challenge>> stream = _challengeService.getActiveChallenges();
+    return context.read<ChallengeRepository>().watchChallenges(limit: 200).map((challenges) {
+      var list = challenges.where((c) => c.isActive).toList();
 
-    // Фільтр по статусу
-    if (_selectedStatus != 'all') {
-      final status = ChallengeStatus.values.firstWhere(
-        (s) => s.toString().split('.').last == _selectedStatus,
-        orElse: () => ChallengeStatus.recruiting,
-      );
-      stream = _challengeService.getChallengesByStatus(status);
-    }
-
-    // Фільтр по типу
-    if (_selectedType != 'all') {
-      final type = parseChallengeType(_selectedType);
-      stream = _challengeService.getChallengesByType(type);
-    }
-
-    // Фільтр по місту
-    if (_selectedCity.isNotEmpty) {
-      stream = _challengeService.getChallengesByCity(_selectedCity);
-    }
-
-    return stream.map((challenges) {
-      // Фільтр по пошуковому запиту
-      if (_searchQuery.isNotEmpty) {
-        return challenges.where((challenge) {
-          final query = _searchQuery.toLowerCase();
-          return challenge.title.toLowerCase().contains(query) ||
-                 challenge.description.toLowerCase().contains(query) ||
-                 challenge.creatorName.toLowerCase().contains(query) ||
-                 challenge.city.toLowerCase().contains(query);
-        }).toList();
+      if (_selectedStatus != 'all') {
+        list = list
+            .where((c) => c.status.toString().split('.').last == _selectedStatus)
+            .toList();
       }
-      return challenges;
+
+      if (_selectedType != 'all') {
+        final type = parseChallengeType(_selectedType);
+        list = list.where((c) => c.type == type).toList();
+      }
+
+      if (_selectedCity.isNotEmpty) {
+        list = list.where((c) => c.city == _selectedCity).toList();
+      }
+
+      if (_searchQuery.isNotEmpty) {
+        final query = _searchQuery.toLowerCase();
+        list = list
+            .where(
+              (challenge) =>
+                  challenge.title.toLowerCase().contains(query) ||
+                  challenge.description.toLowerCase().contains(query) ||
+                  challenge.creatorName.toLowerCase().contains(query) ||
+                  challenge.city.toLowerCase().contains(query),
+            )
+            .toList();
+      }
+
+      return list;
     });
   }
 

@@ -11,6 +11,8 @@ import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/models/badge.dart' as app_badge;
 import 'package:flap_app/features/badges/domain/repositories/badge_repository.dart';
 import 'package:flap_app/features/friends/data/friends_service.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
+import 'package:flap_app/models/challenge.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/teams/data/team_service.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -1478,24 +1480,12 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     if (currentUser == null) return;
 
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('challenges')
-          .where('creatorId', isEqualTo: currentUser.id)
-          .limit(50)
-          .get();
+      final repo = parentContext.read<ChallengeRepository>();
+      final streamed = await repo.watchChallenges(limit: 200).first;
 
-      if (dialogClosed) return;
-
-      final all = snap.docs
-          .map((d) {
-            final data = d.data() as Map<String, dynamic>;
-            data['id'] = d.id;
-            return data;
-          })
-          .where((c) {
-            final participants = List<String>.from(c['participants'] ?? []);
-            return !participants.contains(widget.playerId);
-          })
+      final all = streamed
+          .where((c) => c.creatorId == currentUser.id)
+          .where((c) => !c.participants.contains(widget.playerId))
           .toList();
 
       if (all.isEmpty) {
@@ -1541,14 +1531,15 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                       onChanged: (v) =>
                           safeDialogSetState(() => selectedIndex = v ?? -1),
                       title: Text(
-                        c['title'] ?? 'Челендж'.i18n('Challenge'),
+                        c.title.isNotEmpty
+                            ? c.title
+                            : 'Челендж'.i18n('Challenge'),
                         style: const TextStyle(color: Colors.white),
                       ),
                       subtitle: Text(
-                        'Учасників: ${(c['participants'] as List?)?.length ?? 0}'
-                            .i18n(
-                              'Participants: ${(c['participants'] as List?)?.length ?? 0}',
-                            ),
+                        'Учасників: ${c.participants.length}'.i18n(
+                          'Participants: ${c.participants.length}',
+                        ),
                         style: const TextStyle(
                           color: Colors.white54,
                           fontSize: 12,
@@ -1579,17 +1570,16 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                           final ok = await _notificationService
                               .sendChallengeInvitation(
                                 toUserId: widget.playerId,
-                                challengeId: (selected['id'] ?? '').toString(),
-                                challengeTitle:
-                                    (selected['title'] ??
-                                            'Челендж'.i18n('Challenge'))
-                                        .toString(),
+                                challengeId: selected.id,
+                                challengeTitle: selected.title.isNotEmpty
+                                    ? selected.title
+                                    : 'Челендж'.i18n('Challenge'),
                                 creatorName:
                                     (playerData?['displayName'] ??
                                             'Користувач'.i18n('User'))
                                         .toString(),
-                                challengeType: (selected['type'] ?? 'goal')
-                                    .toString(),
+                                challengeType:
+                                    challengeTypeToSlug(selected.type),
                               );
                           if (!mounted || dialogClosed) return;
                           dialogClosed = true;

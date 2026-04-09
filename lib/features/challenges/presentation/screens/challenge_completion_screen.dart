@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/models/challenge.dart';
 import 'package:flap_app/utils/i18n.dart';
 
@@ -97,73 +99,73 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
 
   Future<void> _loadChallengeData() async {
     try {
-      final challengeDoc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challengeId)
-          .get();
-      
-      if (challengeDoc.exists) {
+      final challengeRepo = context.read<ChallengeRepository>();
+      final c = await challengeRepo.getChallenge(widget.challengeId);
+      if (!mounted) return;
+      if (c != null) {
         setState(() {
-          _challenge = Challenge.fromFirestore(challengeDoc);
+          _challenge = c;
           _isLoading = false;
         });
-        
-        // Завантажуємо переможців
+
         await _loadWinners();
-        
-        // Запускаємо анімації
-        _startAnimations();
+
+        if (mounted) {
+          _startAnimations();
+        }
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
       }
     } catch (e) {
       print('Error loading challenge: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _loadWinners() async {
     try {
-      final submissionsSnapshot = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challengeId)
-          .collection('submissions')
-          .orderBy('averageRating', descending: true)
-          .limit(3)
-          .get();
+      final challengeRepo = context.read<ChallengeRepository>();
+      final profileRepo = context.read<UserProfileRepository>();
+      final subs =
+          await challengeRepo.getTopSubmissions(widget.challengeId, limit: 3);
+      if (!mounted) return;
 
       final winners = <Map<String, dynamic>>[];
-      
+
       final prizeOverrides = _challenge?.winnerPrizes ?? const <String, int>{};
 
-      for (int i = 0; i < submissionsSnapshot.docs.length; i++) {
-        final doc = submissionsSnapshot.docs[i];
-        final data = doc.data();
-        
-        // Отримуємо дані користувача
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(data['userId'])
-            .get();
-        
-        final userData = userDoc.data() ?? {};
-        final winnerId = data['userId'] as String? ?? '';
+      for (var i = 0; i < subs.length; i++) {
+        final s = subs[i];
+        final prof = await profileRepo.loadProfile(s.userId);
+        if (!mounted) return;
+        final winnerId = s.userId;
         final override = prizeOverrides[winnerId];
         final prize = (override ?? _calculatePrize(i + 1)).toDouble();
-        
+        final name = prof?.resolveDisplayName().isNotEmpty == true
+            ? prof!.resolveDisplayName()
+            : I18n.inline('Невідомий', 'Unknown');
+
         winners.add({
           'position': i + 1,
           'userId': winnerId,
-          'userName': userData['displayName'] ?? userData['name'] ?? I18n.inline('Невідомий', 'Unknown'),
-          'userAvatar': userData['avatarUrl'] ?? userData['photoUrl'] ?? '',
-          'rating': data['averageRating'] ?? 0.0,
+          'userName': name,
+          'userAvatar': prof?.avatarUrl ?? '',
+          'rating': s.averageRating,
           'prize': prize,
         });
       }
-      
-      setState(() {
-        _winners = winners;
-      });
+
+      if (mounted) {
+        setState(() {
+          _winners = winners;
+        });
+      }
     } catch (e) {
       print('Error loading winners: $e');
     }

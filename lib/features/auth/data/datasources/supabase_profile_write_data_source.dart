@@ -24,7 +24,7 @@ class SupabaseProfileWriteDataSource {
     return _client
         .from('profiles')
         .select(
-          'name,surname,phone,city,age,position,experience,avatar_url',
+          'name,surname,display_name,email,phone,city,age,position,experience,avatar_url,rating',
         )
         .eq('id', userId)
         .maybeSingle();

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 enum ChallengeType {
@@ -39,6 +38,8 @@ class Challenge {
   final String creatorId;
   final String creatorName;
   final String? creatorVideoUrl; // URL відео творця челенджу
+  /// Preview thumb for creator video (Supabase: creator_thumbnail_url).
+  final String? creatorThumbnailUrl;
   final String city;
   final int entryFee;
   final int duration;
@@ -71,6 +72,7 @@ class Challenge {
     required this.creatorId,
     required this.creatorName,
     this.creatorVideoUrl,
+    this.creatorThumbnailUrl,
     required this.city,
     required this.entryFee,
     required this.duration,
@@ -95,88 +97,95 @@ class Challenge {
     required this.tags,
   }) : winnerPrizes = winnerPrizes ?? const {};
 
-  // Конструктор з Firestore
-  factory Challenge.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    
-    final rawStatus = (data['status'] ?? 'recruiting').toString();
+  static DateTime _parseTs(dynamic v) {
+    if (v == null) return DateTime.now();
+    if (v is DateTime) return v;
+    return DateTime.tryParse(v.toString()) ?? DateTime.now();
+  }
+
+  static List<String> _stringIdList(dynamic v) {
+    if (v == null) return [];
+    if (v is List) return v.map((e) => e.toString()).toList();
+    return [];
+  }
+
+  static Map<String, double> _stringDoubleMap(dynamic v) {
+    if (v == null || v is! Map) return {};
+    return v.map((k, val) => MapEntry(k.toString(), (val as num?)?.toDouble() ?? 0.0));
+  }
+
+  static Map<String, int> _stringIntMap(dynamic v) {
+    if (v == null || v is! Map) return {};
+    return v.map((k, val) => MapEntry(k.toString(), (val as num?)?.toInt() ?? 0));
+  }
+
+  static Map<String, Map<String, double>> _parseDetailedVotes(dynamic v) {
+    if (v == null || v is! Map) return {};
+    final out = <String, Map<String, double>>{};
+    v.forEach((k, inner) {
+      if (inner is Map) {
+        out[k.toString()] = inner.map(
+          (ik, iv) => MapEntry(ik.toString(), (iv as num?)?.toDouble() ?? 0.0),
+        );
+      }
+    });
+    return out;
+  }
+
+  /// Supabase row (snake_case) or legacy camelCase map.
+  factory Challenge.fromJson(Map<String, dynamic> j) {
+    final rawStatus = (j['status'] ?? 'recruiting').toString();
     final normalizedStatus = rawStatus == 'finished' ? 'completed' : rawStatus;
 
+    final audienceStr =
+        (j['audience'] ?? 'city').toString().split('.').last;
+
+    final submissions = _stringIdList(
+      j['submission_user_ids'] ?? j['submissions'],
+    );
+
     return Challenge(
-      id: doc.id,
-      title: data['title'] ?? '',
-      description: data['description'] ?? '',
-      type: parseChallengeType(data['type'] as String?),
+      id: j['id']?.toString() ?? '',
+      title: (j['title'] ?? '') as String,
+      description: (j['description'] ?? '') as String,
+      type: parseChallengeType(j['type'] as String?),
       audience: ChallengeAudience.values.firstWhere(
-        (e) => e.toString() == 'ChallengeAudience.${data['audience']}',
+        (e) => e.toString().split('.').last == audienceStr,
         orElse: () => ChallengeAudience.city,
       ),
-      creatorId: data['creatorId'] ?? '',
-      creatorName: data['creatorName'] ?? '',
-      creatorVideoUrl: data['creatorVideoUrl'],
-      city: data['city'] ?? '',
-      entryFee: data['entryFee'] ?? 10,
-      duration: data['duration'] ?? 7,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      startDate: (data['startDate'] as Timestamp).toDate(),
-      submissionDeadline: (data['submissionDeadline'] as Timestamp).toDate(),
-      votingDeadline: (data['votingDeadline'] as Timestamp).toDate(),
-      endDate: (data['endDate'] as Timestamp).toDate(),
+      creatorId: (j['creator_id'] ?? j['creatorId'] ?? '') as String,
+      creatorName: (j['creator_name'] ?? j['creatorName'] ?? '') as String,
+      creatorVideoUrl: j['creator_video_url'] ?? j['creatorVideoUrl'] as String?,
+      creatorThumbnailUrl:
+          j['creator_thumbnail_url'] ?? j['creatorThumbnailUrl'] as String?,
+      city: (j['city'] ?? '') as String,
+      entryFee: (j['entry_fee'] ?? j['entryFee'] ?? 10) as int,
+      duration: (j['duration'] ?? 7) as int,
+      createdAt: _parseTs(j['created_at'] ?? j['createdAt']),
+      startDate: _parseTs(j['start_date'] ?? j['startDate']),
+      submissionDeadline:
+          _parseTs(j['submission_deadline'] ?? j['submissionDeadline']),
+      votingDeadline: _parseTs(j['voting_deadline'] ?? j['votingDeadline']),
+      endDate: _parseTs(j['end_date'] ?? j['endDate']),
       status: ChallengeStatus.values.firstWhere(
         (e) => e.toString().split('.').last == normalizedStatus,
         orElse: () => ChallengeStatus.recruiting,
       ),
-      maxParticipants: data['maxParticipants'] ?? 50,
-      currentParticipants: data['currentParticipants'] ?? 0,
-      prizePool: (data['prizePool'] ?? 0.0).toDouble(),
-      participants: List<String>.from(data['participants'] ?? []),
-      submissions: List<String>.from(data['submissions'] ?? []),
-      votes: Map<String, double>.from(data['votes'] ?? {}),
-      detailedVotes: Map<String, Map<String, double>>.from(data['detailedVotes'] ?? {}),
-      winners: List<String>.from(data['winners'] ?? []),
-      finalScores: Map<String, double>.from(data['finalScores'] ?? {}),
-      winnerPrizes: Map<String, int>.from(
-        data['winnerPrizes'] ?? {},
-      ),
-      isActive: data['isActive'] ?? true,
-      imageUrl: data['imageUrl'],
-      tags: List<String>.from(data['tags'] ?? []),
+      maxParticipants: (j['max_participants'] ?? j['maxParticipants'] ?? 50) as int,
+      currentParticipants:
+          (j['current_participants'] ?? j['currentParticipants'] ?? 0) as int,
+      prizePool: ((j['prize_pool'] ?? j['prizePool'] ?? 0.0) as num).toDouble(),
+      participants: _stringIdList(j['participants']),
+      submissions: submissions,
+      votes: _stringDoubleMap(j['votes']),
+      detailedVotes: _parseDetailedVotes(j['detailed_votes'] ?? j['detailedVotes']),
+      winners: _stringIdList(j['winners']),
+      finalScores: _stringDoubleMap(j['final_scores'] ?? j['finalScores']),
+      winnerPrizes: _stringIntMap(j['winner_prizes'] ?? j['winnerPrizes']),
+      isActive: (j['is_active'] ?? j['isActive'] ?? true) as bool,
+      imageUrl: j['image_url'] ?? j['imageUrl'] as String?,
+      tags: _stringIdList(j['tags']),
     );
-  }
-
-  // Конвертація в Map для Firestore
-  Map<String, dynamic> toFirestore() {
-    return {
-      'title': title,
-      'description': description,
-      'type': challengeTypeToSlug(type),
-      'audience': audience.toString().split('.').last,
-      'creatorId': creatorId,
-      'creatorName': creatorName,
-      'creatorVideoUrl': creatorVideoUrl,
-      'city': city,
-      'entryFee': entryFee,
-      'duration': duration,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'startDate': Timestamp.fromDate(startDate),
-      'submissionDeadline': Timestamp.fromDate(submissionDeadline),
-      'votingDeadline': Timestamp.fromDate(votingDeadline),
-      'endDate': Timestamp.fromDate(endDate),
-      'status': status.toString().split('.').last,
-      'maxParticipants': maxParticipants,
-      'currentParticipants': currentParticipants,
-      'prizePool': prizePool,
-      'participants': participants,
-      'submissions': submissions,
-      'votes': votes,
-      'detailedVotes': detailedVotes,
-      'winners': winners,
-      'finalScores': finalScores,
-      'winnerPrizes': winnerPrizes,
-      'isActive': isActive,
-      'imageUrl': imageUrl,
-      'tags': tags,
-    };
   }
 
   // Копіювання з змінами
@@ -185,9 +194,11 @@ class Challenge {
     String? title,
     String? description,
     ChallengeType? type,
+    ChallengeAudience? audience,
     String? creatorId,
     String? creatorName,
     String? creatorVideoUrl,
+    String? creatorThumbnailUrl,
     String? city,
     DateTime? createdAt,
     DateTime? startDate,
@@ -218,6 +229,7 @@ class Challenge {
       creatorId: creatorId ?? this.creatorId,
       creatorName: creatorName ?? this.creatorName,
       creatorVideoUrl: creatorVideoUrl ?? this.creatorVideoUrl,
+      creatorThumbnailUrl: creatorThumbnailUrl ?? this.creatorThumbnailUrl,
       city: city ?? this.city,
       entryFee: entryFee ?? this.entryFee,
       duration: duration ?? this.duration,

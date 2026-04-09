@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/matches/data/rating_tracking_service.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -457,11 +458,12 @@ if (multiTeams.isNotEmpty) {
           String? challengeTitle;
           if (sourceType == 'challenge' && sourceId != null && sourceId!.isNotEmpty) {
             try {
-              final ch = await FirebaseFirestore.instance.collection('challenges').doc(sourceId).get();
-              if (ch.exists) {
-                final cd = ch.data() as Map<String, dynamic>;
-                challengeTitle = (cd['title'] ?? '').toString();
-              }
+              final row = await Supabase.instance.client
+                  .from('challenges')
+                  .select('title')
+                  .eq('id', sourceId)
+                  .maybeSingle();
+              challengeTitle = row?['title']?.toString();
             } catch (_) {}
           }
           await RatingTrackingService().recordRatingChange(

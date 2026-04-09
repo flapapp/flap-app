@@ -1,10 +1,13 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
+import 'package:flap_app/features/challenges/domain/challenge_failure.dart';
+import 'package:flap_app/features/challenges/domain/entities/challenge_submission_entry.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/models/challenge.dart';
-import 'package:flap_app/features/challenges/data/challenge_service.dart';
 import 'package:flap_app/features/videos/presentation/screens/video_upload_screen.dart';
-import 'package:flap_app/features/videos/presentation/screens/video_player_screen.dart';
 import 'challenge_video_player_screen.dart';
 import 'package:flap_app/features/matches/data/rating_service.dart';
 import 'package:flap_app/features/videos/data/thumbnail_service.dart';
@@ -25,7 +28,6 @@ class ChallengeDetailsScreen extends StatefulWidget {
 }
 
 class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
-  final ChallengeService _challengeService = ChallengeService();
   bool _isJoining = false;
   bool _isSubmitting = false;
   bool _celebrationChecked = false;
@@ -130,19 +132,15 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   }
 
   Widget _buildVideosList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challenge.id)
-          .collection('submissions')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+    return StreamBuilder<List<ChallengeSubmissionEntry>>(
+      stream: context.read<ChallengeRepository>().watchSubmissions(widget.challenge.id),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        final entries = snapshot.data ?? [];
+        if (entries.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -177,7 +175,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     style: const TextStyle(color: Colors.white30, fontSize: 12),
                   ),
                   Text(
-                    'Submissions collection: ${snapshot.data?.docs.length ?? 0}',
+                    'Submissions (Supabase): 0',
                     style: const TextStyle(color: Colors.white30, fontSize: 12),
                   ),
                   Text(
@@ -194,25 +192,15 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           );
         }
 
-        final videos = snapshot.data!.docs;
-        
-        // Сортуємо клієнтською стороною: відео створювача першим
-        final sortedVideos = videos.toList()
+        final sortedVideos = entries.toList()
           ..sort((a, b) {
-            final aData = a.data() as Map<String, dynamic>;
-            final bData = b.data() as Map<String, dynamic>;
-            final aIsCreator = aData['isCreatorVideo'] ?? false;
-            final bIsCreator = bData['isCreatorVideo'] ?? false;
-            final aRating = (aData['averageRating'] ?? 0.0).toDouble();
-            final bRating = (bData['averageRating'] ?? 0.0).toDouble();
-
-            if (aIsCreator && !bIsCreator) return -1;
-            if (!aIsCreator && bIsCreator) return 1;
-            return bRating.compareTo(aRating);
+            if (a.isCreatorVideo && !b.isCreatorVideo) return -1;
+            if (!a.isCreatorVideo && b.isCreatorVideo) return 1;
+            return b.averageRating.compareTo(a.averageRating);
           });
-        
+
         return Column(
-          children: sortedVideos.map((doc) => _buildVideoCard(doc)).toList(),
+          children: sortedVideos.map(_buildVideoCard).toList(),
         );
       },
     );
@@ -220,19 +208,15 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
   // Окремий метод для модального вікна з повноширінними прев'ю
   Widget _buildVideosListForModal() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challenge.id)
-          .collection('submissions')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+    return StreamBuilder<List<ChallengeSubmissionEntry>>(
+      stream: context.read<ChallengeRepository>().watchSubmissions(widget.challenge.id),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        final entries = snapshot.data ?? [];
+        if (entries.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -248,40 +232,31 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           );
         }
 
-        final videos = snapshot.data!.docs;
-        
-        // Сортуємо клієнтською стороною: відео створювача першим
-        final sortedVideos = videos.toList()
+        final sortedVideos = entries.toList()
           ..sort((a, b) {
-            final aData = a.data() as Map<String, dynamic>;
-            final bData = b.data() as Map<String, dynamic>;
-            final aIsCreator = aData['isCreatorVideo'] ?? false;
-            final bIsCreator = bData['isCreatorVideo'] ?? false;
-            
-            if (aIsCreator && !bIsCreator) return -1;
-            if (!aIsCreator && bIsCreator) return 1;
+            if (a.isCreatorVideo && !b.isCreatorVideo) return -1;
+            if (!a.isCreatorVideo && b.isCreatorVideo) return 1;
             return 0;
           });
-        
+
         return Column(
-          children: sortedVideos.map((doc) => _buildModalVideoCard(doc)).toList(),
+          children: sortedVideos.map(_buildModalVideoCard).toList(),
         );
       },
     );
   }
 
   // Відео картка для модального вікна з повноширінним прев'ю
-  Widget _buildModalVideoCard(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final videoId = doc.id;
-    final title = data['title'] ?? I18n.inline('Без назви', 'Untitled');
-    final userId = data['userId'] ?? '';
-    final videoUrl = data['videoUrl'] ?? '';
-    final isCreatorVideo = data['isCreatorVideo'] ?? false;
-    final rating = (data['averageRating'] ?? 0.0).toDouble();
-    final likesCount = data['voteCount'] ?? 0;
-    String thumb = (data['thumbnailUrl'] ?? '') as String;
-    final videoDocId = data['videoId'] ?? '';
+  Widget _buildModalVideoCard(ChallengeSubmissionEntry s) {
+    final submissionUserId = s.userId;
+    final title = s.title.isNotEmpty ? s.title : I18n.inline('Без назви', 'Untitled');
+    final userId = s.userId;
+    final videoUrl = s.videoUrl;
+    final isCreatorVideo = s.isCreatorVideo;
+    final rating = s.averageRating;
+    final likesCount = s.voteCount;
+    String thumb = s.thumbnailUrl;
+    final videoDocId = s.videoId;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -290,7 +265,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         children: [
           // Прев'ю відео - займає весь простір (як на YouTube)
           FutureBuilder<String?>(
-            future: _getThumbnailUrl(thumb, videoDocId, videoUrl),
+            future: _getThumbnailUrl(thumb, submissionUserId, videoDocId, videoUrl),
             builder: (context, snapshot) {
               final effectiveThumb = snapshot.data ?? thumb;
               return VideoPreviewBox(
@@ -303,9 +278,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                       builder: (context) => ChallengeVideoPlayerScreen(
                         videoUrl: videoUrl,
                         title: title,
-                        authorName: 'Автор відео',
+                        authorName: s.authorName.isNotEmpty ? s.authorName : I18n.inline('Автор відео', 'Author'),
                         challengeId: widget.challenge.id,
-                        submissionId: videoId,
+                        submissionId: submissionUserId,
                         thumbnailUrl: effectiveThumb,
                       ),
                     ),
@@ -327,8 +302,8 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           // Інформація про відео
           Row(
             children: [
-              FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+              FutureBuilder(
+                future: context.read<UserProfileRepository>().loadProfile(userId),
                 builder: (context, userSnapshot) {
                   if (!userSnapshot.hasData) {
                     return const CircleAvatar(
@@ -337,11 +312,15 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                       child: Icon(Icons.person, color: Colors.white, size: 20),
                     );
                   }
-                  
-                  final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
-                  final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-                  final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? I18n.inline('Користувач', 'User');
-                  
+
+                  final prof = userSnapshot.data;
+                  final avatarUrl = prof?.avatarUrl ?? '';
+                  final userName = prof?.resolveDisplayName().isNotEmpty == true
+                      ? prof!.resolveDisplayName()
+                      : (s.authorName.isNotEmpty
+                          ? s.authorName
+                          : I18n.inline('Користувач', 'User'));
+
                   return PlayerAvatarButton(
                     userId: userId,
                     displayName: userName,
@@ -420,18 +399,16 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  Widget _buildVideoCard(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final videoId = doc.id;
-    final title = data['title'] ?? I18n.inline('Без назви', 'Untitled');
-    final userId = data['userId'] ?? '';
-    final videoUrl = data['videoUrl'] ?? '';
-    final isCreatorVideo = data['isCreatorVideo'] ?? false;
-    final rating = (data['averageRating'] ?? 0.0).toDouble();
-    final likesCount = data['voteCount'] ?? 0;
-    // Отримуємо thumbnailUrl з submission, якщо немає - спробуємо з основного відео документа
-    String thumb = (data['thumbnailUrl'] ?? '') as String;
-    final videoDocId = data['videoId'] ?? '';
+  Widget _buildVideoCard(ChallengeSubmissionEntry s) {
+    final submissionUserId = s.userId;
+    final title = s.title.isNotEmpty ? s.title : I18n.inline('Без назви', 'Untitled');
+    final userId = s.userId;
+    final videoUrl = s.videoUrl;
+    final isCreatorVideo = s.isCreatorVideo;
+    final rating = s.averageRating;
+    final likesCount = s.voteCount;
+    String thumb = s.thumbnailUrl;
+    final videoDocId = s.videoId;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -450,15 +427,16 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // User info and title
-          FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+          FutureBuilder(
+            future: context.read<UserProfileRepository>().loadProfile(userId),
             builder: (context, userSnapshot) {
-              final userData = userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
-              final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-              final userName = userData['displayName'] ??
-                  userData['name'] ??
-                  userData['email']?.split('@')[0] ??
-                  I18n.inline('Користувач', 'User');
+              final prof = userSnapshot.data;
+              final avatarUrl = prof?.avatarUrl ?? '';
+              final userName = prof?.resolveDisplayName().isNotEmpty == true
+                  ? prof!.resolveDisplayName()
+                  : (s.authorName.isNotEmpty
+                      ? s.authorName
+                      : I18n.inline('Користувач', 'User'));
               return Row(
                 children: [
                   PlayerAvatarButton(
@@ -479,7 +457,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                               title: title,
                               authorName: userName,
                               challengeId: widget.challenge.id,
-                              submissionId: videoId,
+                              submissionId: submissionUserId,
                               thumbnailUrl: thumb,
                             ),
                           ),
@@ -564,10 +542,15 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
           // Voting section - exactly like MVP (video preview comes first, then voting controls)
           FutureBuilder<String?>(
-            future: _getThumbnailUrl(thumb, videoDocId, videoUrl),
+            future: _getThumbnailUrl(thumb, submissionUserId, videoDocId, videoUrl),
             builder: (context, snapshot) {
               final effectiveThumb = snapshot.data ?? thumb;
-              return _buildVotingSection(videoId, videoUrl, title, userId, thumbnailUrl: effectiveThumb);
+              return _buildVotingSection(
+                submissionUserId,
+                videoUrl,
+                title,
+                thumbnailUrl: effectiveThumb,
+              );
             },
           ),
           const SizedBox(height: 8),
@@ -579,7 +562,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
     final buttons = <Widget>[
       ElevatedButton.icon(
-        onPressed: () => _playVideo(videoUrl, title, videoId, userId, thumbnailUrl: thumb),
+        onPressed: () => _playVideo(videoUrl, title, submissionUserId, thumbnailUrl: thumb),
         icon: const Icon(Icons.play_arrow, size: 16),
         label: Text(I18n.inline('Дивитися', 'Watch'), style: const TextStyle(fontSize: 12)),
         style: ElevatedButton.styleFrom(
@@ -592,7 +575,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         ),
       ),
       ElevatedButton.icon(
-        onPressed: () => _shareVideo(videoId),
+        onPressed: () => _shareVideo(submissionUserId),
         icon: const Icon(Icons.share, size: 16),
         label: Text(I18n.t('share'), style: const TextStyle(fontSize: 12)),
         style: ElevatedButton.styleFrom(
@@ -605,7 +588,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         ),
       ),
       ElevatedButton.icon(
-        onPressed: () => _saveVideo(videoId),
+        onPressed: () => _saveVideo(submissionUserId),
         icon: const Icon(Icons.bookmark_outline, size: 16),
         label: Text(I18n.t('save'), style: const TextStyle(fontSize: 12)),
         style: ElevatedButton.styleFrom(
@@ -735,23 +718,13 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     if (currentUser == null) return;
 
     try {
-      final challengeDoc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challenge.id)
-          .get();
-      if (!challengeDoc.exists) return;
-
-      final latestChallenge = Challenge.fromFirestore(challengeDoc);
+      final repo = context.read<ChallengeRepository>();
+      final latestChallenge = await repo.getChallenge(widget.challenge.id);
+      if (latestChallenge == null) return;
       if (latestChallenge.status != ChallengeStatus.completed) return;
       if (!latestChallenge.winners.contains(currentUser.id)) return;
 
-      final celebrationRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.id)
-          .collection('challengeCelebrations')
-          .doc(widget.challenge.id);
-      final shownDoc = await celebrationRef.get();
-      if (shownDoc.exists) return;
+      if (await repo.hasCelebrationAck(widget.challenge.id)) return;
 
       if (!mounted) return;
       await Navigator.push(
@@ -764,10 +737,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         ),
       );
 
-      await celebrationRef.set({
-        'challengeId': widget.challenge.id,
-        'shownAt': FieldValue.serverTimestamp(),
-      });
+      await repo.ackCelebration(widget.challenge.id);
     } catch (e) {
       print('Failed to show celebration: $e');
     }
@@ -839,11 +809,8 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                         itemCount: widget.challenge.participants.length,
                         itemBuilder: (context, index) {
                           final participantId = widget.challenge.participants[index];
-                          return FutureBuilder<DocumentSnapshot>(
-                            future: FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(participantId)
-                                .get(),
+                          return FutureBuilder(
+                            future: context.read<UserProfileRepository>().loadProfile(participantId),
                             builder: (context, snapshot) {
                               if (!snapshot.hasData) {
                                 return ListTile(
@@ -855,11 +822,15 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                                 );
                               }
 
-                              final userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-                              final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? I18n.inline('Користувач', 'User');
-                              final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-                              final rating = (userData['rating'] ?? 0.0).toDouble();
-                              final city = userData['city'] ?? I18n.inline('Невідоме місто', 'Unknown city');
+                              final prof = snapshot.data;
+                              final userName = prof?.resolveDisplayName().isNotEmpty == true
+                                  ? prof!.resolveDisplayName()
+                                  : I18n.inline('Користувач', 'User');
+                              final avatarUrl = prof?.avatarUrl ?? '';
+                              final rating = prof?.rating ?? 0.0;
+                              final city = prof?.city?.isNotEmpty == true
+                                  ? prof!.city!
+                                  : I18n.inline('Невідоме місто', 'Unknown city');
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -951,32 +922,34 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  Widget _buildVotingSection(String videoId, String videoUrl, String title, String userId, {String? thumbnailUrl}) {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challenge.id)
-          .collection('votes')
-          .doc('${AppAuthContext.userId}_$videoId')
-          .snapshots(),
+  Widget _buildVotingSection(
+    String submissionUserId,
+    String videoUrl,
+    String title, {
+    String? thumbnailUrl,
+  }) {
+    return StreamBuilder<Map<String, double>>(
+      stream: context.read<ChallengeRepository>().watchMyVotes(widget.challenge.id),
       builder: (context, voteSnapshot) {
-        final hasVoted = voteSnapshot.hasData && voteSnapshot.data!.exists;
-        double currentVote = (_voteNotifiers[videoId]?.value) ?? 0.0;
+        final myVotes = voteSnapshot.data ?? {};
+        final existingVote = myVotes[submissionUserId];
+        final hasVoted = existingVote != null;
+        double currentVote = (_voteNotifiers[submissionUserId]?.value) ?? 0.0;
 
-        if (hasVoted) {
-          final voteData =
-              voteSnapshot.data!.data() as Map<String, dynamic>? ?? {};
-          final serverVote = (voteData['rating'] ?? 0.0).toDouble();
-          if (_voteNotifiers.containsKey(videoId)) {
-            if ((_voteNotifiers[videoId]!.value - serverVote).abs() > 0.01) {
-              _voteNotifiers[videoId]!.value = serverVote;
+        if (existingVote != null) {
+          final sv = existingVote;
+          if (_voteNotifiers.containsKey(submissionUserId)) {
+            if ((_voteNotifiers[submissionUserId]!.value - sv).abs() > 0.01) {
+              _voteNotifiers[submissionUserId]!.value = sv;
             }
           } else {
-            _voteNotifiers[videoId] = ValueNotifier<double>(serverVote);
+            _voteNotifiers[submissionUserId] = ValueNotifier<double>(sv);
           }
         } else {
           _voteNotifiers.putIfAbsent(
-              videoId, () => ValueNotifier<double>(currentVote));
+            submissionUserId,
+            () => ValueNotifier<double>(currentVote),
+          );
         }
 
         return Container(
@@ -988,7 +961,6 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           ),
           child: Column(
             children: [
-              // Video preview with thumbnail
               VideoPreviewBox(
                 videoUrl: videoUrl,
                 thumbnailUrl: thumbnailUrl,
@@ -1002,7 +974,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                           title: title,
                           authorName: 'Автор відео',
                           challengeId: widget.challenge.id,
-                          submissionId: videoId,
+                          submissionId: submissionUserId,
                           thumbnailUrl: thumbnailUrl,
                         ),
                       ),
@@ -1028,28 +1000,27 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                   ),
                   Expanded(
                     child: ValueListenableBuilder<double>(
-                      valueListenable: _voteNotifiers[videoId]!,
+                      valueListenable: _voteNotifiers[submissionUserId]!,
                       builder: (context, value, _) => Slider(
                         value: value,
                         min: 0.0,
                         max: 5.0,
-                        // без divisions для плавності
                         activeColor: const Color(0xFF4caf50),
                         inactiveColor: Colors.white.withOpacity(0.2),
                         onChanged: hasVoted ? null : (v) {
-                          _voteNotifiers[videoId]!.value = v;
+                          _voteNotifiers[submissionUserId]!.value = v;
                         },
                         onChangeEnd: hasVoted ? null : (v) {
                           final rounded = (v * 100).round() / 100;
-                          _voteNotifiers[videoId]!.value = rounded;
+                          _voteNotifiers[submissionUserId]!.value = rounded;
                         },
                       ),
                     ),
                   ),
-                  Container(
+                  SizedBox(
                     width: 40,
                     child: ValueListenableBuilder<double>(
-                      valueListenable: _voteNotifiers[videoId]!,
+                      valueListenable: _voteNotifiers[submissionUserId]!,
                       builder: (context, v, _) => Text(
                         v.toStringAsFixed(2),
                         style: const TextStyle(
@@ -1063,7 +1034,12 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: hasVoted ? null : () => _submitVote(videoId, _voteNotifiers[videoId]!.value),
+                    onPressed: hasVoted
+                        ? null
+                        : () => _submitVote(
+                              submissionUserId,
+                              _voteNotifiers[submissionUserId]!.value,
+                            ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: hasVoted ? Colors.grey : const Color(0xFF4caf50),
                       foregroundColor: Colors.white,
@@ -1122,95 +1098,58 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  Future<void> _submitVote(String videoId, double rating) async {
+  Future<void> _submitVote(String submissionUserId, double rating) async {
     final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return;
 
-    // Перевіряємо чи користувач не голосує за себе
-    final submissionDoc = await FirebaseFirestore.instance
-        .collection('challenges')
-        .doc(widget.challenge.id)
-        .collection('submissions')
-        .doc(videoId)
-        .get();
-        
-    if (submissionDoc.exists) {
-      final submissionData = submissionDoc.data() as Map<String, dynamic>;
-      final submissionUserId = submissionData['userId'];
-      
-      if (submissionUserId == currentUser.id) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(I18n.inline('❌ Не можна голосувати за себе!', '❌ Cannot vote for yourself!')),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
+    if (submissionUserId == currentUser.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(I18n.inline('❌ Не можна голосувати за себе!', '❌ Cannot vote for yourself!')),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
 
     try {
-      // Save vote to challenge votes subcollection
-      await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challenge.id)
-          .collection('votes')
-          .doc('${currentUser.id}_$videoId')
-          .set({
-        'userId': currentUser.id,
-        'videoId': videoId,
-        'challengeId': widget.challenge.id,
-        'rating': rating,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await context.read<ChallengeRepository>().castVote(
+            challengeId: widget.challenge.id,
+            submissionUserId: submissionUserId,
+            rating: rating,
+            awardCoin: false,
+          );
 
-      // Update submission rating
-      final submissionRef = FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challenge.id)
-          .collection('submissions')
-          .doc(videoId);
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final submissionDoc = await transaction.get(submissionRef);
-        if (!submissionDoc.exists) return;
-
-        final data = submissionDoc.data() as Map<String, dynamic>;
-        final currentRating = (data['averageRating'] ?? 0.0).toDouble();
-        final currentVotes = (data['voteCount'] ?? 0).toInt();
-        
-        final newVotes = currentVotes + 1;
-        final newRating = ((currentRating * currentVotes) + rating) / newVotes;
-
-        transaction.update(submissionRef, {
-          'averageRating': newRating,
-          'voteCount': newVotes,
-        });
-      });
-
-      // Recompute overall rating for the submission author (affects player rating)
       try {
-        final submission = await submissionRef.get();
-        if (submission.exists) {
-          final userId = (submission.data() as Map<String, dynamic>)['userId'] as String?;
-          if (userId != null && userId.isNotEmpty && userId != currentUser.id) {
-            await RatingService().recomputeOverallRating(
-              userId,
-              reason: 'challenge_vote',
-              source: currentUser.displayName ?? '',
-              sourceType: 'challenge',
-              sourceId: widget.challenge.id,
-            );
-          }
-        }
+        await RatingService().recomputeOverallRating(
+          submissionUserId,
+          reason: 'challenge_vote',
+          source: currentUser.displayName ?? '',
+          sourceType: 'challenge',
+          sourceId: widget.challenge.id,
+        );
       } catch (_) {}
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('✅ Ваша оцінка ${rating.toStringAsFixed(1)} збережена!', '✅ Your rating ${rating.toStringAsFixed(1)} saved!')),
+          content: Text(I18n.inline(
+            '✅ Ваша оцінка ${rating.toStringAsFixed(1)} збережена!',
+            '✅ Your rating ${rating.toStringAsFixed(1)} saved!',
+          )),
           backgroundColor: const Color(0xFF4caf50),
         ),
       );
+    } on ChallengeFailure catch (f) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(I18n.inline('❌ ${f.message}', '❌ ${f.message}')),
+          backgroundColor: Colors.red,
+        ),
+      );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(I18n.inline('❌ Помилка збереження оцінки', '❌ Error saving rating')),
@@ -1220,7 +1159,12 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     }
   }
 
-  void _playVideo(String videoUrl, String title, String videoId, String userId, {String? thumbnailUrl}) {
+  void _playVideo(
+    String videoUrl,
+    String title,
+    String submissionUserId, {
+    String? thumbnailUrl,
+  }) {
     if (videoUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(I18n.inline('❌ Відео недоступне', '❌ Video unavailable'))),
@@ -1237,7 +1181,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           title: title,
           authorName: 'Автор відео',
           challengeId: widget.challenge.id,
-          submissionId: videoId,
+          submissionId: submissionUserId,
           thumbnailUrl: thumbnailUrl,
         ),
       ),
@@ -1245,32 +1189,33 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   }
 
   // Отримує thumbnailUrl: спочатку з submission, потім з основного відео документа, якщо немає - генеруємо
-  Future<String?> _getThumbnailUrl(String submissionThumb, String videoDocId, String videoUrl) async {
-    // Якщо є thumbnail в submission, повертаємо його
+  Future<String?> _getThumbnailUrl(
+    String submissionThumb,
+    String submissionUserId,
+    String videoDocId,
+    String videoUrl,
+  ) async {
     if (submissionThumb.isNotEmpty) {
       return submissionThumb;
     }
-    
-    // Якщо є videoId, спробуємо отримати thumbnail з основного відео документа
+
     if (videoDocId.isNotEmpty) {
       try {
         final videoDoc = await FirebaseFirestore.instance
             .collection('videos')
             .doc(videoDocId)
             .get();
-        
+
         if (videoDoc.exists) {
           final videoData = videoDoc.data() as Map<String, dynamic>;
           final videoThumb = (videoData['thumbnailUrl'] ?? '') as String;
           if (videoThumb.isNotEmpty) {
-            // Оновлюємо submission з thumbnailUrl з основного відео
             try {
-              await FirebaseFirestore.instance
-                  .collection('challenges')
-                  .doc(widget.challenge.id)
-                  .collection('submissions')
-                  .doc(videoDoc.id)
-                  .update({'thumbnailUrl': videoThumb});
+              await context.read<ChallengeRepository>().setSubmissionThumbnail(
+                    challengeId: widget.challenge.id,
+                    userId: submissionUserId,
+                    thumbnailUrl: videoThumb,
+                  );
             } catch (_) {}
             return videoThumb;
           }
@@ -1279,26 +1224,32 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         print('⚠️ Error getting thumbnail from video doc: $e');
       }
     }
-    
-    // Якщо немає thumbnail, спробуємо згенерувати його
-    if (videoUrl.isNotEmpty && videoDocId.isNotEmpty) {
+
+    if (videoUrl.isNotEmpty && submissionUserId.isNotEmpty) {
       try {
         final thumbnailService = ThumbnailService();
         final userId = AppAuthContext.userId ?? '';
         final thumbnailUrl = await thumbnailService.generateSubmissionThumbnail(
           videoUrl: videoUrl,
           challengeId: widget.challenge.id,
-          submissionId: videoDocId,
+          submissionId: submissionUserId,
           userId: userId,
         );
         if (thumbnailUrl != null && thumbnailUrl.isNotEmpty) {
+          try {
+            await context.read<ChallengeRepository>().setSubmissionThumbnail(
+                  challengeId: widget.challenge.id,
+                  userId: submissionUserId,
+                  thumbnailUrl: thumbnailUrl,
+                );
+          } catch (_) {}
           return thumbnailUrl;
         }
       } catch (e) {
         print('⚠️ Error generating thumbnail: $e');
       }
     }
-    
+
     return null;
   }
 
