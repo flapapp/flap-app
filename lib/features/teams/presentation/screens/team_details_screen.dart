@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
@@ -10,7 +11,7 @@ import 'package:flap_app/models/match.dart' as app_match;
 import 'package:flap_app/models/team_match_request.dart';
 import 'package:flap_app/models/team_stats.dart';
 import 'package:flap_app/features/teams/data/team_service.dart';
-import 'package:flap_app/features/friends/data/friends_service.dart';
+import 'package:flap_app/features/friends/domain/repositories/friends_repository.dart';
 import 'package:flap_app/models/friend_request.dart';
 import 'package:flap_app/models/team_join_request.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -32,7 +33,6 @@ class TeamDetailsScreen extends StatefulWidget {
 
 class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   final _teamService = TeamService();
-  final _friendsService = FriendsService();
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _teamStream;
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _teamStatsStream;
   late final Stream<List<TeamMatchRequest>> _requestsStream;
@@ -1583,7 +1583,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   }
 
   Future<void> _openInviteSheet(AppTeam team) async {
-    final friends = await _friendsService.getUserFriends(team.captainId);
+    final friends =
+        await context.read<FriendsRepository>().getUserFriends(team.captainId);
     if (!mounted) return;
     showModalBottomSheet(
       context: context,

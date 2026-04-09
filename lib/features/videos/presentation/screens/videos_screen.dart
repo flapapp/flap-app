@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:video_player/video_player.dart';
 import 'video_upload_screen.dart';
@@ -6,7 +7,8 @@ import 'video_player_screen.dart';
 import 'package:flap_app/widgets/rating_display.dart';
 import 'package:flap_app/widgets/user_chip.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
-import 'package:flap_app/features/friends/data/friends_service.dart';
+import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
+import 'package:flap_app/features/friends/domain/repositories/friends_repository.dart';
 import 'package:flap_app/models/friend_request.dart' show Friend;
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/video_preview_box.dart';
@@ -463,8 +465,8 @@ class _VideosScreenState extends State<VideosScreen> {
     final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return;
     try {
-      final friendsService = FriendsService();
-      final friends = await friendsService.getUserFriends(currentUser.id);
+      final friendsRepo = context.read<FriendsRepository>();
+      final friends = await friendsRepo.getUserFriends(currentUser.id);
       if (friends.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(I18n.inline('Немає друзів для запиту оцінки', 'No friends to request a rating'))),
@@ -502,8 +504,11 @@ class _VideosScreenState extends State<VideosScreen> {
               TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Скасувати', style: TextStyle(color: Colors.white70))),
               ElevatedButton(
                 onPressed: selected.isEmpty ? null : () async {
-                  final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.id).get();
-                  final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач').toString();
+                  final meProf =
+                      await context.read<UserProfileRepository>().loadProfile(currentUser.id);
+                  final myName = meProf?.resolveDisplayName().isNotEmpty == true
+                      ? meProf!.resolveDisplayName()
+                      : I18n.inline('Користувач', 'User');
                   await NotificationService().sendRatingRequest(
                     toUserIds: selected.toList(),
                     fromUserName: myName,

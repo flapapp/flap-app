@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flap_app/models/challenge.dart';
 import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
+import 'package:flap_app/features/friends/domain/repositories/friends_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/videos/data/thumbnail_service.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -442,7 +443,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 ),
                 const SizedBox(height: 10),
                 FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _loadMyFriends(),
+                  future: _loadMyFriends(context),
                   builder: (context, snapshot) {
                     final friends = snapshot.data ?? const <Map<String, dynamic>>[];
                     if (friends.isEmpty) {
@@ -746,23 +747,30 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     );
   }
 
-  Future<List<Map<String, dynamic>>> _loadMyFriends() async {
+  /// Uses Supabase `user_friends` + `profiles` via [FriendsRepository] (same graph as Friends tab).
+  Future<List<Map<String, dynamic>>> _loadMyFriends(BuildContext context) async {
     try {
       final me = AppAuthContext.currentUser;
       if (me == null) return [];
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.id).get();
-      final ids = List<String>.from(userDoc.data()?['friends'] ?? []);
-      if (ids.isEmpty) return [];
-      final result = <Map<String, dynamic>>[];
-      for (final id in ids.take(50)) {
-        final d = await FirebaseFirestore.instance.collection('users').doc(id).get();
-        if (d.exists) {
-          final data = d.data() as Map<String, dynamic>;
-          data['id'] = id;
-          result.add(data);
-        }
-      }
-      result.sort((a, b) => (a['displayName'] ?? a['name'] ?? '').toString().compareTo((b['displayName'] ?? b['name'] ?? '').toString()));
+      final friends =
+          await context.read<FriendsRepository>().getUserFriends(me.id);
+      final result = friends
+          .take(50)
+          .map(
+            (f) => <String, dynamic>{
+              'id': f.userId,
+              'displayName': f.name,
+              'name': f.name,
+              'avatarUrl': f.avatar,
+              'photoUrl': f.avatar,
+              'position': f.position,
+              'rating': f.rating,
+            },
+          )
+          .toList();
+      result.sort(
+        (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+      );
       return result;
     } catch (_) {
       return [];

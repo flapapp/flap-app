@@ -10,7 +10,8 @@ import 'package:flap_app/core/storage/supabase_avatar_storage.dart';
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/models/badge.dart' as app_badge;
 import 'package:flap_app/features/badges/domain/repositories/badge_repository.dart';
-import 'package:flap_app/features/friends/data/friends_service.dart';
+import 'package:flap_app/features/friends/domain/friend_failure.dart';
+import 'package:flap_app/features/friends/domain/repositories/friends_repository.dart';
 import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/models/challenge.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
@@ -38,7 +39,6 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   Map<String, dynamic>? playerData;
   List<Map<String, dynamic>> playerVideos = [];
   bool isLoading = true;
-  final FriendsService _friendsService = FriendsService();
   bool _isSendingRequest = false;
   // Пікер та локальний буфер аватару
   final ImagePicker _picker = ImagePicker();
@@ -503,10 +503,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     if (currentUser == null) return false;
 
     try {
-      return await _friendsService.areUsersFriends(
-        currentUser.id,
-        widget.playerId,
-      );
+      return await context.read<FriendsRepository>().areUsersFriends(
+            currentUser.id,
+            widget.playerId,
+          );
     } catch (e) {
       return false;
     }
@@ -518,8 +518,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 
     try {
       // Check outgoing requests
-      final outgoingRequests = await _friendsService
-          .getOutgoingFriendRequests()
+      final outgoingRequests = await context
+          .read<FriendsRepository>()
+          .watchOutgoingFriendRequests()
           .first;
       return outgoingRequests.any(
         (request) => request.toUserId == widget.playerId,
@@ -536,7 +537,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         _isSendingRequest = true;
       });
 
-      await _friendsService.sendFriendRequest(widget.playerId);
+      await context.read<FriendsRepository>().sendFriendRequest(widget.playerId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -546,6 +547,12 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           ),
         );
         setState(() {});
+      }
+    } on FriendFailure catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
       }
     } catch (e) {
       if (mounted) {

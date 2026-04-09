@@ -13,8 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flap_app/models/badge.dart' as app_badge;
 import 'package:flap_app/features/badges/domain/repositories/badge_repository.dart';
 import 'package:flap_app/features/badges/presentation/screens/badges_store_screen.dart';
-import 'package:flap_app/features/friends/data/friends_service.dart';
-import 'package:flap_app/features/friends/presentation/screens/friends_screen.dart';
+import 'package:flap_app/features/friends/domain/repositories/friends_repository.dart';
 import 'package:flap_app/features/subscription/presentation/screens/subscription_screen.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/models/app_team.dart';
@@ -34,7 +33,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseStorage _storage = FirebaseStorage.instance;
-  final FriendsService _friendsService = FriendsService();
   final TeamService _teamService = TeamService();
   final ImagePicker _picker = ImagePicker();
   
@@ -221,8 +219,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _loadFriendsCount() async {
     final uid = AppAuthContext.userId;
-    if (uid != null) {
-      final friends = await _friendsService.getUserFriends(uid);
+    if (uid != null && mounted) {
+      final friends = await context.read<FriendsRepository>().getUserFriends(uid);
+      if (!mounted) return;
       setState(() {
         _friendsCount = friends.length;
       });

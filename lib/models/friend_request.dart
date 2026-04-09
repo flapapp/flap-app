@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 enum FriendRequestStatus {
@@ -35,47 +34,36 @@ class FriendRequest {
     this.message,
   });
 
-  // Factory constructor from Firestore
-  factory FriendRequest.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    
+  /// Supabase row (`public.friend_requests`).
+  factory FriendRequest.fromSupabaseRow(Map<String, dynamic> row) {
+    final statusStr = (row['status'] ?? 'pending').toString();
     return FriendRequest(
-      id: doc.id,
-      fromUserId: data['fromUserId'] ?? '',
-      fromUserName: data['fromUserName'] ?? '',
-      fromUserAvatar: data['fromUserAvatar'] ?? '',
-      toUserId: data['toUserId'] ?? '',
-      toUserName: data['toUserName'] ?? '',
-      toUserAvatar: data['toUserAvatar'] ?? '',
+      id: row['id']?.toString() ?? '',
+      fromUserId: row['from_user_id']?.toString() ?? '',
+      fromUserName: row['from_display_name']?.toString() ?? '',
+      fromUserAvatar: row['from_avatar_url']?.toString() ?? '',
+      toUserId: row['to_user_id']?.toString() ?? '',
+      toUserName: row['to_display_name']?.toString() ?? '',
+      toUserAvatar: row['to_avatar_url']?.toString() ?? '',
       status: FriendRequestStatus.values.firstWhere(
-        (e) => e.toString().split('.').last == data['status'],
+        (e) => e.name == statusStr,
         orElse: () => FriendRequestStatus.pending,
       ),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      respondedAt: data['respondedAt'] != null 
-          ? (data['respondedAt'] as Timestamp).toDate()
-          : null,
-      message: data['message'],
+      createdAt: FriendRequest._parseTs(row['created_at']),
+      respondedAt:
+          row['responded_at'] != null ? FriendRequest._parseTs(row['responded_at']) : null,
+      message: row['message']?.toString(),
     );
   }
 
-  // Convert to Map for Firestore
-  Map<String, dynamic> toFirestore() {
-    return {
-      'fromUserId': fromUserId,
-      'fromUserName': fromUserName,
-      'fromUserAvatar': fromUserAvatar,
-      'toUserId': toUserId,
-      'toUserName': toUserName,
-      'toUserAvatar': toUserAvatar,
-      'status': status.toString().split('.').last,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'respondedAt': respondedAt != null 
-          ? Timestamp.fromDate(respondedAt!)
-          : null,
-      'message': message,
-    };
+  static DateTime _parseTs(dynamic v) {
+    if (v == null) return DateTime.now();
+    if (v is DateTime) return v;
+    return DateTime.tryParse(v.toString()) ?? DateTime.now();
   }
+
+  /// Parses edge timestamps from Supabase / JSON (same rules as `_parseTs`).
+  static DateTime parseRowTimestamp(dynamic v) => _parseTs(v);
 
   // Copy with changes
   FriendRequest copyWith({
@@ -191,10 +179,42 @@ class Friend {
       position: userData['position'] ?? 'player',
       friendsSince: friendsSince,
       isOnline: userData['isOnline'] ?? false,
-      lastSeen: userData['lastSeen'] != null 
-          ? (userData['lastSeen'] as Timestamp).toDate()
-          : null,
+      lastSeen: Friend._parseOptionalDate(userData['lastSeen']),
     );
+  }
+
+  /// Supabase `profiles` row + `user_friends.created_at`.
+  factory Friend.fromProfileRow({
+    required Map<String, dynamic> profile,
+    required DateTime friendsSince,
+  }) {
+    final displayName = (profile['display_name'] ?? '').toString().trim();
+    final name = (profile['name'] ?? '').toString().trim();
+    final surname = (profile['surname'] ?? '').toString().trim();
+    final email = (profile['email'] ?? '').toString();
+    final combined = '$name $surname'.trim();
+    final label = displayName.isNotEmpty
+        ? displayName
+        : (combined.isNotEmpty
+            ? combined
+            : (email.contains('@') ? email.split('@').first : I18n.inline('Користувач', 'User')));
+    return Friend(
+      userId: profile['id']?.toString() ?? '',
+      name: label,
+      avatar: (profile['avatar_url'] ?? '').toString(),
+      rating: (profile['rating'] as num?)?.toDouble() ?? 0.0,
+      city: (profile['city'] ?? '').toString().isNotEmpty
+          ? profile['city'].toString()
+          : I18n.inline('Невідоме місто', 'Unknown city'),
+      position: (profile['position'] ?? 'player').toString(),
+      friendsSince: friendsSince,
+    );
+  }
+
+  static DateTime? _parseOptionalDate(dynamic v) {
+    if (v == null) return null;
+    if (v is DateTime) return v;
+    return DateTime.tryParse(v.toString());
   }
 
   // Rating display

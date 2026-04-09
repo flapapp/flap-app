@@ -5,7 +5,7 @@ import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/auth_sign_out_helper.dart';
 import 'package:flap_app/models/badge.dart' as app_badge;
 import 'package:flap_app/features/badges/domain/repositories/badge_repository.dart';
-import 'package:flap_app/features/friends/data/friends_service.dart';
+import 'package:flap_app/features/friends/domain/repositories/friends_repository.dart';
 import 'package:flap_app/features/badges/presentation/screens/badges_store_screen.dart';
 import 'package:flap_app/features/friends/presentation/screens/friends_screen.dart';
 import 'profile_screen_sparkline.dart';
@@ -20,8 +20,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserver {
-  final FriendsService _friendsService = FriendsService();
-  
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
   List<app_badge.Badge> _userBadges = [];
   int _friendsCount = 0;
@@ -68,8 +66,9 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
 
   void _loadFriendsCount() async {
     final uid = AppAuthContext.userId;
-    if (uid != null) {
-      final friends = await _friendsService.getUserFriends(uid);
+    if (uid != null && mounted) {
+      final friends = await context.read<FriendsRepository>().getUserFriends(uid);
+      if (!mounted) return;
       setState(() {
         _friendsCount = friends.length;
       });

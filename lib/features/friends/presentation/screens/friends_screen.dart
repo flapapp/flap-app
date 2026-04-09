@@ -1,12 +1,12 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flap_app/models/friend_request.dart';
-import 'package:flap_app/features/friends/data/friends_service.dart';
-import 'dart:async';
 import 'package:flap_app/utils/i18n.dart';
-import 'package:flap_app/core/app_auth_context.dart';
-import 'package:flap_app/core/router/app_router.dart';
+import 'package:flap_app/features/friends/domain/repositories/friends_repository.dart';
+import 'package:flap_app/features/friends/presentation/bloc/friends_bloc.dart';
+import 'package:flap_app/features/friends/presentation/bloc/friends_event.dart';
+import 'package:flap_app/features/friends/presentation/bloc/friends_state.dart';
 
 @RoutePage()
 class FriendsScreen extends StatefulWidget {
@@ -15,61 +15,18 @@ class FriendsScreen extends StatefulWidget {
 }
 
 class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateMixin {
-  final FriendsService _friendsService = FriendsService();
   late TabController _tabController;
-  
-  List<Friend> _friends = [];
-  List<FriendRequest> _incomingRequests = [];
-  List<FriendRequest> _outgoingRequests = [];
-  bool _loadingFriends = true;
-  
-  final TextEditingController _searchController = TextEditingController();
-  List<Map<String, dynamic>> _searchResults = [];
-  bool _isSearching = false;
 
-  StreamSubscription<List<FriendRequest>>? _incomingSub;
-  StreamSubscription<List<FriendRequest>>? _outgoingSub;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _loadFriends();
-    _listenToRequests();
-  }
-
-  void _loadFriends() async {
-    final currentUser = AppAuthContext.currentUser;
-    if (currentUser != null) {
-      final friends = await _friendsService.getUserFriends(currentUser.id);
-      if (!mounted) return;
-      setState(() {
-        _friends = friends;
-        _loadingFriends = false;
-      });
-    }
-  }
-
-  void _listenToRequests() {
-    _incomingSub = _friendsService.getIncomingFriendRequests().listen((requests) {
-      if (!mounted) return;
-      setState(() {
-        _incomingRequests = requests;
-      });
-    });
-
-    _outgoingSub = _friendsService.getOutgoingFriendRequests().listen((requests) {
-      if (!mounted) return;
-      setState(() {
-        _outgoingRequests = requests;
-      });
-    });
   }
 
   @override
   void dispose() {
-    _incomingSub?.cancel();
-    _outgoingSub?.cancel();
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -77,75 +34,164 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0f0f23),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0f0f23),
-        elevation: 0,
-        title: Text(
-          '👥 ${I18n.t('friends')}',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add, color: Colors.white),
-            onPressed: _showAddFriendDialog,
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: const Color(0xFF4caf50),
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          isScrollable: true,
-          tabs: [
-            Tab(
-              icon: const Icon(Icons.people, size: 20),
-              child: Text(
-                '${I18n.t('friends')} (${_friends.length})',
-                overflow: TextOverflow.ellipsis,
+    return BlocProvider(
+      create: (_) => FriendsBloc(context.read<FriendsRepository>())..add(const FriendsStarted()),
+      child: BlocConsumer<FriendsBloc, FriendsState>(
+        listenWhen: (prev, curr) {
+          if (curr is! FriendsReady) return false;
+          if (prev is! FriendsReady) return true;
+          return prev.errorMessage != curr.errorMessage ||
+              prev.successMessage != curr.successMessage;
+        },
+        listener: (context, state) {
+          if (state is! FriendsReady) return;
+          if (state.errorMessage != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.errorMessage!)),
+            );
+            context.read<FriendsBloc>().add(const FriendsClearMessages());
+            return;
+          }
+          if (state.successMessage != null) {
+            final msg = state.successMessage!;
+            if (msg == 'invitation_sent') {
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('✅ Запрошення надіслано!'.i18n('✅ Invitation sent!')),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            } else if (msg == 'invitation_accepted') {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('✅ Запрошення прийнято!'.i18n('✅ Invitation accepted!')),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            } else if (msg == 'invitation_declined') {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('❌ Запрошення відхилено'.i18n('❌ Invitation declined')),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            } else if (msg == 'invitation_cancelled') {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('✅ Запрошення скасовано'.i18n('✅ Invitation cancelled')),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            } else if (msg.startsWith('removed:')) {
+              final name = msg.substring('removed:'.length);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    I18n.inline('$name видалено з друзів', '$name removed from friends'),
+                  ),
+                ),
+              );
+            }
+            context.read<FriendsBloc>().add(const FriendsClearMessages());
+          }
+        },
+        builder: (context, state) {
+          if (state is FriendsInitial) {
+            return const Scaffold(
+              backgroundColor: Color(0xFF0f0f23),
+              body: Center(
+                child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+              ),
+            );
+          }
+          if (state is! FriendsReady) {
+            return const Scaffold(
+              backgroundColor: Color(0xFF0f0f23),
+              body: Center(
+                child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+              ),
+            );
+          }
+          final ready = state;
+          return Scaffold(
+            backgroundColor: const Color(0xFF0f0f23),
+            appBar: AppBar(
+              backgroundColor: const Color(0xFF0f0f23),
+              elevation: 0,
+              title: Text(
+                '👥 ${I18n.t('friends')}',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.person_add, color: Colors.white),
+                  onPressed: () => _showAddFriendDialog(context),
+                ),
+              ],
+              bottom: TabBar(
+                controller: _tabController,
+                indicatorColor: const Color(0xFF4caf50),
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white70,
+                isScrollable: true,
+                tabs: [
+                  Tab(
+                    icon: const Icon(Icons.people, size: 20),
+                    child: Text(
+                      '${I18n.t('friends')} (${ready.friends.length})',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Tab(
+                    icon: const Icon(Icons.person_add, size: 20),
+                    child: Text(
+                      I18n.inline(
+                        'Запрошення (${ready.incoming.length})',
+                        'Invites (${ready.incoming.length})',
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Tab(
+                    icon: const Icon(Icons.send, size: 20),
+                    child: Text(
+                      I18n.inline(
+                        'Надіслані (${ready.outgoing.length})',
+                        'Sent (${ready.outgoing.length})',
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ),
-            Tab(
-              icon: const Icon(Icons.person_add, size: 20),
-              child: Text(
-                I18n.inline('Запрошення (${_incomingRequests.length})', 'Invites (${_incomingRequests.length})'),
-                overflow: TextOverflow.ellipsis,
-              ),
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildFriendsTab(context, ready),
+                _buildIncomingRequestsTab(context, ready),
+                _buildOutgoingRequestsTab(context, ready),
+              ],
             ),
-            Tab(
-              icon: const Icon(Icons.send, size: 20),
-              child: Text(
-                I18n.inline('Надіслані (${_outgoingRequests.length})', 'Sent (${_outgoingRequests.length})'),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildFriendsTab(),
-          _buildIncomingRequestsTab(),
-          _buildOutgoingRequestsTab(),
-        ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildFriendsTab() {
-    if (_loadingFriends) {
+  Widget _buildFriendsTab(BuildContext context, FriendsReady ready) {
+    if (ready.loadingFriends) {
       return const Center(
         child: CircularProgressIndicator(color: Color(0xFF4caf50)),
       );
     }
 
-    if (_friends.isEmpty) {
+    if (ready.friends.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -174,7 +220,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: _showAddFriendDialog,
+              onPressed: () => _showAddFriendDialog(context),
               icon: const Icon(Icons.person_add),
               label: Text(I18n.t('add_friend')),
               style: ElevatedButton.styleFrom(
@@ -190,15 +236,15 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _friends.length,
+      itemCount: ready.friends.length,
       itemBuilder: (context, index) {
-        final friend = _friends[index];
-        return _buildFriendCard(friend);
+        final friend = ready.friends[index];
+        return _buildFriendCard(context, friend);
       },
     );
   }
 
-  Widget _buildFriendCard(Friend friend) {
+  Widget _buildFriendCard(BuildContext context, Friend friend) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -211,7 +257,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
         children: [
           // Avatar
           GestureDetector(
-            onTap: () => _viewFriendProfile(friend),
+            onTap: () => _viewFriendProfile(context, friend),
             child: Stack(
               children: [
                 Container(
@@ -331,13 +377,13 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             onSelected: (value) {
               switch (value) {
                 case 'profile':
-                  _viewFriendProfile(friend);
+                  _viewFriendProfile(context, friend);
                   break;
                 case 'invite':
-                  _inviteToMatch(friend);
+                  _inviteToMatch(context, friend);
                   break;
                 case 'remove':
-                  _confirmRemoveFriend(friend);
+                  _confirmRemoveFriend(context, friend);
                   break;
               }
             },
@@ -379,8 +425,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildIncomingRequestsTab() {
-    if (_incomingRequests.isEmpty) {
+  Widget _buildIncomingRequestsTab(BuildContext context, FriendsReady ready) {
+    if (ready.incoming.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -414,16 +460,16 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _incomingRequests.length,
+      itemCount: ready.incoming.length,
       itemBuilder: (context, index) {
-        final request = _incomingRequests[index];
-        return _buildRequestCard(request, isIncoming: true);
+        final request = ready.incoming[index];
+        return _buildRequestCard(context, request, isIncoming: true);
       },
     );
   }
 
-  Widget _buildOutgoingRequestsTab() {
-    if (_outgoingRequests.isEmpty) {
+  Widget _buildOutgoingRequestsTab(BuildContext context, FriendsReady ready) {
+    if (ready.outgoing.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -457,15 +503,19 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _outgoingRequests.length,
+      itemCount: ready.outgoing.length,
       itemBuilder: (context, index) {
-        final request = _outgoingRequests[index];
-        return _buildRequestCard(request, isIncoming: false);
+        final request = ready.outgoing[index];
+        return _buildRequestCard(context, request, isIncoming: false);
       },
     );
   }
 
-  Widget _buildRequestCard(FriendRequest request, {required bool isIncoming}) {
+  Widget _buildRequestCard(
+    BuildContext context,
+    FriendRequest request, {
+    required bool isIncoming,
+  }) {
     final user = isIncoming 
         ? {'name': request.fromUserName, 'avatar': request.fromUserAvatar}
         : {'name': request.toUserName, 'avatar': request.toUserAvatar};
@@ -567,7 +617,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               if (isIncoming) ...[
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => _respondToRequest(request.id, false),
+                    onPressed: () => _respondToRequest(context, request.id, false),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red.withOpacity(0.2),
                       foregroundColor: Colors.red,
@@ -579,7 +629,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => _respondToRequest(request.id, true),
+                    onPressed: () => _respondToRequest(context, request.id, true),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF4caf50),
                       foregroundColor: Colors.white,
@@ -590,7 +640,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               ] else ...[
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => _cancelRequest(request.id),
+                    onPressed: () => _cancelRequest(context, request.id),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.grey.withOpacity(0.2),
                       foregroundColor: Colors.white70,
@@ -620,27 +670,26 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
     );
   }
 
-  void _showAddFriendDialog() {
-    // Створюємо тестових користувачів якщо їх немає
-    _ensureTestUsers();
-    
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+  void _showAddFriendDialog(BuildContext screenContext) {
+    _searchController.clear();
+    screenContext.read<FriendsBloc>().add(const FriendsSearchRequested(''));
+
+    showDialog<void>(
+      context: screenContext,
+      builder: (dialogContext) => BlocProvider.value(
+        value: screenContext.read<FriendsBloc>(),
+        child: AlertDialog(
           backgroundColor: const Color(0xFF1a1a2e),
           title: Text(
             I18n.t('add_friend'),
             style: const TextStyle(color: Colors.white),
           ),
-          content: Container(
-            width: MediaQuery.of(context).size.width * 0.9,
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.7,
-              minHeight: 200,
-            ),
+          content: SizedBox(
+            width: MediaQuery.of(dialogContext).size.width * 0.9,
+            height: MediaQuery.of(dialogContext).size.height * 0.5,
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 TextField(
                   controller: _searchController,
@@ -658,120 +707,119 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       borderSide: BorderSide(color: Color(0xFF4caf50)),
                     ),
                   ),
-                  onChanged: (value) async {
-                    if (value.length >= 2) {
-                      setState(() { _isSearching = true; });
-                      final results = await _friendsService.searchUsers(value);
-                      setState(() {
-                        _searchResults = results;
-                        _isSearching = false;
-                      });
-                    } else if (value.isEmpty) {
-                      setState(() {
-                        _searchResults.clear();
-                        _isSearching = false;
-                      });
-                    } else {
-                      setState(() {
-                        _isSearching = true;
-                        _searchResults.clear();
-                      });
-                    }
+                  onChanged: (value) {
+                    screenContext.read<FriendsBloc>().add(FriendsSearchRequested(value));
                   },
-                  onSubmitted: (value) async {
-                    if (value.length >= 2) {
-                      setState(() { _isSearching = true; });
-                      final results = await _friendsService.searchUsers(value);
-                      setState(() {
-                        _searchResults = results;
-                        _isSearching = false;
-                      });
-                    }
+                  onSubmitted: (value) {
+                    screenContext.read<FriendsBloc>().add(FriendsSearchRequested(value));
                   },
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  I18n.inline('Debug: ${_searchResults.length} результатів, пошук: $_isSearching',
-                      'Debug: ${_searchResults.length} results, searching: $_isSearching'),
-                  style: const TextStyle(color: Colors.orange, fontSize: 10),
-                ),
-                const SizedBox(height: 8),
-                if (_isSearching)
-                  const CircularProgressIndicator(color: Color(0xFF4caf50))
-                else if (_searchResults.isNotEmpty)
-                  Expanded(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _searchResults.length,
-                      itemBuilder: (context, index) {
-                        final user = _searchResults[index];
-                        final avatarUrl = user['avatarUrl'] ?? user['avatar'] ?? '';
-                        final userName = user['displayName'] ?? user['name'] ?? user['email']?.split('@')[0] ?? 'U';
-                        return ListTile(
-                          leading: GestureDetector(
-                            onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                '/player-profile',
-                                arguments: {
-                                  'playerId': user['id'],
-                                  'playerName': userName,
-                                },
-                              );
-                            },
-                            child: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF4caf50),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: avatarUrl.isNotEmpty
-                                  ? ClipRRect(
-                                      borderRadius: BorderRadius.circular(20),
-                                      child: Image.network(
-                                        avatarUrl,
-                                        width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) => _buildAvatarPlaceholder(userName),
-                                      ),
-                                    )
-                                  : _buildAvatarPlaceholder(userName),
-                            ),
-                          ),
-                          title: GestureDetector(
-                            onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                '/player-profile',
-                                arguments: {
-                                  'playerId': user['id'],
-                                  'playerName': userName,
-                                },
-                              );
-                            },
-                            child: Text(user['name'] ?? 'Невідомий'.i18n('Unknown'), style: const TextStyle(color: Colors.white)),
-                          ),
-                          subtitle: Text(
-                              I18n.inline('📍 ${user['city'] ?? 'Невідоме місто'}', '📍 ${user['city'] ?? 'Unknown city'}'),
-                              style: TextStyle(color: Colors.white.withOpacity(0.7))),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.person_add, color: Color(0xFF4caf50)),
-                            onPressed: () => _sendFriendRequest(user['id']),
-                          ),
+                Expanded(
+                  child: BlocBuilder<FriendsBloc, FriendsState>(
+                    builder: (context, state) {
+                      if (state is! FriendsReady) {
+                        return const Center(
+                          child: CircularProgressIndicator(color: Color(0xFF4caf50)),
                         );
-                      },
-                    ),
-                  )
-                else if (!_isSearching && _searchController.text.length >= 2)
-                  Text(I18n.t('no_users_found'), style: const TextStyle(color: Colors.white70)),
+                      }
+                      if (state.searchLoading) {
+                        return const Center(
+                          child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+                        );
+                      }
+                      if (state.searchResults.isNotEmpty) {
+                        return ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: state.searchResults.length,
+                          itemBuilder: (context, index) {
+                            final user = state.searchResults[index];
+                            final avatarUrl = user['avatarUrl'] ?? user['avatar'] ?? '';
+                            final userName = user['displayName'] ??
+                                user['name'] ??
+                                user['email']?.split('@')[0] ??
+                                'U';
+                            return ListTile(
+                              leading: GestureDetector(
+                                onTap: () {
+                                  Navigator.pushNamed(
+                                    dialogContext,
+                                    '/player-profile',
+                                    arguments: {
+                                      'playerId': user['id'],
+                                      'playerName': userName,
+                                    },
+                                  );
+                                },
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF4caf50),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: avatarUrl.toString().isNotEmpty
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(20),
+                                          child: Image.network(
+                                            avatarUrl.toString(),
+                                            width: 40,
+                                            height: 40,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) =>
+                                                _buildAvatarPlaceholder(userName.toString()),
+                                          ),
+                                        )
+                                      : _buildAvatarPlaceholder(userName.toString()),
+                                ),
+                              ),
+                              title: GestureDetector(
+                                onTap: () {
+                                  Navigator.pushNamed(
+                                    dialogContext,
+                                    '/player-profile',
+                                    arguments: {
+                                      'playerId': user['id'],
+                                      'playerName': userName,
+                                    },
+                                  );
+                                },
+                                child: Text(
+                                  user['name']?.toString() ?? 'Невідомий'.i18n('Unknown'),
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ),
+                              subtitle: Text(
+                                I18n.inline(
+                                  '📍 ${user['city'] ?? 'Невідоме місто'}',
+                                  '📍 ${user['city'] ?? 'Unknown city'}',
+                                ),
+                                style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.person_add, color: Color(0xFF4caf50)),
+                                onPressed: () => _sendFriendRequest(screenContext, user['id'].toString()),
+                              ),
+                            );
+                          },
+                        );
+                      }
+                      if (_searchController.text.trim().length >= 2) {
+                        return Text(
+                          I18n.t('no_users_found'),
+                          style: const TextStyle(color: Colors.white70),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ),
               ],
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
             ),
           ],
@@ -780,105 +828,19 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
     );
   }
 
-  Future<List<Map<String, dynamic>>> _searchUsers(String query) async {
-    if (query.trim().length < 2) {
-      return [];
-    }
-
-    try {
-      print('🔍 Starting search for: "$query"');
-      
-      // Спочатку перевіримо чи є користувачі взагалі
-      final allUsers = await FirebaseFirestore.instance
-          .collection('users')
-          .limit(5)
-          .get();
-      
-      print('📊 Total users in database: ${allUsers.docs.length}');
-      
-      if (allUsers.docs.isEmpty) {
-        print('❌ No users found in database!');
-        return [];
-      }
-      
-      // Показуємо перших кілька користувачів для діагностики
-      for (var doc in allUsers.docs.take(3)) {
-        final data = doc.data();
-        print('👤 User sample: ${doc.id} -> name: "${data['name']}", displayName: "${data['displayName']}", email: "${data['email']}"');
-      }
-      
-      final results = await _friendsService.searchUsers(query.trim());
-      print('✅ Search completed. Results: ${results.length}');
-      
-      if (results.isNotEmpty) {
-        print('🎯 First result: ${results.first['name']} / ${results.first['displayName']} / ${results.first['email']}');
-      } else {
-        print('⚠️ No matching users found for query: "$query"');
-      }
-      return results;
-    } catch (e) {
-      print('❌ Search error: $e');
-      return [];
-    }
+  void _sendFriendRequest(BuildContext screenContext, String userId) {
+    screenContext.read<FriendsBloc>().add(FriendsSendFriendRequest(userId));
   }
 
-  void _sendFriendRequest(String userId) async {
-    try {
-      await _friendsService.sendFriendRequest(userId);
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ Запрошення надіслано!'.i18n('✅ Invitation sent!')),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
-      );
-    }
+  void _respondToRequest(BuildContext context, String requestId, bool accept) {
+    context.read<FriendsBloc>().add(FriendsRespondToRequest(requestId, accept));
   }
 
-  void _respondToRequest(String requestId, bool accept) async {
-    try {
-      await _friendsService.respondToFriendRequest(requestId, accept);
-      
-      if (accept) {
-        _loadFriends(); // Refresh friends list
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(accept
-              ? '✅ Запрошення прийнято!'.i18n('✅ Invitation accepted!')
-              : '❌ Запрошення відхилено'.i18n('❌ Invitation declined')),
-          backgroundColor: accept ? Colors.green : Colors.red,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
-      );
-    }
+  void _cancelRequest(BuildContext context, String requestId) {
+    context.read<FriendsBloc>().add(FriendsCancelRequest(requestId));
   }
 
-  void _cancelRequest(String requestId) async {
-    try {
-      await _friendsService.cancelFriendRequest(requestId);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ Запрошення скасовано'.i18n('✅ Invitation cancelled')),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
-      );
-    }
-  }
-
-  void _viewFriendProfile(Friend friend) {
+  void _viewFriendProfile(BuildContext context, Friend friend) {
     Navigator.pushNamed(
       context,
       '/player-profile',
@@ -886,40 +848,44 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
     );
   }
 
-  void _inviteToMatch(Friend friend) {
-    // Navigate to create match with friend pre-selected
+  void _inviteToMatch(BuildContext context, Friend friend) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          I18n.inline('Запрошення на матч для ${friend.name} (буде реалізовано)', 'Match invite for ${friend.name} (coming soon)'),
+          I18n.inline(
+            'Запрошення на матч для ${friend.name} (буде реалізовано)',
+            'Match invite for ${friend.name} (coming soon)',
+          ),
         ),
       ),
     );
   }
 
-  void _confirmRemoveFriend(Friend friend) {
-    showDialog(
+  void _confirmRemoveFriend(BuildContext context, Friend friend) {
+    showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
         title: Text(
           'Видалити з друзів?'.i18n('Remove from friends?'),
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          I18n.inline('Ви впевнені, що хочете видалити ${friend.name} з друзів?',
-              'Are you sure you want to remove ${friend.name} from friends?'),
+          I18n.inline(
+            'Ви впевнені, що хочете видалити ${friend.name} з друзів?',
+            'Are you sure you want to remove ${friend.name} from friends?',
+          ),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(ctx).pop(),
             child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();
-              _removeFriend(friend);
+              Navigator.of(ctx).pop();
+              _removeFriend(context, friend);
             },
             child: Text(I18n.t('delete'), style: const TextStyle(color: Colors.red)),
           ),
@@ -928,109 +894,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
     );
   }
 
-  void _removeFriend(Friend friend) async {
-    try {
-      await _friendsService.removeFriend(friend.userId);
-      _loadFriends(); // Refresh friends list
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('${friend.name} видалено з друзів', '${friend.name} removed from friends'))),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
-      );
-    }
-  }
-
-  Future<void> _ensureTestUsers() async {
-    try {
-      final currentUser = AppAuthContext.currentUser;
-      if (currentUser == null) return;
-
-      // Перевіряємо чи є інші користувачі крім поточного
-      final existingUsers = await FirebaseFirestore.instance
-          .collection('users')
-          .limit(5)
-          .get();
-
-      final otherUsers = existingUsers.docs
-          .where((doc) => doc.id != currentUser.id)
-          .toList();
-
-      if (otherUsers.length < 3) {
-        // Створюємо тестових користувачів
-        final batch = FirebaseFirestore.instance.batch();
-        
-        final testUsers = [
-          {
-            'name': 'Leo',
-            'displayName': 'Leo Messi',
-            'firstName': 'Leo',
-            'lastName': 'Messi',
-            'email': 'leo.messi@example.com',
-            'city': 'Kyiv',
-            'country': 'Ukraine',
-            'position': 'Forward',
-            'rating': 4.8,
-            'coins': 250,
-            'avatarUrl': '',
-            'createdAt': FieldValue.serverTimestamp(),
-          },
-          {
-            'name': 'Vinnie Jr',
-            'displayName': 'Vinnie Jr',
-            'firstName': 'Vinnie',
-            'lastName': 'Jr',
-            'email': 'vinnie.jr@example.com',
-            'city': 'Lviv',
-            'country': 'Ukraine',
-            'position': 'Midfielder',
-            'rating': 4.2,
-            'coins': 180,
-            'avatarUrl': '',
-            'createdAt': FieldValue.serverTimestamp(),
-          },
-          {
-            'name': 'Cristiano',
-            'displayName': 'Cristiano Ronaldo',
-            'firstName': 'Cristiano',
-            'lastName': 'Ronaldo',
-            'email': 'cristiano@example.com',
-            'city': 'Odesa',
-            'country': 'Ukraine',
-            'position': 'Forward',
-            'rating': 4.9,
-            'coins': 320,
-            'avatarUrl': '',
-            'createdAt': FieldValue.serverTimestamp(),
-          },
-          {
-            'name': 'Neymar',
-            'displayName': 'Neymar Jr',
-            'firstName': 'Neymar',
-            'lastName': 'Jr',
-            'email': 'neymar@example.com',
-            'city': 'Kharkiv',
-            'country': 'Ukraine',
-            'position': 'Winger',
-            'rating': 4.3,
-            'coins': 200,
-            'avatarUrl': '',
-            'createdAt': FieldValue.serverTimestamp(),
-          },
-        ];
-
-        for (final userData in testUsers) {
-          final docRef = FirebaseFirestore.instance.collection('users').doc();
-          batch.set(docRef, userData);
-        }
-
-        await batch.commit();
-        print('✅ Test users created for friend search');
-      }
-    } catch (e) {
-      print('❌ Error creating test users: $e');
-    }
+  void _removeFriend(BuildContext context, Friend friend) {
+    context.read<FriendsBloc>().add(
+          FriendsRemoveFriend(friendUserId: friend.userId, friendName: friend.name),
+        );
   }
 }
