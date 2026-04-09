@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -17,6 +18,7 @@ import '../widgets/video_preview_box.dart';
 import 'video_player_screen.dart';
 import '../core/app_auth_context.dart';
 
+@RoutePage()
 class PlayerProfileScreen extends StatefulWidget {
   final String playerId;
   final String? playerName;

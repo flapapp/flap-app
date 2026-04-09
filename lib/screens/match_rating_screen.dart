@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/rating_service.dart';
@@ -7,6 +8,8 @@ import '../utils/i18n.dart';
 import '../core/app_auth_context.dart';
 
 enum RatingMode { simple, advanced }
+
+@RoutePage()
 class MatchRatingScreen extends StatefulWidget {
   final Match match;
   

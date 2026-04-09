@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'dart:typed_data';
@@ -22,6 +23,9 @@ import '../services/team_service.dart';
 import 'team_details_screen.dart';
 import 'team_create_screen.dart';
 
+import '../core/router/app_router.dart';
+
+@RoutePage(name: 'AppProfileRoute')
 class ProfileScreen extends StatefulWidget {
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
@@ -950,11 +954,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               (userData['matchesPlayed'] ?? 0).toString(),
               Icons.sports_soccer,
               const Color(0xFF4caf50),
-              onTap: () => Navigator.pushNamed(
-                context,
-                '/matches',
-                arguments: {'initialTabIndex': 1},
-              ),
+              onTap: () => context.pushRoute(MatchesRoute(initialTabIndex: 1)),
             ),
           ),
           const SizedBox(width: 12),
@@ -964,8 +964,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               (userData['videosUploaded'] ?? 0).toString(),
               Icons.videocam,
               const Color(0xFFFF6B35),
-              onTap: () =>
-                  Navigator.pushNamed(context, '/video-main', arguments: {'myContent': 'videos'}),
+              onTap: () => context.pushRoute(VideoMainRoute(myContent: 'videos')),
             ),
           ),
           const SizedBox(width: 12),
@@ -1631,34 +1630,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _openFriends() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => FriendsScreen()),
-    );
+    context.pushRoute(FriendsRoute());
   }
 
-     void _openMyMatches() {
-     Navigator.pushNamed(
-       context,
-       '/matches',
-       arguments: {'initialTabIndex': 1},
-     );
-   }
+  void _openMyMatches() {
+    context.pushRoute(MatchesRoute(initialTabIndex: 1));
+  }
 
   void _openMyVideos() {
-    Navigator.pushNamed(
-      context,
-      '/video-main',
-      arguments: {'myContent': 'videos'},
-    );
+    context.pushRoute(VideoMainRoute(myContent: 'videos'));
   }
 
   void _openMyChallenges() {
-    Navigator.pushNamed(
-      context,
-      '/video-main',
-      arguments: {'myContent': 'challenges'},
-    );
+    context.pushRoute(VideoMainRoute(myContent: 'challenges'));
   }
 
   void _openStats(Map<String, dynamic> userData) {
@@ -1697,7 +1681,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showSettings() {
-    Navigator.pushNamed(context, '/settings');
+    context.pushRoute(ProfileSettingsRoute());
   }
 
   void _signOut() {
@@ -1724,7 +1708,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.of(dialogContext).pop();
               await signOutViaBlocAndWait(parentContext);
               if (!parentContext.mounted) return;
-              Navigator.of(parentContext).pushReplacementNamed('/login');
+              parentContext.router.replace(LoginRoute());
             },
             child: Text(I18n.t('logout'), style: const TextStyle(color: Colors.red)),
           ),

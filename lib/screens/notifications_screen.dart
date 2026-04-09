@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import '../models/notification.dart';
 import '../services/notification_service.dart';
@@ -6,7 +7,9 @@ import '../models/challenge.dart';
 import 'video_player_screen.dart';
 import '../models/match.dart';
 import '../utils/i18n.dart';
+import '../core/router/app_router.dart';
 
+@RoutePage()
 class NotificationsScreen extends StatefulWidget {
   @override
   _NotificationsScreenState createState() => _NotificationsScreenState();

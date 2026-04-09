@@ -1,7 +1,9 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/i18n.dart';
 
+@RoutePage()
 class AdminScreen extends StatefulWidget {
   @override
   _AdminScreenState createState() => _AdminScreenState();

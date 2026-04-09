@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/challenge.dart';
@@ -13,6 +14,7 @@ import '../widgets/video_preview_box.dart';
 import '../widgets/player_avatar_button.dart';
 import '../core/app_auth_context.dart';
 
+@RoutePage()
 class ChallengeDetailsScreen extends StatefulWidget {
   final Challenge challenge;
   

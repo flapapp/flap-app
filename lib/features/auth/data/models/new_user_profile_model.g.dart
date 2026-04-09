@@ -19,14 +19,14 @@ NewUserProfileModel _$NewUserProfileModelFromJson(Map<String, dynamic> json) =>
     );
 
 Map<String, dynamic> _$NewUserProfileModelToJson(
-  NewUserProfileModel instance,
-) => <String, dynamic>{
-  'name': instance.name,
-  'surname': instance.surname,
-  'email': instance.email,
-  'phone': instance.phone,
-  'city': instance.city,
-  'age': instance.age,
-  'position': instance.position,
-  'experience': instance.experience,
-};
+        NewUserProfileModel instance) =>
+    <String, dynamic>{
+      'name': instance.name,
+      'surname': instance.surname,
+      'email': instance.email,
+      'phone': instance.phone,
+      'city': instance.city,
+      'age': instance.age,
+      'position': instance.position,
+      'experience': instance.experience,
+    };

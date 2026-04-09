@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -20,6 +21,7 @@ import 'match_details_screen.dart';
 import 'match_details_screen.dart';
 import '../core/app_auth_context.dart';
 
+@RoutePage()
 class TeamDetailsScreen extends StatefulWidget {
   final String teamId;
 

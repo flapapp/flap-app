@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,6 +9,7 @@ import '../services/thumbnail_service.dart';
 import '../utils/i18n.dart';
 import '../core/app_auth_context.dart';
 
+@RoutePage()
 class VideoUploadScreen extends StatefulWidget {
   final String? challengeId;
   final String? challengeTitle;

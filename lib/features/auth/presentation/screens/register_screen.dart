@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/router/app_router.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import '../../domain/entities/new_user_profile.dart';
@@ -12,6 +14,7 @@ import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 
+@RoutePage()
 class RegisterScreen extends StatefulWidget {
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
@@ -117,7 +120,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     backgroundColor: const Color(0xFF4caf50),
                   ),
                 );
-                Navigator.pushReplacementNamed(context, '/login');
+                context.replaceRoute(LoginRoute());
               }
             },
             builder: (context, state) {

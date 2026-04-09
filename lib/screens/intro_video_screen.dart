@@ -1,8 +1,12 @@
 import 'dart:math';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../core/router/app_router.dart';
 import '../utils/i18n.dart';
 
+@RoutePage()
 class IntroVideoScreen extends StatefulWidget {
   const IntroVideoScreen({super.key});
 
@@ -52,7 +56,7 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
   void _navigateToWelcome() {
     if (_navigated || !mounted) return;
     _navigated = true;
-    Navigator.of(context).pushReplacementNamed('/welcome');
+    context.replaceRoute(WelcomeRoute());
   }
 
   @override

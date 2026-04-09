@@ -1,11 +1,14 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/router/app_router.dart';
 import '../../../../utils/i18n.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 
+@RoutePage()
 class LoginScreen extends StatefulWidget {
   @override
   _LoginScreenState createState() => _LoginScreenState();
@@ -82,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
               if (state is AuthAuthenticated) {
                 setState(() => _isLoading = false);
                 if (context.mounted) {
-                  Navigator.pushReplacementNamed(context, '/mode');
+                  context.replaceRoute(ModeSelectionRoute());
                 }
               }
             },
@@ -284,7 +287,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 15),
                         TextButton(
                           onPressed: () =>
-                              Navigator.pushNamed(context, '/register'),
+                              context.pushRoute(RegisterRoute()),
                           child: Text(
                             I18n.t('no_account_register'),
                             style: TextStyle(

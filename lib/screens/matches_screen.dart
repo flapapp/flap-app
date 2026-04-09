@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -19,11 +20,14 @@ import '../services/notification_service.dart';
 import '../utils/i18n.dart';
 import '../widgets/city_autocomplete_field.dart';
 import '../core/app_auth_context.dart';
+import '../core/router/app_router.dart';
 
-
-
-
+@RoutePage()
 class MatchesScreen extends StatefulWidget {
+  final int? initialTabIndex;
+
+  MatchesScreen({super.key, this.initialTabIndex});
+
   @override
   _MatchesScreenState createState() => _MatchesScreenState();
 }
@@ -145,12 +149,15 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
 @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map && args['initialTabIndex'] is int) {
-      final idx = args['initialTabIndex'] as int;
-      if (idx >= 0 && idx < _tabController.length && _tabController.index != idx) {
-        _tabController.index = idx;
+    int? idx = widget.initialTabIndex;
+    if (idx == null) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map && args['initialTabIndex'] is int) {
+        idx = args['initialTabIndex'] as int;
       }
+    }
+    if (idx != null && idx >= 0 && idx < _tabController.length && _tabController.index != idx) {
+      _tabController.index = idx;
     }
   }
 

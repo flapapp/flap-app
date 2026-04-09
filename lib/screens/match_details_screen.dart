@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
@@ -14,6 +15,7 @@ import '../widgets/player_avatar_button.dart';
 import '../widgets/user_chip.dart';
 import '../core/app_auth_context.dart';
 
+@RoutePage()
 class MatchDetailsScreen extends StatefulWidget {
   final Match match;
   

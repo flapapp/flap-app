@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
@@ -6,6 +7,7 @@ import 'challenge_details_screen.dart';
 import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
 
+@RoutePage()
 class ChallengeListScreen extends StatefulWidget {
   @override
   _ChallengeListScreenState createState() => _ChallengeListScreenState();

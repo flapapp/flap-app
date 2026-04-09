@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/match.dart';
@@ -12,6 +13,7 @@ import '../widgets/team_logo_button.dart';
 import '../widgets/city_autocomplete_field.dart';
 import '../core/app_auth_context.dart';
 
+@RoutePage()
 class CreateMatchScreen extends StatefulWidget {
   const CreateMatchScreen({super.key});
 

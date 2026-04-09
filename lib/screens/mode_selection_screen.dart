@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,7 +8,9 @@ import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
 import '../services/notification_service.dart';
 import '../core/app_auth_context.dart';
+import '../core/router/app_router.dart';
 
+@RoutePage()
 class ModeSelectionScreen extends StatefulWidget {
   const ModeSelectionScreen({super.key});
 
@@ -16,6 +19,22 @@ class ModeSelectionScreen extends StatefulWidget {
 }
 
 class ModeSelectionScreenState extends State<ModeSelectionScreen> {
+  void _pushNewsRoute(BuildContext context, String path) {
+    switch (path) {
+      case '/matches':
+        context.pushRoute(MatchesRoute());
+        break;
+      case '/teams':
+        context.pushRoute(TeamHubRoute());
+        break;
+      case '/video-main':
+        context.pushRoute(VideoMainRoute());
+        break;
+      default:
+        break;
+    }
+  }
+
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
   final Random _random = Random();
   final NotificationService _notificationService = NotificationService();
@@ -392,7 +411,7 @@ Widget _buildNewsCardItem(_NewsEntry entry, {required bool primary}) {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
-              onPressed: () => Navigator.pushNamed(context, entry.route!),
+              onPressed: () => _pushNewsRoute(context, entry.route!),
               icon: const Icon(Icons.open_in_new, color: Colors.white70, size: 18),
               label: Text(
                 entry.ctaLabel!,
@@ -435,11 +454,11 @@ Widget build(BuildContext context) {
                 ),
                 IconButton(
                   icon: const Icon(Icons.sports_soccer, color: Colors.white),
-                  onPressed: () => Navigator.pushNamed(context, '/matches'),
+                  onPressed: () => context.pushRoute(MatchesRoute()),
                 ),
                 IconButton(
                   icon: const Icon(Icons.video_collection, color: Colors.white),
-                  onPressed: () => Navigator.pushNamed(context, '/video-main'),
+                  onPressed: () => context.pushRoute(VideoMainRoute()),
                 ),
                 StreamBuilder<int>(
                   stream: _notificationService.getUnreadCount(),
@@ -450,7 +469,7 @@ Widget build(BuildContext context) {
                         IconButton(
                           tooltip: I18n.t('notifications'),
                           icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                          onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                          onPressed: () => context.pushRoute(NotificationsRoute()),
                         ),
                         if (unreadCount > 0)
                           Positioned(
@@ -485,7 +504,7 @@ Widget build(BuildContext context) {
                 ),
                 IconButton(
                   icon: const Icon(Icons.person, color: Colors.white),
-                  onPressed: () => Navigator.pushNamed(context, '/profile'),
+                  onPressed: () => context.pushRoute(AppProfileRoute()),
                 ),
               ],
             );
@@ -526,7 +545,7 @@ Widget build(BuildContext context) {
                   badge: I18n.inline('Матч-день', 'Match day'),
                   actionLabel: I18n.inline('До матчів', 'Browse matches'),
                   illustration: _ModeArt(type: _ModeArtType.matches, colors: matchColors),
-                  onTap: () => Navigator.pushNamed(context, '/matches'),
+                  onTap: () => context.pushRoute(MatchesRoute()),
                 ),
                 const SizedBox(height: 16),
                 _ModeCard(
@@ -545,7 +564,7 @@ Widget build(BuildContext context) {
                   badge: I18n.inline('Пульс контенту', 'Content pulse'),
                   actionLabel: I18n.inline('До відео', 'Open videos'),
                   illustration: _ModeArt(type: _ModeArtType.videos, colors: videoColors),
-                  onTap: () => Navigator.pushNamed(context, '/video-main'),
+                  onTap: () => context.pushRoute(VideoMainRoute()),
                 ),
                 const SizedBox(height: 16),
                 _ModeCard(
@@ -564,7 +583,7 @@ Widget build(BuildContext context) {
                   badge: I18n.inline('Club DNA', 'Club DNA'),
                   actionLabel: I18n.inline('Мої команди', 'Your clubs'),
                   illustration: _ModeArt(type: _ModeArtType.teams, colors: teamColors),
-                  onTap: () => Navigator.pushNamed(context, '/teams'),
+                  onTap: () => context.pushRoute(TeamHubRoute()),
                 ),
               ],
             );

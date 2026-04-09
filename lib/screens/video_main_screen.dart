@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/app_auth_context.dart';
@@ -15,8 +16,15 @@ import '../widgets/player_avatar_button.dart';
 import '../widgets/mode_speed_dial.dart';
 import '../widgets/city_autocomplete_field.dart';
 import '../utils/city_catalog.dart';
+import '../core/router/app_router.dart';
 
+@RoutePage()
 class VideoMainScreen extends StatefulWidget {
+  /// When set (e.g. from profile shortcuts), filters to "my" videos or challenges.
+  final String? myContent;
+
+  const VideoMainScreen({super.key, this.myContent});
+
   @override
   _VideoMainScreenState createState() => _VideoMainScreenState();
 }
@@ -288,11 +296,16 @@ void dispose() {
     if (_didInitFromRouteArgs) return;
     _didInitFromRouteArgs = true;
 
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map &&
-        (args['myContent'] == 'videos' || args['myContent'] == 'challenges')) {
-      _showOnlyMyVideos = args['myContent'] == 'videos';
-      _showOnlyMyChallenges = args['myContent'] == 'challenges';
+    String? my = widget.myContent;
+    if (my == null) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map) {
+        my = args['myContent'] as String?;
+      }
+    }
+    if (my == 'videos' || my == 'challenges') {
+      _showOnlyMyVideos = my == 'videos';
+      _showOnlyMyChallenges = my == 'challenges';
       _selectedTab = _showOnlyMyChallenges ? 'challenges' : 'all';
       _videosStream = _createVideosStream();
     }
