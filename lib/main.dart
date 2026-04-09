@@ -46,7 +46,9 @@ import 'package:flap_app/features/profile/data/datasources/supabase_profile_remo
 import 'package:flap_app/features/profile/data/repositories/profile_repository_impl.dart';
 import 'package:flap_app/features/profile/data/user_settings_service.dart';
 import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
-import 'package:flap_app/features/subscription/data/subscription_service.dart';
+import 'package:flap_app/features/subscription/data/datasources/supabase_subscription_remote_data_source.dart';
+import 'package:flap_app/features/subscription/data/repositories/subscription_repository_impl.dart';
+import 'package:flap_app/features/subscription/domain/repositories/subscription_repository.dart';
 import 'utils/i18n.dart';
 
 
@@ -97,6 +99,10 @@ Future<void> main() async {
   );
   UserSettingsService.registerGlobalRepository(profileRepo);
 
+  final subscriptionRepo = SubscriptionRepositoryImpl(
+    remote: SupabaseSubscriptionRemoteDataSource(),
+  );
+
   runApp(
     MultiRepositoryProvider(
       providers: [
@@ -105,6 +111,9 @@ Future<void> main() async {
           value: userProfileRepo,
         ),
         RepositoryProvider<ProfileRepository>.value(value: profileRepo),
+        RepositoryProvider<SubscriptionRepository>.value(
+          value: subscriptionRepo,
+        ),
         RepositoryProvider<AdminRepository>.value(value: adminRepo),
         RepositoryProvider<BadgeRepository>.value(value: badgeRepo),
         RepositoryProvider<ChallengeRepository>.value(value: challengeRepo),
@@ -117,10 +126,13 @@ Future<void> main() async {
       child: MyApp(authRepository: authRepo),
     ),
   );
-  unawaited(_bootstrapAppServices(badgeRepo));
+  unawaited(_bootstrapAppServices(badgeRepo, subscriptionRepo));
 }
 
-Future<void> _bootstrapAppServices(BadgeRepository badgeRepo) async {
+Future<void> _bootstrapAppServices(
+  BadgeRepository badgeRepo,
+  SubscriptionRepository subscriptionRepo,
+) async {
   if (kIsWeb) {
     try {
       await AppAuthContext.repository?.setWebPersistenceLocal();
@@ -147,11 +159,11 @@ Future<void> _bootstrapAppServices(BadgeRepository badgeRepo) async {
     if (repo != null) {
       final initial = repo.currentUser;
       if (initial != null) {
-        await SubscriptionService().grantChampionsTrialIfMissing();
+        await subscriptionRepo.grantChampionsTrialIfMissing();
       }
       repo.authStateChanges.listen((u) async {
         if (u != null) {
-          await SubscriptionService().grantChampionsTrialIfMissing();
+          await subscriptionRepo.grantChampionsTrialIfMissing();
         }
       });
     }

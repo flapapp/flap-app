@@ -962,7 +962,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => SubscriptionScreen(),
+        builder: (context) => const SubscriptionScreen(),
       ),
     );
   }

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 enum SubscriptionType {
@@ -21,11 +20,13 @@ class Subscription {
   final SubscriptionStatus status;
   final DateTime startDate;
   final DateTime endDate;
-  final int price; // В гривнях
+  final int price;
   final bool isActive;
   final DateTime? trialEndDate;
   final bool autoRenew;
   final Map<String, dynamic> features;
+  /// Mirrors `profiles.champions_trial_used` (Supabase).
+  final bool championsTrialConsumed;
 
   Subscription({
     required this.id,
@@ -39,58 +40,92 @@ class Subscription {
     this.trialEndDate,
     this.autoRenew = false,
     required this.features,
+    this.championsTrialConsumed = false,
   });
 
-  // Factory constructor from Firestore
-  factory Subscription.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    
+  static SubscriptionType typeFromDb(String? raw) {
+    final s = (raw ?? 'free').toString().toLowerCase();
+    if (s == 'europa' || s == 'europa_league') {
+      return SubscriptionType.europa;
+    }
+    if (s == 'champions' || s == 'champions_league') {
+      return SubscriptionType.champions;
+    }
+    return SubscriptionType.free;
+  }
+
+  static String typeToDb(SubscriptionType type) {
+    switch (type) {
+      case SubscriptionType.europa:
+        return 'europa';
+      case SubscriptionType.champions:
+        return 'champions';
+      case SubscriptionType.free:
+        return 'free';
+    }
+  }
+
+  static SubscriptionStatus statusFromDb(String? raw) {
+    switch (raw) {
+      case 'trial':
+        return SubscriptionStatus.trial;
+      case 'cancelled':
+        return SubscriptionStatus.cancelled;
+      case 'expired':
+        return SubscriptionStatus.expired;
+      case 'active':
+        return SubscriptionStatus.active;
+      default:
+        return SubscriptionStatus.active;
+    }
+  }
+
+  static DateTime? _parseTs(dynamic v) {
+    if (v == null) return null;
+    if (v is String) {
+      return DateTime.tryParse(v)?.toLocal();
+    }
+    return null;
+  }
+
+  factory Subscription.fromProfileRow(
+    Map<String, dynamic> row, {
+    required String userId,
+  }) {
+    final id = userId;
+    final type = typeFromDb(row['subscription']?.toString());
+    var status = statusFromDb(row['subscription_status']?.toString());
+    final start = _parseTs(row['subscription_started_at']) ?? DateTime.now();
+    var end = _parseTs(row['subscription_expiry']) ??
+        DateTime.now().add(const Duration(days: 365 * 10));
+    final trialEnd = _parseTs(row['subscription_trial_end']);
+    final active = row['subscription_active'] == true;
+    final auto = row['subscription_auto_renew'] == true;
+    final priceVal = (row['subscription_price'] as num?)?.toInt() ?? 0;
+    final trialUsed = row['champions_trial_used'] == true;
+
+    if (status == SubscriptionStatus.trial &&
+        trialEnd != null &&
+        !trialEnd.isAfter(DateTime.now())) {
+      status = SubscriptionStatus.expired;
+    }
+
     return Subscription(
-      id: doc.id,
-      userId: data['userId'] ?? '',
-      type: SubscriptionType.values.firstWhere(
-        (e) => e.toString().split('.').last == data['type'],
-        orElse: () => SubscriptionType.free,
-      ),
-      status: SubscriptionStatus.values.firstWhere(
-        (e) => e.toString().split('.').last == data['status'],
-        orElse: () => SubscriptionStatus.expired,
-      ),
-      startDate: data['startDate'] != null 
-          ? (data['startDate'] as Timestamp).toDate() 
-          : DateTime.now(),
-      endDate: data['endDate'] != null 
-          ? (data['endDate'] as Timestamp).toDate() 
-          : DateTime.now(),
-      price: data['price'] ?? 0,
-      isActive: data['isActive'] ?? false,
-      trialEndDate: data['trialEndDate'] != null 
-          ? (data['trialEndDate'] as Timestamp).toDate() 
-          : null,
-      autoRenew: data['autoRenew'] ?? false,
-      features: Map<String, dynamic>.from(data['features'] ?? {}),
+      id: id,
+      userId: userId,
+      type: type,
+      status: status,
+      startDate: start,
+      endDate: end,
+      price: priceVal,
+      isActive: active,
+      trialEndDate: trialEnd,
+      autoRenew: auto,
+      features: const {},
+      championsTrialConsumed: trialUsed,
     );
   }
 
-  // Convert to Map for Firestore
-  Map<String, dynamic> toFirestore() {
-    return {
-      'userId': userId,
-      'type': type.toString().split('.').last,
-      'status': status.toString().split('.').last,
-      'startDate': Timestamp.fromDate(startDate),
-      'endDate': Timestamp.fromDate(endDate),
-      'price': price,
-      'isActive': isActive,
-      'trialEndDate': trialEndDate != null 
-          ? Timestamp.fromDate(trialEndDate!) 
-          : null,
-      'autoRenew': autoRenew,
-      'features': features,
-    };
-  }
-
-  // Subscription info
   String get name {
     return _getLocalizedName(type);
   }
@@ -113,9 +148,15 @@ class Subscription {
   static String _getLocalizedDescription(SubscriptionType type) {
     switch (type) {
       case SubscriptionType.europa:
-        return I18n.inline('Розширені можливості для серйозних гравців', 'Extended features for serious players');
+        return I18n.inline(
+          'Розширені можливості для серйозних гравців',
+          'Extended features for serious players',
+        );
       case SubscriptionType.champions:
-        return I18n.inline('Преміум досвід для справжніх чемпіонів', 'Premium experience for true champions');
+        return I18n.inline(
+          'Преміум досвід для справжніх чемпіонів',
+          'Premium experience for true champions',
+        );
       default:
         return I18n.inline('Базові можливості FLAP', 'Basic FLAP features');
     }
@@ -140,7 +181,10 @@ class Subscription {
     switch (type) {
       case SubscriptionType.europa:
         return [
-          I18n.inline('Видимий рейтинг всіх гравців', 'Visible ratings of all players'),
+          I18n.inline(
+            'Видимий рейтинг всіх гравців',
+            'Visible ratings of all players',
+          ),
           I18n.inline('5 челенджів на місяць', '5 challenges per month'),
           I18n.inline('+30 монет щомісяця', '+30 coins monthly'),
           I18n.inline('Коментарі до відео', 'Video comments'),
@@ -162,7 +206,10 @@ class Subscription {
         return [
           I18n.inline('Базовий функціонал', 'Basic functionality'),
           I18n.inline('1 челендж на місяць', '1 challenge per month'),
-          I18n.inline('Рейтинги інших гравців приховані', 'Other players ratings are hidden'),
+          I18n.inline(
+            'Рейтинги інших гравців приховані',
+            'Other players ratings are hidden',
+          ),
           I18n.inline('Обмежені фільтри', 'Limited filters'),
         ];
     }
@@ -173,9 +220,9 @@ class Subscription {
   }
 
   bool get isInTrial {
-    return status == SubscriptionStatus.trial && 
-           trialEndDate != null && 
-           trialEndDate!.isAfter(DateTime.now());
+    return status == SubscriptionStatus.trial &&
+        trialEndDate != null &&
+        trialEndDate!.isAfter(DateTime.now());
   }
 
   int get daysLeft {
@@ -184,11 +231,10 @@ class Subscription {
     return targetDate.difference(DateTime.now()).inDays.clamp(0, 9999);
   }
 
-  // Check if user has specific feature
   bool hasFeature(String feature) {
     switch (type) {
       case SubscriptionType.champions:
-        return true; // Champions має всі можливості
+        return true;
       case SubscriptionType.europa:
         return [
           'visible_ratings',
@@ -206,7 +252,6 @@ class Subscription {
     }
   }
 
-  // Copy with changes
   Subscription copyWith({
     String? id,
     String? userId,
@@ -219,6 +264,7 @@ class Subscription {
     DateTime? trialEndDate,
     bool? autoRenew,
     Map<String, dynamic>? features,
+    bool? championsTrialConsumed,
   }) {
     return Subscription(
       id: id ?? this.id,
@@ -232,6 +278,8 @@ class Subscription {
       trialEndDate: trialEndDate ?? this.trialEndDate,
       autoRenew: autoRenew ?? this.autoRenew,
       features: features ?? this.features,
+      championsTrialConsumed:
+          championsTrialConsumed ?? this.championsTrialConsumed,
     );
   }
 }
