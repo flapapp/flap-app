@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../utils/i18n.dart';
+import 'package:flap_app/utils/i18n.dart';
 
 class VideoCategoryDefinition {
   final String id;

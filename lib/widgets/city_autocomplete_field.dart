@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../utils/city_catalog.dart';
-import '../utils/i18n.dart';
+import 'package:flap_app/utils/city_catalog.dart';
+import 'package:flap_app/utils/i18n.dart';
 
 class CityAutocompleteField extends StatelessWidget {
   final TextEditingController controller;

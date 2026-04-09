@@ -1,4 +1,4 @@
-import '../utils/i18n.dart';
+import 'package:flap_app/utils/i18n.dart';
 
 /// Shared labels for field position and experience (stored values match Ukrainian keys).
 class ProfileFieldOptions {

@@ -23,10 +23,10 @@ import 'features/auth/domain/repositories/user_profile_repository.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/auth/presentation/bloc/auth_event.dart';
 import 'firebase_options.dart';
-import 'services/badge_service.dart';
-import 'services/notification_service.dart';
-import 'services/subscription_service.dart';
-import 'services/user_settings_service.dart';
+import 'package:flap_app/features/badges/data/badge_service.dart';
+import 'package:flap_app/features/notifications/data/notification_service.dart';
+import 'package:flap_app/features/subscription/data/subscription_service.dart';
+import 'package:flap_app/features/profile/data/user_settings_service.dart';
 import 'utils/i18n.dart';
 
 

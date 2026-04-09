@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/rating_service.dart';
-import '../utils/i18n.dart';
+import 'package:flap_app/features/matches/data/rating_service.dart';
+import 'package:flap_app/utils/i18n.dart';
 
 class RatingDisplay extends StatelessWidget {
   final String userId;

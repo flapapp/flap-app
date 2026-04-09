@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/i18n.dart';
+import 'package:flap_app/utils/i18n.dart';
 
 enum FriendRequestStatus {
   pending,
