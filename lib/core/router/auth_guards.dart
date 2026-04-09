@@ -2,7 +2,47 @@ import 'package:auto_route/auto_route.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_auth_context.dart';
+import '../app_user_profile_context.dart';
 import 'app_router.dart';
+
+/// After auth: requires `profiles.profile_complete` before main app routes.
+/// [ProfileCreationRoute] is always allowed for signed-in users.
+class ProfileCompletionGuard extends AutoRouteGuard {
+  const ProfileCompletionGuard();
+
+  @override
+  void onNavigation(NavigationResolver resolver, StackRouter router) async {
+    final targetName = resolver.route.name;
+    if (targetName == ProfileCreationRoute.name) {
+      resolver.next(true);
+      return;
+    }
+
+    final uid = AppAuthContext.userId;
+    if (uid == null) {
+      resolver.next(true);
+      return;
+    }
+
+    final repo = AppUserProfileContext.repository;
+    if (repo == null) {
+      resolver.next(true);
+      return;
+    }
+
+    try {
+      final complete = await repo.isProfileComplete(uid);
+      if (complete) {
+        resolver.next(true);
+      } else {
+        await router.replaceAll([ProfileCreationRoute()]);
+        resolver.next(false);
+      }
+    } catch (_) {
+      resolver.next(true);
+    }
+  }
+}
 
 /// Allows navigation only when user is authenticated.
 class AuthGuard extends AutoRouteGuard {

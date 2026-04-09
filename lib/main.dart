@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'core/app_auth_context.dart';
+import 'core/app_user_profile_context.dart';
 import 'core/router/app_router.dart';
 import 'core/supabase_config.dart';
 import 'features/auth/data/datasources/supabase_auth_data_source.dart';
@@ -52,6 +53,7 @@ Future<void> main() async {
   final userProfileRepo = UserProfileRepositoryImpl(
     supabase: SupabaseProfileWriteDataSource(),
   );
+  AppUserProfileContext.repository = userProfileRepo;
 
   runApp(
     MultiRepositoryProvider(

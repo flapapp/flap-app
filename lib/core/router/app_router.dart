@@ -39,6 +39,7 @@ class AppRouter extends _$AppRouter {
   AppRouter({super.navigatorKey});
 
   final _authGuard = const AuthGuard();
+  final _profileCompletionGuard = const ProfileCompletionGuard();
   final _guestOnlyGuard = const GuestOnlyGuard();
   final _firstLaunchGuard = const FirstLaunchGuard();
 
@@ -52,28 +53,28 @@ class AppRouter extends _$AppRouter {
         AutoRoute(page: WelcomeRoute.page, guards: [_guestOnlyGuard]),
         AutoRoute(page: LoginRoute.page, guards: [_guestOnlyGuard]),
         AutoRoute(page: RegisterRoute.page, guards: [_guestOnlyGuard]),
-        AutoRoute(page: AppProfileRoute.page, guards: [_authGuard]),
-        AutoRoute(page: ProfileSettingsRoute.page, guards: [_authGuard]),
+        AutoRoute(page: AppProfileRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: ProfileSettingsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
         AutoRoute(page: ProfileCreationRoute.page, guards: [_authGuard]),
-        AutoRoute(page: ModeSelectionRoute.page, guards: [_authGuard]),
-        AutoRoute(page: FriendsRoute.page, guards: [_authGuard]),
-        AutoRoute(page: TeamHubRoute.page, guards: [_authGuard]),
-        AutoRoute(page: VideoUploadRoute.page, guards: [_authGuard]),
-        AutoRoute(page: VideoMainRoute.page, guards: [_authGuard]),
-        AutoRoute(page: ChallengeListRoute.page, guards: [_authGuard]),
-        AutoRoute(page: ChallengeCreateRoute.page, guards: [_authGuard]),
-        AutoRoute(page: ChallengeDetailsRoute.page, guards: [_authGuard]),
-        AutoRoute(page: MatchesRoute.page, guards: [_authGuard]),
-        AutoRoute(page: RatingsRoute.page, guards: [_authGuard]),
-        AutoRoute(page: MatchRatingRoute.page, guards: [_authGuard]),
-        AutoRoute(page: MatchDetailsRoute.page, guards: [_authGuard]),
-        AutoRoute(page: MatchManagementRoute.page, guards: [_authGuard]),
-        AutoRoute(page: CreateMatchRoute.page, guards: [_authGuard]),
-        AutoRoute(page: PlayerProfileRoute.page, guards: [_authGuard]),
-        AutoRoute(page: NotificationsRoute.page, guards: [_authGuard]),
-        AutoRoute(page: AdminRoute.page, guards: [_authGuard]),
-        AutoRoute(page: TeamDetailsRoute.page, guards: [_authGuard]),
-        AutoRoute(page: StatsRoute.page, guards: [_authGuard]),
+        AutoRoute(page: ModeSelectionRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: FriendsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: TeamHubRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: VideoUploadRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: VideoMainRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: ChallengeListRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: ChallengeCreateRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: ChallengeDetailsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: MatchesRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: RatingsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: MatchRatingRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: MatchDetailsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: MatchManagementRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: CreateMatchRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: PlayerProfileRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: NotificationsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: AdminRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: TeamDetailsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: StatsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
       ];
 }
 

@@ -93,7 +93,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await _userProfiles.createAfterSignUp(
         userId: user.id,
         profile: event.profile,
-        avatarUrl: null,
       );
       await _repository.signOut();
       emit(AuthRegistrationCompleted(email: event.email));
