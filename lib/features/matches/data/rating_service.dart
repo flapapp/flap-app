@@ -1,12 +1,35 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/matches/data/rating_tracking_service.dart';
+import 'package:flap_app/features/matches/data/datasources/matches_remote_data_source.dart';
+import 'package:flap_app/features/matches/data/datasources/supabase_matches_remote_data_source.dart';
+import 'package:flap_app/models/match.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 
 class RatingService {
+  RatingService({MatchesRemoteDataSource? matchesRemote})
+      : _matches = matchesRemote ?? SupabaseMatchesRemoteDataSource();
+
+  final MatchesRemoteDataSource _matches;
+
+  SupabaseClient get _sb => Supabase.instance.client;
+
+  static double _averageRatingsFromDocument(Map<String, dynamic>? doc) {
+    final list = (doc?['playerRatings'] as List?) ?? [];
+    final ratings = <double>[];
+    for (final item in list) {
+      if (item is Map) {
+        final r = item['rating'];
+        if (r is num) ratings.add(r.toDouble());
+      }
+    }
+    if (ratings.isEmpty) return 0.0;
+    ratings.sort();
+    final avg = ratings.reduce((a, b) => a + b) / ratings.length;
+    return double.parse(avg.toStringAsFixed(2));
+  }
   static const double _matchWeight = 0.7; // 70% ваги для матчів
   static const double _videoWeight = 0.3; // 30% ваги для відео/челенджів
   static const double _defaultRating = 3.0; // Початковий рейтинг для нових користувачів
@@ -65,26 +88,20 @@ class RatingService {
   // Отримати поточний рейтинг користувача
   Future<double> getUserRating(String userId) async {
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
+      final row = await _sb
+          .from('profiles')
+          .select('rating')
+          .eq('id', userId)
+          .maybeSingle();
 
-      if (userDoc.exists) {
-        final data = userDoc.data()!;
-        final rating = data['rating'];
-        
-        // Якщо рейтинг відсутній або 0.0/некоректний, встановлюємо початковий
+      if (row != null) {
+        final rating = row['rating'];
         if (rating == null || (rating is num && rating <= 0.0)) {
-  // не створюємо документ; просто повертаємо дефолт
-  return _defaultRating;
-}
-        
+          return _defaultRating;
+        }
         return (rating as num).toDouble();
-      } else {
-  // користувача немає — повертаємо дефолт без запису
-  return _defaultRating;
-}
+      }
+      return _defaultRating;
     } catch (e) {
       print('Error getting user rating: $e');
       return _defaultRating;
@@ -114,20 +131,31 @@ class RatingService {
   // Отримати детальну статистику рейтингу
   Future<Map<String, dynamic>> getUserRatingStats(String userId) async {
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
+      final row = await _sb
+          .from('profiles')
+          .select(
+            'rating, match_rating, video_rating, total_matches, total_videos, rating_history',
+          )
+          .eq('id', userId)
+          .maybeSingle();
 
-      if (userDoc.exists) {
-        final data = userDoc.data()!;
+      if (row != null) {
+        final histRaw = row['rating_history'];
+        final hist = <Map<String, dynamic>>[];
+        if (histRaw is List) {
+          for (final e in histRaw) {
+            if (e is Map) {
+              hist.add(Map<String, dynamic>.from(e as Map));
+            }
+          }
+        }
         return {
-          'currentRating': (data['rating'] ?? _defaultRating).toDouble(),
-          'matchRating': (data['matchRating'] ?? _defaultRating).toDouble(),
-          'videoRating': (data['videoRating'] ?? _defaultRating).toDouble(),
-          'totalMatches': (data['totalMatches'] ?? 0).toInt(),
-          'totalVideos': (data['totalVideos'] ?? 0).toInt(),
-          'ratingHistory': List<Map<String, dynamic>>.from(data['ratingHistory'] ?? []),
+          'currentRating': (row['rating'] ?? _defaultRating).toDouble(),
+          'matchRating': (row['match_rating'] ?? _defaultRating).toDouble(),
+          'videoRating': (row['video_rating'] ?? _defaultRating).toDouble(),
+          'totalMatches': ((row['total_matches'] ?? 0) as num).toInt(),
+          'totalVideos': ((row['total_videos'] ?? 0) as num).toInt(),
+          'ratingHistory': hist,
         };
       }
       return {};
@@ -167,92 +195,79 @@ class RatingService {
       }
       final averageRating = totalRating / _matchCriteria.length;
 
-            // Перевірка стану матчу та учасників
-      final matchDoc = await FirebaseFirestore.instance
-          .collection('matches')
-          .doc(matchId)
-          .get();
-      if (!matchDoc.exists) {
+      final m = await _matches.fetchMatch(matchId);
+      if (m == null) {
         throw Exception('Матч не знайдено');
       }
-      final matchData = matchDoc.data() as Map<String, dynamic>;
-      final participants = List<String>.from(matchData['participants'] ?? const <String>[]);
-if (!participants.contains(ratedBy) || !participants.contains(playerId)) {
-  throw Exception('Лише учасники можуть оцінювати');
-}
+      final participants = m.participants;
+      if (!participants.contains(ratedBy) || !participants.contains(playerId)) {
+        throw Exception('Лише учасники можуть оцінювати');
+      }
 
-final List<List<String>> multiTeams = [];
-final teamsData = matchData['teams'] as List?;
-if (teamsData != null) {
-  for (final raw in teamsData) {
-    final ids = List<String>.from((raw as Map<String, dynamic>)['playerIds'] ?? const <String>[]);
-    if (ids.isNotEmpty) {
-      multiTeams.add(ids);
-    }
-  }
-}
+      final multiTeams = m.teams
+          .map((t) => t.playerIds)
+          .where((ids) => ids.isNotEmpty)
+          .toList();
 
-if (multiTeams.isNotEmpty) {
-  List<String>? ratedByTeam;
-  List<String>? playerTeam;
+      if (multiTeams.isNotEmpty) {
+        List<String>? ratedByTeam;
+        List<String>? playerTeam;
 
-  for (final ids in multiTeams) {
-    if (ids.contains(ratedBy)) ratedByTeam = ids;
-    if (ids.contains(playerId)) playerTeam = ids;
-  }
+        for (final ids in multiTeams) {
+          if (ids.contains(ratedBy)) ratedByTeam = ids;
+          if (ids.contains(playerId)) playerTeam = ids;
+        }
 
-  if (ratedByTeam == null || playerTeam == null || ratedByTeam != playerTeam) {
-    throw Exception('Оцінювання дозволене лише гравцями своєї команди');
-  }
-} else {
-  final teamAIds = List<String>.from((matchData['teamA']?['playerIds']) ?? const <String>[]);
-  final teamBIds = List<String>.from((matchData['teamB']?['playerIds']) ?? const <String>[]);
-  final bool teamsExist = teamAIds.isNotEmpty || teamBIds.isNotEmpty;
-  if (teamsExist) {
-    final sameTeam = (teamAIds.contains(ratedBy) && teamAIds.contains(playerId)) ||
-                     (teamBIds.contains(ratedBy) && teamBIds.contains(playerId));
-    if (!sameTeam) {
-      throw Exception('Оцінювання дозволене лише гравцями своєї команди');
-    }
-  }
-}
+        if (ratedByTeam == null ||
+            playerTeam == null ||
+            ratedByTeam != playerTeam) {
+          throw Exception(
+              'Оцінювання дозволене лише гравцями своєї команди');
+        }
+      } else {
+        final teamAIds = m.teamA?.playerIds ?? const <String>[];
+        final teamBIds = m.teamB?.playerIds ?? const <String>[];
+        final teamsExist = teamAIds.isNotEmpty || teamBIds.isNotEmpty;
+        if (teamsExist) {
+          final sameTeam = (teamAIds.contains(ratedBy) &&
+                  teamAIds.contains(playerId)) ||
+              (teamBIds.contains(ratedBy) && teamBIds.contains(playerId));
+          if (!sameTeam) {
+            throw Exception(
+                'Оцінювання дозволене лише гравцями своєї команди');
+          }
+        }
+      }
 
-      // Уникнення дублю (пара playerId_ratedBy)
-      final ratingDocRef = FirebaseFirestore.instance
-          .collection('matches')
-          .doc(matchId)
-          .collection('playerRatings')
-          .doc('${playerId}_${ratedBy}');
-      if ((await ratingDocRef.get()).exists) {
+      if (m.playerRatings.any(
+          (r) => r.playerId == playerId && r.ratedBy == ratedBy)) {
         throw Exception('Ви вже оцінювали цього гравця');
       }
 
-      // Збереження оцінки в матчі
-      await FirebaseFirestore.instance
-          .collection('matches')
-          .doc(matchId)
-          .collection('playerRatings')
-          .doc('${playerId}_${ratedBy}')
-          .set({
-        'playerId': playerId,
-        'ratedBy': ratedBy,
-        'rating': averageRating,
-        'criteria': criteria,
-        'ratedAt': FieldValue.serverTimestamp(),
-        'matchId': matchId,
-      });
+      final pr = PlayerRating(
+        playerId: playerId,
+        ratedBy: ratedBy,
+        rating: averageRating,
+        ratedAt: DateTime.now(),
+        criteria: Map<String, double>.from(criteria),
+      );
+      final next = m.copyWith(
+        playerRatings: [...m.playerRatings, pr],
+        updatedAt: DateTime.now(),
+      );
+      await _matches.saveMatch(next);
 
       String raterName = I18n.inline('Гравець', 'Player');
       try {
-        final raterDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(ratedBy)
-            .get();
-        if (raterDoc.exists) {
-          final raterData = raterDoc.data() as Map<String, dynamic>;
-          raterName = (raterData['displayName'] ??
-                  raterData['authorName'] ??
-                  raterData['name'] ??
+        final raterRow = await _sb
+            .from('profiles')
+            .select('display_name, name, surname')
+            .eq('id', ratedBy)
+            .maybeSingle();
+        if (raterRow != null) {
+          raterName = (raterRow['display_name'] ??
+                  raterRow['name'] ??
+                  raterRow['surname'] ??
                   I18n.inline('Гравець', 'Player'))
               .toString();
         }
@@ -327,26 +342,40 @@ if (multiTeams.isNotEmpty) {
           // Отримуємо ім'я того, хто оцінив відео
           String voterName = 'Користувач';
           try {
-            final voterDoc = await FirebaseFirestore.instance
-                .collection('users')
-                .doc(ratedBy)
-                .get();
-            if (voterDoc.exists) {
-              final v = voterDoc.data() as Map<String, dynamic>;
+            final voterRow = await _sb
+                .from('profiles')
+                .select('display_name, name, surname, email')
+                .eq('id', ratedBy)
+                .maybeSingle();
+            if (voterRow != null) {
+              final v = voterRow;
               final emailPrefix = AppAuthContext.currentUser?.email?.split('@')[0];
-              voterName = (v['displayName'] ?? v['authorName'] ?? v['name'] ??
-                      (v['firstName'] != null || v['lastName'] != null
-                          ? '${v['firstName'] ?? ''} ${v['lastName'] ?? ''}'.trim()
-                          : null) ??
-                      emailPrefix ??
-                      'Користувач')
-                  .toString();
+              final dn = v['display_name']?.toString();
+              final nm = v['name']?.toString();
+              final sn = v['surname']?.toString();
+              final combined = [nm, sn]
+                  .where((s) => s != null && s.trim().isNotEmpty)
+                  .join(' ')
+                  .trim();
+              final emailStr = v['email']?.toString();
+              final emailLocal = (emailStr != null && emailStr.contains('@'))
+                  ? emailStr.split('@').first
+                  : null;
+              voterName = (dn != null && dn.isNotEmpty)
+                      ? dn
+                      : (combined.isNotEmpty
+                          ? combined
+                          : (emailLocal ?? emailPrefix ?? 'Користувач'));
             }
           } catch (_) {}
 
-          // Перед оновленням зчитуємо попередній рейтинг
-          final beforeDoc = await FirebaseFirestore.instance.collection('users').doc(authorId).get();
-          final oldRating = (beforeDoc.data()?['rating'] ?? _defaultRating).toDouble();
+          final beforeRow = await _sb
+              .from('profiles')
+              .select('rating')
+              .eq('id', authorId)
+              .maybeSingle();
+          final oldRating =
+              ((beforeRow?['rating'] ?? _defaultRating) as num).toDouble();
 
           // Оновлюємо рейтинг автора відео і зберігаємо нотифікацію
           await _updatePlayerRating(
@@ -368,8 +397,13 @@ if (multiTeams.isNotEmpty) {
             );
 
             // 2) Нотифікація про зміну рейтингу (дельта і нове значення)
-            final afterDoc = await FirebaseFirestore.instance.collection('users').doc(authorId).get();
-            final newRating = (afterDoc.data()?['rating'] ?? _defaultRating).toDouble();
+            final afterRow = await _sb
+                .from('profiles')
+                .select('rating')
+                .eq('id', authorId)
+                .maybeSingle();
+            final newRating =
+                ((afterRow?['rating'] ?? _defaultRating) as num).toDouble();
             final delta = newRating - oldRating;
             await NotificationService().sendRatingChangedNotification(
               toUserId: authorId,
@@ -398,16 +432,16 @@ if (multiTeams.isNotEmpty) {
     String? sourceId,
   }) async {
     try {
-      // Отримуємо поточний рейтинг користувача
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-      
-      if (!userDoc.exists) return;
-      
-      final currentData = userDoc.data()!;
-      final oldRating = (currentData['rating'] ?? _defaultRating).toDouble();
+      final profileRow = await _sb
+          .from('profiles')
+          .select('rating')
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (profileRow == null) return;
+
+      final oldRating =
+          ((profileRow['rating'] ?? _defaultRating) as num).toDouble();
       
       // Отримуємо всі оцінки з матчів
       final matchRatings = await _getMatchRatings(userId);
@@ -438,16 +472,11 @@ if (multiTeams.isNotEmpty) {
       // Розрахунок загального рейтингу з вагами
       double overallRating = (matchRating * _matchWeight) + (videoRating * _videoWeight);
 
-      // Оновлення рейтингу користувача
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .update({
+      await _sb.from('profiles').update({
         'rating': double.parse(overallRating.toStringAsFixed(2)),
-        'matchRating': double.parse(matchRating.toStringAsFixed(2)),
-        'videoRating': double.parse(videoRating.toStringAsFixed(2)),
-        'lastRatingUpdate': FieldValue.serverTimestamp(),
-      });
+        'match_rating': double.parse(matchRating.toStringAsFixed(2)),
+        'video_rating': double.parse(videoRating.toStringAsFixed(2)),
+      }).eq('id', userId);
 
       // Додавання в історію рейтингу
       await _addRatingHistory(userId, overallRating, matchRating, videoRating);
@@ -498,57 +527,42 @@ if (multiTeams.isNotEmpty) {
     }
   }
 
-  // Отримати всі оцінки гравця з матчів
-    Future<List<double>> _getMatchRatings(String userId) async {
-  try {
-    print('📊 _getMatchRatings for userId=$userId');
-    final perMatchAverages = <double>[];
+  // Отримати всі оцінки гравця з матчів (Supabase `matches.document.playerRatings`)
+  Future<List<double>> _getMatchRatings(String userId) async {
+    try {
+      final perMatchAverages = <double>[];
 
-    // Беремо всі завершені матчі
-    final matchesQuery = await FirebaseFirestore.instance
-    .collection('matches')
-    .where('status', isEqualTo: 'finished')
-    .where('participants', arrayContains: userId) // лише матчі, де гравець брав участь
-    .get();
-    
-    print('📊 Found ${matchesQuery.docs.length} finished matches');
+      final rows = await _sb
+          .from('matches')
+          .select('document')
+          .eq('status', 'finished')
+          .contains('participants', [userId]);
 
-    for (final matchDoc in matchesQuery.docs) {
-      // У цьому матчі всі оцінки для userId
-      final ratingsQuery = await FirebaseFirestore.instance
-          .collection('matches')
-          .doc(matchDoc.id)
-          .collection('playerRatings')
-          .where('playerId', isEqualTo: userId)
-          .get();
-
-      final values = <double>[];
-      for (final d in ratingsQuery.docs) {
-        final m = d.data();
-        values.add((m['rating'] ?? 0.0).toDouble());
+      for (final row in (rows as List)) {
+        final map = Map<String, dynamic>.from(row as Map);
+        final docRaw = map['document'];
+        final doc = docRaw is Map
+            ? Map<String, dynamic>.from(docRaw as Map)
+            : <String, dynamic>{};
+        final list = (doc['playerRatings'] as List?) ?? [];
+        final values = <double>[];
+        for (final item in list) {
+          if (item is! Map) continue;
+          final m = Map<String, dynamic>.from(item as Map);
+          if ((m['playerId'] ?? '').toString() != userId) continue;
+          values.add(((m['rating'] ?? 0.0) as num).toDouble());
+        }
+        if (values.isEmpty) continue;
+        final avg = values.reduce((a, b) => a + b) / values.length;
+        perMatchAverages.add(double.parse(avg.toStringAsFixed(2)));
       }
 
-      print('📊 Match ${matchDoc.id}: got ${values.length} ratings for userId');
-      print('📊 Match ${matchDoc.id}: got ${values.length} ratings for userId');
-      print('   Ratings: ${values.map((v) => v.toStringAsFixed(2)).join(', ')}');
-
-      // Тримінг вимкнено: використовуємо всі значення як є
-      if (values.isEmpty) {
-          continue;
-        }
-
-      final trimmed = values;
-
-      final avg = trimmed.reduce((a, b) => a + b) / trimmed.length;
-      perMatchAverages.add(double.parse(avg.toStringAsFixed(2)));
+      return perMatchAverages;
+    } catch (e) {
+      print('Error getting match ratings: $e');
+      return [];
     }
-
-    return perMatchAverages;
-  } catch (e) {
-    print('Error getting match ratings: $e');
-    return [];
   }
-}
 
   // Отримати всі оцінки гравця з відео
   Future<List<double>> _getVideoRatings(String userId) async {
@@ -583,96 +597,111 @@ if (multiTeams.isNotEmpty) {
     }
   }
 
-  // Додати в історію рейтингу
-  Future<void> _addRatingHistory(String userId, double overallRating, double matchRating, double videoRating) async {
+  // Додати в історію рейтингу (`profiles.rating_history` jsonb)
+  Future<void> _addRatingHistory(
+    String userId,
+    double overallRating,
+    double matchRating,
+    double videoRating,
+  ) async {
     try {
-      final historyEntry = {
+      final historyEntry = <String, dynamic>{
         'overallRating': overallRating,
         'matchRating': matchRating,
         'videoRating': videoRating,
-        // Avoid serverTimestamp inside arrayUnion due to Firestore limitation
-        'timestamp': Timestamp.now(),
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
       };
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .update({
-        'ratingHistory': FieldValue.arrayUnion([historyEntry]),
-      });
+      final row = await _sb
+          .from('profiles')
+          .select('rating_history')
+          .eq('id', userId)
+          .maybeSingle();
+      if (row == null) return;
 
-      // Обмежуємо історію до останніх 30 записів
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-
-      if (userDoc.exists) {
-        final data = userDoc.data()!;
-        final history = List<Map<String, dynamic>>.from(data['ratingHistory'] ?? []);
-        
-        if (history.length > 30) {
-          // Залишаємо тільки останні 30 записів
-          final trimmedHistory = history.sublist(history.length - 30);
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .update({
-            'ratingHistory': trimmedHistory,
-          });
-        }
+      final raw = row['rating_history'];
+      final history = <dynamic>[];
+      if (raw is List) {
+        history.addAll(raw);
       }
+      history.add(historyEntry);
+      List<dynamic> trimmed = history;
+      if (trimmed.length > 30) {
+        trimmed = trimmed.sublist(trimmed.length - 30);
+      }
+
+      await _sb.from('profiles').update({
+        'rating_history': trimmed,
+      }).eq('id', userId);
     } catch (e) {
       print('Error adding rating history: $e');
     }
   }
 
-  // Отримати топ гравців за рейтингом
-    Future<List<Map<String, dynamic>>> getTopPlayers({
+  // Отримати топ гравців за рейтингом (Supabase `profiles`)
+  Future<List<Map<String, dynamic>>> getTopPlayers({
     int limit = 50,
     String? city,
     String? position,
   }) async {
     try {
-      // Беремо всіх користувачів без where-фільтрів (клієнтська фільтрація)
-      final snapshot = await FirebaseFirestore.instance.collection('users').limit(500).get();
+      final rows = await _sb.from('profiles').select(
+            'id, display_name, name, surname, email, rating, total_matches, total_videos, city, position, avatar_url',
+          ).limit(500);
+
       final allPlayers = <Map<String, dynamic>>[];
 
-      for (final doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        
-        final rating = (data['rating'] ?? 0.0).toDouble();
-        final totalMatches = (data['totalMatches'] ?? data['matches'] ?? data['matchesPlayed'] ?? 0) as int;
-        final totalVideos = (data['totalVideos'] ?? 0) as int;
+      for (final row in (rows as List)) {
+        final data = Map<String, dynamic>.from(row as Map);
+
+        final rating = ((data['rating'] ?? 0.0) as num).toDouble();
+        final totalMatches = ((data['total_matches'] ?? 0) as num).toInt();
+        final totalVideos = ((data['total_videos'] ?? 0) as num).toInt();
         final userCity = (data['city'] ?? '').toString();
         final userPosition = (data['position'] ?? '').toString();
-        
-        // Клієнтська фільтрація по місту
+
         if (city != null && city.isNotEmpty && city != 'Всі міста') {
           if (userCity != city) continue;
         }
-        
-        // Клієнтська фільтрація по позиції
-        if (position != null && position.isNotEmpty && position != 'Всі позиції') {
+
+        if (position != null &&
+            position.isNotEmpty &&
+            position != 'Всі позиції') {
           if (userPosition != position) continue;
         }
-        
+
+        final id = data['id']?.toString() ?? '';
+        final dn = data['display_name']?.toString();
+        final nm = data['name']?.toString();
+        final sn = data['surname']?.toString();
+        final em = data['email']?.toString();
+        final combined = [nm, sn]
+            .where((s) => s != null && s.toString().trim().isNotEmpty)
+            .map((s) => s.toString().trim())
+            .join(' ');
+        final displayName = (dn != null && dn.isNotEmpty)
+            ? dn
+            : (combined.isNotEmpty
+                ? combined
+                : (em != null && em.contains('@')
+                    ? em.split('@').first
+                    : 'Невідомий'));
+
         allPlayers.add({
-          'id': doc.id,
-          'name': data['displayName'] ?? data['name'] ?? data['authorName'] ?? data['email']?.toString().split('@').first ?? 'Невідомий',
+          'id': id,
+          'name': displayName,
           'rating': rating,
           'city': userCity.isNotEmpty ? userCity : 'Невідомо',
           'position': userPosition.isNotEmpty ? userPosition : 'Невідомо',
           'totalMatches': totalMatches,
           'totalVideos': totalVideos,
-          'avatarUrl': data['avatarUrl'] ?? data['avatar'] ?? data['photoUrl'] ?? data['photoURL'] ?? '',
+          'avatarUrl': (data['avatar_url'] ?? '').toString(),
         });
       }
-      
-      // Сортуємо по рейтингу на клієнті
-      allPlayers.sort((a, b) => (b['rating'] as double).compareTo(a['rating'] as double));
-      
-      // Повертаємо топ N
+
+      allPlayers.sort(
+          (a, b) => (b['rating'] as double).compareTo(a['rating'] as double));
+
       return allPlayers.take(limit).toList();
     } catch (e) {
       print('Error getting top players: $e');
@@ -700,23 +729,16 @@ if (multiTeams.isNotEmpty) {
     return 0xFF9E9E9E; // Сірий за замовчуванням
   }
 
-  // Створити користувача з початковим рейтингом
-  Future<void> createUserWithDefaultRating(String userId, Map<String, dynamic> userData) async {
+  // Оновити профіль початковими полями рейтингу (рядок уже створено після sign-up).
+  Future<void> createUserWithDefaultRating(
+      String userId, Map<String, dynamic> userData) async {
     try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .set({
-        ...userData,
+      await _sb.from('profiles').update({
         'rating': _defaultRating,
-        'matchRating': _defaultRating,
-        'videoRating': _defaultRating,
-        'totalMatches': 0,
-        'totalVideos': 0,
-        'ratingHistory': [],
-        'createdAt': FieldValue.serverTimestamp(),
-        'lastRatingUpdate': FieldValue.serverTimestamp(),
-      });
+        'match_rating': _defaultRating,
+        'video_rating': _defaultRating,
+        'rating_history': [],
+      }).eq('id', userId);
     } catch (e) {
       print('Error creating user with default rating: $e');
     }
@@ -724,31 +746,22 @@ if (multiTeams.isNotEmpty) {
 
   // Отримати початковий рейтинг
   double getDefaultRating() => _defaultRating;
-  // Отримати рейтинг матчу (середнє оцінок з matches/{matchId}/playerRatings)
-Stream<double> getMatchRating(String matchId) {
-  return FirebaseFirestore.instance
-      .collection('matches')
-      .doc(matchId)
-      .collection('playerRatings')
-      .snapshots()
-      .map((snap) {
-        if (!snap.docs.any((_) => true)) return 0.0;
-
-        final ratings = <double>[];
-        for (final d in snap.docs) {
-          final m = d.data() as Map<String, dynamic>;
-          final r = (m['rating'] ?? 0.0);
-          if (r is num) ratings.add(r.toDouble());
-        }
-        if (ratings.isEmpty) return 0.0;
-
-        ratings.sort();
-        final effective = ratings; // без тримінгу
-
-        final avg = effective.reduce((a, b) => a + b) / effective.length;
-        return double.parse(avg.toStringAsFixed(2));
-      });
-}
+  /// Середнє з `matches.document.playerRatings` (Realtime по рядку матчу).
+  Stream<double> getMatchRating(String matchId) {
+    return _sb
+        .from('matches')
+        .stream(primaryKey: ['id'])
+        .eq('id', matchId)
+        .map((raw) {
+      final list = (raw as List).cast<Map>();
+      if (list.isEmpty) return 0.0;
+      final docRaw = list.first['document'];
+      final doc = docRaw is Map
+          ? Map<String, dynamic>.from(docRaw as Map)
+          : null;
+      return _averageRatingsFromDocument(doc);
+    });
+  }
 
   // Публічний метод для перерахунку загального рейтингу (використовується з челенджів)
   Future<void> recomputeOverallRating(
@@ -768,43 +781,48 @@ Stream<double> getMatchRating(String matchId) {
   }
 
   // Ручний перерахунок для всіх учасників конкретного матчу
-Future<void> recomputeForMatchParticipants(String matchId) async {
-  try {
-    final doc = await FirebaseFirestore.instance.collection('matches').doc(matchId).get();
-    if (!doc.exists) return;
-    final data = doc.data() as Map<String, dynamic>;
-    final participants = List<String>.from(data['participants'] ?? const <String>[]);
-    for (final uid in participants.toSet()) {
-      await recomputeOverallRating(
-        uid,
-        reason: 'manual_recompute',
-        source: 'Адмін',
-        sourceType: 'system',
-        sourceId: matchId,
-      );
-    }
-  } catch (_) {}
-}
-
-// Масовий перерахунок для всіх користувачів (обережно на продакшені)
-Future<void> recomputeAllUsers({int pageSize = 200}) async {
-  try {
-    Query q = FirebaseFirestore.instance.collection('users').orderBy(FieldPath.documentId);
-    DocumentSnapshot? last;
-    while (true) {
-      final snap = await (last == null ? q.limit(pageSize).get() : q.startAfterDocument(last!).limit(pageSize).get());
-      if (snap.docs.isEmpty) break;
-      for (final d in snap.docs) {
+  Future<void> recomputeForMatchParticipants(String matchId) async {
+    try {
+      final m = await _matches.fetchMatch(matchId);
+      if (m == null) return;
+      for (final uid in m.participants.toSet()) {
         await recomputeOverallRating(
-          d.id,
+          uid,
           reason: 'manual_recompute',
           source: 'Адмін',
           sourceType: 'system',
-          sourceId: 'bulk',
+          sourceId: matchId,
         );
       }
-      last = snap.docs.last;
-    }
-  } catch (_) {}
-}
+    } catch (_) {}
+  }
+
+  /// Масовий перерахунок для всіх профілів (обережно на продакшені).
+  Future<void> recomputeAllUsers({int pageSize = 200}) async {
+    try {
+      var from = 0;
+      while (true) {
+        final rows = await _sb
+            .from('profiles')
+            .select('id')
+            .order('id')
+            .range(from, from + pageSize - 1);
+        final list = (rows as List).cast<Map>();
+        if (list.isEmpty) break;
+        for (final r in list) {
+          final id = r['id']?.toString();
+          if (id == null || id.isEmpty) continue;
+          await recomputeOverallRating(
+            id,
+            reason: 'manual_recompute',
+            source: 'Адмін',
+            sourceType: 'system',
+            sourceId: 'bulk',
+          );
+        }
+        if (list.length < pageSize) break;
+        from += pageSize;
+      }
+    } catch (_) {}
+  }
 }

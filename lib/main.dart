@@ -37,8 +37,11 @@ import 'features/friends/domain/repositories/friends_repository.dart';
 import 'features/matches/data/datasources/supabase_matches_remote_data_source.dart';
 import 'features/matches/data/match_service.dart';
 import 'features/matches/domain/repositories/matches_repository.dart';
+import 'features/notifications/data/datasources/supabase_notifications_remote_data_source.dart';
+import 'features/notifications/data/notification_service.dart';
+import 'features/notifications/data/repositories/notifications_repository_impl.dart';
+import 'features/notifications/domain/repositories/notifications_repository.dart';
 import 'firebase_options.dart';
-import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/subscription/data/subscription_service.dart';
 import 'package:flap_app/features/profile/data/user_settings_service.dart';
 import 'utils/i18n.dart';
@@ -81,6 +84,10 @@ Future<void> main() async {
     SupabaseMatchesRemoteDataSource(),
     userProfileRepo,
   );
+  final notificationsRepo = NotificationsRepositoryImpl(
+    SupabaseNotificationsRemoteDataSource(),
+  );
+  NotificationService.matchesRepository = matchesRepo;
 
   runApp(
     MultiRepositoryProvider(
@@ -94,6 +101,9 @@ Future<void> main() async {
         RepositoryProvider<ChallengeRepository>.value(value: challengeRepo),
         RepositoryProvider<FriendsRepository>.value(value: friendsRepo),
         RepositoryProvider<MatchesRepository>.value(value: matchesRepo),
+        RepositoryProvider<NotificationsRepository>.value(
+          value: notificationsRepo,
+        ),
       ],
       child: MyApp(authRepository: authRepo),
     ),

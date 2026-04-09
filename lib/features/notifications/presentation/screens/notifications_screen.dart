@@ -2,23 +2,40 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
-import 'package:flap_app/models/notification.dart';
-import 'package:flap_app/features/notifications/data/notification_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
+import 'package:flap_app/features/notifications/domain/repositories/notifications_repository.dart';
+import 'package:flap_app/features/notifications/domain/usecases/notifications_usecases.dart';
+import 'package:flap_app/features/notifications/presentation/bloc/notifications_bloc.dart';
+import 'package:flap_app/features/notifications/presentation/bloc/notifications_event.dart';
+import 'package:flap_app/features/notifications/presentation/bloc/notifications_state.dart';
 import 'package:flap_app/features/videos/presentation/screens/video_player_screen.dart';
-import 'package:flap_app/models/match.dart';
+import 'package:flap_app/models/notification.dart';
 import 'package:flap_app/utils/i18n.dart';
-import 'package:flap_app/core/router/app_router.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 @RoutePage()
-class NotificationsScreen extends StatefulWidget {
+class NotificationsScreen extends StatelessWidget {
+  const NotificationsScreen({super.key});
+
   @override
-  _NotificationsScreenState createState() => _NotificationsScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (ctx) => NotificationsBloc(
+        NotificationsUseCases(ctx.read<NotificationsRepository>()),
+      )..add(const NotificationsStarted()),
+      child: const _NotificationsView(),
+    );
+  }
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
-  final NotificationService _notificationService = NotificationService();
-  
+class _NotificationsView extends StatefulWidget {
+  const _NotificationsView();
+
+  @override
+  State<_NotificationsView> createState() => _NotificationsViewState();
+}
+
+class _NotificationsViewState extends State<_NotificationsView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -42,64 +59,65 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
         ],
       ),
-      body: StreamBuilder<List<AppNotification>>(
-        stream: _notificationService.getUserNotifications(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: BlocBuilder<NotificationsBloc, NotificationsState>(
+        builder: (context, state) {
+          if (state is NotificationsInitial) {
             return const Center(
               child: CircularProgressIndicator(color: Color(0xFF4caf50)),
             );
           }
+          if (state is NotificationsReady) {
+            if (state.errorMessage != null && state.errorMessage!.isNotEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      I18n.inline('Помилка завантаження', 'Error loading'),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      state.errorMessage!,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => context
+                          .read<NotificationsBloc>()
+                          .add(const NotificationsStarted()),
+                      icon: const Icon(Icons.refresh),
+                      label: Text(I18n.inline('Спробувати знову', 'Try again')),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4caf50),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Colors.red,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    I18n.inline('Помилка завантаження', 'Error loading'),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    snapshot.error.toString(),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
-                      fontSize: 12,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () => setState(() {}),
-                    icon: const Icon(Icons.refresh),
-                    label: Text(I18n.inline('Спробувати знову', 'Try again')),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4caf50),
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            );
+            final notifications = state.notifications;
+            if (notifications.isEmpty) {
+              return _buildEmptyState();
+            }
+            return _buildNotificationsList(notifications);
           }
-
-          final notifications = snapshot.data ?? [];
-
-          if (notifications.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          return _buildNotificationsList(notifications);
+          return const SizedBox.shrink();
         },
       ),
     );
@@ -195,7 +213,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: const Icon(Icons.delete_outline, color: Colors.white),
       ),
       onDismissed: (_) async {
-        await _notificationService.deleteNotification(notification.id);
+        context.read<NotificationsBloc>().add(
+              NotificationDeleteRequested(notification.id),
+            );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -419,7 +439,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   void _handleNotificationTap(AppNotification notification) async {
     if (!notification.isRead) {
-      await _notificationService.markAsRead(notification.id);
+      context.read<NotificationsBloc>().add(
+            NotificationMarkReadRequested(notification.id),
+          );
     }
 
     if (notification.actionUrl != null && notification.actionUrl!.isNotEmpty) {
@@ -501,17 +523,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-    Future<void> _openMatchRatingById(String matchId) async {
+  Future<void> _openMatchRatingById(String matchId) async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('matches').doc(matchId).get();
-      if (!doc.exists) {
+      final match =
+          await context.read<MatchesRepository>().fetchMatch(matchId);
+      if (match == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(I18n.inline('Матч не знайдено: $matchId', 'Match not found: $matchId'))),
         );
         return;
       }
-      final match = Match.fromFirestore(doc);
       if (!mounted) return;
       Navigator.pushNamed(context, '/match_rating', arguments: match);
     } catch (e) {
@@ -523,26 +545,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   
-    Future<void> _openMatchById(String matchId) async {
-    print('🔍 NOTIFICATION: Opening match with ID: $matchId');
+  Future<void> _openMatchById(String matchId) async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('matches').doc(matchId).get();
-      print('🔍 NOTIFICATION: Match doc exists: ${doc.exists}');
-      if (!doc.exists) {
+      final match =
+          await context.read<MatchesRepository>().fetchMatch(matchId);
+      if (match == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(I18n.inline('Матч не знайдено: $matchId', 'Match not found: $matchId'))),
         );
         return;
       }
-      final match = Match.fromFirestore(doc);
-      print('🔍 NOTIFICATION: Match loaded: ${match.title}');
       if (!mounted) return;
-      print('🔍 NOTIFICATION: Navigating to match-details...');
       Navigator.pushNamed(context, '/match-details', arguments: match);
-      print('✅ NOTIFICATION: Navigation complete');
     } catch (e) {
-      print('❌ NOTIFICATION: Error opening match: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(I18n.inline('Помилка відкриття матчу: $e', 'Error opening match: $e'))),
@@ -617,7 +633,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _markAsRead(AppNotification notification) async {
-    await _notificationService.markAsRead(notification.id);
+    context.read<NotificationsBloc>().add(
+          NotificationMarkReadRequested(notification.id),
+        );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(I18n.inline('Позначено як прочитане', 'Marked as read')),
@@ -627,8 +645,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _markAllAsRead() async {
-    final success = await _notificationService.markAllAsRead();
-    if (success) {
+    context.read<NotificationsBloc>().add(
+          const NotificationsMarkAllReadRequested(),
+        );
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(I18n.inline('Всі сповіщення позначені як прочитані', 'All notifications marked as read')),
@@ -639,8 +659,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _deleteNotification(AppNotification notification) async {
-    final success = await _notificationService.deleteNotification(notification.id);
-    if (success) {
+    context.read<NotificationsBloc>().add(
+          NotificationDeleteRequested(notification.id),
+        );
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(I18n.inline('Сповіщення видалено', 'Notification deleted')),

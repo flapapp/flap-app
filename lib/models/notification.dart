@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 enum NotificationType {
@@ -48,39 +47,45 @@ class AppNotification {
     this.actionUrl,
   });
 
-  // Factory constructor from Firestore
-  factory AppNotification.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    
+  static DateTime _readCreatedAt(dynamic v) {
+    if (v == null) return DateTime.now();
+    if (v is DateTime) return v;
+    if (v is String) return DateTime.tryParse(v) ?? DateTime.now();
+    return DateTime.now();
+  }
+
+  /// Row from `public.notifications` (Supabase).
+  factory AppNotification.fromSupabaseRow(Map<String, dynamic> row) {
+    final dataRaw = row['data'];
     return AppNotification(
-      id: doc.id,
-      userId: data['userId'] ?? '',
+      id: row['id']?.toString() ?? '',
+      userId: row['user_id']?.toString() ?? '',
       type: NotificationType.values.firstWhere(
-        (e) => e.toString().split('.').last == data['type'],
+        (e) => e.toString().split('.').last == row['type'],
         orElse: () => NotificationType.friendRequest,
       ),
-      title: data['title'] ?? '',
-      message: data['message'] ?? '',
-      data: Map<String, dynamic>.from(data['data'] ?? {}),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      isRead: data['isRead'] ?? false,
-      imageUrl: data['imageUrl'],
-      actionUrl: data['actionUrl'],
+      title: row['title']?.toString() ?? '',
+      message: row['message']?.toString() ?? '',
+      data: Map<String, dynamic>.from(dataRaw as Map? ?? {}),
+      createdAt: _readCreatedAt(row['created_at']),
+      isRead: row['is_read'] == true,
+      imageUrl: row['image_url']?.toString(),
+      actionUrl: row['action_url']?.toString(),
     );
   }
 
-  // Convert to Map for Firestore
-  Map<String, dynamic> toFirestore() {
+  /// Insert map for `public.notifications` (no `id`).
+  Map<String, dynamic> toSupabaseInsertRow() {
     return {
-      'userId': userId,
+      'user_id': userId,
       'type': type.toString().split('.').last,
       'title': title,
       'message': message,
       'data': data,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'isRead': isRead,
-      'imageUrl': imageUrl,
-      'actionUrl': actionUrl,
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'is_read': isRead,
+      if (imageUrl != null) 'image_url': imageUrl,
+      if (actionUrl != null) 'action_url': actionUrl,
     };
   }
 
