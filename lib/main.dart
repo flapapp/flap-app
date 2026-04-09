@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/intro_video_screen.dart';
-import 'screens/login_screen.dart';
-import 'screens/register_screen.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
+import 'features/auth/presentation/screens/register_screen.dart';
 import 'screens/profile_creation_screen.dart';
 import 'screens/mode_selection_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -22,6 +22,9 @@ import 'features/auth/data/repositories/auth_repository_impl.dart';
 import 'features/auth/domain/repositories/auth_repository.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/auth/presentation/bloc/auth_event.dart';
+import 'features/auth/data/datasources/supabase_profile_write_data_source.dart';
+import 'features/auth/data/repositories/user_profile_repository_impl.dart';
+import 'features/auth/domain/repositories/user_profile_repository.dart';
 import 'screens/challenge_list_screen.dart';
 import 'screens/challenge_create_screen.dart';
 import 'screens/challenge_details_screen.dart';
@@ -69,7 +72,21 @@ Future<void> main() async {
   final authRepo = AuthRepositoryImpl(SupabaseAuthDataSource());
   AppAuthContext.repository = authRepo;
 
-  runApp(MyApp(authRepository: authRepo));
+  final userProfileRepo = UserProfileRepositoryImpl(
+    supabase: SupabaseProfileWriteDataSource(),
+  );
+
+  runApp(
+    MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<AuthRepository>.value(value: authRepo),
+        RepositoryProvider<UserProfileRepository>.value(
+          value: userProfileRepo,
+        ),
+      ],
+      child: MyApp(authRepository: authRepo),
+    ),
+  );
   unawaited(_bootstrapAppServices());
 }
 
@@ -149,7 +166,10 @@ class MyApp extends StatelessWidget {
     );
 
     return BlocProvider(
-      create: (_) => AuthBloc(authRepository)..add(const AuthStarted()),
+      create: (context) => AuthBloc(
+            authRepository,
+            context.read<UserProfileRepository>(),
+          )..add(const AuthStarted()),
       child: ValueListenableBuilder<String>(
       valueListenable: I18n.language,
       builder: (context, lang, _) => MaterialApp(

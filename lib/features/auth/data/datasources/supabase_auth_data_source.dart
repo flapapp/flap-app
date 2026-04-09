@@ -52,6 +52,16 @@ class SupabaseAuthDataSource implements AuthRemoteDataSource {
     }
   }
 
+  static bool _isDuplicateSignupError(AuthException e) {
+    final msg = e.message.toLowerCase();
+    final code = e.code?.toLowerCase();
+    return msg.contains('already registered') ||
+        msg.contains('already been registered') ||
+        msg.contains('user already exists') ||
+        code == 'user_already_exists' ||
+        code == 'email_exists';
+  }
+
   @override
   Future<AppUser> signUpWithEmailAndPassword({
     required String email,
@@ -66,9 +76,31 @@ class SupabaseAuthDataSource implements AuthRemoteDataSource {
           message: 'Confirm your email or disable email confirmation in project auth settings',
         );
       }
+      // With email confirmation on, Supabase often returns 200 + a stub user with no
+      // identities so the address is not enumerable. That can still create a session.
+      final identities = u.identities;
+      if (identities == null || identities.isEmpty) {
+        await _client.auth.signOut();
+        throw const AuthFailure(
+          code: 'email-already-in-use',
+          message: '',
+        );
+      }
       return _mapUser(u);
+    } on AuthFailure {
+      rethrow;
     } on AuthException catch (e) {
-      throw AuthFailure(code: e.message, message: e.message);
+      if (_isDuplicateSignupError(e)) {
+        await _client.auth.signOut();
+        throw const AuthFailure(
+          code: 'email-already-in-use',
+          message: '',
+        );
+      }
+      throw AuthFailure(
+        code: e.code ?? 'auth-error',
+        message: e.message,
+      );
     }
   }
 

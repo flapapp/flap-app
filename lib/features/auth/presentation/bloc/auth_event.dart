@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/app_user.dart';
+import '../../domain/entities/new_user_profile.dart';
 
 sealed class AuthEvent extends Equatable {
   const AuthEvent();
@@ -36,16 +37,21 @@ class AuthSignInRequested extends AuthEvent {
   List<Object?> get props => [email, password];
 }
 
+class AuthSignOutRequested extends AuthEvent {
+  const AuthSignOutRequested();
+}
+
 class AuthRegisterRequested extends AuthEvent {
-  const AuthRegisterRequested({required this.email, required this.password});
+  const AuthRegisterRequested({
+    required this.email,
+    required this.password,
+    required this.profile,
+  });
 
   final String email;
   final String password;
+  final NewUserProfile profile;
 
   @override
-  List<Object?> get props => [email, password];
-}
-
-class AuthSignOutRequested extends AuthEvent {
-  const AuthSignOutRequested();
+  List<Object?> get props => [email, password, profile];
 }
