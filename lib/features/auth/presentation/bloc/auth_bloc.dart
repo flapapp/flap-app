@@ -95,7 +95,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         profile: event.profile,
         avatarUrl: null,
       );
-      emit(AuthAuthenticated(user));
+      await _repository.signOut();
+      emit(AuthRegistrationCompleted(email: event.email));
+      emit(const AuthUnauthenticated());
     } on AuthFailure catch (e) {
       emit(AuthCredentialsRejected(code: e.code, message: e.message));
       emit(const AuthUnauthenticated());

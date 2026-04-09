@@ -30,6 +30,15 @@ class AuthUnauthenticated extends AuthState {
   const AuthUnauthenticated();
 }
 
+class AuthRegistrationCompleted extends AuthState {
+  const AuthRegistrationCompleted({required this.email});
+
+  final String email;
+
+  @override
+  List<Object?> get props => [email];
+}
+
 /// Transient sign-in / sign-up failure (UI should show message).
 class AuthCredentialsRejected extends AuthState {
   const AuthCredentialsRejected({required this.code, this.message});

@@ -26,6 +26,11 @@ class _LoginScreenState extends State<LoginScreen> {
         return I18n.t('invalid_email_or_password');
       case 'too-many-requests':
         return I18n.t('too_many_requests');
+      case 'email-not-confirmed':
+        return I18n.inline(
+          'Підтвердіть електронну пошту перед входом.',
+          'Please confirm your email before signing in.',
+        );
       default:
         return state.message ?? I18n.t('login_error');
     }

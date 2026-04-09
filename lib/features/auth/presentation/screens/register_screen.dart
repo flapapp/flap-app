@@ -88,7 +88,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: BlocConsumer<AuthBloc, AuthState>(
             listenWhen: (previous, current) =>
                 current is AuthCredentialsRejected ||
-                current is AuthAuthenticated,
+                current is AuthRegistrationCompleted,
             listener: (context, state) {
               if (state is AuthCredentialsRejected) {
                 final text = state.code == 'email-already-in-use'
@@ -106,18 +106,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   SnackBar(content: Text(text)),
                 );
               }
-              if (state is AuthAuthenticated) {
+              if (state is AuthRegistrationCompleted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(I18n.inline(
-                      '🎉 Вітаємо! Ви отримали 2 тижні Champions League преміум!',
-                      '🎉 Congratulations! You received 2 weeks of Champions League premium!',
+                      'Реєстрацію завершено. Підтвердіть email і увійдіть у свій акаунт.',
+                      'Registration complete. Confirm your email and sign in to your account.',
                     )),
                     duration: const Duration(seconds: 3),
                     backgroundColor: const Color(0xFF4caf50),
                   ),
                 );
-                Navigator.pushReplacementNamed(context, '/mode');
+                Navigator.pushReplacementNamed(context, '/login');
               }
             },
             builder: (context, state) {
