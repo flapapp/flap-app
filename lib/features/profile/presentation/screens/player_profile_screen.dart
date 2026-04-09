@@ -2,6 +2,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:video_player/video_player.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
@@ -81,15 +82,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 
   Future<void> _loadPlayerData() async {
     try {
-      // Завантажити дані гравця
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.playerId)
-          .get();
-
-      if (userDoc.exists) {
-        playerData = userDoc.data();
-      }
+      playerData = await context
+          .read<ProfileRepository>()
+          .fetchLegacyUserMap(widget.playerId);
       // Win Rate + останні 5 результатів
       final stats = await _loadMatchStats(widget.playerId);
       _winRate = (stats['winRate'] as num?)?.toDouble() ?? 0.0;

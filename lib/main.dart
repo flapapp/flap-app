@@ -42,8 +42,11 @@ import 'features/notifications/data/notification_service.dart';
 import 'features/notifications/data/repositories/notifications_repository_impl.dart';
 import 'features/notifications/domain/repositories/notifications_repository.dart';
 import 'firebase_options.dart';
-import 'package:flap_app/features/subscription/data/subscription_service.dart';
+import 'package:flap_app/features/profile/data/datasources/supabase_profile_remote_data_source.dart';
+import 'package:flap_app/features/profile/data/repositories/profile_repository_impl.dart';
 import 'package:flap_app/features/profile/data/user_settings_service.dart';
+import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
+import 'package:flap_app/features/subscription/data/subscription_service.dart';
 import 'utils/i18n.dart';
 
 
@@ -89,6 +92,11 @@ Future<void> main() async {
   );
   NotificationService.matchesRepository = matchesRepo;
 
+  final profileRepo = ProfileRepositoryImpl(
+    remote: SupabaseProfileRemoteDataSource(),
+  );
+  UserSettingsService.registerGlobalRepository(profileRepo);
+
   runApp(
     MultiRepositoryProvider(
       providers: [
@@ -96,6 +104,7 @@ Future<void> main() async {
         RepositoryProvider<UserProfileRepository>.value(
           value: userProfileRepo,
         ),
+        RepositoryProvider<ProfileRepository>.value(value: profileRepo),
         RepositoryProvider<AdminRepository>.value(value: adminRepo),
         RepositoryProvider<BadgeRepository>.value(value: badgeRepo),
         RepositoryProvider<ChallengeRepository>.value(value: challengeRepo),

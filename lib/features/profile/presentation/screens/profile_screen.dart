@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/features/profile/data/profile_legacy_user_map.dart';
+import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/auth_sign_out_helper.dart';
 import 'package:flap_app/models/badge.dart' as app_badge;
@@ -20,11 +22,9 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserver {
-  Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
+  Stream<Map<String, dynamic>>? _profileStream;
   List<app_badge.Badge> _userBadges = [];
   int _friendsCount = 0;
-  List<Map<String, dynamic>> _ratingHistory7 = [];
-  List<Map<String, dynamic>> _ratingHistory30 = [];
   List<Map<String, dynamic>> _topVideos = [];
 
   @override
@@ -33,11 +33,16 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     WidgetsBinding.instance.addObserver(this);
     final uid = AppAuthContext.userId;
     if (uid != null) {
-      _userStream = FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadUserBadges());
-      _loadFriendsCount();
-      _loadRatingDynamics(uid);
-      _loadTopVideos(uid);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _profileStream =
+              context.read<ProfileRepository>().watchLegacyUserMap(uid);
+        });
+        _loadUserBadges();
+        _loadFriendsCount();
+        _loadTopVideos(uid);
+      });
     }
   }
 
@@ -75,43 +80,6 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     }
   }
 
-  Future<void> _loadRatingDynamics(String uid) async {
-    try {
-      // Завантажуємо останні записи історії рейтингу з окремої колекції
-      final snap = await FirebaseFirestore.instance
-          .collection('rating_history')
-          .where('userId', isEqualTo: uid)
-          .orderBy('timestamp', descending: true)
-          .limit(200)
-          .get();
-
-      final all = snap.docs.map((d) => d.data() as Map<String, dynamic>).toList();
-      final now = DateTime.now();
-
-      List<Map<String, dynamic>> filterByDays(int days) {
-        final from = now.subtract(Duration(days: days));
-        final filtered = all.where((h) {
-          final ts = h['timestamp'];
-          final dt = ts is Timestamp ? ts.toDate() : null;
-          return dt != null && dt.isAfter(from);
-        }).toList();
-        // Сортуємо за часом зростаюче, щоб лінія йшла зліва направо
-        filtered.sort((a, b) {
-          final at = a['timestamp'];
-          final bt = b['timestamp'];
-          if (at is Timestamp && bt is Timestamp) return at.compareTo(bt);
-          return 0;
-        });
-        return filtered;
-      }
-
-      _ratingHistory7 = filterByDays(7);
-      _ratingHistory30 = filterByDays(30);
-
-      if (mounted) setState(() {});
-    } catch (_) {}
-  }
-
   Future<void> _loadTopVideos(String uid) async {
     try {
       final snap = await FirebaseFirestore.instance
@@ -120,7 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
           .limit(50)
           .get();
       final vids = snap.docs.map((d) {
-        final m = d.data() as Map<String, dynamic>;
+        final m = Map<String, dynamic>.from(d.data());
         m['id'] = d.id;
         return m;
       }).toList();
@@ -138,8 +106,8 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: _userStream,
+      body: StreamBuilder<Map<String, dynamic>>(
+          stream: _profileStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -147,7 +115,9 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
               );
             }
 
-            if (!snapshot.hasData || !snapshot.data!.exists) {
+            final userData = snapshot.data;
+            if (userData == null ||
+                (userData['uid']?.toString().isEmpty ?? true)) {
               return const Center(
                 child: Text(
                   'Профіль не знайдено',
@@ -156,7 +126,6 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
               );
             }
 
-            final userData = snapshot.data!.data()!;
           return _buildProfileContent(userData);
         },
       ),
@@ -214,7 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
               children: [
                 _buildStatsCards(userData),
                 _buildBadgesSection(),
-                _buildRatingDynamicsSection(),
+                _buildRatingDynamicsSection(userData),
                 _buildTopVideosSection(),
                 _buildActionsMenu(),
                 const SizedBox(height: 20),
@@ -574,8 +543,31 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     );
   }
 
-  Widget _buildRatingDynamicsSection() {
-    if (_ratingHistory7.isEmpty && _ratingHistory30.isEmpty) {
+  List<Map<String, dynamic>> _ratingHistoryForDays(
+    Map<String, dynamic> userData,
+    int days,
+  ) {
+    final history =
+        List<Map<String, dynamic>>.from(userData['ratingHistory'] ?? []);
+    final now = DateTime.now();
+    final from = now.subtract(Duration(days: days));
+    final filtered = history.where((h) {
+      final dt = profileRatingHistoryTimestamp(h['timestamp']);
+      return dt != null && dt.isAfter(from);
+    }).toList();
+    filtered.sort((a, b) {
+      final ad = profileRatingHistoryTimestamp(a['timestamp']);
+      final bd = profileRatingHistoryTimestamp(b['timestamp']);
+      if (ad == null || bd == null) return 0;
+      return ad.compareTo(bd);
+    });
+    return filtered;
+  }
+
+  Widget _buildRatingDynamicsSection(Map<String, dynamic> userData) {
+    final ratingHistory7 = _ratingHistoryForDays(userData, 7);
+    final ratingHistory30 = _ratingHistoryForDays(userData, 30);
+    if (ratingHistory7.isEmpty && ratingHistory30.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         child: Container(
@@ -597,17 +589,21 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
         children: [
           const Text('Динаміка рейтингу', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
-          _buildSparklineCard('Останні 7 днів', _ratingHistory7),
+          _buildSparklineCard('Останні 7 днів', ratingHistory7),
           const SizedBox(height: 8),
-          _buildSparklineCard('Останні 30 днів', _ratingHistory30),
+          _buildSparklineCard('Останні 30 днів', ratingHistory30),
         ],
       ),
     );
   }
 
   Widget _buildSparklineCard(String title, List<Map<String, dynamic>> history) {
-    // Малюємо по значенню newRating з історії
-    final points = history.map<double>((h) => ((h['newRating'] ?? 0.0) as num).toDouble()).toList();
+    final points = history
+        .map<double>(
+          (h) => ((h['newRating'] ?? h['overallRating'] ?? 0.0) as num)
+              .toDouble(),
+        )
+        .toList();
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

@@ -1,17 +1,27 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 
+/// Reads notification / playback preferences from `profiles.settings` (Supabase).
 class UserSettingsService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  UserSettingsService({ProfileRepository? repository}) : _override = repository;
+
+  static ProfileRepository? _globalRepository;
+  final ProfileRepository? _override;
+
+  /// Called from [main] after [ProfileRepository] is constructed.
+  static void registerGlobalRepository(ProfileRepository repository) {
+    _globalRepository = repository;
+  }
+
+  ProfileRepository? get _repo => _override ?? _globalRepository;
 
   Future<Map<String, dynamic>> getCurrentSettings() async {
     final uid = AppAuthContext.userId;
-    if (uid == null) return const {};
+    final repo = _repo;
+    if (uid == null || repo == null) return const {};
 
     try {
-      final doc = await _firestore.collection('users').doc(uid).get();
-      final data = doc.data() ?? const <String, dynamic>{};
-      return Map<String, dynamic>.from(data['settings'] ?? const <String, dynamic>{});
+      return repo.fetchSettings(uid);
     } catch (_) {
       return const {};
     }

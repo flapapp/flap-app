@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -9,6 +10,7 @@ import 'package:flap_app/widgets/player_avatar_button.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/router/app_router.dart';
+import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 
 @RoutePage()
 class ModeSelectionScreen extends StatefulWidget {
@@ -35,7 +37,7 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
     }
   }
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
+  Stream<Map<String, dynamic>>? _profileStream;
   final Random _random = Random();
   final NotificationService _notificationService = NotificationService();
 
@@ -50,45 +52,64 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    final uid = AppAuthContext.userId;
-    if (uid != null) {
-      _userStream =
-          FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
-      _primeHeroStats(uid);
-    }
-    _updateGreeting();
-    _loadLatestNews();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final uid = AppAuthContext.userId;
+      if (uid != null) {
+        setState(() {
+          _profileStream =
+              context.read<ProfileRepository>().watchLegacyUserMap(uid);
+        });
+        _primeHeroStats(uid);
+      }
+      _updateGreeting();
+      _loadLatestNews();
+    });
   }
 
-  void _updateGreeting() {
+  Future<void> _updateGreeting() async {
     final phrase = _motivationPhrases[_random.nextInt(_motivationPhrases.length)];
     final uid = AppAuthContext.userId;
     if (uid == null) {
-      setState(() {
-        _currentGreeting = I18n.inline(phrase.ua, phrase.en);
-        _currentRatingText = I18n.inline('Гість у FLAP', 'Guest inside FLAP');
-        _currentInstruction = I18n.inline(phrase.ctaUa, phrase.ctaEn);
-      });
+      if (mounted) {
+        setState(() {
+          _currentGreeting = I18n.inline(phrase.ua, phrase.en);
+          _currentRatingText = I18n.inline('Гість у FLAP', 'Guest inside FLAP');
+          _currentInstruction = I18n.inline(phrase.ctaUa, phrase.ctaEn);
+        });
+      }
       return;
     }
 
-    FirebaseFirestore.instance.collection('users').doc(uid).get().then((doc) {
-      final data = doc.data();
-      final name = data != null
-          ? (data['displayName'] ?? data['authorName'] ?? data['name'] ?? I18n.t('player'))
-          : I18n.t('player');
-      final rating = data != null ? (data['rating'] ?? 3.0).toDouble() : 3.0;
-      final matches = data != null ? ((data['totalMatches'] ?? data['matches'] ?? data['matchesPlayed'] ?? 0) as num).toInt() : 0;
-setState(() {
-  _currentGreeting = I18n.inline(
-    phrase.ua.replaceAll('{name}', name),
-    phrase.en.replaceAll('{name}', name),
-  );
-  _currentRatingText = I18n.inline(
-      'Рейтинг ${rating.toStringAsFixed(2)} • $matches матчів',
-      'Rating ${rating.toStringAsFixed(2)} • $matches matches');
-  _currentInstruction = I18n.inline(phrase.ctaUa, phrase.ctaEn);
-});
+    if (!mounted) return;
+    final data =
+        await context.read<ProfileRepository>().fetchLegacyUserMap(uid);
+    if (!mounted) return;
+    final name = data != null
+        ? (data['displayName'] ??
+                data['authorName'] ??
+                data['name'] ??
+                I18n.t('player'))
+            .toString()
+        : I18n.t('player');
+    final rating = data != null ? (data['rating'] ?? 3.0).toDouble() : 3.0;
+    final matches = data != null
+        ? ((data['totalMatches'] ??
+                data['matches'] ??
+                data['matchesPlayed'] ??
+                0) as num)
+            .toInt()
+        : 0;
+    setState(() {
+      _currentGreeting = I18n.inline(
+        phrase.ua.replaceAll('{name}', name),
+        phrase.en.replaceAll('{name}', name),
+      );
+      _currentRatingText = I18n.inline(
+        'Рейтинг ${rating.toStringAsFixed(2)} • $matches матчів',
+        'Rating ${rating.toStringAsFixed(2)} • $matches matches',
+      );
+      _currentInstruction = I18n.inline(phrase.ctaUa, phrase.ctaEn);
     });
   }
 
@@ -438,10 +459,10 @@ Widget build(BuildContext context) {
       backgroundColor: Colors.transparent,
       elevation: 0,
       actions: [
-        StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: _userStream,
+        StreamBuilder<Map<String, dynamic>>(
+          stream: _profileStream,
           builder: (context, snapshot) {
-            final data = snapshot.data?.data();
+            final data = snapshot.data;
             final rating = (data?['rating'] ?? 0.0).toDouble();
             return Row(
               children: [
@@ -515,10 +536,10 @@ Widget build(BuildContext context) {
     body: SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: _userStream,
+        child: StreamBuilder<Map<String, dynamic>>(
+          stream: _profileStream,
           builder: (context, snapshot) {
-            final data = snapshot.data?.data();
+            final data = snapshot.data;
             const matchColors = [Color(0xFF0f9d58), Color(0xFF0c6f3c)];
             const videoColors = [Color(0xFFc62828), Color(0xFF8e24aa)];
             const teamColors = [Color(0xFF1976d2), Color(0xFF0d47a1)];

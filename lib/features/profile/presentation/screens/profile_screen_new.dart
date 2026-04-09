@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/auth_sign_out_helper.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -36,7 +37,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TeamService _teamService = TeamService();
   final ImagePicker _picker = ImagePicker();
   
-  Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
+  Stream<Map<String, dynamic>>? _profileStream;
   List<app_badge.Badge> _userBadges = [];
   int _friendsCount = 0;
   Stream<List<AppTeam>>? _teamsStream;
@@ -53,12 +54,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final uid = AppAuthContext.userId;
     if (uid != null) {
       _userId = uid;
-      _userStream = FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadUserBadges());
-      _loadFriendsCount();
-      _teamsStream = _teamService.watchUserTeams(uid);
-      _teamInvitesStream = _teamService.watchInvites(uid);
-      _checkAndShowDonationPrompt(uid);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _profileStream =
+              context.read<ProfileRepository>().watchLegacyUserMap(uid);
+        });
+        _loadUserBadges();
+        _loadFriendsCount();
+        _teamsStream = _teamService.watchUserTeams(uid);
+        _teamInvitesStream = _teamService.watchInvites(uid);
+        _checkAndShowDonationPrompt(uid);
+      });
     }
   }
 
@@ -66,11 +73,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_donationPromptCheckStarted) return;
     _donationPromptCheckStarted = true;
     try {
-      final userDoc =
-          await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final data = userDoc.data() ?? const <String, dynamic>{};
       final settings =
-          Map<String, dynamic>.from(data['settings'] ?? const <String, dynamic>{});
+          await context.read<ProfileRepository>().fetchSettings(uid);
       final isDismissed = settings['hideDonationPrompt'] == true;
       if (isDismissed || !mounted) return;
 
@@ -100,12 +104,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _setDonationPromptDismissed() async {
     final uid = AppAuthContext.userId;
     if (uid == null) return;
-    await FirebaseFirestore.instance.collection('users').doc(uid).set(
-      {
-        'settings': {'hideDonationPrompt': true}
-      },
-      SetOptions(merge: true),
-    );
+    await context.read<ProfileRepository>().mergeSettings(uid, {
+      'hideDonationPrompt': true,
+    });
   }
 
   Future<void> _openDonationLink(String link) async {
@@ -563,8 +564,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _userStream,
+      body: StreamBuilder<Map<String, dynamic>>(
+        stream: _profileStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -572,7 +573,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             );
           }
 
-          if (!snapshot.hasData || !snapshot.data!.exists) {
+          final userData = snapshot.data;
+          if (userData == null ||
+              (userData['uid']?.toString().isEmpty ?? true)) {
             return Center(
               child: Text(
                 'Профіль не знайдено'.i18n('Profile not found'),
@@ -581,7 +584,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             );
           }
 
-          final userData = snapshot.data!.data()!;
           return _buildProfileContent(userData);
         },
       ),

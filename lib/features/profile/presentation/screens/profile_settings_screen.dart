@@ -1,8 +1,9 @@
 import 'package:auto_route/auto_route.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:flap_app/features/notifications/data/notification_service.dart';
+import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'profile_creation_screen.dart';
 import 'package:flap_app/core/app_auth_context.dart';
@@ -27,7 +28,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSettings();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadSettings());
   }
 
   Future<void> _loadSettings() async {
@@ -38,9 +39,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     }
 
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final data = doc.data() ?? <String, dynamic>{};
-      final settings = Map<String, dynamic>.from(data['settings'] ?? <String, dynamic>{});
+      final settings =
+          await context.read<ProfileRepository>().fetchSettings(uid);
       if (!mounted) return;
       setState(() {
         _notificationsEnabled = settings['notificationsEnabled'] ?? true;
@@ -62,14 +62,12 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
     setState(() => _saving = true);
     try {
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'settings': {
-          'notificationsEnabled': _notificationsEnabled,
-          'autoplayVideos': _autoplayVideos,
-          'showOnlineStatus': _showOnlineStatus,
-          'allowFriendRequests': _allowFriendRequests,
-        },
-      }, SetOptions(merge: true));
+      await context.read<ProfileRepository>().mergeSettings(uid, {
+        'notificationsEnabled': _notificationsEnabled,
+        'autoplayVideos': _autoplayVideos,
+        'showOnlineStatus': _showOnlineStatus,
+        'allowFriendRequests': _allowFriendRequests,
+      });
 
       await NotificationService().initialize();
 
