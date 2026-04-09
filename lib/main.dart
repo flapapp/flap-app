@@ -22,6 +22,9 @@ import 'features/auth/domain/repositories/auth_repository.dart';
 import 'features/auth/domain/repositories/user_profile_repository.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/auth/presentation/bloc/auth_event.dart';
+import 'features/admin/data/datasources/supabase_admin_remote_data_source.dart';
+import 'features/admin/data/repositories/admin_repository_impl.dart';
+import 'features/admin/domain/repositories/admin_repository.dart';
 import 'firebase_options.dart';
 import 'package:flap_app/features/badges/data/badge_service.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
@@ -55,6 +58,8 @@ Future<void> main() async {
   );
   AppUserProfileContext.repository = userProfileRepo;
 
+  final adminRepo = AdminRepositoryImpl(SupabaseAdminRemoteDataSource());
+
   runApp(
     MultiRepositoryProvider(
       providers: [
@@ -62,6 +67,7 @@ Future<void> main() async {
         RepositoryProvider<UserProfileRepository>.value(
           value: userProfileRepo,
         ),
+        RepositoryProvider<AdminRepository>.value(value: adminRepo),
       ],
       child: MyApp(authRepository: authRepo),
     ),
