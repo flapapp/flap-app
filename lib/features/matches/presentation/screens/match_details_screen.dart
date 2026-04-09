@@ -2,12 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/models/match.dart';
-import 'package:flap_app/features/matches/data/match_service.dart';
+import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/matches/data/rating_service.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -26,7 +27,7 @@ class MatchDetailsScreen extends StatefulWidget {
 }
 
 class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
-  final MatchService _matchService = MatchService();
+  MatchesRepository get _matchesRepo => context.read<MatchesRepository>();
   final RatingService _ratingService = RatingService();
   final NotificationService _notificationService = NotificationService();
   bool _isJoining = false;
@@ -366,7 +367,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       final snapshot = await uploadTask.whenComplete(() {});
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      await _matchService.updateCoverPhoto(
+      await _matchesRepo.updateCoverPhoto(
         matchId: widget.match.id,
         photoUrl: downloadUrl,
       );
@@ -1444,7 +1445,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
     setState(() => _isProcessingRosterAction = true);
     try {
-      await _matchService.setTeamRoster(
+      await _matchesRepo.setTeamRoster(
         matchId: widget.match.id,
         teamKey: teamKey,
         team: team,
@@ -2244,7 +2245,7 @@ return Row(
     if (_isProcessingRosterAction) return;
     setState(() => _isProcessingRosterAction = true);
     try {
-      await _matchService.respondToRosterInvite(
+      await _matchesRepo.respondToRosterInvite(
         matchId: widget.match.id,
         teamKey: teamKey,
         accept: accept,
@@ -2324,7 +2325,7 @@ return Row(
 
   try {
     final success =
-        await _matchService.applyForMatch(widget.match.id, currentUser.id);
+        await _matchesRepo.applyForMatch(widget.match.id, currentUser.id);
 
     if (!mounted) return;
 

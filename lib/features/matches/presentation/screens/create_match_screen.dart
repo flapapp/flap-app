@@ -1,9 +1,10 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/models/match.dart';
 import 'package:flap_app/models/app_team.dart';
-import 'package:flap_app/features/matches/data/match_service.dart';
+import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/teams/data/team_service.dart';
 import 'package:flap_app/models/notification.dart';
@@ -800,7 +801,8 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
         updatedAt: DateTime.now(),
       );
       
-            final matchId = await MatchService().createMatch(match);
+            final matchId =
+                await context.read<MatchesRepository>().createMatch(match);
 
       // Надіслати інвайти вибраним друзям (push + in-app)
       if (_selectedInviteFriendIds.isNotEmpty) {

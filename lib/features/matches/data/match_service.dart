@@ -2,81 +2,85 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/models/match.dart';
 import 'package:flap_app/models/app_team.dart';
+import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class MatchService {
+import '../domain/repositories/matches_repository.dart';
+import 'datasources/matches_remote_data_source.dart';
+
+class MatchesRepositoryImpl implements MatchesRepository {
+  MatchesRepositoryImpl(this._remote, this._profiles);
+
+  final MatchesRemoteDataSource _remote;
+  final UserProfileRepository _profiles;
+
+  /// Legacy Firestore (teams, `teamStats`, `teamMatchRequests`) until those migrate.
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Отримати всі доступні матчі (тільки відкриті)
+  SupabaseClient get _sb => Supabase.instance.client;
+
+  @override
   Stream<List<Match>> getAvailableMatches() {
-  return _firestore
-      .collection('matches')
-      .where('status', isEqualTo: 'open')
-      .orderBy('date', descending: false)
-      .snapshots()
-      .map((snapshot) {
-        final matches = snapshot.docs
-            .map((doc) => Match.fromFirestore(doc))
-            .toList();
-
-        // Прострочені незапущені матчі не мають лишатися "доступними".
-        for (final m in matches.where((m) => m.isUnplayedByTimeout)) {
-          _markAsUnplayedTimedOut(m.id); // fire-and-forget
-        }
-
-        return matches.where((m) => !m.isUnplayedByTimeout).toList();
-      });
-}
-
-Future<void> _markAsUnplayedTimedOut(String matchId) async {
-  try {
-    await _firestore.collection('matches').doc(matchId).update({
-      'status': 'cancelled',
-      'unplayed': true,
-      'unplayedReason': 'timeout_24h_no_start',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  } catch (_) {
-    // best-effort
-  }
-}
-
-    // Отримати матчі користувача (де він учасник)
-  Stream<List<Match>> getUserMatches(String userId) {
-    return _firestore
-        .collection('matches')
-        .where('participants', arrayContains: userId)
-        .orderBy('date', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Match.fromFirestore(doc))
-            .toList());
-  }
-
-  // Створити новий матч
-    // Створити новий матч
-  Future<String> createMatch(Match match) async {
-  final docRef = await _firestore.collection('matches').add(match.toFirestore());
-  final matchId = docRef.id;
-
-  // Надсилаємо інвайти, якщо матч приватний і є запрошені
-  try {
-    if (match.isPrivate && match.invitedFriends.isNotEmpty) {
-      final orgDoc = await _firestore.collection('users').doc(match.organizerId).get();
-      final organizerName = (orgDoc.data()?['displayName'] ?? orgDoc.data()?['name'] ?? 'Організатор').toString();
-      for (final uid in match.invitedFriends) {
-        await NotificationService().sendMatchInvite(
-          toUserId: uid,
-          matchId: matchId,
-          organizerName: organizerName,
-        );
+    return _remote.watchMatchesTable().map((all) {
+      final matches = all.where((m) => m.status == MatchStatus.open).toList()
+        ..sort((a, b) => a.date.compareTo(b.date));
+      for (final m in matches.where((m) => m.isUnplayedByTimeout)) {
+        _markAsUnplayedTimedOut(m.id);
       }
-    }
-  } catch (_) {}
+      return matches.where((m) => !m.isUnplayedByTimeout).toList();
+    });
+  }
 
-  return matchId;
-}
+  Future<void> _markAsUnplayedTimedOut(String matchId) async {
+    try {
+      await _remote.cancelMatchAsUnplayed(matchId);
+    } catch (_) {}
+  }
+
+  @override
+  Stream<List<Match>> getUserMatches(String userId) {
+    return _remote.watchMatchesTable().map((all) {
+      final mine = all.where((m) => m.participants.contains(userId)).toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+      return mine;
+    });
+  }
+
+  @override
+  Future<String> createMatch(Match match) async {
+    final matchId = await _remote.insertMatch(match);
+    try {
+      if (match.isPrivate && match.invitedFriends.isNotEmpty) {
+        final org = await _profiles.loadProfile(match.organizerId);
+        final organizerName = org?.resolveDisplayName().isNotEmpty == true
+            ? org!.resolveDisplayName()
+            : 'Організатор';
+        for (final uid in match.invitedFriends) {
+          await NotificationService().sendMatchInvite(
+            toUserId: uid,
+            matchId: matchId,
+            organizerName: organizerName,
+          );
+        }
+      }
+    } catch (_) {}
+    return matchId;
+  }
+
+  @override
+  Future<Match?> fetchMatch(String matchId) => _remote.fetchMatch(matchId);
+
+  @override
+  Stream<Match?> watchMatch(String matchId) {
+    return _remote.watchMatchesTable().map((rows) {
+      for (final m in rows) {
+        if (m.id == matchId) return m;
+      }
+      return null;
+    });
+  }
 
   // Приєднатися до матчу
     // СТАРИЙ МЕТОД - ЗАКОМЕНТОВАНО
@@ -119,65 +123,58 @@ Future<void> _markAsUnplayedTimedOut(String matchId) async {
   // }
 
   // НОВИЙ МЕТОД - ПОДАЧА ЗАЯВКИ
+  @override
   Future<bool> joinMatch(String matchId, String userId) async {
-    // Тепер joinMatch викликає applyForMatch
-    return await applyForMatch(matchId, userId);
+    return applyForMatch(matchId, userId);
   }
 
-  // Вийти з матчу
+  @override
   Future<bool> leaveMatch(String matchId, String userId) async {
     try {
-      final docRef = _firestore.collection('matches').doc(matchId);
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) return false;
+      if (!match.participants.contains(userId)) return true;
 
-      await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(docRef);
-        if (!snap.exists) throw Exception('Match not found');
+      final updatedParticipants = List<String>.from(match.participants)..remove(userId);
+      final newCurrentPlayers =
+          (match.currentPlayers - 1).clamp(0, match.maxPlayers).toInt();
 
-        final match = Match.fromFirestore(snap);
+      Team? teamA = match.teamA;
+      Team? teamB = match.teamB;
+      if (match.hasTeams) {
+        final teamAPlayers =
+            List<String>.from(match.teamA?.playerIds ?? const <String>[])..remove(userId);
+        final teamBPlayers =
+            List<String>.from(match.teamB?.playerIds ?? const <String>[])..remove(userId);
+        final ratings = await _getPlayerRatings([...teamAPlayers, ...teamBPlayers]);
+        teamA = Team(
+          name: match.teamA?.name ?? 'Команда A',
+          playerIds: teamAPlayers,
+          averageRating: _calculateTeamAverageRating(teamAPlayers, ratings),
+          playerRatings: match.teamA?.playerRatings ?? <String, double>{},
+        );
+        teamB = Team(
+          name: match.teamB?.name ?? 'Команда B',
+          playerIds: teamBPlayers,
+          averageRating: _calculateTeamAverageRating(teamBPlayers, ratings),
+          playerRatings: match.teamB?.playerRatings ?? <String, double>{},
+        );
+      }
 
-        // Якщо користувач не у списку учасників — нічого не робимо
-        if (!match.participants.contains(userId)) return;
+      var status = match.status;
+      if (match.status == MatchStatus.full && newCurrentPlayers < match.maxPlayers) {
+        status = MatchStatus.open;
+      }
 
-        final updatedParticipants = List<String>.from(match.participants)
-          ..remove(userId);
-        final int newCurrentPlayers =
-    (match.currentPlayers - 1).clamp(0, match.maxPlayers).toInt();
-
-        final Map<String, dynamic> updates = <String, dynamic>{
-  'participants': updatedParticipants,
-  'currentPlayers': newCurrentPlayers,
-};
-
-// Якщо команди вже були — приберемо гравця з команд і перерахуємо середній рейтинг
-if (match.hasTeams) {
-  final List<String> teamAPlayers = List<String>.from(match.teamA?.playerIds ?? const <String>[])..remove(userId);
-  final List<String> teamBPlayers = List<String>.from(match.teamB?.playerIds ?? const <String>[])..remove(userId);
-
-  final Map<String, double> ratings = await _getPlayerRatings([...teamAPlayers, ...teamBPlayers]);
-
-  updates['teamA'] = {
-    'name': match.teamA?.name ?? 'Команда A',
-    'playerIds': teamAPlayers,
-    'averageRating': _calculateTeamAverageRating(teamAPlayers, ratings),
-    'playerRatings': match.teamA?.playerRatings ?? <String, double>{},
-  };
-  updates['teamB'] = {
-    'name': match.teamB?.name ?? 'Команда B',
-    'playerIds': teamBPlayers,
-    'averageRating': _calculateTeamAverageRating(teamBPlayers, ratings),
-    'playerRatings': match.teamB?.playerRatings ?? <String, double>{},
-  };
-}
-
-// Якщо був 'full' і стало менше максимальної — повертаємо 'open'
-if (match.status == MatchStatus.full &&
-    newCurrentPlayers < match.maxPlayers) {
-  updates['status'] = 'open';
-}
-
-        tx.update(docRef, updates);
-      });
-
+      final next = match.copyWith(
+        participants: updatedParticipants,
+        currentPlayers: newCurrentPlayers,
+        status: status,
+        teamA: teamA,
+        teamB: teamB,
+        updatedAt: DateTime.now(),
+      );
+      await _remote.saveMatch(next);
       return true;
     } catch (e) {
       print('Error leaving match: $e');
@@ -185,16 +182,11 @@ if (match.status == MatchStatus.full &&
     }
   }
 
-    // Подати заявку на участь у матчі
+  @override
   Future<bool> applyForMatch(String matchId, String userId) async {
     try {
-      final docRef = _firestore.collection('matches').doc(matchId);
-
-      // Отримати поточний матч
-      final doc = await docRef.get();
-      if (!doc.exists) return false;
-
-      final match = Match.fromFirestore(doc);
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) return false;
 
       if (match.isUnplayedByTimeout) {
         await _markAsUnplayedTimedOut(matchId);
@@ -204,44 +196,40 @@ if (match.status == MatchStatus.full &&
       if (match.isTeamMatch) {
         return false;
       }
-      // Приватний матч: заявки лише від запрошених
       if (match.isPrivate && !match.invitedFriends.contains(userId)) {
         return false;
       }
-
-      // Перевірити чи користувач вже учасник
       if (match.participants.contains(userId)) {
-        return false; // вже учасник
+        return false;
       }
-
-      // Перевірити чи вже є заявка
       if (match.pendingApplications.contains(userId)) {
-        return false; // заявка вже подана
+        return false;
       }
-
-      // Перевірити чи не була заявка відхилена
       if (match.rejectedApplications.contains(userId)) {
-        return false; // заявка була відхилена
+        return false;
       }
 
-      // Додати заявку
-      await docRef.update({
-        'pendingApplications': FieldValue.arrayUnion([userId]),
-      });
+      final pending = List<String>.from(match.pendingApplications)..add(userId);
+      final next = match.copyWith(
+        pendingApplications: pending,
+        updatedAt: DateTime.now(),
+      );
+      await _remote.saveMatch(next);
 
       try {
-  final snapAfter = await docRef.get();
-  if (snapAfter.exists) {
-    final m = Match.fromFirestore(snapAfter);
-    final applicantDoc = await _firestore.collection('users').doc(userId).get();
-    final applicantName = (applicantDoc.data()?['displayName'] ?? applicantDoc.data()?['name'] ?? 'Гравець').toString();
-    await NotificationService().sendMatchApplicationSubmitted(
-      toOrganizerId: m.organizerId,
-      matchId: matchId,
-      applicantName: applicantName,
-    );
-  }
-} catch (_) {}
+        final m = await _remote.fetchMatch(matchId);
+        if (m != null) {
+          final applicant = await _profiles.loadProfile(userId);
+          final applicantName = applicant?.resolveDisplayName().isNotEmpty == true
+              ? applicant!.resolveDisplayName()
+              : 'Гравець';
+          await NotificationService().sendMatchApplicationSubmitted(
+            toOrganizerId: m.organizerId,
+            matchId: matchId,
+            applicantName: applicantName,
+          );
+        }
+      } catch (_) {}
 
       return true;
     } catch (e) {
@@ -250,131 +238,104 @@ if (match.status == MatchStatus.full &&
     }
   }
 
-    // Прийняти заявку користувача
-    // Прийняти заявку користувача
+  @override
   Future<bool> acceptApplication(String matchId, String userId) async {
     try {
-      final docRef = _firestore.collection('matches').doc(matchId);
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) throw Exception('Match not found');
 
-      await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(docRef);
-        if (!snap.exists) throw Exception('Match not found');
+      if (match.isUnplayedByTimeout) {
+        await _markAsUnplayedTimedOut(matchId);
+        throw Exception('Match expired and marked as unplayed');
+      }
 
-        final match = Match.fromFirestore(snap);
+      final currentUserId = AppAuthContext.userId;
+      if (currentUserId == null || currentUserId != match.organizerId) {
+        throw Exception('Only organizer can perform this action');
+      }
 
-        if (match.isUnplayedByTimeout) {
-          await _markAsUnplayedTimedOut(matchId);
-          throw Exception('Match expired and marked as unplayed');
-        }
+      if (!match.pendingApplications.contains(userId)) {
+        throw Exception('No pending application from this user');
+      }
 
-        final currentUserId = AppAuthContext.userId;
-        if (currentUserId == null || currentUserId != match.organizerId) {
-          throw Exception('Only organizer can perform this action');
-        }
+      if (match.currentPlayers >= match.maxPlayers) {
+        throw Exception('Match is full');
+      }
 
-        // Перевірити чи є заявка
-        if (!match.pendingApplications.contains(userId)) {
-          throw Exception('No pending application from this user');
-        }
+      final updatedPending = List<String>.from(match.pendingApplications)..remove(userId);
+      final updatedParticipants = List<String>.from(match.participants)..add(userId);
+      var status = match.status;
+      if (match.currentPlayers + 1 >= match.maxPlayers) {
+        status = MatchStatus.full;
+      }
 
-        // Перевірити чи є вільні місця
-        if (match.currentPlayers >= match.maxPlayers) {
-          throw Exception('Match is full');
-        }
+      var next = match.copyWith(
+        pendingApplications: updatedPending,
+        participants: updatedParticipants,
+        currentPlayers: match.currentPlayers + 1,
+        status: status,
+        updatedAt: DateTime.now(),
+      );
+      await _remote.saveMatch(next);
 
-        // Перемістити з заявок до учасників
-        final updatedPending = List<String>.from(match.pendingApplications)..remove(userId);
-        final updatedParticipants = List<String>.from(match.participants)..add(userId);
-
-        final updates = <String, dynamic>{
-          'pendingApplications': updatedPending,
-          'participants': updatedParticipants,
-          'currentPlayers': FieldValue.increment(1),
-        };
-
-        // Якщо матч заповнився - змінити статус
-        if (match.currentPlayers + 1 >= match.maxPlayers) {
-          updates['status'] = 'full';
-        }
-
-        tx.update(docRef, updates);
-      });
-
-      // Надіслати сповіщення про підтвердження ЗАРАЗ, одразу після транзакції
       try {
-        final updatedSnap = await _firestore.collection('matches').doc(matchId).get();
-        if (updatedSnap.exists) {
-          final m = Match.fromFirestore(updatedSnap);
-          final orgDoc = await _firestore.collection('users').doc(m.organizerId).get();
-          final organizerName = (orgDoc.data()?['displayName'] ?? orgDoc.data()?['name'] ?? 'Організатор').toString();
-          await NotificationService().sendMatchApplicationAccepted(
-            toUserId: userId,
-            matchId: matchId,
-            organizerName: organizerName,
-          );
-        }
+        final org = await _profiles.loadProfile(next.organizerId);
+        final organizerName = org?.resolveDisplayName().isNotEmpty == true
+            ? org!.resolveDisplayName()
+            : 'Організатор';
+        await NotificationService().sendMatchApplicationAccepted(
+          toUserId: userId,
+          matchId: matchId,
+          organizerName: organizerName,
+        );
       } catch (_) {}
 
-      // Якщо команди вже існують – додати гравця до однієї з команд
       try {
-        final snapshot = await docRef.get();
-        if (snapshot.exists) {
-          final updated = Match.fromFirestore(snapshot);
-          if (updated.hasTeams) {
-            final List<String> teamAPlayers = List<String>.from(updated.teamA?.playerIds ?? const <String>[]);
-            final List<String> teamBPlayers = List<String>.from(updated.teamB?.playerIds ?? const <String>[]);
-
-            // Уникаємо дублювань
-            if (teamAPlayers.contains(userId) || teamBPlayers.contains(userId)) {
-              return true;
-            }
-
-            // Отримаємо рейтинги для коректного перерахунку
-            final Map<String, double> ratings = await _getPlayerRatings([
-              ...teamAPlayers,
-              ...teamBPlayers,
-              userId,
-            ]);
-
-            // Вибір цільової команди
-            final double avgA = _calculateTeamAverageRating(teamAPlayers, ratings);
-            final double avgB = _calculateTeamAverageRating(teamBPlayers, ratings);
-
-            bool addToA;
-            if (teamAPlayers.length < teamBPlayers.length) {
-              addToA = true;
-            } else if (teamBPlayers.length < teamAPlayers.length) {
-              addToA = false;
-            } else {
-              // рівна кількість: додамо в команду з нижчим середнім рейтингом
-              addToA = avgA <= avgB;
-            }
-
-            if (addToA) {
-              teamAPlayers.add(userId);
-            } else {
-              teamBPlayers.add(userId);
-            }
-
-            final double newAvgA = _calculateTeamAverageRating(teamAPlayers, ratings);
-            final double newAvgB = _calculateTeamAverageRating(teamBPlayers, ratings);
-
-            await docRef.update({
-              'teamA': {
-                'name': updated.teamA?.name ?? 'Команда A',
-                'playerIds': teamAPlayers,
-                'averageRating': newAvgA,
-                'playerRatings': updated.teamA?.playerRatings ?? <String, double>{},
-              },
-              'teamB': {
-                'name': updated.teamB?.name ?? 'Команда B',
-                'playerIds': teamBPlayers,
-                'averageRating': newAvgB,
-                'playerRatings': updated.teamB?.playerRatings ?? <String, double>{},
-              },
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
+        final updated = await _remote.fetchMatch(matchId);
+        if (updated != null && updated.hasTeams) {
+          var teamAPlayers = List<String>.from(updated.teamA?.playerIds ?? const <String>[]);
+          var teamBPlayers = List<String>.from(updated.teamB?.playerIds ?? const <String>[]);
+          if (teamAPlayers.contains(userId) || teamBPlayers.contains(userId)) {
+            return true;
           }
+          final ratings = await _getPlayerRatings([
+            ...teamAPlayers,
+            ...teamBPlayers,
+            userId,
+          ]);
+          final avgA = _calculateTeamAverageRating(teamAPlayers, ratings);
+          final avgB = _calculateTeamAverageRating(teamBPlayers, ratings);
+          final bool addToA;
+          if (teamAPlayers.length < teamBPlayers.length) {
+            addToA = true;
+          } else if (teamBPlayers.length < teamAPlayers.length) {
+            addToA = false;
+          } else {
+            addToA = avgA <= avgB;
+          }
+          if (addToA) {
+            teamAPlayers.add(userId);
+          } else {
+            teamBPlayers.add(userId);
+          }
+          final newAvgA = _calculateTeamAverageRating(teamAPlayers, ratings);
+          final newAvgB = _calculateTeamAverageRating(teamBPlayers, ratings);
+          final withTeams = updated.copyWith(
+            teamA: Team(
+              name: updated.teamA?.name ?? 'Команда A',
+              playerIds: teamAPlayers,
+              averageRating: newAvgA,
+              playerRatings: updated.teamA?.playerRatings ?? <String, double>{},
+            ),
+            teamB: Team(
+              name: updated.teamB?.name ?? 'Команда B',
+              playerIds: teamBPlayers,
+              averageRating: newAvgB,
+              playerRatings: updated.teamB?.playerRatings ?? <String, double>{},
+            ),
+            updatedAt: DateTime.now(),
+          );
+          await _remote.saveMatch(withTeams);
         }
       } catch (_) {}
 
@@ -385,51 +346,42 @@ if (match.status == MatchStatus.full &&
     }
   }
 
-    // Відхилити заявку користувача
+  @override
   Future<bool> rejectApplication(String matchId, String userId) async {
     try {
-      final docRef = _firestore.collection('matches').doc(matchId);
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) throw Exception('Match not found');
 
-      await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(docRef);
-        if (!snap.exists) throw Exception('Match not found');
+      final currentUserId = AppAuthContext.userId;
+      if (currentUserId == null || currentUserId != match.organizerId) {
+        throw Exception('Only organizer can perform this action');
+      }
 
-        final match = Match.fromFirestore(snap);
+      if (!match.pendingApplications.contains(userId)) {
+        throw Exception('No pending application from this user');
+      }
 
-final currentUserId = AppAuthContext.userId;
-if (currentUserId == null || currentUserId != match.organizerId) {
-  throw Exception('Only organizer can perform this action');
-}
+      final updatedPending = List<String>.from(match.pendingApplications)..remove(userId);
+      final updatedRejected = List<String>.from(match.rejectedApplications)..add(userId);
 
-        // Перевірити чи є заявка
-        if (!match.pendingApplications.contains(userId)) {
-          throw Exception('No pending application from this user');
-        }
+      final next = match.copyWith(
+        pendingApplications: updatedPending,
+        rejectedApplications: updatedRejected,
+        updatedAt: DateTime.now(),
+      );
+      await _remote.saveMatch(next);
 
-        // Перемістити з заявок до відхилених
-        final updatedPending = List<String>.from(match.pendingApplications)
-          ..remove(userId);
-        final updatedRejected = List<String>.from(match.rejectedApplications)
-          ..add(userId);
-
-        tx.update(docRef, {
-          'pendingApplications': updatedPending,
-          'rejectedApplications': updatedRejected,
-        });
-      });
       try {
-  final updated = await _firestore.collection('matches').doc(matchId).get();
-  if (updated.exists) {
-    final m = Match.fromFirestore(updated);
-    final orgDoc = await _firestore.collection('users').doc(m.organizerId).get();
-    final organizerName = (orgDoc.data()?['displayName'] ?? orgDoc.data()?['name'] ?? 'Організатор').toString();
-    await NotificationService().sendMatchApplicationRejected(
-      toUserId: userId,
-      matchId: matchId,
-      organizerName: organizerName,
-    );
-  }
-} catch (_) {}
+        final org = await _profiles.loadProfile(next.organizerId);
+        final organizerName = org?.resolveDisplayName().isNotEmpty == true
+            ? org!.resolveDisplayName()
+            : 'Організатор';
+        await NotificationService().sendMatchApplicationRejected(
+          toUserId: userId,
+          matchId: matchId,
+          organizerName: organizerName,
+        );
+      } catch (_) {}
 
       return true;
     } catch (e) {
@@ -438,30 +390,21 @@ if (currentUserId == null || currentUserId != match.organizerId) {
     }
   }
 
-    // Отримати заявки на матч
+  @override
   Stream<List<String>> getMatchApplications(String matchId) {
-    return _firestore
-        .collection('matches')
-        .doc(matchId)
-        .snapshots()
-        .map((doc) {
-      if (!doc.exists) return [];
-      final data = doc.data() as Map<String, dynamic>;
-      return List<String>.from(data['pendingApplications'] ?? []);
+    return _remote.watchMatchesTable().map((rows) {
+      for (final m in rows) {
+        if (m.id == matchId) return List<String>.from(m.pendingApplications);
+      }
+      return <String>[];
     });
   }
-      // Автоматичне формування команд
+  @override
   Future<bool> autoBalanceTeams(String matchId) async {
     try {
-      final docRef = _firestore.collection('matches').doc(matchId);
+      final initialMatch = await _remote.fetchMatch(matchId);
+      if (initialMatch == null) throw Exception('Match not found');
 
-      // Попереднє читання поза транзакцією (менше часу блокування)
-      final initialSnap = await docRef.get();
-      if (!initialSnap.exists) throw Exception('Match not found');
-
-      final initialMatch = Match.fromFirestore(initialSnap);
-
-      // Перевірки до транзакції
       if (initialMatch.participants.length < 2) {
         throw Exception('Недостатньо гравців для формування команд (мінімум 2)');
       }
@@ -469,90 +412,74 @@ if (currentUserId == null || currentUserId != match.organizerId) {
         throw Exception('Команди вже сформовані');
       }
 
-      // Отримуємо рейтинги гравців ПОЗА транзакцією (паралельно, див. _getPlayerRatings)
       final playerRatings = await _getPlayerRatings(initialMatch.participants);
 
-      return await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(docRef);
-        if (!snap.exists) throw Exception('Match not found');
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) throw Exception('Match not found');
 
-        final match = Match.fromFirestore(snap);
+      final currentUserId = AppAuthContext.userId;
+      if (currentUserId == null || currentUserId != match.organizerId) {
+        throw Exception('Only organizer can perform this action');
+      }
 
-final currentUserId = AppAuthContext.userId;
-if (currentUserId == null || currentUserId != match.organizerId) {
-  throw Exception('Only organizer can perform this action');
-}
+      if (match.participants.length < 2) {
+        throw Exception('Недостатньо гравців для формування команд (мінімум 2)');
+      }
+      if (match.hasTeams) {
+        throw Exception('Команди вже сформовані');
+      }
 
-        // Повторні перевірки всередині транзакції
-        if (match.participants.length < 2) {
-          throw Exception('Недостатньо гравців для формування команд (мінімум 2)');
-        }
-        if (match.hasTeams) {
-          throw Exception('Команди вже сформовані');
-        }
+      final sortedPlayers = match.participants.toList()
+        ..sort((a, b) => (playerRatings[b] ?? 0.0).compareTo(playerRatings[a] ?? 0.0));
 
-        // Сортуємо гравців за рейтингом (від найвищого до найнижчого)
-        final sortedPlayers = match.participants.toList()
-          ..sort((a, b) => (playerRatings[b] ?? 0.0).compareTo(playerRatings[a] ?? 0.0));
+      final teamAPlayers = <String>[];
+      final teamBPlayers = <String>[];
+      for (int i = 0; i < sortedPlayers.length; i++) {
+        (i % 2 == 0 ? teamAPlayers : teamBPlayers).add(sortedPlayers[i]);
+      }
 
-        // Розподіляємо гравців "змійкою"
-        final teamAPlayers = <String>[];
-        final teamBPlayers = <String>[];
-        for (int i = 0; i < sortedPlayers.length; i++) {
-          (i % 2 == 0 ? teamAPlayers : teamBPlayers).add(sortedPlayers[i]);
-        }
+      final names = MatchUtils.generateTeamNames(2);
+      final nameA = names[0];
+      final nameB = names[1];
 
-        // Створюємо команди
-        final names = MatchUtils.generateTeamNames(2);
-        final nameA = names[0];
-        final nameB = names[1];
+      final teamA = Team(
+        name: nameA,
+        playerIds: teamAPlayers,
+        averageRating: _calculateTeamAverageRating(teamAPlayers, playerRatings),
+      );
+      final teamB = Team(
+        name: nameB,
+        playerIds: teamBPlayers,
+        averageRating: _calculateTeamAverageRating(teamBPlayers, playerRatings),
+      );
 
-        final teamA = Team(
-          name: nameA,
-          playerIds: teamAPlayers,
-          averageRating: _calculateTeamAverageRating(teamAPlayers, playerRatings),
-        );
-        final teamB = Team(
-          name: nameB,
-          playerIds: teamBPlayers,
-          averageRating: _calculateTeamAverageRating(teamBPlayers, playerRatings),
-        );
-
-        // Оновлюємо матч
-        tx.update(docRef, {
-          'teamA': teamA.toFirestore(),
-          'teamB': teamB.toFirestore(),
-          'status': 'full',
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        return true;
-      });
+      final next = match.copyWith(
+        teamA: teamA,
+        teamB: teamB,
+        status: MatchStatus.full,
+        updatedAt: DateTime.now(),
+      );
+      await _remote.saveMatch(next);
+      return true;
     } catch (e) {
       print('Error auto-balancing teams: $e');
       return false;
     }
   }
   
-    // Отримання рейтингів гравців
   Future<Map<String, double>> _getPlayerRatings(List<String> playerIds) async {
-    final List<Future<MapEntry<String, double>>> futures =
-        playerIds.map((String playerId) async {
-      try {
-        final userDoc = await _firestore.collection('users').doc(playerId).get();
-        if (userDoc.exists) {
-          final Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
-          final double rating = (userData['rating'] is num)
-              ? (userData['rating'] as num).toDouble()
-              : 0.0;
-          return MapEntry<String, double>(playerId, rating);
-        }
-      } catch (_) {}
-      return MapEntry<String, double>(playerId, 0.0);
-    }).toList();
-
-    final List<MapEntry<String, double>> entries = await Future.wait(futures);
-    return Map<String, double>.fromEntries(entries);
+    if (playerIds.isEmpty) return {};
+    final map = <String, double>{for (final id in playerIds) id: 0.0};
+    try {
+      final rows = await _sb.from('profiles').select('id,rating').inFilter('id', playerIds);
+      for (final r in (rows as List)) {
+        final m = Map<String, dynamic>.from(r as Map);
+        final id = m['id']?.toString();
+        if (id == null) continue;
+        map[id] = ((m['rating'] ?? 0.0) as num).toDouble();
+      }
+    } catch (_) {}
+    return map;
   }
   
   // Розрахунок середнього рейтингу команди
@@ -571,156 +498,143 @@ if (currentUserId == null || currentUserId != match.organizerId) {
         return ratedPlayers > 0 ? totalRating / ratedPlayers : 0.0;
   }
 
-  // Оновити склади команд вручну
+  @override
   Future<bool> updateTeams(String matchId, List<String> teamAPlayers, List<String> teamBPlayers) async {
     try {
-      final docRef = _firestore.collection('matches').doc(matchId);
+      final ratings = await _getPlayerRatings([...teamAPlayers, ...teamBPlayers]);
 
-      // Отримаємо рейтинги поза транзакцією
-      final Map<String, double> ratings = await _getPlayerRatings([...teamAPlayers, ...teamBPlayers]);
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) throw Exception('Match not found');
 
-      return await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(docRef);
-        if (!snap.exists) throw Exception('Match not found');
+      final all = {...teamAPlayers, ...teamBPlayers}.toList();
+      if (all.length != teamAPlayers.length + teamBPlayers.length) {
+        throw Exception('Гравець не може бути у двох командах');
+      }
+      if (all.toSet().difference(match.participants.toSet()).isNotEmpty) {
+        throw Exception('У складах є гравці, яких немає серед учасників матчу');
+      }
 
-        final match = Match.fromFirestore(snap);
+      final existingNameA = match.teamA?.name ?? '';
+      final existingNameB = match.teamB?.name ?? '';
+      final generated = MatchUtils.generateTeamNames(2);
+      final funA = generated[0];
+      final funB = generated[1];
+      final nameA = existingNameA.isNotEmpty ? existingNameA : funA;
+      final nameB = existingNameB.isNotEmpty ? existingNameB : (funB == nameA ? MatchUtils.generateTeamNames(3)[2] : funB);
 
-        // Перевірки
-        final all = {...teamAPlayers, ...teamBPlayers}.toList();
-        if (all.length != teamAPlayers.length + teamBPlayers.length) {
-          throw Exception('Гравець не може бути у двох командах');
-        }
-        if (all.toSet().difference(match.participants.toSet()).isNotEmpty) {
-          throw Exception('У складах є гравці, яких немає серед учасників матчу');
-        }
+      final teamA = Team(
+        name: nameA,
+        playerIds: teamAPlayers,
+        averageRating: _calculateTeamAverageRating(teamAPlayers, ratings),
+      );
+      final teamB = Team(
+        name: nameB,
+        playerIds: teamBPlayers,
+        averageRating: _calculateTeamAverageRating(teamBPlayers, ratings),
+      );
 
-                // Preserve existing team names or pick fun defaults if missing
-        final existingNameA = match.teamA?.name ?? '';
-        final existingNameB = match.teamB?.name ?? '';
-        final generated = MatchUtils.generateTeamNames(2);
-        final funA = generated[0];
-        final funB = generated[1];
-        final nameA = existingNameA.isNotEmpty ? existingNameA : funA;
-        final nameB = existingNameB.isNotEmpty ? existingNameB : (funB == nameA ? MatchUtils.generateTeamNames(3)[2] : funB);
-
-        final teamA = Team(
-          name: nameA,
-          playerIds: teamAPlayers,
-          averageRating: _calculateTeamAverageRating(teamAPlayers, ratings),
-        );
-        final teamB = Team(
-          name: nameB,
-          playerIds: teamBPlayers,
-          averageRating: _calculateTeamAverageRating(teamBPlayers, ratings),
-        );
-
-        tx.update(docRef, {
-          'teamA': teamA.toFirestore(),
-          'teamB': teamB.toFirestore(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        return true;
-      });
+      final next = match.copyWith(
+        teamA: teamA,
+        teamB: teamB,
+        updatedAt: DateTime.now(),
+      );
+      await _remote.saveMatch(next);
+      return true;
     } catch (e) {
       print('Error updateTeams: $e');
       return false;
     }
   }
-    Future<bool> updateTeamsFlexible(String matchId, List<List<String>> teams) async {
-  try {
-    final docRef = _firestore.collection('matches').doc(matchId);
 
-    final allPlayerIds = teams.expand((t) => t).toList();
-    final ratings = await _getPlayerRatings(allPlayerIds);
+  @override
+  Future<bool> updateTeamsFlexible(String matchId, List<List<String>> teams) async {
+    try {
+      final allPlayerIds = teams.expand((t) => t).toList();
+      final ratings = await _getPlayerRatings(allPlayerIds);
 
-    final generatedNames = MatchUtils.generateTeamNames(teams.length);
-    final List<Map<String, dynamic>> firestoreTeams = [];
-    for (var i = 0; i < teams.length; i++) {
-      final ids = teams[i];
-      firestoreTeams.add({
-        'name': generatedNames[i],
-        'playerIds': ids,
-        'averageRating': _calculateTeamAverageRating(ids, ratings),
-      });
-    }
-
-    final batch = _firestore.batch();
-    batch.update(docRef, {
-      'teams': firestoreTeams,
-      'teamCount': teams.length,
-      'teamA': firestoreTeams.isNotEmpty ? firestoreTeams[0] : null,
-      'teamB': firestoreTeams.length > 1 ? firestoreTeams[1] : null,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    final fxCol = docRef.collection('fixtures');
-    final oldFx = await fxCol.get();
-    for (final d in oldFx.docs) {
-      batch.delete(d.reference);
-    }
-
-    if (teams.length > 2) {
+      final generatedNames = MatchUtils.generateTeamNames(teams.length);
+      final newTeams = <Team>[];
       for (var i = 0; i < teams.length; i++) {
-        for (var j = i + 1; j < teams.length; j++) {
-          final newFxRef = fxCol.doc();
-          batch.set(newFxRef, {
-            'teamAIndex': i,
-            'teamBIndex': j,
-            'teamAName': firestoreTeams[i]['name'],
-            'teamBName': firestoreTeams[j]['name'],
-            'scoreA': null,
-            'scoreB': null,
-            'status': 'pending',
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-        }
+        final ids = teams[i];
+        newTeams.add(Team(
+          name: generatedNames[i],
+          playerIds: ids,
+          averageRating: _calculateTeamAverageRating(ids, ratings),
+        ));
       }
-      batch.update(docRef, {'currentGameIndex': 0});
+
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) throw Exception('Match not found');
+
+      Team? ta;
+      Team? tb;
+      if (newTeams.isNotEmpty) ta = newTeams[0];
+      if (newTeams.length > 1) tb = newTeams[1];
+
+      final next = match.copyWith(
+        teams: newTeams,
+        teamCount: teams.length,
+        teamA: ta,
+        teamB: tb,
+        multiTeamStats: [],
+        updatedAt: DateTime.now(),
+      );
+      await _remote.saveMatch(next);
+
+      await _remote.deleteAllFixtures(matchId);
+
+      if (teams.length > 2) {
+        final fixtures = <Map<String, dynamic>>[];
+        for (var i = 0; i < teams.length; i++) {
+          for (var j = i + 1; j < teams.length; j++) {
+            fixtures.add({
+              'teamAIndex': i,
+              'teamBIndex': j,
+              'teamAName': newTeams[i].name,
+              'teamBName': newTeams[j].name,
+              'scoreA': null,
+              'scoreB': null,
+              'status': 'pending',
+            });
+          }
+        }
+        await _remote.insertFixturesLegacy(matchId, fixtures);
+        await _remote.patchDocumentOnly(matchId, {'currentGameIndex': 0});
+      }
+
+      return true;
+    } catch (e) {
+      print('Error updateTeamsFlexible: $e');
+      return false;
     }
-
-    await batch.commit();
-    await docRef.update({'multiTeamStats': []});
-    return true;
-  } catch (e) {
-    print('Error updateTeamsFlexible: $e');
-    return false;
   }
-}  
 
-  Future<List<Map<String, dynamic>>> getFixtures(String matchId) async {
-  final q = await _firestore.collection('matches').doc(matchId).collection('fixtures')
-      .orderBy(FieldPath.documentId).get();
-  return q.docs.map((d) => {'id': d.id, ...((d.data()) as Map<String, dynamic>)}).toList();
-}
+  @override
+  Future<List<Map<String, dynamic>>> getFixtures(String matchId) =>
+      _remote.fetchFixtures(matchId);
 
-Future<bool> finishGame(String matchId, String fixtureId, int scoreA, int scoreB) async {
-  try {
-    final docRef = _firestore.collection('matches').doc(matchId);
-    final fxRef = docRef.collection('fixtures').doc(fixtureId);
-    await fxRef.update({
-      'scoreA': scoreA,
-      'scoreB': scoreB,
-      'status': 'finished',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    final all = await docRef.collection('fixtures').get();
-    final allFinished = all.docs.every((d) => (d.data()['status'] ?? '') == 'finished');
-    if (allFinished) {
-      await docRef.update({
-        'status': 'finished',
-        'finishedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+  @override
+  Future<bool> finishGame(String matchId, String fixtureId, int scoreA, int scoreB) async {
+    try {
+      await _remote.updateFixtureScores(
+        matchId: matchId,
+        fixtureId: fixtureId,
+        scoreA: scoreA,
+        scoreB: scoreB,
+        status: 'finished',
+      );
+      if (await _remote.allFixturesFinished(matchId)) {
+        await _remote.markMatchFinished(matchId);
+      }
+      return true;
+    } catch (e) {
+      print('Error finishGame: $e');
+      return false;
     }
-    return true;
-  } catch (e) {
-    print('Error finishGame: $e');
-    return false;
   }
-}
 
-Future<void> promptFinishGame(BuildContext context, String matchId, int fixtureIndex, String aName, String bName) async {
+  @override
+  Future<void> promptFinishGame(BuildContext context, String matchId, int fixtureIndex, String aName, String bName) async {
   final fixtures = await getFixtures(matchId);
   if (fixtureIndex < 0 || fixtureIndex >= fixtures.length) return;
   final f = fixtures[fixtureIndex];
@@ -747,142 +661,147 @@ Future<void> promptFinishGame(BuildContext context, String matchId, int fixtureI
   }
 }
 
-/// Створює фікстури для матчу з 3+ командами, якщо їх ще немає
-Future<void> ensureFixtures(String matchId) async {
-  final docRef = _firestore.collection('matches').doc(matchId);
-  final snap = await docRef.get();
-  if (!snap.exists) return;
-  final data = snap.data() as Map<String, dynamic>;
-  final teams = (data['teams'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? const [];
-  if (teams.length <= 2) return;
+  @override
+  Future<void> ensureFixtures(String matchId) async {
+    final m = await _remote.fetchMatch(matchId);
+    if (m == null) return;
+    if (m.teams.length <= 2) return;
 
-  final already = await docRef.collection('fixtures').limit(1).get();
-  if (already.docs.isNotEmpty) return;
+    final existing = await _remote.fetchFixtures(matchId);
+    if (existing.isNotEmpty) return;
 
-  final List<Map<String, dynamic>> fixtures = [];
-  for (var i = 0; i < teams.length; i++) {
-    for (var j = i + 1; j < teams.length; j++) {
-      fixtures.add({
-        'teamAIndex': i,
-        'teamBIndex': j,
-        'teamAName': (teams[i]['name'] ?? 'Team A').toString(),
-        'teamBName': (teams[j]['name'] ?? 'Team B').toString(),
-        'scoreA': null,
-        'scoreB': null,
-        'status': 'pending',
-      });
+    final fixtures = <Map<String, dynamic>>[];
+    for (var i = 0; i < m.teams.length; i++) {
+      for (var j = i + 1; j < m.teams.length; j++) {
+        fixtures.add({
+          'teamAIndex': i,
+          'teamBIndex': j,
+          'teamAName': m.teams[i].name,
+          'teamBName': m.teams[j].name,
+          'scoreA': null,
+          'scoreB': null,
+          'status': 'pending',
+        });
+      }
     }
+    await _remote.insertFixturesLegacy(matchId, fixtures);
   }
-  final fxCol = docRef.collection('fixtures');
-  for (final f in fixtures) {
-    await fxCol.add(f);
-  }
-}
 
-    // Почати матч
+  @override
   Future<bool> startMatch(String matchId) async {
     try {
-      final docRef = _firestore.collection('matches').doc(matchId);
-      
-      return await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(docRef);
-        if (!snap.exists) throw Exception('Match not found');
-        
-        final match = Match.fromFirestore(snap);
+      var match = await _remote.fetchMatch(matchId);
+      if (match == null) throw Exception('Match not found');
 
-        if (match.isUnplayedByTimeout) {
-          await _markAsUnplayedTimedOut(matchId);
-          throw Exception('Match expired and marked as unplayed');
-        }
+      if (match.isUnplayedByTimeout) {
+        await _markAsUnplayedTimedOut(matchId);
+        throw Exception('Match expired and marked as unplayed');
+      }
 
-        final currentUserId = AppAuthContext.userId;
-        if (currentUserId == null || currentUserId != match.organizerId) {
-          throw Exception('Only organizer can perform this action');
-        }
-                
-        // Перевіряємо чи можна почати матч
-        // Дозволяємо старт, якщо щонайменше 2 учасники. Якщо команди відсутні — формуємо 2 команди автоматично
-        if (!match.hasTeams) {
-          final participants = List<String>.from(match.participants);
-          if (participants.length < 2) {
-            throw Exception('Потрібно щонайменше 2 учасники');
-          }
+      final currentUserId = AppAuthContext.userId;
+      if (currentUserId == null || currentUserId != match.organizerId) {
+        throw Exception('Only organizer can perform this action');
+      }
 
-          // Просте розбиття на 2 команди (щоб не блокувати старт)
-          final half = (participants.length / 2).ceil();
-          final teamAPlayers = participants.take(half).toList();
-          final teamBPlayers = participants.skip(half).toList();
-
-          final existingNameA = match.teamA?.name ?? '';
-          final existingNameB = match.teamB?.name ?? '';
-          final generated = MatchUtils.generateTeamNames(2);
-          final funA = generated[0];
-          final funB = generated[1];
-          final nameA = existingNameA.isNotEmpty ? existingNameA : funA;
-          final nameB = existingNameB.isNotEmpty ? existingNameB : funB;
-
-          // Оновлюємо документ матчa з сформованими командами
-          tx.update(docRef, {
-            'teamA': {
-              'name': nameA,
-              'playerIds': teamAPlayers,
-              'averageRating': 0.0,
-            },
-            'teamB': {
-              'name': nameB,
-              'playerIds': teamBPlayers,
-              'averageRating': 0.0,
-            },
-          });
-        }
-
-        if (match.isInProgress) {
-          throw Exception('Матч вже почався');
-        }
-
-        if (match.isTeamMatch) {
-          final rosterA = match.teamRosters['teamA'] ??
-              match.teamA?.playerIds ??
-              const <String>[];
-          final rosterB = match.teamRosters['teamB'] ??
-              match.teamB?.playerIds ??
-              const <String>[];
-          if (rosterA.isEmpty || rosterB.isEmpty) {
-            throw Exception('Склади команд не заповнені');
-          }
-          final statusesA = match.teamRosterStatus['teamA'] ?? const {};
-          final statusesB = match.teamRosterStatus['teamB'] ?? const {};
-          final confirmedA = statusesA.values
-              .where((status) => status == 'confirmed')
-              .length;
-          final confirmedB = statusesB.values
-              .where((status) => status == 'confirmed')
-              .length;
-          if (confirmedA + confirmedB < 2) {
-            throw Exception('Потрібно мінімум два підтверджені гравці');
-          }
-        } else if (match.participants.length < 2) {
+      if (!match.hasTeams) {
+        final participants = List<String>.from(match.participants);
+        if (participants.length < 2) {
           throw Exception('Потрібно щонайменше 2 учасники');
         }
-        
-        // Дозволяємо початок матчу навіть якщо не набралася повна кількість гравців
-        
-        // Оновлюємо статус матчу
-        tx.update(docRef, {
-          'status': 'inProgress',
-          'startedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        
-        return true;
-      });
+
+        final half = (participants.length / 2).ceil();
+        final teamAPlayers = participants.take(half).toList();
+        final teamBPlayers = participants.skip(half).toList();
+
+        final existingNameA = match.teamA?.name ?? '';
+        final existingNameB = match.teamB?.name ?? '';
+        final generated = MatchUtils.generateTeamNames(2);
+        final funA = generated[0];
+        final funB = generated[1];
+        final nameA = existingNameA.isNotEmpty ? existingNameA : funA;
+        final nameB = existingNameB.isNotEmpty ? existingNameB : funB;
+
+        match = match.copyWith(
+          teamA: Team(
+            name: nameA,
+            playerIds: teamAPlayers,
+            averageRating: 0.0,
+          ),
+          teamB: Team(
+            name: nameB,
+            playerIds: teamBPlayers,
+            averageRating: 0.0,
+          ),
+        );
+      }
+
+      if (match.isInProgress) {
+        throw Exception('Матч вже почався');
+      }
+
+      if (match.isTeamMatch) {
+        final rosterA = match.teamRosters['teamA'] ??
+            match.teamA?.playerIds ??
+            const <String>[];
+        final rosterB = match.teamRosters['teamB'] ??
+            match.teamB?.playerIds ??
+            const <String>[];
+        if (rosterA.isEmpty || rosterB.isEmpty) {
+          throw Exception('Склади команд не заповнені');
+        }
+        final statusesA = match.teamRosterStatus['teamA'] ?? const {};
+        final statusesB = match.teamRosterStatus['teamB'] ?? const {};
+        final confirmedA = statusesA.values
+            .where((status) => status == 'confirmed')
+            .length;
+        final confirmedB = statusesB.values
+            .where((status) => status == 'confirmed')
+            .length;
+        if (confirmedA + confirmedB < 2) {
+          throw Exception('Потрібно мінімум два підтверджені гравці');
+        }
+      } else if (match.participants.length < 2) {
+        throw Exception('Потрібно щонайменше 2 учасники');
+      }
+
+      final now = DateTime.now();
+      final next = match.copyWith(
+        status: MatchStatus.inProgress,
+        startedAt: now,
+        updatedAt: now,
+      );
+      await _remote.saveMatch(next);
+      return true;
     } catch (e) {
       print('Error starting match: $e');
       return false;
     }
   }
   
-  // Завершити матч
+  Future<void> _applyProfileMatchFinish(
+    String userId, {
+    required int goalsDelta,
+    required int winsDelta,
+    required int lossesDelta,
+    required int drawsDelta,
+  }) async {
+    final row = await _sb
+        .from('profiles')
+        .select('total_matches,matches,goals,wins,losses,draws')
+        .eq('id', userId)
+        .maybeSingle();
+    if (row == null) return;
+    await _sb.from('profiles').update({
+      'total_matches': ((row['total_matches'] ?? 0) as num).toInt() + 1,
+      'matches': ((row['matches'] ?? 0) as num).toInt() + 1,
+      'goals': ((row['goals'] ?? 0) as num).toInt() + goalsDelta,
+      'wins': ((row['wins'] ?? 0) as num).toInt() + winsDelta,
+      'losses': ((row['losses'] ?? 0) as num).toInt() + lossesDelta,
+      'draws': ((row['draws'] ?? 0) as num).toInt() + drawsDelta,
+    }).eq('id', userId);
+  }
+
+  @override
   Future<bool> finishMatch(
     String matchId,
     MatchResult result,
@@ -890,14 +809,9 @@ Future<void> ensureFixtures(String matchId) async {
     int teamBScore, {
     Map<String, int> goalsByPlayer = const {},
   }) async {
-  try {
-    final docRef = _firestore.collection('matches').doc(matchId);
-
-    final ok = await _firestore.runTransaction((tx) async {
-      final snap = await tx.get(docRef);
-      if (!snap.exists) throw Exception('Match not found');
-
-      final match = Match.fromFirestore(snap);
+    try {
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) throw Exception('Match not found');
       final currentUserId = AppAuthContext.userId;
       if (currentUserId == null || currentUserId != match.organizerId) {
         throw Exception('Only organizer can perform this action');
@@ -924,174 +838,131 @@ Future<void> ensureFixtures(String matchId) async {
         }
       }
 
-      tx.update(docRef, {
-        'status': 'finished',
-        'result': result.toString().split('.').last,
-        'teamAScore': teamAScore,
-        'teamBScore': teamBScore,
-        'goalsByPlayer': goalsByPlayer,
-        'finishedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final now = DateTime.now();
+      final finished = match.copyWith(
+        status: MatchStatus.finished,
+        result: result,
+        teamAScore: teamAScore,
+        teamBScore: teamBScore,
+        goalsByPlayer: goalsByPlayer,
+        finishedAt: now,
+        updatedAt: now,
+      );
+      await _remote.saveMatch(finished);
 
+      final m = finished;
+
+      for (final uid in m.participants) {
+        final playerGoals = goalsByPlayer[uid] ?? 0;
+        var w = 0;
+        var l = 0;
+        var d = 0;
+        if (m.hasTeams) {
+          final a = m.teamA?.playerIds ?? const <String>[];
+          final b = m.teamB?.playerIds ?? const <String>[];
+          final inA = a.contains(uid);
+          final inB = b.contains(uid);
+          if (teamAScore > teamBScore) {
+            if (inA) w = 1;
+            if (inB) l = 1;
+          } else if (teamBScore > teamAScore) {
+            if (inB) w = 1;
+            if (inA) l = 1;
+          } else {
+            if (inA || inB) d = 1;
+          }
+        }
+        await _applyProfileMatchFinish(
+          uid,
+          goalsDelta: playerGoals,
+          winsDelta: w,
+          lossesDelta: l,
+          drawsDelta: d,
+        );
+      }
+
+      await _updateTeamsAfterMatch(m, teamAScore, teamBScore, goalsByPlayer);
+      try {
+        final teamAName = m.teamA?.name ?? 'Команда A';
+        final teamBName = m.teamB?.name ?? 'Команда B';
+        for (final uid in m.participants) {
+          await NotificationService().sendMatchFinished(
+            toUserId: uid,
+            matchId: matchId,
+            teamAName: teamAName,
+            teamBName: teamBName,
+            teamAScore: teamAScore,
+            teamBScore: teamBScore,
+          );
+        }
+      } catch (_) {}
       return true;
-    });
-    if (!ok) return false;
-
-    // Після успішного завершення — інкрементуємо лічильники гравцям
-    final snapAfter = await docRef.get();
-    if (!snapAfter.exists) return true;
-    final m = Match.fromFirestore(snapAfter);
-
-    final WriteBatch batch = _firestore.batch();
-    for (final uid in m.participants) {
-      final playerGoals = goalsByPlayer[uid] ?? 0;
-      final updates = <String, dynamic>{
-        'totalMatches': FieldValue.increment(1),
-        'matches': FieldValue.increment(1),
-        'matchesPlayed': FieldValue.increment(1),
-        'lastMatchAt': FieldValue.serverTimestamp(),
-      };
-      if (playerGoals > 0) {
-        updates['goals'] = FieldValue.increment(playerGoals);
-      }
-      batch.update(_firestore.collection('users').doc(uid), updates);
+    } catch (e) {
+      print('Error finishing match: $e');
+      return false;
     }
-
-    // (опційно) перемоги/поразки/нічиї, якщо є склади
-    if (m.hasTeams) {
-      final a = m.teamA?.playerIds ?? const <String>[];
-      final b = m.teamB?.playerIds ?? const <String>[];
-      if (teamAScore > teamBScore) {
-       for (final uid in a) {
-  batch.update(_firestore.collection('users').doc(uid), {
-    'wonMatches': FieldValue.increment(1),
-    'wins': FieldValue.increment(1),
-  });
-}
-for (final uid in b) {
-  batch.update(_firestore.collection('users').doc(uid), {
-    'lostMatches': FieldValue.increment(1),
-    'losses': FieldValue.increment(1),
-  });
-}
-      } else if (teamBScore > teamAScore) {
-        for (final uid in b) {
-  batch.update(_firestore.collection('users').doc(uid), {
-    'wonMatches': FieldValue.increment(1),
-    'wins': FieldValue.increment(1),
-  });
-}
-for (final uid in a) {
-  batch.update(_firestore.collection('users').doc(uid), {
-    'lostMatches': FieldValue.increment(1),
-    'losses': FieldValue.increment(1),
-  });
-}
-      } else {
-        for (final uid in {...a, ...b}) {
-  batch.update(_firestore.collection('users').doc(uid), {
-    'drawMatches': FieldValue.increment(1),
-    'draws': FieldValue.increment(1),
-  });
-}
-      }
-    }
-
-    await batch.commit();
-    await _updateTeamsAfterMatch(m, teamAScore, teamBScore, goalsByPlayer);
-    try {
-  final teamAName = m.teamA?.name ?? 'Команда A';
-  final teamBName = m.teamB?.name ?? 'Команда B';
-  for (final uid in m.participants) {
-    await NotificationService().sendMatchFinished(
-      toUserId: uid,
-      matchId: snapAfter.id,
-      teamAName: teamAName,
-      teamBName: teamBName,
-      teamAScore: teamAScore,
-      teamBScore: teamBScore,
-    );
   }
-} catch (_) {}
-    return true;
-  } catch (e) {
-    print('Error finishing match: $e');
-    return false;
-  }
-}
   
-    // Отримати матчі для оцінювання
+  @override
   Stream<List<Match>> getMatchesForRating(String userId) {
-    return _firestore
-        .collection('matches')
-        .where('status', isEqualTo: 'finished')
-        .where('participants', arrayContains: userId)
-        .orderBy('finishedAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Match.fromFirestore(doc))
-            // Клієнтська перевірка: ще не оцінював цей користувач
-            .where((match) => !match.playerRatings.any((r) => r.ratedBy == userId))
-            .toList());
+    return _remote.watchMatchesTable().map((all) {
+      final filtered = all
+          .where((m) =>
+              m.status == MatchStatus.finished &&
+              m.participants.contains(userId) &&
+              !m.playerRatings.any((r) => r.ratedBy == userId))
+          .toList()
+        ..sort((a, b) {
+          final fa = a.finishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final fb = b.finishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return fb.compareTo(fa);
+        });
+      return filtered;
+    });
   }
-    // Скасувати матч
+
+  @override
   Future<bool> cancelMatch(String matchId) async {
     try {
-      final docRef = _firestore.collection('matches').doc(matchId);
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) throw Exception('Match not found');
 
-      return await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(docRef);
-        if (!snap.exists) throw Exception('Match not found');
+      final currentUserId = AppAuthContext.userId;
+      if (currentUserId == null || currentUserId != match.organizerId) {
+        throw Exception('Only organizer can perform this action');
+      }
 
-        final match = Match.fromFirestore(snap);
+      if (match.isFinished || match.isCancelled) {
+        throw Exception('Матч вже завершено або скасовано');
+      }
 
-        final currentUserId = AppAuthContext.userId;
-        if (currentUserId == null || currentUserId != match.organizerId) {
-          throw Exception('Only organizer can perform this action');
-        }
-
-        if (match.isFinished || match.isCancelled) {
-          throw Exception('Матч вже завершено або скасовано');
-        }
-
-        tx.update(docRef, {
-          'status': 'cancelled',
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        return true;
-      });
+      final next = match.copyWith(
+        status: MatchStatus.cancelled,
+        updatedAt: DateTime.now(),
+      );
+      await _remote.saveMatch(next);
+      return true;
     } catch (e) {
       print('Error cancelling match: $e');
       return false;
     }
   }
 
+  @override
   Future<bool> deleteMatch(String matchId) async {
     try {
-      final docRef = _firestore.collection('matches').doc(matchId);
-      final ok = await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(docRef);
-        if (!snap.exists) throw Exception('Match not found');
-        final match = Match.fromFirestore(snap);
-        final currentUserId = AppAuthContext.userId;
-        if (currentUserId == null || currentUserId != match.organizerId) {
-          throw Exception('Only organizer can perform this action');
-        }
-        if (match.isInProgress || match.isFinished) {
-          throw Exception('Неможливо видалити матч після старту');
-        }
-        tx.delete(docRef);
-        return true;
-      });
-      if (!ok) return false;
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) throw Exception('Match not found');
+      final currentUserId = AppAuthContext.userId;
+      if (currentUserId == null || currentUserId != match.organizerId) {
+        throw Exception('Only organizer can perform this action');
+      }
+      if (match.isInProgress || match.isFinished) {
+        throw Exception('Неможливо видалити матч після старту');
+      }
 
-      // Clean nested collections (best-effort outside transaction)
-      await _deleteSubcollection(matchId, 'playerRatings');
-      await _deleteSubcollection(matchId, 'fixtures');
+      await _remote.deleteMatchRow(matchId);
 
-      // Remove pending team match requests referencing this match
       final reqSnap = await _firestore
           .collection('teamMatchRequests')
           .where('matchId', isEqualTo: matchId)
@@ -1107,24 +978,19 @@ for (final uid in a) {
     }
   }
 
-  Future<void> _deleteSubcollection(String matchId, String subcollection) async {
-    final parent = _firestore.collection('matches').doc(matchId);
-    final snap = await parent.collection(subcollection).get();
-    for (final doc in snap.docs) {
-      await doc.reference.delete();
-    }
-  }
-
-    Future<bool> saveMultiTeamResults(
+  @override
+  Future<bool> saveMultiTeamResults(
     String matchId,
     List<Map<String, int>> stats,
   ) async {
     try {
-      final docRef = _firestore.collection('matches').doc(matchId);
-      await docRef.update({
-        'multiTeamStats': stats,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) return false;
+      final next = match.copyWith(
+        multiTeamStats: stats,
+        updatedAt: DateTime.now(),
+      );
+      await _remote.saveMatch(next);
       return true;
     } catch (e) {
       print('Error saveMultiTeamResults: $e');
@@ -1298,50 +1164,54 @@ for (final uid in a) {
     });
   }
 
+  @override
   Future<void> setTeamRoster({
     required String matchId,
     required String teamKey,
     required AppTeam team,
     required List<String> playerIds,
   }) async {
-    final matchRef = _firestore.collection('matches').doc(matchId);
-    await _firestore.runTransaction((tx) async {
-      final snap = await tx.get(matchRef);
-      if (!snap.exists) {
-        throw Exception('Матч не знайдено');
-      }
-      final data = snap.data() as Map<String, dynamic>;
-      final rosterStatusRaw =
-          Map<String, dynamic>.from(data['teamRosterStatus'] ?? {});
-      rosterStatusRaw[teamKey] = {
-        for (final id in playerIds) id: 'pending',
-      };
+    final match = await _remote.fetchMatch(matchId);
+    if (match == null) {
+      throw Exception('Матч не знайдено');
+    }
 
-      final teamField = teamKey == 'teamA' ? 'teamA' : 'teamB';
-      final statusField = teamKey == 'teamA' ? 'teamAStatus' : 'teamBStatus';
-      final teamIdField = teamKey == 'teamA' ? 'teamAId' : 'teamBId';
+    final rosterStatusRaw = match.teamRosterStatus.map(
+      (k, v) => MapEntry(k, Map<String, String>.from(v)),
+    );
+    rosterStatusRaw[teamKey] = {
+      for (final id in playerIds) id: 'pending',
+    };
 
-      final existingTeam =
-          (data[teamField] as Map<String, dynamic>?);
+    final existingTeam = teamKey == 'teamA' ? match.teamA : match.teamB;
 
-      final updates = <String, dynamic>{
-        'teamRosters.$teamKey': playerIds,
-        'teamRosterStatus': rosterStatusRaw,
-        statusField: 'pending',
-        teamIdField: team.id,
-        teamField: {
-          'name': team.name,
-          'playerIds': playerIds,
-          'averageRating':
-              ((existingTeam?['averageRating'] ?? 0.0) as num).toDouble(),
-        },
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      tx.update(matchRef, updates);
-    });
+    final updated = match.copyWith(
+      teamRosters: {...match.teamRosters, teamKey: playerIds},
+      teamRosterStatus: rosterStatusRaw,
+      teamAStatus: teamKey == 'teamA' ? 'pending' : match.teamAStatus,
+      teamBStatus: teamKey == 'teamB' ? 'pending' : match.teamBStatus,
+      teamAId: teamKey == 'teamA' ? team.id : match.teamAId,
+      teamBId: teamKey == 'teamB' ? team.id : match.teamBId,
+      teamA: teamKey == 'teamA'
+          ? Team(
+              name: team.name,
+              playerIds: playerIds,
+              averageRating: existingTeam?.averageRating ?? 0.0,
+            )
+          : match.teamA,
+      teamB: teamKey == 'teamB'
+          ? Team(
+              name: team.name,
+              playerIds: playerIds,
+              averageRating: existingTeam?.averageRating ?? 0.0,
+            )
+          : match.teamB,
+      updatedAt: DateTime.now(),
+    );
+    await _remote.saveMatch(updated);
   }
 
+  @override
   Future<void> respondToRosterInvite({
     required String matchId,
     required String teamKey,
@@ -1351,86 +1221,85 @@ for (final uid in a) {
     if (currentUserId == null) {
       throw Exception('Потрібна авторизація');
     }
-    final matchRef = _firestore.collection('matches').doc(matchId);
 
-    bool notifyOrganizer = false;
-    String organizerId = '';
-    String readyTeamAName = 'Team A';
-    String readyTeamBName = 'Team B';
+    final match = await _remote.fetchMatch(matchId);
+    if (match == null) {
+      throw Exception('Матч не знайдено');
+    }
 
-    await _firestore.runTransaction((tx) async {
-      final snap = await tx.get(matchRef);
-      if (!snap.exists) {
-        throw Exception('Матч не знайдено');
+    final organizerId = match.organizerId;
+    final rosterStatusRaw = match.teamRosterStatus.map(
+      (k, v) => MapEntry(k, Map<String, String>.from(v)),
+    );
+    if (!rosterStatusRaw.containsKey(teamKey)) {
+      throw Exception('Склад не знайдено');
+    }
+    final teamStatusMap = Map<String, String>.from(rosterStatusRaw[teamKey]!);
+    if (!teamStatusMap.containsKey(currentUserId)) {
+      throw Exception('Вас не заявлено на цей матч');
+    }
+
+    teamStatusMap[currentUserId] = accept ? 'confirmed' : 'declined';
+    rosterStatusRaw[teamKey] = teamStatusMap;
+
+    var participants = List<String>.from(match.participants);
+    if (accept) {
+      if (!participants.contains(currentUserId)) {
+        participants.add(currentUserId);
       }
+    } else {
+      participants.remove(currentUserId);
+    }
 
-      final data = snap.data() as Map<String, dynamic>;
-      organizerId = (data['organizerId'] ?? '').toString();
-      final rosterStatusRaw =
-          Map<String, dynamic>.from(data['teamRosterStatus'] ?? {});
-      if (!rosterStatusRaw.containsKey(teamKey)) {
-        throw Exception('Склад не знайдено');
-      }
-      final teamStatusMap =
-          Map<String, dynamic>.from(rosterStatusRaw[teamKey] ?? {});
-      if (!teamStatusMap.containsKey(currentUserId)) {
-        throw Exception('Вас не заявлено на цей матч');
-      }
+    final allConfirmed =
+        teamStatusMap.values.every((status) => status == 'confirmed');
+    final currentTeamConfirmed = allConfirmed;
 
-      teamStatusMap[currentUserId] = accept ? 'confirmed' : 'declined';
-      rosterStatusRaw[teamKey] = teamStatusMap;
+    final currentTeamAStatus = match.teamAStatus ?? 'pending';
+    final currentTeamBStatus = match.teamBStatus ?? 'pending';
+    final newTeamAStatus = teamKey == 'teamA'
+        ? (currentTeamConfirmed ? 'confirmed' : currentTeamAStatus)
+        : currentTeamAStatus;
+    final newTeamBStatus = teamKey == 'teamB'
+        ? (currentTeamConfirmed ? 'confirmed' : currentTeamBStatus)
+        : currentTeamBStatus;
 
-      final participants =
-          List<String>.from(data['participants'] ?? const <String>[]);
-      if (accept) {
-        if (!participants.contains(currentUserId)) {
-          participants.add(currentUserId);
-        }
-      } else {
-        participants.remove(currentUserId);
-      }
+    var notifyOrganizer = false;
+    var readyTeamAName = 'Team A';
+    var readyTeamBName = 'Team B';
 
-      final updates = <String, dynamic>{
-        'teamRosterStatus': rosterStatusRaw,
-        'participants': participants,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
+    final alreadyNotified = match.teamsReadyNotified;
+    final isTeamMatch = match.isTeamMatch;
+    if (isTeamMatch &&
+        !alreadyNotified &&
+        newTeamAStatus == 'confirmed' &&
+        newTeamBStatus == 'confirmed') {
+      readyTeamAName = match.teamA?.name ?? 'Team A';
+      readyTeamBName = match.teamB?.name ?? 'Team B';
+      notifyOrganizer = organizerId.isNotEmpty;
+    }
 
-      final allConfirmed = teamStatusMap.values
-          .every((status) => status == 'confirmed');
-      bool currentTeamConfirmed = false;
-      if (allConfirmed) {
-        updates[teamKey == 'teamA' ? 'teamAStatus' : 'teamBStatus'] =
-            'confirmed';
-        currentTeamConfirmed = true;
-      }
+    final updated = match.copyWith(
+      teamRosterStatus: rosterStatusRaw,
+      participants: participants,
+      teamAStatus: newTeamAStatus,
+      teamBStatus: newTeamBStatus,
+      teamsReadyNotified: (isTeamMatch &&
+              !alreadyNotified &&
+              newTeamAStatus == 'confirmed' &&
+              newTeamBStatus == 'confirmed')
+          ? true
+          : match.teamsReadyNotified,
+      teamsReadyNotifiedAt: (isTeamMatch &&
+              !alreadyNotified &&
+              newTeamAStatus == 'confirmed' &&
+              newTeamBStatus == 'confirmed')
+          ? DateTime.now()
+          : match.teamsReadyNotifiedAt,
+      updatedAt: DateTime.now(),
+    );
 
-      final currentTeamAStatus = (data['teamAStatus'] ?? 'pending').toString();
-      final currentTeamBStatus = (data['teamBStatus'] ?? 'pending').toString();
-      final newTeamAStatus = teamKey == 'teamA'
-          ? (currentTeamConfirmed ? 'confirmed' : currentTeamAStatus)
-          : currentTeamAStatus;
-      final newTeamBStatus = teamKey == 'teamB'
-          ? (currentTeamConfirmed ? 'confirmed' : currentTeamBStatus)
-          : currentTeamBStatus;
-
-      final alreadyNotified = data['teamsReadyNotified'] ?? false;
-      final isTeamMatch = data['teamMatch'] == true;
-      if (isTeamMatch &&
-          !alreadyNotified &&
-          newTeamAStatus == 'confirmed' &&
-          newTeamBStatus == 'confirmed') {
-        updates['teamsReadyNotified'] = true;
-        updates['teamsReadyNotifiedAt'] = FieldValue.serverTimestamp();
-        readyTeamAName =
-            (data['teamA']?['name'] ?? 'Team A').toString();
-        readyTeamBName =
-            (data['teamB']?['name'] ?? 'Team B').toString();
-        notifyOrganizer = organizerId.isNotEmpty;
-      }
-
-      tx.update(matchRef, updates);
-    });
+    await _remote.saveMatch(updated);
 
     if (notifyOrganizer && organizerId.isNotEmpty) {
       await NotificationService().sendTeamMatchReadyNotification(
@@ -1442,16 +1311,21 @@ for (final uid in a) {
     }
   }
 
+  @override
   Future<void> updateCoverPhoto({
     required String matchId,
     required String photoUrl,
   }) async {
     try {
-      await _firestore.collection('matches').doc(matchId).update({
-        'coverPhotoUrl': photoUrl,
-        'coverPhotoUpdatedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final match = await _remote.fetchMatch(matchId);
+      if (match == null) return;
+      final now = DateTime.now();
+      final next = match.copyWith(
+        coverPhotoUrl: photoUrl,
+        coverPhotoUpdatedAt: now,
+        updatedAt: now,
+      );
+      await _remote.saveMatch(next);
     } catch (e) {
       print('Error updating match cover photo: $e');
       rethrow;

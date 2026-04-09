@@ -232,23 +232,50 @@ class Match {
     this.finishedAt,
   });
 
-  // Створення з Firestore
-  factory Match.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  static DateTime _readReqDate(dynamic v) {
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+    if (v is String) return DateTime.tryParse(v) ?? DateTime.now();
+    return DateTime.now();
+  }
+
+  static DateTime? _readOptDate(dynamic v) {
+    if (v == null) return null;
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+    if (v is String) return DateTime.tryParse(v);
+    return null;
+  }
+
+  static GeoPoint? _readGeo(dynamic v) {
+    if (v == null) return null;
+    if (v is GeoPoint) return v;
+    if (v is Map) {
+      final lat = v['latitude'];
+      final lng = v['longitude'];
+      if (lat is num && lng is num) {
+        return GeoPoint(lat.toDouble(), lng.toDouble());
+      }
+    }
+    return null;
+  }
+
+  /// JSON map shaped like legacy Firestore `matches` documents (Supabase `document` jsonb).
+  factory Match.fromJsonMap(Map<String, dynamic> data, {required String id}) {
     final createdAtTs = data['createdAt'] as Timestamp?;
     final updatedAtTs = data['updatedAt'] as Timestamp?;
-    
+
     return Match(
-      id: doc.id,
+      id: id,
       title: data['title'] ?? '',
       description: data['description'] ?? '',
       organizerId: data['organizerId'] ?? '',
       organizerName: data['organizerName'] ?? '',
-      date: (data['date'] as Timestamp).toDate(),
+      date: _readReqDate(data['date']),
       time: data['time'] ?? '',
       location: data['location'] ?? '',
       city: data['city'] ?? '',
-      coordinates: data['coordinates'] as GeoPoint?,
+      coordinates: _readGeo(data['coordinates']),
       currentPlayers: data['currentPlayers'] ?? 0,
       maxPlayers: data['maxPlayers'] ?? 0,
       participants: List<String>.from(data['participants'] ?? []),
@@ -315,11 +342,9 @@ class Match {
             .map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
       ),
       teamsReadyNotified: data['teamsReadyNotified'] ?? false,
-      teamsReadyNotifiedAt:
-          (data['teamsReadyNotifiedAt'] as Timestamp?)?.toDate(),
+      teamsReadyNotifiedAt: _readOptDate(data['teamsReadyNotifiedAt']),
       coverPhotoUrl: data['coverPhotoUrl'] as String?,
-      coverPhotoUpdatedAt:
-          (data['coverPhotoUpdatedAt'] as Timestamp?)?.toDate(),
+      coverPhotoUpdatedAt: _readOptDate(data['coverPhotoUpdatedAt']),
 teams: ((data['teams'] as List?) ?? const [])
     .whereType<Map<String, dynamic>>()
     .map((t) => Team(
@@ -342,20 +367,97 @@ teamAScore: data['teamAScore'],
                 playerId: item['playerId'] ?? '',
                 ratedBy: item['ratedBy'] ?? '',
                 rating: ((item['rating'] ?? 0.0) as num).toDouble(),
-                ratedAt: (item['ratedAt'] is Timestamp)
-                    ? (item['ratedAt'] as Timestamp).toDate()
-                    : DateTime.fromMillisecondsSinceEpoch(0),
+                ratedAt: _readReqDate(item['ratedAt']),
                 criteria: Map<String, double>.from(
                   (item['criteria'] ?? const <String, num>{})
                       .map((k, v) => MapEntry(k, (v as num).toDouble())),
                 ),
               ))
           .toList(),
-createdAt: (createdAtTs ?? Timestamp.now()).toDate(),
-updatedAt: (updatedAtTs ?? Timestamp.now()).toDate(),
-startedAt: (data['startedAt'] as Timestamp?)?.toDate(),
-finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
+      createdAt: createdAtTs != null
+          ? createdAtTs.toDate()
+          : _readOptDate(data['createdAt']) ?? DateTime.now(),
+      updatedAt: updatedAtTs != null
+          ? updatedAtTs.toDate()
+          : _readOptDate(data['updatedAt']) ?? DateTime.now(),
+      startedAt: _readOptDate(data['startedAt']),
+      finishedAt: _readOptDate(data['finishedAt']),
     );
+  }
+
+  // Створення з Firestore
+  factory Match.fromFirestore(DocumentSnapshot doc) {
+    final raw = doc.data();
+    if (raw == null) {
+      return Match.fromJsonMap({}, id: doc.id);
+    }
+    return Match.fromJsonMap(Map<String, dynamic>.from(raw as Map), id: doc.id);
+  }
+
+  dynamic _writeStorageDate(DateTime? d) =>
+      d == null ? null : d.toUtc().toIso8601String();
+
+  Map<String, dynamic>? _writeStorageGeo(GeoPoint? g) => g == null
+      ? null
+      : <String, dynamic>{'latitude': g.latitude, 'longitude': g.longitude};
+
+  /// Serializable map for Supabase `matches.document` (ISO-8601 dates, geo as map).
+  Map<String, dynamic> toStorageJson() {
+    return {
+      'title': title,
+      'description': description,
+      'organizerId': organizerId,
+      'organizerName': organizerName,
+      'date': _writeStorageDate(date),
+      'time': time,
+      'location': location,
+      'city': city,
+      'coordinates': _writeStorageGeo(coordinates),
+      'currentPlayers': currentPlayers,
+      'maxPlayers': maxPlayers,
+      'participants': participants,
+      'pendingApplications': pendingApplications,
+      'rejectedApplications': rejectedApplications,
+      'level': level.toString().split('.').last,
+      'cost': cost,
+      'autoBalance': autoBalance,
+      'isPrivate': isPrivate,
+      'invitedFriends': invitedFriends,
+      'status': status.toString().split('.').last,
+      'teamA': teamA?.toFirestore(),
+      'teamB': teamB?.toFirestore(),
+      'teams': teams.map((t) => t.toFirestore()).toList(),
+      'teamCount': teamCount,
+      'multiTeamStats': multiTeamStats,
+      'teamMatch': isTeamMatch,
+      'teamAId': teamAId,
+      'teamBId': teamBId,
+      'teamAStatus': teamAStatus,
+      'teamBStatus': teamBStatus,
+      'teamRosters': teamRosters,
+      'teamRosterStatus': teamRosterStatus,
+      'goalsByPlayer': goalsByPlayer,
+      'teamsReadyNotified': teamsReadyNotified,
+      'teamsReadyNotifiedAt': _writeStorageDate(teamsReadyNotifiedAt),
+      'coverPhotoUrl': coverPhotoUrl,
+      'coverPhotoUpdatedAt': _writeStorageDate(coverPhotoUpdatedAt),
+      'result': result?.toString().split('.').last,
+      'teamAScore': teamAScore,
+      'teamBScore': teamBScore,
+      'playerRatings': playerRatings
+          .map((rating) => {
+                'playerId': rating.playerId,
+                'ratedBy': rating.ratedBy,
+                'rating': rating.rating,
+                'ratedAt': _writeStorageDate(rating.ratedAt),
+                'criteria': rating.criteria,
+              })
+          .toList(),
+      'createdAt': _writeStorageDate(createdAt),
+      'updatedAt': _writeStorageDate(updatedAt),
+      'startedAt': _writeStorageDate(startedAt),
+      'finishedAt': _writeStorageDate(finishedAt),
+    };
   }
 
   // Конвертація в Map для Firestore
