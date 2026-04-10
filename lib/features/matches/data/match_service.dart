@@ -107,8 +107,6 @@ class MatchesRepositoryImpl implements MatchesRepository {
 
   //     // Додати користувача та оновити лічильник
   //     await docRef.update({
-  //       'participants': FieldValue.arrayUnion([userId]),
-  //       'currentPlayers': FieldValue.increment(1),
   //     });
 
   //     // Якщо після додавання матч заповнився — позначити 'full'

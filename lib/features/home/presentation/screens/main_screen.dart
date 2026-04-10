@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/features/challenges/presentation/bloc/challenges_bloc.dart';
 import 'package:flap_app/features/challenges/presentation/bloc/challenges_event.dart';
@@ -11,6 +11,7 @@ import 'package:flap_app/features/videos/presentation/screens/video_upload_scree
 import 'package:flap_app/features/challenges/presentation/screens/challenge_create_screen.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/features/profile/data/profile_legacy_user_map.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -143,22 +144,27 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             onPressed: () => Navigator.pushNamed(context, '/matches'),
           ),
           // Profile button with avatar
-          StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(AppAuthContext.userId)
-                .snapshots(),
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _profileRowStream(AppAuthContext.userId),
             builder: (context, snapshot) {
-              if (!snapshot.hasData || !snapshot.data!.exists) {
+              final rows = snapshot.data;
+              if (rows == null || rows.isEmpty) {
                 return IconButton(
                   icon: const Icon(Icons.person, color: Colors.white),
                   onPressed: () => _showProfile(context),
                 );
               }
 
-              final userData = snapshot.data!.data() as Map<String, dynamic>;
-              final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-              final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? I18n.inline('Користувач', 'User');
+              final userData = rows.first;
+              final avatarUrl = userData['avatar_url'] ?? userData['avatar'] ?? '';
+              final dn = userData['display_name']?.toString() ?? '';
+              final name = userData['name']?.toString() ?? '';
+              final em = userData['email']?.toString() ?? '';
+              final userName = dn.isNotEmpty
+                  ? dn
+                  : (name.isNotEmpty
+                      ? name
+                      : (em.contains('@') ? em.split('@').first : I18n.inline('Користувач', 'User')));
 
               return IconButton(
                 onPressed: () => _showProfile(context),
@@ -252,17 +258,15 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
 
   // User chips with coins and rating
   Widget _buildUserChips() {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(AppAuthContext.userId)
-          .snapshots(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _profileRowStream(AppAuthContext.userId),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
+        final rows = snapshot.data;
+        if (rows == null || rows.isEmpty) {
           return const SizedBox.shrink();
         }
 
-        final userData = snapshot.data!.data() as Map<String, dynamic>;
+        final userData = rows.first;
         final coins = userData['coins'] ?? 0;
         final rating = (userData['rating'] ?? 0.0).toDouble();
 
@@ -427,29 +431,15 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
               
               // Transactions list
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('transactions')
-                      .where('userId', isEqualTo: AppAuthContext.userId)
-                      .limit(50)
-                      .snapshots(),
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: _walletTxStream(AppAuthContext.userId),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator(color: Color(0xFFffc107)));
                     }
-                    
-                    final txDocs = snapshot.data!.docs.toList();
-                    txDocs.sort((a, b) {
-                      final ad = a.data() as Map<String, dynamic>;
-                      final bd = b.data() as Map<String, dynamic>;
-                      final at = ad['timestamp'] as Timestamp?;
-                      final bt = bd['timestamp'] as Timestamp?;
-                      if (at == null && bt == null) return 0;
-                      if (at == null) return 1;
-                      if (bt == null) return -1;
-                      return bt.compareTo(at);
-                    });
-                    
+
+                    final txDocs = snapshot.data!;
+
                     if (txDocs.isEmpty) {
                       return Center(
                         child: Column(
@@ -470,11 +460,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: txDocs.length,
                       itemBuilder: (context, index) {
-                        final transaction = txDocs[index].data() as Map<String, dynamic>;
+                        final transaction = txDocs[index];
                         final amount = transaction['amount'] ?? 0;
                         final type = transaction['type'] ?? '';
                         final description = transaction['description'] ?? '';
-                        final timestamp = transaction['timestamp'] as Timestamp?;
+                        final timestamp = _parseTxTime(transaction['created_at']);
                         
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
@@ -514,9 +504,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    if (timestamp != null)
-                                      Text(
-                                        _formatTransactionTime(timestamp.toDate()),
+                                    Text(
+                                        _formatTransactionTime(timestamp),
                                         style: TextStyle(
                                           color: Colors.white.withOpacity(0.7),
                                           fontSize: 12,
@@ -637,31 +626,36 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 ),
               ),
               
-              // Rating history list
+              // Rating history list (from Supabase `profiles.rating_history` jsonb)
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('rating_history')
-                      .where('userId', isEqualTo: AppAuthContext.userId)
-                      .limit(50)
-                      .snapshots(),
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: _profileRowStream(AppAuthContext.userId),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
                     }
-                    
-                    final docs = snapshot.data!.docs.toList();
+                    final rows = snapshot.data!;
+                    final docs = <Map<String, dynamic>>[];
+                    if (rows.isNotEmpty) {
+                      final histRaw = rows.first['rating_history'];
+                      if (histRaw is List) {
+                        for (final e in histRaw) {
+                          if (e is Map) {
+                            docs.add(Map<String, dynamic>.from(e));
+                          }
+                        }
+                      }
+                    }
                     docs.sort((a, b) {
-                      final ad = a.data() as Map<String, dynamic>;
-                      final bd = b.data() as Map<String, dynamic>;
-                      final at = ad['timestamp'] as Timestamp?;
-                      final bt = bd['timestamp'] as Timestamp?;
-                      if (at == null && bt == null) return 0;
-                      if (at == null) return 1;
-                      if (bt == null) return -1;
+                      final at = profileRatingHistoryTimestamp(
+                              a['timestamp'] ?? a['ts']) ??
+                          DateTime.fromMillisecondsSinceEpoch(0);
+                      final bt = profileRatingHistoryTimestamp(
+                              b['timestamp'] ?? b['ts']) ??
+                          DateTime.fromMillisecondsSinceEpoch(0);
                       return bt.compareTo(at);
                     });
-                    
+
                     if (docs.isEmpty) {
                       return Center(
                         child: Column(
@@ -688,12 +682,13 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: docs.length,
                       itemBuilder: (context, index) {
-                        final change = docs[index].data() as Map<String, dynamic>;
+                        final change = docs[index];
                         final ratingChange = (change['change'] ?? 0.0).toDouble();
                         final newRating = (change['newRating'] ?? 0.0).toDouble();
                         final oldRating = (change['oldRating'] ?? 0.0).toDouble();
                         final reason = change['reason'] ?? '';
-                        final timestamp = change['timestamp'] as Timestamp?;
+                        final timestamp = profileRatingHistoryTimestamp(
+                            change['timestamp'] ?? change['ts']);
                         final challengeTitle = change['challengeTitle'] ?? '';
                         final voterName = change['voterName'] ?? '';
                         
@@ -758,7 +753,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                         const SizedBox(width: 8),
                                         if (timestamp != null)
                                           Text(
-                                            _formatTransactionTime(timestamp.toDate()),
+                                            _formatTransactionTime(timestamp),
                                             style: TextStyle(
                                               color: Colors.white.withOpacity(0.5),
                                               fontSize: 11,
@@ -846,146 +841,46 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     }
   }
 
-  Future<void> _ensureTestTransactions() async {
-    try {
-      final currentUser = AppAuthContext.currentUser;
-      if (currentUser == null) return;
-
-      // Перевіряємо чи є транзакції
-      final existingTransactions = await FirebaseFirestore.instance
-          .collection('transactions')
-          .where('userId', isEqualTo: currentUser.id)
-          .limit(1)
-          .get();
-
-      if (existingTransactions.docs.isEmpty) {
-        // Створюємо тестові транзакції
-        final batch = FirebaseFirestore.instance.batch();
-        final now = DateTime.now();
-
-        // Тестові транзакції
-        final testTransactions = [
-          {
-            'userId': currentUser.id,
-            'type': 'initial_bonus',
-            'amount': 100,
-            'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 7))),
-            'description': 'Початковий бонус за реєстрацію',
-          },
-          {
-            'userId': currentUser.id,
-            'type': 'challenge_entry_fee',
-            'amount': -10,
-            'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 3))),
-            'description': I18n.inline('Вступна плата за челендж: Найкрутіший пас', 'Challenge entry fee: Coolest pass'),
-          },
-          {
-            'userId': currentUser.id,
-            'type': 'voting_reward',
-            'amount': 5,
-            'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 2))),
-            'description': I18n.inline('Нагорода за голосування в челенджах', 'Reward for voting in challenges'),
-          },
-          {
-            'userId': currentUser.id,
-            'type': 'challenge_win',
-            'amount': 50,
-            'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 1))),
-            'description': I18n.inline('Перемога в челенджі: Гол зацінить', 'Challenge win: Goal will count'),
-          },
-          {
-            'userId': currentUser.id,
-            'type': 'badge_purchase',
-            'amount': -25,
-            'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 12))),
-            'description': I18n.inline('Покупка значка: Майстер техніки', 'Badge purchase: Technique Master'),
-          },
-        ];
-
-        for (final transaction in testTransactions) {
-          final docRef = FirebaseFirestore.instance.collection('transactions').doc();
-          batch.set(docRef, transaction);
-        }
-
-        await batch.commit();
-        print('✅ Test transactions created');
-      }
-    } catch (e) {
-      print('❌ Error creating test transactions: $e');
+  Stream<List<Map<String, dynamic>>> _profileRowStream(String? uid) {
+    if (uid == null || uid.isEmpty) {
+      return const Stream.empty();
     }
+    return Supabase.instance.client
+        .from('profiles')
+        .stream(primaryKey: ['id'])
+        .eq('id', uid)
+        .map((raw) => (raw as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList());
   }
 
-  Future<void> _ensureTestRatingHistory() async {
-    try {
-      final currentUser = AppAuthContext.currentUser;
-      if (currentUser == null) return;
-
-      // Перевіряємо чи є історія рейтингу
-      final existingRatingHistory = await FirebaseFirestore.instance
-          .collection('rating_history')
-          .where('userId', isEqualTo: currentUser.id)
-          .limit(1)
-          .get();
-
-      if (existingRatingHistory.docs.isEmpty) {
-        // Створюємо тестову історію рейтингу
-        final batch = FirebaseFirestore.instance.batch();
-        final now = DateTime.now();
-
-        final testRatingChanges = [
-          {
-            'userId': currentUser.id,
-            'change': 0.15,
-            'oldRating': 3.0,
-            'newRating': 3.15,
-            'reason': 'challenge_vote',
-            'challengeTitle': 'Найкрутіший пас',
-            'voterName': 'Leo Messi',
-            'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 5))),
-          },
-          {
-            'userId': currentUser.id,
-            'change': 0.25,
-            'oldRating': 3.15,
-            'newRating': 3.40,
-            'reason': 'challenge_win',
-            'challengeTitle': 'Гол зацінить',
-            'voterName': '',
-            'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 3))),
-          },
-          {
-            'userId': currentUser.id,
-            'change': 0.10,
-            'oldRating': 3.40,
-            'newRating': 3.50,
-            'reason': 'challenge_vote',
-            'challengeTitle': 'Дриблінг через конуси',
-            'voterName': 'Vinnie Jr',
-            'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 1))),
-          },
-          {
-            'userId': currentUser.id,
-            'change': -0.05,
-            'oldRating': 3.50,
-            'newRating': 3.45,
-            'reason': 'challenge_vote',
-            'challengeTitle': 'Технічний удар',
-            'voterName': 'Cristiano',
-            'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 6))),
-          },
-        ];
-
-        for (final ratingChange in testRatingChanges) {
-          final docRef = FirebaseFirestore.instance.collection('rating_history').doc();
-          batch.set(docRef, ratingChange);
-        }
-
-        await batch.commit();
-        print('✅ Test rating history created');
-      }
-    } catch (e) {
-      print('❌ Error creating test rating history: $e');
+  Stream<List<Map<String, dynamic>>> _walletTxStream(String? uid) {
+    if (uid == null || uid.isEmpty) {
+      return const Stream.empty();
     }
+    return Supabase.instance.client
+        .from('wallet_transactions')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', uid)
+        .map((raw) {
+      final list = (raw as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      list.sort((a, b) => _parseTxTime(b['created_at'])
+          .compareTo(_parseTxTime(a['created_at'])));
+      if (list.length > 50) {
+        return list.sublist(0, 50);
+      }
+      return list;
+    });
+  }
+
+  DateTime _parseTxTime(dynamic v) {
+    if (v is DateTime) return v;
+    if (v is String) {
+      return DateTime.tryParse(v) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    }
+    return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   void _showCreateOptions() {

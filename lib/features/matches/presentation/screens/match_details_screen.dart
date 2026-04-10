@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,7 +6,9 @@ import 'package:share_plus/share_plus.dart';
 
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/models/match.dart';
+import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
 import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
+import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/matches/data/rating_service.dart';
@@ -44,14 +44,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   Future<Map<String, dynamic>> _fetchUserProfile(String userId) async {
     if (_profileCache.containsKey(userId)) return _profileCache[userId]!;
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-      final data = snap.data() as Map<String, dynamic>? ?? const {};
+      final p = await context.read<UserProfileRepository>().loadProfile(userId);
       final profile = <String, dynamic>{
-        'displayName': (data['displayName'] ?? data['authorName'] ?? I18n.t('player')).toString(),
-        'avatarUrl': (data['avatarUrl'] ?? '').toString(),
+        'displayName': p?.resolveDisplayName().isNotEmpty == true
+            ? p!.resolveDisplayName()
+            : I18n.t('player'),
+        'avatarUrl': p?.avatarUrl ?? '',
       };
       _profileCache[userId] = profile;
       return profile;
@@ -181,16 +179,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   Widget _buildCoverPhotoSection() {
     final currentUser = AppAuthContext.currentUser;
     final bool isOrganizer = currentUser?.id == widget.match.organizerId;
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('matches')
-          .doc(widget.match.id)
-          .snapshots(),
+    return StreamBuilder<Match?>(
+      stream: _matchesRepo.watchMatch(widget.match.id),
       builder: (context, snapshot) {
-        Match? liveMatch;
-        if (snapshot.hasData && snapshot.data?.data() != null) {
-          liveMatch = Match.fromFirestore(snapshot.data!);
-        }
+        final liveMatch = snapshot.data;
         final photoUrl = liveMatch?.coverPhotoUrl ?? widget.match.coverPhotoUrl;
         final status = liveMatch?.status ?? widget.match.status;
         final bool showUploadCta =
@@ -354,23 +346,19 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       setState(() => _isUploadingCover = true);
 
       final fileName =
-          'cover_${DateTime.now().millisecondsSinceEpoch.toString()}.jpg';
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('matches')
-          .child(widget.match.id)
-          .child(fileName);
-
-      final metadata = SettableMetadata(contentType: 'image/jpeg');
-      final data = await pickedFile.readAsBytes();
-      final uploadTask = storageRef.putData(data, metadata);
-
-      final snapshot = await uploadTask.whenComplete(() {});
-      final downloadUrl = await snapshot.ref.getDownloadURL();
+          'match_${widget.match.id}_cover_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final bytes = await pickedFile.readAsBytes();
+      final uid = AppAuthContext.userId;
+      if (uid == null) throw StateError('Not signed in');
+      final uploaded = await context.read<VideosRepository>().uploadThumbnailBytes(
+            userId: uid,
+            bytes: bytes,
+            fileName: fileName,
+          );
 
       await _matchesRepo.updateCoverPhoto(
         matchId: widget.match.id,
-        photoUrl: downloadUrl,
+        photoUrl: uploaded.publicUrl,
       );
 
       if (!mounted) return;
@@ -645,16 +633,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       return const SizedBox.shrink();
     }
 
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('matches')
-          .doc(widget.match.id)
-          .snapshots(),
+    return StreamBuilder<Match?>(
+      stream: _matchesRepo.watchMatch(widget.match.id),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
+        final liveMatch = snapshot.data;
+        if (liveMatch == null) {
           return const SizedBox.shrink();
         }
-        final liveMatch = Match.fromFirestore(snapshot.data!);
         final sections = <Widget>[];
 
         final teamASection =
@@ -924,20 +909,14 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     if (currentUser == null) {
       return const SizedBox.shrink();
     }
-    return StreamBuilder<
-        DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('matches')
-          .doc(widget.match.id)
-          .snapshots(),
+    return StreamBuilder<Match?>(
+      stream: _matchesRepo.watchMatch(widget.match.id),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
+        final live = snapshot.data;
+        if (live == null) {
           return const SizedBox.shrink();
         }
-        final data = snapshot.data!.data();
-        if (data == null) {
-          return const SizedBox.shrink();
-        }
+        final data = live.toStorageJson();
         final rawStatus = data['teamRosterStatus'];
         if (rawStatus is! Map) {
           return const SizedBox.shrink();
@@ -1255,16 +1234,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       return _playerNameCache[userId]!;
     }
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-      final data = snap.data();
-      final name = (data?['displayName'] ??
-              data?['name'] ??
-              data?['authorName'] ??
-              I18n.t('player'))
-          .toString();
+      final p = await context.read<UserProfileRepository>().loadProfile(userId);
+      final name = p?.resolveDisplayName().isNotEmpty == true
+          ? p!.resolveDisplayName()
+          : I18n.t('player');
       _playerNameCache[userId] = name;
       return name;
     } catch (_) {
@@ -1679,28 +1652,34 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildParticipantCard(String participantId) {
-  return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-    future: FirebaseFirestore.instance
-        .collection('users')
-        .doc(participantId)
-        .get(),
+  return FutureBuilder(
+    future: context.read<UserProfileRepository>().loadProfile(participantId),
     builder: (context, snapshot) {
-      if (!snapshot.hasData || !snapshot.data!.exists) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          height: 72,
+          alignment: Alignment.center,
+          child: const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4caf50)),
+          ),
+        );
+      }
+      final prof = snapshot.data;
+      if (prof == null) {
         return _buildParticipantCardPlaceholder(participantId);
       }
 
-      final userData = snapshot.data!.data()!;
-      final positionLabel = _localizedPosition(userData['position'] as String?);
-      final cityLabel = _localizedCity(userData['city'] as String?);
+      final positionLabel = _localizedPosition(prof.position);
+      final cityLabel = _localizedCity(prof.city);
       final isOrganizer = participantId == widget.match.organizerId;
-      final displayName =
-          (userData['displayName'] ?? userData['authorName'] ?? I18n.t('player'))
-              .toString()
-              .trim();
-      final avatarUrl = (userData['avatarUrl'] ?? '').toString();
-      final ratingValue = (userData['rating'] is num)
-          ? (userData['rating'] as num).toDouble()
-          : 0.0;
+      final displayName = prof.resolveDisplayName().trim().isNotEmpty
+          ? prof.resolveDisplayName().trim()
+          : I18n.t('player');
+      final avatarUrl = prof.avatarUrl ?? '';
+      final ratingValue = prof.rating ?? 0.0;
 
       void handleTap() => _openPlayerProfile(participantId, displayName);
 
@@ -2417,20 +2396,12 @@ String _getStatusText(MatchStatus status, {Match? match}) {
 }
   Future<double> _getMyMatchAverageRating(String matchId, String userId) async {
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('matches')
-          .doc(matchId)
-          .collection('playerRatings')
-          .where('playerId', isEqualTo: userId)
-          .get();
-      if (snap.docs.isEmpty) return 0.0;
-      double sum = 0.0;
-      for (final d in snap.docs) {
-        final m = d.data();
-        final r = (m['rating'] is num) ? (m['rating'] as num).toDouble() : 0.0;
-        sum += r;
-      }
-      return sum / snap.docs.length;
+      final m = await _matchesRepo.fetchMatch(matchId);
+      if (m == null) return 0.0;
+      final ratings =
+          m.playerRatings.where((r) => r.playerId == userId).map((r) => r.rating).toList();
+      if (ratings.isEmpty) return 0.0;
+      return ratings.reduce((a, b) => a + b) / ratings.length;
     } catch (_) {
       return 0.0;
     }

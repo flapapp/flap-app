@@ -1,8 +1,11 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/features/auth/domain/entities/user_profile_snapshot.dart';
+import 'package:flap_app/features/friends/domain/repositories/friends_repository.dart';
+import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
 import 'package:flap_app/models/match.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
@@ -688,20 +691,18 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
       final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) return;
 
-      // NEW: resolve organizer name reliably
-final userSnap = await FirebaseFirestore.instance
-    .collection('users')
-    .doc(currentUser.id)
-    .get();
-final userData = userSnap.data() ?? {};
-final emailPrefix = currentUser.email?.split('@').first;
-final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == true)
-    ? currentUser.displayName!.trim()
-    : (userData['displayName'] ??
-       userData['authorName'] ??
-       userData['name'] ??
-       emailPrefix ??
-       I18n.inline('Невідомий', 'Unknown')).toString();
+      final profileRepo = context.read<UserProfileRepository>();
+      final matchesRepo = context.read<MatchesRepository>();
+      final teamsRepo = context.read<TeamsRepository>();
+      final profile = await profileRepo.loadProfile(currentUser.id);
+      final emailPrefix = currentUser.email?.split('@').first;
+      final resolvedOrganizerName =
+          (currentUser.displayName?.trim().isNotEmpty == true)
+              ? currentUser.displayName!.trim()
+              : (profile?.resolveDisplayName().trim().isNotEmpty == true
+                  ? profile!.resolveDisplayName().trim()
+                  : emailPrefix ??
+                      I18n.inline('Невідомий', 'Unknown'));
       
       var participants = <String>[currentUser.id];
       var currentPlayers = 1;
@@ -769,7 +770,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       }
 
       final match = Match(
-        id: '', // Firestore згенерує ID
+        id: '', // Assigned by MatchesRepository.createMatch
         title: _titleController.text,
         description: _descriptionController.text,
         organizerId: currentUser.id,
@@ -800,8 +801,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
         updatedAt: DateTime.now(),
       );
       
-            final matchId =
-                await context.read<MatchesRepository>().createMatch(match);
+      final matchId = await matchesRepo.createMatch(match);
 
       // Надіслати інвайти вибраним друзям (push + in-app)
       if (_selectedInviteFriendIds.isNotEmpty) {
@@ -834,7 +834,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       
       if (_teamMode) {
         if (_selectedTeam != null && !hostIsMyTeam) {
-          await context.read<TeamsRepository>().sendMatchRequest(
+          await teamsRepo.sendMatchRequest(
             teamId: _selectedTeam!.id,
             opponentTeamId: _opponentTeam?.id ?? '',
             opponentName:
@@ -844,7 +844,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
           );
         }
         if (_opponentTeam != null) {
-          await context.read<TeamsRepository>().sendMatchRequest(
+          await teamsRepo.sendMatchRequest(
             teamId: _opponentTeam!.id,
             opponentTeamId: _selectedTeam!.id,
             opponentName: _selectedTeam!.name,
@@ -1369,29 +1369,31 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
   }
 
   Future<List<Map<String, dynamic>>> _loadMyFriends() async {
-  try {
-    final me = AppAuthContext.currentUser;
-    if (me == null) return [];
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.id).get();
-    final ids = List<String>.from(userDoc.data()?['friends'] ?? []);
-    if (ids.isEmpty) return [];
-    final result = <Map<String, dynamic>>[];
-    for (final id in ids.take(50)) {
-      final d = await FirebaseFirestore.instance.collection('users').doc(id).get();
-      if (d.exists) {
-        final data = d.data() as Map<String, dynamic>;
-        data['id'] = id;
-        result.add(data);
-      }
+    try {
+      final me = AppAuthContext.currentUser;
+      if (me == null) return [];
+      final friendsRepo = context.read<FriendsRepository>();
+      final friends = await friendsRepo.getUserFriends(me.id);
+      return friends
+          .take(50)
+          .map(
+            (f) => <String, dynamic>{
+              'id': f.userId,
+              'displayName': f.name,
+              'name': f.name,
+              'avatarUrl': f.avatar,
+              'photoUrl': f.avatar,
+              'position': f.position,
+              'rating': f.rating,
+              'averageRating': f.rating,
+              'city': f.city,
+            },
+          )
+          .toList();
+    } catch (_) {
+      return [];
     }
-    result.sort((a, b) => (a['displayName'] ?? a['name'] ?? '')
-        .toString()
-        .compareTo((b['displayName'] ?? b['name'] ?? '').toString()));
-    return result;
-  } catch (_) {
-    return [];
   }
-}
 
   Future<void> _loadMyTeams() async {
     final currentUser = AppAuthContext.currentUser;
@@ -1424,14 +1426,31 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
     try {
       final me = AppAuthContext.currentUser;
       if (me == null) return [];
-      final snap = await FirebaseFirestore.instance.collection('users').limit(100).get();
+      final rows = await Supabase.instance.client
+          .from('profiles')
+          .select(
+            'id, display_name, name, surname, email, avatar_url, rating, city, position',
+          )
+          .neq('id', me.id)
+          .limit(100);
       final result = <Map<String, dynamic>>[];
-      for (final doc in snap.docs) {
-        if (doc.id == me.id) continue;
-        final data = doc.data();
+      for (final raw in (rows as List)) {
+        final row = Map<String, dynamic>.from(raw as Map);
+        final id = row['id']?.toString() ?? '';
+        if (id.isEmpty) continue;
+        final snap = UserProfileSnapshot.fromSupabaseRow(row);
+        final label = snap.resolveDisplayName().isNotEmpty
+            ? snap.resolveDisplayName()
+            : I18n.inline('Користувач', 'User');
         result.add({
-          'id': doc.id,
-          ...data,
+          'id': id,
+          'displayName': label,
+          'name': row['name'],
+          'city': (row['city'] ?? '').toString(),
+          'rating': (row['rating'] as num?)?.toDouble() ?? 0.0,
+          'avatarUrl': (row['avatar_url'] ?? '').toString(),
+          'avatar': row['avatar_url'],
+          'position': (row['position'] ?? '').toString(),
         });
       }
       result.sort((a, b) {
@@ -1602,6 +1621,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                 onPressed: selectedIds.isEmpty
                     ? null
                     : () async {
+                        final matchesRepo = ctx.read<MatchesRepository>();
                         final notificationService = NotificationService();
                         for (final uid in selectedIds) {
                           await notificationService.sendNotification(
@@ -1624,11 +1644,19 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                           );
                         }
 
-                        await FirebaseFirestore.instance.collection('matches').doc(matchId).set({
-                          'invitedFriends': FieldValue.arrayUnion(selectedIds.toList()),
-                        }, SetOptions(merge: true));
+                        if (!ctx.mounted) return;
+                        final existing = await matchesRepo.fetchMatch(matchId);
+                        if (existing != null) {
+                          final merged = <String>{
+                            ...existing.invitedFriends,
+                            ...selectedIds,
+                          }.toList();
+                          await matchesRepo.saveMatch(
+                            existing.copyWith(invitedFriends: merged),
+                          );
+                        }
 
-                        if (context.mounted) Navigator.pop(ctx);
+                        if (ctx.mounted) Navigator.pop(ctx);
                       },
                 child: Text(I18n.inline('Запросити', 'Invite')),
               ),
@@ -1691,18 +1719,29 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
 
   Future<Map<String, String>> _fetchMemberNames(List<String> ids) async {
     final map = <String, String>{};
-    for (final id in ids) {
+    if (ids.isEmpty) return map;
+    const chunkSize = 50;
+    for (var i = 0; i < ids.length; i += chunkSize) {
+      final end = i + chunkSize > ids.length ? ids.length : i + chunkSize;
+      final chunk = ids.sublist(i, end);
       try {
-        final doc =
-            await FirebaseFirestore.instance.collection('users').doc(id).get();
-        final data = doc.data();
-        map[id] = (data?['displayName'] ??
-                data?['name'] ??
-                data?['authorName'] ??
-                I18n.t('player'))
-            .toString();
-      } catch (_) {
-        map[id] = I18n.t('player');
+        final rows = await Supabase.instance.client
+            .from('profiles')
+            .select('id, display_name, name, surname, email')
+            .inFilter('id', chunk);
+        for (final raw in (rows as List)) {
+          final row = Map<String, dynamic>.from(raw as Map);
+          final id = row['id']?.toString() ?? '';
+          if (id.isEmpty) continue;
+          final snap = UserProfileSnapshot.fromSupabaseRow(row);
+          final label = snap.resolveDisplayName().isNotEmpty
+              ? snap.resolveDisplayName()
+              : I18n.t('player');
+          map[id] = label;
+        }
+      } catch (_) {}
+      for (final id in chunk) {
+        map.putIfAbsent(id, () => I18n.t('player'));
       }
     }
     return map;

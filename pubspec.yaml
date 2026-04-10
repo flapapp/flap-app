@@ -33,11 +33,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   image_picker: ^1.0.4
   google_fonts: ^6.1.0
-  firebase_core: ^2.27.2
-  cloud_firestore: ^4.17.2
-  firebase_storage: ^11.7.2
-  google_sign_in: ^7.1.1
-  firebase_messaging: 14.9.4
   http: ^1.1.0
   video_player: ^2.8.1
   chewie: ^1.7.4

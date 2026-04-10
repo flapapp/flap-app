@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flap_app/features/matches/data/rating_service.dart';
 import 'package:flap_app/models/match.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/utils/i18n.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 
 enum RatingMode { simple, advanced }
@@ -56,17 +56,24 @@ Future<Map<String, String>> _getUserProfile(String userId) async {
     return _userCache[userId]!;
   }
   try {
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .get();
-    if (!snap.exists) {
+    final row = await Supabase.instance.client
+        .from('profiles')
+        .select('display_name, name, surname, email, avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+    if (row == null) {
       _userCache[userId] = const {};
       return const {};
     }
-    final data = (snap.data() as Map<String, dynamic>? ?? const {});
-final String displayName = (data['displayName'] as String?)?.trim() ?? '';
-final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) as String?)?.trim() ?? '';
+    final data = Map<String, dynamic>.from(row);
+    final dn = (data['display_name'] ?? '').toString().trim();
+    final name = (data['name'] ?? '').toString().trim();
+    final sur = (data['surname'] ?? '').toString().trim();
+    final em = (data['email'] ?? '').toString();
+    final String displayName = dn.isNotEmpty
+        ? dn
+        : (name.isNotEmpty ? '$name $sur'.trim() : (em.contains('@') ? em.split('@').first : ''));
+    final String avatarUrl = (data['avatar_url'] ?? '').toString().trim();
 final profile = <String, String>{
   'displayName': displayName,
   'avatarUrl': avatarUrl,
@@ -130,15 +137,10 @@ final sanitizedPlayers = playersToRate.where((id) =>
   id != 'current_user_i' && id != 'current_user' && !id.startsWith('current_')
 ).toList();
 
-// виключаємо тих, кого ви вже оцінювали
-final existingSnap = await FirebaseFirestore.instance
-    .collection('matches')
-    .doc(widget.match.id)
-    .collection('playerRatings')
-    .where('ratedBy', isEqualTo: currentUserId)
-    .get();
-final alreadyRatedIds = existingSnap.docs
-    .map((d) => (d.data()['playerId'] as String?) ?? '')
+// виключаємо тих, кого ви вже оцінювали (з документа матчу в Supabase)
+final alreadyRatedIds = widget.match.playerRatings
+    .where((r) => currentUserId != null && r.ratedBy == currentUserId)
+    .map((r) => r.playerId)
     .toSet();
     print('RATING DEBUG matchId=${widget.match.id}');
     print('RATING DEBUG participants=${widget.match.participants.length}');

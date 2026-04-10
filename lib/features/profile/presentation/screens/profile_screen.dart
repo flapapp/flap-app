@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/features/profile/data/profile_legacy_user_map.dart';
 import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:flap_app/core/app_auth_context.dart';
@@ -12,6 +11,7 @@ import 'package:flap_app/features/badges/presentation/screens/badges_store_scree
 import 'package:flap_app/features/friends/presentation/screens/friends_screen.dart';
 import 'profile_screen_sparkline.dart';
 import 'package:flap_app/features/subscription/presentation/screens/subscription_screen.dart';
+import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'package:flap_app/features/videos/presentation/screens/video_player_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flap_app/utils/i18n.dart';
@@ -82,16 +82,11 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
 
   Future<void> _loadTopVideos(String uid) async {
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('videos')
-          .where('userId', isEqualTo: uid)
-          .limit(50)
-          .get();
-      final vids = snap.docs.map((d) {
-        final m = Map<String, dynamic>.from(d.data());
-        m['id'] = d.id;
-        return m;
-      }).toList();
+      final list = await context.read<VideosRepository>().fetchUserVideosByViews(
+            userId: uid,
+            limit: 50,
+          );
+      final vids = list.map((v) => v.toLegacyCardMap()).toList();
       vids.sort((a, b) {
         final av = (a['views'] ?? 0) as int;
         final bv = (b['views'] ?? 0) as int;

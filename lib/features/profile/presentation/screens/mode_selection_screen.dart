@@ -3,8 +3,10 @@ import 'dart:math';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flap_app/models/match.dart';
+import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
@@ -21,6 +23,8 @@ class ModeSelectionScreen extends StatefulWidget {
 }
 
 class ModeSelectionScreenState extends State<ModeSelectionScreen> {
+  MatchesRepository get _matchesRepo => context.read<MatchesRepository>();
+
   void _pushNewsRoute(BuildContext context, String path) {
     switch (path) {
       case '/matches':
@@ -143,22 +147,36 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
 
   Future<_NewsEntry?> _fetchLatestMatchNews() async {
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('matches')
-          .orderBy('updatedAt', descending: true)
+      final row = await Supabase.instance.client
+          .from('matches')
+          .select('id, document, updated_at, created_at')
+          .order('updated_at', ascending: false)
           .limit(1)
-          .get();
-      if (snap.docs.isEmpty) return null;
-      final data = snap.docs.first.data();
-      final teamAName = (data['teamA']?['name'] ?? data['title'] ?? I18n.inline('Матч дня', 'Match day')).toString();
-      final teamBName = (data['teamB']?['name'] ?? I18n.inline('Суперник', 'Opponent')).toString();
-      final status = (data['status'] ?? 'open').toString();
-      final teamAScore = data['teamAScore'];
-      final teamBScore = data['teamBScore'];
-      final location = (data['location'] ?? 'FLAP Arena').toString();
-      final time = (data['time'] ?? '').toString();
-      final organizer = (data['organizerName'] ?? I18n.inline('Організатор', 'Organizer')).toString();
-      final matchTitle = (data['title'] ?? '$teamAName vs $teamBName').toString();
+          .maybeSingle();
+      if (row == null) return null;
+      final map = Map<String, dynamic>.from(row);
+      final doc = Map<String, dynamic>.from(map['document'] as Map? ?? {});
+      final id = map['id'].toString();
+      final m = Match.fromJsonMap(doc, id: id);
+      final teamAName = () {
+        final n = m.teamA?.name;
+        if (n != null && n.isNotEmpty) return n;
+        if (m.title.isNotEmpty) return m.title;
+        return I18n.inline('Матч дня', 'Match day');
+      }();
+      final teamBName = () {
+        final n = m.teamB?.name;
+        if (n != null && n.isNotEmpty) return n;
+        return I18n.inline('Суперник', 'Opponent');
+      }();
+      final status = m.status.toString().split('.').last;
+      final teamAScore = m.teamAScore;
+      final teamBScore = m.teamBScore;
+      final time = m.time;
+      final organizer =
+          m.organizerName.isNotEmpty ? m.organizerName : I18n.inline('Організатор', 'Organizer');
+      final matchTitle =
+          m.title.isNotEmpty ? m.title : '$teamAName vs $teamBName';
       String subtitle;
       if (status == 'finished' && teamAScore != null && teamBScore != null) {
         subtitle = I18n.inline(
@@ -176,7 +194,9 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
         subtitle: subtitle,
         icon: Icons.sports_soccer,
         color: const Color(0xFF4caf50),
-        timestamp: _resolveTimestamp(data, const ['updatedAt', 'createdAt']),
+        timestamp: _parseDateTime(map['updated_at']) ??
+            _parseDateTime(map['created_at']) ??
+            m.updatedAt,
         route: '/matches',
         ctaLabel: I18n.inline('Відкрити матчі', 'Open matches'),
       );
@@ -186,55 +206,59 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
   }
 
   Future<List<_NewsEntry>> _fetchTeamMovementNews() async {
-  try {
-    final snap = await FirebaseFirestore.instance
-        .collection('activityFeed')
-        .orderBy('createdAt', descending: true)
-        .limit(20)
-        .get();
+    try {
+      final raw = await Supabase.instance.client
+          .from('team_activity')
+          .select()
+          .order('created_at', ascending: false)
+          .limit(20);
+      final rows = (raw as List).cast<Object?>().map((e) => Map<String, dynamic>.from(e as Map)).toList();
 
-    final items = <_NewsEntry>[];
-    for (final doc in snap.docs) {
-      final data = doc.data();
-      final type = (data['type'] ?? '').toString();
-      if (type != 'joined_team' && type != 'left_team') continue;
+      final items = <_NewsEntry>[];
+      for (final data in rows) {
+        final type = (data['type'] ?? '').toString();
+        if (type != 'joined_team' && type != 'left_team') continue;
 
-      final userName = (data['userName'] ?? I18n.inline('Гравець', 'Player')).toString();
-      final teamName = (data['teamName'] ?? I18n.inline('Команда', 'Team')).toString();
+        final userName =
+            (data['user_name'] ?? I18n.inline('Гравець', 'Player')).toString();
+        final teamName =
+            (data['team_name'] ?? I18n.inline('Команда', 'Team')).toString();
 
-      final isJoin = type == 'joined_team';
-      items.add(
-        _NewsEntry(
-          title: teamName,
-          subtitle: isJoin
-              ? I18n.inline('$userName приєднався до команди', '$userName joined the team')
-              : I18n.inline('$userName покинув команду', '$userName left the team'),
-          icon: isJoin ? Icons.person_add_alt_1 : Icons.exit_to_app,
-          color: isJoin ? const Color(0xFF26A69A) : const Color(0xFFEF5350),
-          timestamp: _resolveTimestamp(data, const ['createdAt']),
-          route: '/teams',
-          ctaLabel: I18n.inline('Відкрити клуби', 'Open clubs'),
-        ),
-      );
+        final isJoin = type == 'joined_team';
+        items.add(
+          _NewsEntry(
+            title: teamName,
+            subtitle: isJoin
+                ? I18n.inline('$userName приєднався до команди', '$userName joined the team')
+                : I18n.inline('$userName покинув команду', '$userName left the team'),
+            icon: isJoin ? Icons.person_add_alt_1 : Icons.exit_to_app,
+            color: isJoin ? const Color(0xFF26A69A) : const Color(0xFFEF5350),
+            timestamp: _parseDateTime(data['created_at']) ?? DateTime.now(),
+            route: '/teams',
+            ctaLabel: I18n.inline('Відкрити клуби', 'Open clubs'),
+          ),
+        );
+      }
+      return items;
+    } catch (_) {
+      return const [];
     }
-    return items;
-  } catch (_) {
-    return const [];
   }
-}
 
   Future<_NewsEntry?> _fetchLatestVideoNews() async {
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('videos')
-          .orderBy('createdAt', descending: true)
+      final data = await Supabase.instance.client
+          .from('videos')
+          .select()
+          .order('created_at', ascending: false)
           .limit(1)
-          .get();
-      if (snap.docs.isEmpty) return null;
-      final data = snap.docs.first.data();
-      final author = (data['authorName'] ?? I18n.inline('Гравець FLAP', 'FLAP player')).toString();
-      final rawTitle = (data['title'] ?? '').toString().trim();
-      final challengeTitle = (data['challengeTitle'] ?? '').toString().trim();
+          .maybeSingle();
+      if (data == null) return null;
+      final row = Map<String, dynamic>.from(data);
+      final author =
+          (row['author_name'] ?? I18n.inline('Гравець FLAP', 'FLAP player')).toString();
+      final rawTitle = (row['title'] ?? '').toString().trim();
+      final challengeTitle = (row['challenge_title'] ?? '').toString().trim();
       final title = (rawTitle.isEmpty ||
               rawTitle == 'Відео створювача' ||
               rawTitle == 'Creator video')
@@ -250,7 +274,9 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
         ),
         icon: Icons.play_circle_fill,
         color: const Color(0xFFFF7043),
-        timestamp: _resolveTimestamp(data, const ['createdAt', 'updatedAt']),
+        timestamp: _parseDateTime(row['created_at']) ??
+            _parseDateTime(row['updated_at']) ??
+            DateTime.now(),
         route: '/video-main',
         ctaLabel: I18n.inline('Дивитись відео', 'Watch video feed'),
       );
@@ -261,15 +287,18 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
 
   Future<_NewsEntry?> _fetchLatestTeamNews() async {
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('teams')
-          .orderBy('createdAt', descending: true)
+      final data = await Supabase.instance.client
+          .from('teams')
+          .select()
+          .order('created_at', ascending: false)
           .limit(1)
-          .get();
-      if (snap.docs.isEmpty) return null;
-      final data = snap.docs.first.data();
-      final teamName = (data['name'] ?? I18n.inline('Нова команда', 'New team')).toString();
-      final city = (data['city'] ?? I18n.inline('рідному місті', 'their city')).toString();
+          .maybeSingle();
+      if (data == null) return null;
+      final row = Map<String, dynamic>.from(data);
+      final teamName =
+          (row['name'] ?? I18n.inline('Нова команда', 'New team')).toString();
+      final city =
+          (row['city'] ?? I18n.inline('рідному місті', 'their city')).toString();
       return _NewsEntry(
         title: teamName,
         subtitle: I18n.inline(
@@ -278,7 +307,9 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
         ),
         icon: Icons.groups,
         color: const Color(0xFF42a5f5),
-        timestamp: _resolveTimestamp(data, const ['createdAt', 'updatedAt']),
+        timestamp: _parseDateTime(row['created_at']) ??
+            _parseDateTime(row['updated_at']) ??
+            DateTime.now(),
         route: '/teams',
         ctaLabel: I18n.inline('Відкрити клуби', 'Open clubs'),
       );
@@ -297,14 +328,11 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
         ctaLabel: I18n.inline('Дивитись розклад', 'View schedule'),
       );
 
-  DateTime _resolveTimestamp(Map<String, dynamic> data, List<String> keys) {
-    for (final key in keys) {
-      final value = data[key];
-      if (value is Timestamp) {
-        return value.toDate();
-      }
-    }
-    return DateTime.now();
+  DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
   }
 
   Widget _buildNewsSection() {
@@ -960,47 +988,35 @@ Widget build(BuildContext context) {
   }
 
   Future<_HeroStats> _fetchHeroStats(String userId) async {
+    if (!mounted) return _HeroStats.empty;
     try {
-      final base = FirebaseFirestore.instance
-          .collection('matches')
-          .where('participants', arrayContains: userId);
-      QuerySnapshot<Map<String, dynamic>> snapshot;
-      try {
-        snapshot = await base
-            .where('status', isEqualTo: 'finished')
-            .orderBy('updatedAt', descending: true)
-            .limit(20)
-            .get();
-      } catch (_) {
-        try {
-          snapshot = await base
-              .where('status', isEqualTo: 'finished')
-              .limit(20)
-              .get();
-        } catch (_) {
-          snapshot = await base.limit(20).get();
-        }
+      final all = await _matchesRepo.getUserMatches(userId).first;
+      final finished = <Match>[];
+      for (final m in all) {
+        if (m.status != MatchStatus.finished) continue;
+        finished.add(m);
+        if (finished.length >= 20) break;
       }
+
       int wins = 0;
       int draws = 0;
       int losses = 0;
       final List<String> recentResults = [];
 
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        int? scoreAOpt = data['teamAScore'] as int?;
-        int? scoreBOpt = data['teamBScore'] as int?;
+      for (final m in finished) {
+        int? scoreAOpt = m.teamAScore;
+        int? scoreBOpt = m.teamBScore;
         var scoreA = scoreAOpt ?? 0;
         var scoreB = scoreBOpt ?? 0;
         if (scoreAOpt == null || scoreBOpt == null) {
-          final result = (data['result'] as String?) ?? '';
-          if (result == 'teamAWins') {
+          final result = m.result;
+          if (result == MatchResult.teamAWins) {
             scoreA = 1;
             scoreB = 0;
-          } else if (result == 'teamBWins') {
+          } else if (result == MatchResult.teamBWins) {
             scoreA = 0;
             scoreB = 1;
-          } else if (result == 'draw') {
+          } else if (result == MatchResult.draw) {
             scoreA = 0;
             scoreB = 0;
           } else {
@@ -1008,14 +1024,13 @@ Widget build(BuildContext context) {
           }
         }
         final List<String> teamAPlayers =
-            List<String>.from((data['teamA']?['playerIds'] ?? const []));
+            List<String>.from(m.teamA?.playerIds ?? const []);
         final List<String> teamBPlayers =
-            List<String>.from((data['teamB']?['playerIds'] ?? const []));
+            List<String>.from(m.teamB?.playerIds ?? const []);
 
         bool isTeamA = teamAPlayers.contains(userId);
         if (!isTeamA && teamAPlayers.isEmpty && teamBPlayers.isEmpty) {
-          final participants =
-              List<String>.from(data['participants'] ?? const []);
+          final participants = List<String>.from(m.participants);
           if (participants.isNotEmpty) {
             final half = (participants.length / 2).ceil();
             isTeamA = participants.take(half).contains(userId);

@@ -1,8 +1,10 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
+import 'package:flap_app/features/profile/data/profile_legacy_user_map.dart';
+import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:flap_app/models/match.dart';
 import 'package:flap_app/features/matches/presentation/screens/create_match_screen.dart';
 import 'package:flap_app/features/matches/presentation/screens/match_details_screen.dart';
@@ -121,7 +123,9 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
     _selectedLevel = I18n.t('all_levels');
     _selectedTime = I18n.t('anytime');
     _selectedSort = 'newest';
-    _loadCurrentUserCity();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadCurrentUserCity();
+    });
 
     // Завантажуємо топ гравців один раз
     _ratingsTopPlayersFuture = _ratingService.getTopPlayers(limit: 300);
@@ -138,8 +142,8 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
     final uid = AppAuthContext.userId;
     if (uid == null) return;
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final city = (doc.data()?['city'] ?? '').toString();
+      final map = await context.read<ProfileRepository>().fetchLegacyUserMap(uid);
+      final city = (map?['city'] ?? '').toString();
       if (!mounted) return;
       setState(() {
         _currentUserCity = city;
@@ -513,13 +517,15 @@ void _resetFindFilters() {
         );
       },
           ),
-    StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('users').doc(AppAuthContext.userId).snapshots(),
+    StreamBuilder<Map<String, dynamic>>(
+      stream: AppAuthContext.userId != null
+          ? context.read<ProfileRepository>().watchLegacyUserMap(AppAuthContext.userId!)
+          : Stream.value(<String, dynamic>{}),
       builder: (context, snapshot) {
         String avatarUrl = '';
         String displayName = '';
-        if (snapshot.hasData && snapshot.data!.exists) {
-          final d = snapshot.data!.data()!;
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          final d = snapshot.data!;
           avatarUrl = (d['avatarUrl'] ?? d['avatar'] ?? d['photoUrl'] ?? '').toString();
           displayName = (d['displayName'] ?? d['name'] ?? d['authorName'] ?? d['email']?.toString().split('@').first ?? I18n.inline('Г', 'U')).toString();
         }
@@ -678,14 +684,13 @@ void _resetFindFilters() {
                   children: [
                     const Icon(Icons.circle, size: 10, color: Color(0xFF4caf50)),
                     const SizedBox(width: 8),
-                    StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                      stream: FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(AppAuthContext.userId)
-                          .snapshots(),
+                    StreamBuilder<Map<String, dynamic>>(
+                      stream: AppAuthContext.userId != null
+                          ? context.read<ProfileRepository>().watchLegacyUserMap(AppAuthContext.userId!)
+                          : Stream.value(<String, dynamic>{}),
                       builder: (context, snapshot) {
-                        final rating = snapshot.hasData && snapshot.data!.exists
-                            ? ((snapshot.data!.data()?['rating'] ?? 0.0) as num).toDouble()
+                        final rating = snapshot.hasData && snapshot.data!.isNotEmpty
+                            ? ((snapshot.data!['rating'] ?? 0.0) as num).toDouble()
                             : 0.0;
                         return RichText(
                           text: TextSpan(
@@ -806,22 +811,23 @@ void _resetFindFilters() {
                 const SizedBox(height: 24),
 
                 // Історія змін рейтингу (нове)
-StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-  stream: FirebaseFirestore.instance
-      .collection('users')
-      .doc(AppAuthContext.userId)
-      .snapshots(),
+StreamBuilder<Map<String, dynamic>>(
+  stream: AppAuthContext.userId != null
+      ? context.read<ProfileRepository>().watchLegacyUserMap(AppAuthContext.userId!)
+      : Stream.value(<String, dynamic>{}),
   builder: (context, snap) {
-    if (!snap.hasData || !snap.data!.exists) return const SizedBox.shrink();
-    final data = snap.data!.data() ?? {};
+    if (!snap.hasData || snap.data!.isEmpty) return const SizedBox.shrink();
+    final data = snap.data!;
     final List<Map<String, dynamic>> history =
         List<Map<String, dynamic>>.from(data['ratingHistory'] ?? []);
     if (history.isEmpty) return const SizedBox.shrink();
 
     // нові зверху
     history.sort((a, b) {
-      final ta = (a['timestamp'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final tb = (b['timestamp'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final ta = profileRatingHistoryTimestamp(a['timestamp']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final tb = profileRatingHistoryTimestamp(b['timestamp']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
       return tb.compareTo(ta);
     });
 
@@ -829,7 +835,7 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       children: history.asMap().entries.map((e) {
         final i = e.key;
         final h = e.value;
-        final dt = (h['timestamp'] as Timestamp?)?.toDate();
+        final dt = profileRatingHistoryTimestamp(h['timestamp']);
         final overall = ((h['overallRating'] ?? 0) as num).toDouble();
         final prev = (i + 1 < history.length)
             ? ((history[i + 1]['overallRating'] ?? 0) as num).toDouble()
@@ -947,28 +953,25 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                 ),
               ),
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('transactions')
-                      .where('userId', isEqualTo: AppAuthContext.userId)
-                      .limit(50)
-                      .snapshots(),
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: AppAuthContext.userId != null
+                      ? context.read<ProfileRepository>().watchWalletTransactions(AppAuthContext.userId!)
+                      : Stream.value(const <Map<String, dynamic>>[]),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)));
                     }
-                    final txDocs = snapshot.data!.docs.toList();
+                    final txDocs = List<Map<String, dynamic>>.from(snapshot.data!);
                     txDocs.sort((a, b) {
-                      final ad = a.data() as Map<String, dynamic>;
-                      final bd = b.data() as Map<String, dynamic>;
-                      final at = ad['timestamp'] as Timestamp?;
-                      final bt = bd['timestamp'] as Timestamp?;
+                      final at = a['timestamp'] as DateTime?;
+                      final bt = b['timestamp'] as DateTime?;
                       if (at == null && bt == null) return 0;
                       if (at == null) return 1;
                       if (bt == null) return -1;
                       return bt.compareTo(at);
                     });
-                    if (txDocs.isEmpty) {
+                    final limited = txDocs.take(50).toList();
+                    if (limited.isEmpty) {
                       return Center(
                         child: Text('Поки немає транзакцій'.i18n('No transactions yet'),
                             style: const TextStyle(color: Colors.white70)),
@@ -976,12 +979,12 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     }
                     return ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: txDocs.length,
+                      itemCount: limited.length,
                       itemBuilder: (context, index) {
-                        final t = txDocs[index].data() as Map<String, dynamic>;
+                        final t = limited[index];
                         final amount = t['amount'] ?? 0;
                         final description = t['description'] ?? '';
-                        final timestamp = t['timestamp'] as Timestamp?;
+                        final timestamp = t['timestamp'] as DateTime?;
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(12),
@@ -1008,7 +1011,7 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                                   children: [
                                     Text(description, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
                                     if (timestamp != null)
-                                      Text(_formatTransactionTime(timestamp.toDate()),
+                                      Text(_formatTransactionTime(timestamp),
                                         style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
                                       ),
                                   ],
@@ -3298,16 +3301,12 @@ Future<void> _onLeaveMatch(Match match) async {
 
   Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {
     final names = <String, String>{};
+    final repo = context.read<UserProfileRepository>();
     for (final id in ids) {
       try {
-        final doc =
-            await FirebaseFirestore.instance.collection('users').doc(id).get();
-        final data = doc.data();
-        names[id] = (data?['displayName'] ??
-                data?['name'] ??
-                data?['authorName'] ??
-                I18n.t('player'))
-            .toString();
+        final p = await repo.loadProfile(id);
+        final label = p?.resolveDisplayName();
+        names[id] = (label != null && label.isNotEmpty) ? label : I18n.t('player');
       } catch (_) {
         names[id] = I18n.t('player');
       }

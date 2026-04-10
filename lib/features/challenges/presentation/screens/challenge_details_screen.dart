@@ -1,7 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
 import 'package:flap_app/features/challenges/domain/challenge_failure.dart';
 import 'package:flap_app/features/challenges/domain/entities/challenge_submission_entry.dart';
@@ -1202,24 +1201,17 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
     if (videoDocId.isNotEmpty) {
       try {
-        final videoDoc = await FirebaseFirestore.instance
-            .collection('videos')
-            .doc(videoDocId)
-            .get();
-
-        if (videoDoc.exists) {
-          final videoData = videoDoc.data() as Map<String, dynamic>;
-          final videoThumb = (videoData['thumbnailUrl'] ?? '') as String;
-          if (videoThumb.isNotEmpty) {
-            try {
-              await context.read<ChallengeRepository>().setSubmissionThumbnail(
-                    challengeId: widget.challenge.id,
-                    userId: submissionUserId,
-                    thumbnailUrl: videoThumb,
-                  );
-            } catch (_) {}
-            return videoThumb;
-          }
+        final video = await context.read<VideosRepository>().fetchVideo(videoDocId);
+        final videoThumb = video?.thumbnailUrl ?? '';
+        if (videoThumb.isNotEmpty) {
+          try {
+            await context.read<ChallengeRepository>().setSubmissionThumbnail(
+                  challengeId: widget.challenge.id,
+                  userId: submissionUserId,
+                  thumbnailUrl: videoThumb,
+                );
+          } catch (_) {}
+          return videoThumb;
         }
       } catch (e) {
         print('⚠️ Error getting thumbnail from video doc: $e');

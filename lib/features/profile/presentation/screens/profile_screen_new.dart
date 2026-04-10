@@ -2,14 +2,12 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:math';
-import 'dart:typed_data';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
 import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/auth_sign_out_helper.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flap_app/models/match.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flap_app/models/badge.dart' as app_badge;
 import 'package:flap_app/features/badges/domain/repositories/badge_repository.dart';
@@ -26,6 +24,91 @@ import 'package:flap_app/features/teams/presentation/screens/team_create_screen.
 
 import 'package:flap_app/core/router/app_router.dart';
 
+/// Win/draw/loss stats from Supabase-backed [Match] rows (same rules as legacy Firestore).
+Map<String, dynamic> _profileScreenMatchStats(List<Match> userMatches, String userId) {
+  final finished = userMatches
+      .where((m) => m.status == MatchStatus.finished)
+      .toList()
+    ..sort((a, b) {
+      final ta = a.finishedAt ?? a.updatedAt;
+      final tb = b.finishedAt ?? b.updatedAt;
+      return tb.compareTo(ta);
+    });
+  final docs = finished.take(20).toList();
+
+  int wins = 0, draws = 0, losses = 0;
+  final List<String> recentResults = [];
+
+  for (final data in docs) {
+    final int? score1Opt = data.teamAScore;
+    final int? score2Opt = data.teamBScore;
+    int score1 = score1Opt ?? 0;
+    int score2 = score2Opt ?? 0;
+
+    if (score1Opt == null || score2Opt == null) {
+      final MatchResult? resultStr = data.result;
+      if (resultStr == MatchResult.teamAWins) {
+        score1 = 1;
+        score2 = 0;
+      } else if (resultStr == MatchResult.teamBWins) {
+        score1 = 0;
+        score2 = 1;
+      } else if (resultStr == MatchResult.draw) {
+        score1 = 0;
+        score2 = 0;
+      } else {
+        continue;
+      }
+    }
+
+    final List<String> teamAPlayers =
+        List<String>.from(data.teamA?.playerIds ?? const []);
+    final List<String> teamBPlayers =
+        List<String>.from(data.teamB?.playerIds ?? const []);
+    bool isTeamA = teamAPlayers.contains(userId);
+
+    if (!isTeamA && teamBPlayers.isEmpty && teamAPlayers.isEmpty) {
+      final List<String> participants = List<String>.from(data.participants);
+      if (participants.isNotEmpty) {
+        final half = (participants.length / 2).ceil();
+        final a = participants.take(half).toList();
+        isTeamA = a.contains(userId);
+      }
+    }
+
+    String playedResult;
+    if (score1 == score2) {
+      draws++;
+      playedResult = 'D';
+    } else if ((isTeamA && score1 > score2) || (!isTeamA && score2 > score1)) {
+      wins++;
+      playedResult = 'W';
+    } else {
+      losses++;
+      playedResult = 'L';
+    }
+
+    if (recentResults.length < 5) {
+      recentResults.add(playedResult);
+    }
+  }
+
+  final total = wins + draws + losses;
+  final winRate = total > 0 ? (wins / total) * 100 : 0.0;
+
+  while (recentResults.length < 5) {
+    recentResults.add('-');
+  }
+
+  return {
+    'winRate': winRate,
+    'recentResults': recentResults,
+    'wins': wins,
+    'draws': draws,
+    'losses': losses,
+  };
+}
+
 @RoutePage(name: 'AppProfileRoute')
 class ProfileScreen extends StatefulWidget {
   @override
@@ -33,9 +116,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final FirebaseStorage _storage = FirebaseStorage.instance;
-  final ImagePicker _picker = ImagePicker();
-  
   Stream<Map<String, dynamic>>? _profileStream;
   List<app_badge.Badge> _userBadges = [];
   int _friendsCount = 0;
@@ -387,16 +467,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildInviteCard(TeamInvite invite) {
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future:
-          FirebaseFirestore.instance.collection('teams').doc(invite.teamId).get(),
+    return FutureBuilder<AppTeam?>(
+      future: context.read<TeamsRepository>().getTeam(invite.teamId),
       builder: (context, snapshot) {
-        final teamData = snapshot.data?.data();
-        final logoUrl = (teamData?['logoUrl'] ?? '').toString();
-        final city = (teamData?['city'] ?? '').toString();
-        final motto = (teamData?['description'] ??
-                I18n.inline(
-                    'Команда кличе вас у склад', 'Club wants you on the roster'))
+        final team = snapshot.data;
+        final logoUrl = (team?.logoUrl ?? '').toString();
+        final city = (team?.city ?? '').toString();
+        final motto = ((team?.description.isNotEmpty ?? false)
+                ? team!.description
+                : I18n.inline(
+                    'Команда кличе вас у склад',
+                    'Club wants you on the roster',
+                  ))
             .toString();
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -1356,14 +1438,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Color _getRatingColor(double rating) {
-    if (rating >= 4.5) return const Color(0xFF4CAF50);
-    if (rating >= 3.5) return const Color(0xFF8BC34A);
-    if (rating >= 2.5) return const Color(0xFFFFC107);
-    if (rating >= 1.5) return const Color(0xFFFF9800);
-    return const Color(0xFFF44336);
-  }
-
   String _getPositionDisplay(String? position) {
     switch (position?.toLowerCase()) {
       case 'goalkeeper':
@@ -1380,253 +1454,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<Map<String, dynamic>> _loadMatchStats(String userId) async {
-  try {
-    // Базовий запит + безпечні fallback-и (щоб не впиратись у композитний індекс)
-    final base = FirebaseFirestore.instance
-        .collection('matches')
-        .where('participants', arrayContains: userId);
-
-    QuerySnapshot<Map<String, dynamic>> matchesSnapshot;
-
+    if (!mounted) {
+      return {
+        'winRate': 0.0,
+        'recentResults': ['-', '-', '-', '-', '-'],
+        'wins': 0,
+        'draws': 0,
+        'losses': 0,
+      };
+    }
     try {
-      matchesSnapshot = await base
-          .where('status', isEqualTo: 'finished')
-          .orderBy('updatedAt', descending: true)
-          .limit(20)
-          .get();
-    } catch (_) {
-      try {
-        matchesSnapshot = await base
-            .where('status', isEqualTo: 'finished')
-            .limit(20)
-            .get();
-      } catch (_) {
-        matchesSnapshot = await base
-            .limit(20)
-            .get();
+      final all =
+          await context.read<MatchesRepository>().getUserMatches(userId).first;
+      if (!mounted) {
+        return {
+          'winRate': 0.0,
+          'recentResults': ['-', '-', '-', '-', '-'],
+          'wins': 0,
+          'draws': 0,
+          'losses': 0,
+        };
       }
-    }
-
-    int wins = 0;
-    int draws = 0;
-    int losses = 0;
-    final List<String> recentResults = [];
-
-    final orderedDocs = [...matchesSnapshot.docs]
-      ..sort((a, b) {
-        final dataA = a.data();
-        final dataB = b.data();
-        final tsA = (dataA['finishedAt'] as Timestamp?) ??
-            (dataA['updatedAt'] as Timestamp?) ??
-            Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
-        final tsB = (dataB['finishedAt'] as Timestamp?) ??
-            (dataB['updatedAt'] as Timestamp?) ??
-            Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
-        return tsB.compareTo(tsA);
-      });
-
-    for (final doc in orderedDocs) {
-      final data = doc.data();
-
-      // 1) Зчитуємо рахунок із числових полів, інакше з текстового result
-      final int? score1Opt = data['teamAScore'] as int?;
-      final int? score2Opt = data['teamBScore'] as int?;
-      int score1 = score1Opt ?? 0;
-      int score2 = score2Opt ?? 0;
-
-      if (score1Opt == null || score2Opt == null) {
-        final String resultStr = (data['result'] as String?) ?? '';
-        if (resultStr == 'teamAWins') {
-          score1 = 1; score2 = 0;
-        } else if (resultStr == 'teamBWins') {
-          score1 = 0; score2 = 1;
-        } else if (resultStr == 'draw') {
-          score1 = 0; score2 = 0;
-        } else {
-          // немає жодної інформації про результат — пропускаємо
-          continue;
-        }
-      }
-
-      // 2) Визначаємо, у якій команді був користувач
-      final List<String> teamAPlayers =
-          List<String>.from((data['teamA']?['playerIds'] ?? const []));
-      final List<String> teamBPlayers =
-          List<String>.from((data['teamB']?['playerIds'] ?? const []));
-      bool isTeamA = teamAPlayers.contains(userId);
-
-      // Fallback: якщо команд немає, але є учасники — вважаємо, що перша половина = А
-      if (!isTeamA && teamBPlayers.isEmpty && teamAPlayers.isEmpty) {
-        final List<String> participants =
-            List<String>.from(data['participants'] ?? const []);
-        if (participants.isNotEmpty) {
-          final half = (participants.length / 2).ceil();
-          final a = participants.take(half).toList();
-          isTeamA = a.contains(userId);
-        }
-      }
-
-      // 3) Рахуємо W/D/L
-      String playedResult;
-      if (score1 == score2) {
-        draws++;
-        playedResult = 'D';
-      } else if ((isTeamA && score1 > score2) || (!isTeamA && score2 > score1)) {
-        wins++;
-        playedResult = 'W';
-      } else {
-        losses++;
-        playedResult = 'L';
-      }
-
-      if (recentResults.length < 5) {
-        recentResults.add(playedResult);
-      }
-    }
-
-    final total = wins + draws + losses;
-    final winRate = total > 0 ? (wins / total) * 100 : 0.0;
-
-    // Доповнюємо до 5 елементів плейсхолдерами
-    while (recentResults.length < 5) {
-      recentResults.add('-');
-    }
-
-    return {
-      'winRate': winRate,
-      'recentResults': recentResults,
-      'wins': wins,
-      'draws': draws,
-      'losses': losses,
-    };
-  } catch (e) {
-    print('Error loading match stats: $e');
-    return {
-      'winRate': 0.0,
-      'recentResults': ['-', '-', '-', '-', '-'],
-      'wins': 0,
-      'draws': 0,
-      'losses': 0,
-    };
-  }
-}
-
-  Future<String?> _uploadAvatar(String uid, XFile picked) async {
-    try {
-      final Uint8List bytes = await picked.readAsBytes();
-      final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = _storage.ref('avatars/$uid/$fileName');
-      final task = await ref.putData(
-        bytes,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-      return await task.ref.getDownloadURL();
+      return _profileScreenMatchStats(all, userId);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            I18n.inline('Не вдалося завантажити фото: $e',
-                'Failed to upload avatar: $e'),
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return null;
+      print('Error loading match stats: $e');
+      return {
+        'winRate': 0.0,
+        'recentResults': ['-', '-', '-', '-', '-'],
+        'wins': 0,
+        'draws': 0,
+        'losses': 0,
+      };
     }
   }
 
   Future<int> _getBadgeEndorsementCount(String userId, String badgeId) async {
-    try {
-      final endorsementsSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('badge_endorsements')
-          .doc(badgeId)
-          .get();
-      
-      if (endorsementsSnapshot.exists) {
-        final data = endorsementsSnapshot.data() as Map<String, dynamic>;
-        final endorsers = List<String>.from(data['endorsers'] ?? []);
-        return endorsers.length;
-      }
-      return 0;
-    } catch (e) {
-      print('Error getting badge endorsement count: $e');
+    // Was Firestore `badge_endorsements`; no Supabase backing in this screen yet.
+    if (userId.isEmpty && badgeId.isEmpty) {
       return 0;
     }
+    return 0;
   }
 
   Future<void> _endorseBadge(String userId, app_badge.Badge badge) async {
     final currentUserId = AppAuthContext.userId;
     if (currentUserId == null) return;
-    
+
     if (currentUserId == userId) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Не можна підтверджувати свої бейджі'.i18n('You cannot endorse your own badges'))),
+        SnackBar(
+          content: Text(
+            'Не можна підтверджувати свої бейджі'
+                .i18n('You cannot endorse your own badges'),
+          ),
+        ),
       );
       return;
     }
-    
-    try {
-      final endorsementRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('badge_endorsements')
-          .doc(badge.id);
-      
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final endorsementDoc = await transaction.get(endorsementRef);
-        
-        List<String> endorsers = [];
-        if (endorsementDoc.exists) {
-          endorsers = List<String>.from(endorsementDoc.data()?['endorsers'] ?? []);
-        }
-        
-        if (endorsers.contains(currentUserId)) {
-          throw Exception('Ви вже підтвердили цей бейдж'.i18n('You already endorsed this badge'));
-        }
-        
-        endorsers.add(currentUserId);
-        
-        transaction.set(endorsementRef, {
-          'endorsers': endorsers,
-          'lastEndorsedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      });
-      
-      // Відправляємо нотифікацію власнику бейджу
-      final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserId).get();
-      final currentUserName = currentUserDoc.data()?['displayName'] ?? currentUserDoc.data()?['name'] ?? 'Користувач'.i18n('User');
-      
-      await FirebaseFirestore.instance.collection('notifications').add({
-        'userId': userId,
-        'type': 'badgeEndorsed',
-        'title': 'Підтвердження бейджу'.i18n('Badge endorsement'),
-        'message': I18n.inline('$currentUserName підтвердив ваш бейдж "${badge.localizedName}"', '$currentUserName confirmed your badge "${badge.localizedName}"'),
-        'data': {'badgeId': badge.id},
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(I18n.inline('✅ Бейдж "${badge.localizedName}" підтверджено!', '✅ Badge "${badge.localizedName}" verified!')),
-          backgroundColor: Colors.green,
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          I18n.inline(
+            'Підтвердження «${badge.localizedName}» на сервері ще не підключені.',
+            'Badge endorsements for "${badge.localizedName}" are not saved to the server yet.',
+          ),
         ),
-      );
-      
-      // Оновлюємо UI
-      setState(() {});
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().contains('вже підтвердили') 
-              ? 'Ви вже підтвердили цей бейдж'.i18n('You already endorsed this badge')
-              : 'Помилка підтвердження'.i18n('Endorsement error')),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
+      ),
+    );
   }
 
   void _openFriends() {
@@ -1713,43 +1609,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(I18n.t('logout'), style: const TextStyle(color: Colors.red)),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ProfileField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final IconData icon;
-  final int maxLines;
-  final String? Function(String?)? validator;
-
-  const _ProfileField({
-    required this.controller,
-    required this.label,
-    required this.icon,
-    this.maxLines = 1,
-    this.validator,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      maxLines: maxLines,
-      style: const TextStyle(color: Colors.white),
-      validator: validator,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: Colors.white70),
-        filled: true,
-        fillColor: Colors.white.withOpacity(0.05),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
-        labelStyle: const TextStyle(color: Colors.white70),
       ),
     );
   }

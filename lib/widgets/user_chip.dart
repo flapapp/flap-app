@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 class UserChip extends StatelessWidget {
@@ -30,15 +30,34 @@ class UserChip extends StatelessWidget {
       return _buildContent(context, displayName: name!, resolvedAvatarUrl: avatarUrl!);
     }
 
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _fetchProfileRow(userId),
       builder: (context, snapshot) {
-        final data = snapshot.data?.data() ?? <String, dynamic>{};
-        final displayName = name ?? (data['displayName'] ?? data['name'] ?? data['email']?.toString().split('@').first ?? I18n.inline('Користувач', 'User'));
-        final resolvedAvatarUrl = avatarUrl ?? (data['avatarUrl'] ?? data['avatar'] ?? '');
+        final data = snapshot.data ?? <String, dynamic>{};
+        final displayName = name ??
+            (data['display_name'] ??
+                    data['name'] ??
+                    data['email']?.toString().split('@').first ??
+                    I18n.inline('Користувач', 'User'))
+                .toString();
+        final resolvedAvatarUrl =
+            avatarUrl ?? (data['avatar_url'] ?? data['avatar'] ?? '').toString();
         return _buildContent(context, displayName: displayName, resolvedAvatarUrl: resolvedAvatarUrl);
       },
     );
+  }
+
+  static Future<Map<String, dynamic>?> _fetchProfileRow(String id) async {
+    try {
+      final row = await Supabase.instance.client
+          .from('profiles')
+          .select('display_name, name, surname, email, avatar_url')
+          .eq('id', id)
+          .maybeSingle();
+      return row != null ? Map<String, dynamic>.from(row) : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Widget _buildContent(BuildContext context, {required String displayName, required String resolvedAvatarUrl}) {
@@ -83,6 +102,3 @@ class UserChip extends StatelessWidget {
     );
   }
 }
-
-
-

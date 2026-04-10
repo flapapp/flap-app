@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class Submission {
   final String id;
   final String challengeId;
@@ -33,27 +31,33 @@ class Submission {
     this.isActive = true,
   });
 
-  // Factory constructor from Firestore
-  factory Submission.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    
+  static DateTime _readDate(dynamic v) {
+    if (v is DateTime) return v;
+    if (v is String) {
+      final p = DateTime.tryParse(v);
+      if (p != null) return p;
+    }
+    return DateTime.now();
+  }
+
+  factory Submission.fromMap(Map<String, dynamic> data, {required String id}) {
     final votes = Map<String, double>.from(data['votes'] ?? {});
     final totalVotes = votes.length;
-    final averageRating = totalVotes > 0 
-        ? votes.values.reduce((a, b) => a + b) / totalVotes 
+    final averageRating = totalVotes > 0
+        ? votes.values.reduce((a, b) => a + b) / totalVotes
         : 0.0;
 
     return Submission(
-      id: doc.id,
+      id: id,
       challengeId: data['challengeId'] ?? '',
       userId: data['userId'] ?? '',
       userName: data['userName'] ?? '',
       userAvatar: data['userAvatar'] ?? '',
       videoUrl: data['videoUrl'] ?? '',
-      thumbnailUrl: data['thumbnailUrl'],
+      thumbnailUrl: data['thumbnailUrl'] as String?,
       title: data['title'] ?? '',
-      description: data['description'],
-      submittedAt: (data['submittedAt'] as Timestamp).toDate(),
+      description: data['description'] as String?,
+      submittedAt: _readDate(data['submittedAt']),
       votes: votes,
       averageRating: averageRating,
       totalVotes: totalVotes,
@@ -61,8 +65,7 @@ class Submission {
     );
   }
 
-  // Convert to Map for Firestore
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toJsonMap() {
     return {
       'challengeId': challengeId,
       'userId': userId,
@@ -72,7 +75,7 @@ class Submission {
       'thumbnailUrl': thumbnailUrl,
       'title': title,
       'description': description,
-      'submittedAt': Timestamp.fromDate(submittedAt),
+      'submittedAt': submittedAt.toUtc().toIso8601String(),
       'votes': votes,
       'averageRating': averageRating,
       'totalVotes': totalVotes,
@@ -80,7 +83,6 @@ class Submission {
     };
   }
 
-  // Copy with changes
   Submission copyWith({
     String? id,
     String? challengeId,
@@ -115,14 +117,13 @@ class Submission {
     );
   }
 
-  // Add a vote
   Submission addVote(String voterId, double rating) {
     final newVotes = Map<String, double>.from(votes);
     newVotes[voterId] = rating;
-    
+
     final newTotalVotes = newVotes.length;
-    final newAverageRating = newTotalVotes > 0 
-        ? newVotes.values.reduce((a, b) => a + b) / newTotalVotes 
+    final newAverageRating = newTotalVotes > 0
+        ? newVotes.values.reduce((a, b) => a + b) / newTotalVotes
         : 0.0;
 
     return copyWith(
@@ -132,27 +133,23 @@ class Submission {
     );
   }
 
-  // Check if user has voted
   bool hasUserVoted(String userId) {
     return votes.containsKey(userId);
   }
 
-  // Get user's vote
   double? getUserVote(String userId) {
     return votes[userId];
   }
 
-  // Rating display with stars
   String get ratingDisplay {
     return '⭐ ${averageRating.toStringAsFixed(1)}';
   }
 
-  // Rating color based on score
   int get ratingColor {
-    if (averageRating >= 4.5) return 0xFF4CAF50; // Green
-    if (averageRating >= 3.5) return 0xFF8BC34A; // Light Green
-    if (averageRating >= 2.5) return 0xFFFFC107; // Yellow
-    if (averageRating >= 1.5) return 0xFFFF9800; // Orange
-    return 0xFFF44336; // Red
+    if (averageRating >= 4.5) return 0xFF4CAF50;
+    if (averageRating >= 3.5) return 0xFF8BC34A;
+    if (averageRating >= 2.5) return 0xFFFFC107;
+    if (averageRating >= 1.5) return 0xFFFF9800;
+    return 0xFFF44336;
   }
 }

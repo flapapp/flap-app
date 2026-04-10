@@ -1,6 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
-import 'package:flap_app/features/matches/data/rating_tracking_service.dart';
 import 'package:flap_app/features/matches/data/datasources/matches_remote_data_source.dart';
 import 'package:flap_app/features/matches/data/datasources/supabase_matches_remote_data_source.dart';
 import 'package:flap_app/features/videos/data/datasources/supabase_videos_remote_data_source.dart';
@@ -443,33 +442,6 @@ class RatingService {
 
       // Додавання в історію рейтингу
       await _addRatingHistory(userId, overallRating, matchRating, videoRating);
-
-      // Дублюємо запис у публічну колекцію rating_history для відображення в модалці
-      try {
-        if (reason != null) {
-          String? challengeTitle;
-          if (sourceType == 'challenge' && sourceId != null && sourceId!.isNotEmpty) {
-            try {
-              final row = await Supabase.instance.client
-                  .from('challenges')
-                  .select('title')
-                  .eq('id', sourceId)
-                  .maybeSingle();
-              challengeTitle = row?['title']?.toString();
-            } catch (_) {}
-          }
-          await RatingTrackingService().recordRatingChange(
-            userId: userId,
-            oldRating: double.parse(oldRating.toStringAsFixed(2)),
-            newRating: double.parse(overallRating.toStringAsFixed(2)),
-            reason: reason,
-            challengeTitle: challengeTitle,
-            voterName: source,
-            challengeId: sourceType == 'challenge' ? sourceId : null,
-            videoTitle: sourceType == 'video' ? sourceId : null,
-          );
-        }
-      } catch (_) {}
 
       // Відправка сповіщення про зміну рейтингу — для challenge_vote надсилаємо окремо в місці голосу
       if (reason != null && source != null && reason != 'challenge_vote') {

@@ -1,27 +1,4 @@
 {
-  "flutter": {
-    "platforms": {
-      "android": {
-        "default": {
-          "projectId": "flap-app-5c0c2",
-          "appId": "1:68200966561:android:cc4c450b215bdbd033c3e0",
-          "fileOutput": "android/app/google-services.json"
-        }
-      },
-      "dart": {
-        "lib/firebase_options.dart": {
-          "projectId": "flap-app-5c0c2",
-          "configurations": {
-            "android": "1:68200966561:android:cc4c450b215bdbd033c3e0",
-            "ios": "1:68200966561:ios:49e22b61d0f2256d33c3e0",
-            "macos": "1:68200966561:ios:49e22b61d0f2256d33c3e0",
-            "web": "1:68200966561:web:d86346473fb9dffd33c3e0",
-            "windows": "1:68200966561:web:ab8b2e98ead8b7a033c3e0"
-          }
-        }
-      }
-    }
-  },
   "firestore": {
     "rules": "firestore.rules"
   },

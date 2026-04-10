@@ -8,10 +8,10 @@ import 'package:flap_app/features/notifications/domain/usecases/notifications_us
 import 'package:flap_app/features/notifications/presentation/bloc/notifications_bloc.dart';
 import 'package:flap_app/features/notifications/presentation/bloc/notifications_event.dart';
 import 'package:flap_app/features/notifications/presentation/bloc/notifications_state.dart';
+import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'package:flap_app/features/videos/presentation/screens/video_player_screen.dart';
 import 'package:flap_app/models/notification.dart';
 import 'package:flap_app/utils/i18n.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 @RoutePage()
 class NotificationsScreen extends StatelessWidget {
@@ -594,17 +594,16 @@ class _NotificationsViewState extends State<_NotificationsView> {
 
   Future<void> _openVideoById(String videoId) async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('videos').doc(videoId).get();
-      if (!doc.exists) {
+      final v = await context.read<VideosRepository>().fetchVideo(videoId);
+      if (v == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(I18n.inline('Відео не знайдено', 'Video not found'))),
         );
         return;
       }
-      final data = doc.data() as Map<String, dynamic>;
-      final videoUrl = (data['videoUrl'] ?? '').toString();
-      final title = (data['title'] ?? I18n.inline('Відео', 'Video')).toString();
+      final videoUrl = v.videoUrl;
+      final title = v.title.isNotEmpty ? v.title : I18n.inline('Відео', 'Video');
       if (videoUrl.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -619,7 +618,7 @@ class _NotificationsViewState extends State<_NotificationsView> {
           builder: (context) => VideoPlayerScreen(
             videoUrl: videoUrl,
             title: title,
-            authorName: '',
+            authorName: v.authorName,
             videoId: videoId,
           ),
         ),

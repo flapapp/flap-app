@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 /// Maps a Supabase `profiles` row to the legacy Firestore `users` document shape
 /// consumed by profile UI.
 Map<String, dynamic> profileRowToLegacyUserMap(Map<String, dynamic> row) {
@@ -66,11 +64,11 @@ Map<String, dynamic> profileRowToLegacyUserMap(Map<String, dynamic> row) {
   };
 }
 
-/// Parses [ratingHistory] entries from Supabase (ISO strings) or Firestore legacy.
+/// Parses [ratingHistory] entries from Supabase (ISO strings).
 DateTime? profileRatingHistoryTimestamp(dynamic ts) {
-  if (ts is Timestamp) return ts.toDate();
   if (ts is String) {
     return DateTime.tryParse(ts)?.toLocal();
   }
+  if (ts is DateTime) return ts;
   return null;
 }

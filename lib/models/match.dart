@@ -2,7 +2,12 @@ import 'dart:collection';
 
 import 'dart:math';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+/// Geographic point (legacy Firestore `GeoPoint` shape: latitude / longitude).
+class GeoPoint {
+  const GeoPoint(this.latitude, this.longitude);
+  final double latitude;
+  final double longitude;
+}
 
 // Статус матчу
 enum MatchStatus {
@@ -42,9 +47,7 @@ class Team {
     this.playerRatings = const {},
   });
 
-  // Створення з Firestore
-  factory Team.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory Team.fromMap(Map<String, dynamic> data) {
     return Team(
       name: data['name'] ?? '',
       playerIds: List<String>.from(data['playerIds'] ?? []),
@@ -53,8 +56,7 @@ class Team {
     );
   }
 
-  // Конвертація в Map для Firestore
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toJsonMap() {
     return {
       'name': name,
       'playerIds': playerIds,
@@ -95,25 +97,35 @@ class PlayerRating {
     this.criteria = const {},
   });
 
-  // Створення з Firestore
-  factory PlayerRating.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory PlayerRating.fromMap(Map<String, dynamic> data) {
     return PlayerRating(
       playerId: data['playerId'] ?? '',
       ratedBy: data['ratedBy'] ?? '',
       rating: (data['rating'] ?? 0.0).toDouble(),
-      ratedAt: (data['ratedAt'] as Timestamp).toDate(),
+      ratedAt: _readRatedAt(data['ratedAt']),
       criteria: Map<String, double>.from(data['criteria'] ?? {}),
     );
   }
 
-  // Конвертація в Map для Firestore
-  Map<String, dynamic> toFirestore() {
+  static DateTime _readRatedAt(dynamic v) {
+    if (v is DateTime) return v;
+    if (v is String) {
+      final p = DateTime.tryParse(v);
+      if (p != null) return p;
+    }
+    if (v is num) {
+      return DateTime.fromMillisecondsSinceEpoch(v.toInt(), isUtc: true)
+          .toLocal();
+    }
+    return DateTime.now();
+  }
+
+  Map<String, dynamic> toJsonMap() {
     return {
       'playerId': playerId,
       'ratedBy': ratedBy,
       'rating': rating,
-      'ratedAt': Timestamp.fromDate(ratedAt),
+      'ratedAt': ratedAt.toUtc().toIso8601String(),
       'criteria': criteria,
     };
   }
@@ -233,17 +245,26 @@ class Match {
   });
 
   static DateTime _readReqDate(dynamic v) {
-    if (v is Timestamp) return v.toDate();
     if (v is DateTime) return v;
-    if (v is String) return DateTime.tryParse(v) ?? DateTime.now();
+    if (v is String) {
+      final p = DateTime.tryParse(v);
+      if (p != null) return p;
+    }
+    if (v is num) {
+      return DateTime.fromMillisecondsSinceEpoch(v.toInt(), isUtc: true)
+          .toLocal();
+    }
     return DateTime.now();
   }
 
   static DateTime? _readOptDate(dynamic v) {
     if (v == null) return null;
-    if (v is Timestamp) return v.toDate();
     if (v is DateTime) return v;
     if (v is String) return DateTime.tryParse(v);
+    if (v is num) {
+      return DateTime.fromMillisecondsSinceEpoch(v.toInt(), isUtc: true)
+          .toLocal();
+    }
     return null;
   }
 
@@ -262,9 +283,6 @@ class Match {
 
   /// JSON map shaped like legacy Firestore `matches` documents (Supabase `document` jsonb).
   factory Match.fromJsonMap(Map<String, dynamic> data, {required String id}) {
-    final createdAtTs = data['createdAt'] as Timestamp?;
-    final updatedAtTs = data['updatedAt'] as Timestamp?;
-
     return Match(
       id: id,
       title: data['title'] ?? '',
@@ -374,24 +392,11 @@ teamAScore: data['teamAScore'],
                 ),
               ))
           .toList(),
-      createdAt: createdAtTs != null
-          ? createdAtTs.toDate()
-          : _readOptDate(data['createdAt']) ?? DateTime.now(),
-      updatedAt: updatedAtTs != null
-          ? updatedAtTs.toDate()
-          : _readOptDate(data['updatedAt']) ?? DateTime.now(),
+      createdAt: _readOptDate(data['createdAt']) ?? DateTime.now(),
+      updatedAt: _readOptDate(data['updatedAt']) ?? DateTime.now(),
       startedAt: _readOptDate(data['startedAt']),
       finishedAt: _readOptDate(data['finishedAt']),
     );
-  }
-
-  // Створення з Firestore
-  factory Match.fromFirestore(DocumentSnapshot doc) {
-    final raw = doc.data();
-    if (raw == null) {
-      return Match.fromJsonMap({}, id: doc.id);
-    }
-    return Match.fromJsonMap(Map<String, dynamic>.from(raw as Map), id: doc.id);
   }
 
   dynamic _writeStorageDate(DateTime? d) =>
@@ -424,9 +429,9 @@ teamAScore: data['teamAScore'],
       'isPrivate': isPrivate,
       'invitedFriends': invitedFriends,
       'status': status.toString().split('.').last,
-      'teamA': teamA?.toFirestore(),
-      'teamB': teamB?.toFirestore(),
-      'teams': teams.map((t) => t.toFirestore()).toList(),
+      'teamA': teamA?.toJsonMap(),
+      'teamB': teamB?.toJsonMap(),
+      'teams': teams.map((t) => t.toJsonMap()).toList(),
       'teamCount': teamCount,
       'multiTeamStats': multiTeamStats,
       'teamMatch': isTeamMatch,
@@ -457,61 +462,6 @@ teamAScore: data['teamAScore'],
       'updatedAt': _writeStorageDate(updatedAt),
       'startedAt': _writeStorageDate(startedAt),
       'finishedAt': _writeStorageDate(finishedAt),
-    };
-  }
-
-  // Конвертація в Map для Firestore
-  Map<String, dynamic> toFirestore() {
-    return {
-      'title': title,
-      'description': description,
-      'organizerId': organizerId,
-      'organizerName': organizerName,
-      'date': Timestamp.fromDate(date),
-      'time': time,
-      'location': location,
-      'city': city,
-      'coordinates': coordinates,
-      'currentPlayers': currentPlayers,
-      'maxPlayers': maxPlayers,
-      'participants': participants,
-      'pendingApplications': pendingApplications,
-      'rejectedApplications': rejectedApplications,
-      'level': level.toString().split('.').last,
-      'cost': cost,
-      'autoBalance': autoBalance,
-      'isPrivate': isPrivate,
-      'invitedFriends': invitedFriends,
-      'status': status.toString().split('.').last,
-      'teamA': teamA?.toFirestore(),
-      'teamB': teamB?.toFirestore(),
-      'teams': teams.map((t) => t.toFirestore()).toList(),
-      'teamCount': teamCount,
-      'multiTeamStats': multiTeamStats,
-      'teamMatch': isTeamMatch,
-      'teamAId': teamAId,
-      'teamBId': teamBId,
-      'teamAStatus': teamAStatus,
-      'teamBStatus': teamBStatus,
-      'teamRosters': teamRosters,
-      'teamRosterStatus': teamRosterStatus,
-      'goalsByPlayer': goalsByPlayer,
-      'teamsReadyNotified': teamsReadyNotified,
-      'teamsReadyNotifiedAt': teamsReadyNotifiedAt != null
-          ? Timestamp.fromDate(teamsReadyNotifiedAt!)
-          : null,
-      'coverPhotoUrl': coverPhotoUrl,
-      'coverPhotoUpdatedAt': coverPhotoUpdatedAt != null
-          ? Timestamp.fromDate(coverPhotoUpdatedAt!)
-          : null,
-      'result': result?.toString().split('.').last,
-      'teamAScore': teamAScore,
-      'teamBScore': teamBScore,
-      'playerRatings': playerRatings.map((rating) => rating.toFirestore()).toList(),
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
-      'startedAt': startedAt != null ? Timestamp.fromDate(startedAt!) : null,
-      'finishedAt': finishedAt != null ? Timestamp.fromDate(finishedAt!) : null,
     };
   }
 

@@ -1,9 +1,11 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/features/auth/domain/entities/user_profile_snapshot.dart';
 import 'package:flap_app/models/match.dart';
 import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
+import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/team_logo_button.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
@@ -60,15 +62,39 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
       return _userCache[userId]!;
     }
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
-      final data = doc.data() as Map<String, dynamic>? ?? const {};
+      final row = await Supabase.instance.client
+          .from('profiles')
+          .select(
+            'display_name, name, surname, email, avatar_url, rating, wins, draws, losses',
+          )
+          .eq('id', userId)
+          .maybeSingle();
+      if (row == null) {
+        final fallback = <String, dynamic>{
+          'displayName': I18n.t('player'),
+          'avatarUrl': '',
+          'photoUrl': '',
+          'rating': 0.0,
+          'wins': 0,
+          'draws': 0,
+          'losses': 0,
+        };
+        _userCache[userId] = fallback;
+        return fallback;
+      }
+      final data = Map<String, dynamic>.from(row);
+      final snap = UserProfileSnapshot.fromSupabaseRow(data);
+      final display = snap.resolveDisplayName().isNotEmpty
+          ? snap.resolveDisplayName()
+          : I18n.t('player');
       final profile = <String, dynamic>{
-        'displayName': (data['displayName'] ?? I18n.t('player')).toString(),
-        'avatarUrl': ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toString(),
-        'rating': (data['rating'] ?? 0.0),
-        'wins': (data['wins'] ?? 0),
-        'draws': (data['draws'] ?? 0),
-        'losses': (data['losses'] ?? 0),
+        'displayName': display,
+        'avatarUrl': (data['avatar_url'] ?? '').toString(),
+        'photoUrl': data['avatar_url'],
+        'rating': (data['rating'] as num?)?.toDouble() ?? 0.0,
+        'wins': data['wins'] ?? 0,
+        'draws': data['draws'] ?? 0,
+        'losses': data['losses'] ?? 0,
       };
       _userCache[userId] = profile;
       return profile;
@@ -76,6 +102,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
       final fallback = <String, dynamic>{
         'displayName': I18n.t('player'),
         'avatarUrl': '',
+        'photoUrl': '',
         'rating': 0.0,
         'wins': 0,
         'draws': 0,
@@ -91,8 +118,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
     Team? fallback, {
     required String fallbackLabel,
   }) async {
+    final fbName = fallback?.name;
     final effectiveLabel =
-        (fallback?.name?.isNotEmpty ?? false) ? fallback!.name : fallbackLabel;
+        (fbName != null && fbName.isNotEmpty) ? fbName : fallbackLabel;
 
     if (teamId == null || teamId.isEmpty) {
       return _ClubInfo.fromTeam(fallback, fallbackLabel: effectiveLabel);
@@ -102,15 +130,16 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
     if (cached != null) return cached;
 
     try {
-      final doc =
-          await FirebaseFirestore.instance.collection('teams').doc(teamId).get();
-      final data = doc.data();
+      final team = await context.read<TeamsRepository>().getTeam(teamId);
+      if (team == null) {
+        final info = _ClubInfo.fromTeam(fallback, fallbackLabel: effectiveLabel);
+        _clubCache[teamId] = info;
+        return info;
+      }
       final info = _ClubInfo(
-        name: (data?['name'] ?? effectiveLabel).toString(),
-        logoUrl: (data?['logoUrl'] ?? '').toString(),
-        rating:
-            (data?['rating'] ?? data?['teamRating'] ?? fallback?.averageRating ?? 0)
-                .toDouble(),
+        name: team.name.isNotEmpty ? team.name : effectiveLabel,
+        logoUrl: team.logoUrl ?? '',
+        rating: fallback?.averageRating ?? 0.0,
       );
       _clubCache[teamId] = info;
       return info;
@@ -119,16 +148,6 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
       _clubCache[teamId] = info;
       return info;
     }
-  }
-
-  String _initialsFrom(String name, String fallback) {
-    final s = name.trim();
-    if (s.isEmpty) return fallback.substring(0, 2).toUpperCase();
-    final parts = s.split(RegExp(r'\s+'));
-    final first = parts.isNotEmpty ? parts[0] : '';
-    final second = parts.length > 1 ? parts[1] : '';
-    final letters = (first.isNotEmpty ? first[0] : '') + (second.isNotEmpty ? second[0] : '');
-    return letters.isEmpty ? fallback.substring(0, 2).toUpperCase() : letters.toUpperCase();
   }
 
   @override
@@ -168,13 +187,8 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
     setState(() => _isLoading = true);
 
     try {
-      final matchDoc = await FirebaseFirestore.instance
-          .collection('matches')
-          .doc(widget.match.id)
-          .get();
-
-      if (matchDoc.exists) {
-        final updatedMatch = Match.fromFirestore(matchDoc);
+      final updatedMatch = await _matchesRepo.fetchMatch(widget.match.id);
+      if (updatedMatch != null) {
         setState(() {
           _latestMatch = updatedMatch;
           _pendingApplications = updatedMatch.pendingApplications;
@@ -238,16 +252,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
         ),
         bottom: PreferredSize(
           preferredSize: Size.fromHeight(48),
-          child: StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('matches')
-                .doc(widget.match.id)
-                .snapshots(),
+          child: StreamBuilder<Match?>(
+            stream: _matchesRepo.watchMatch(widget.match.id),
             builder: (context, snap) {
-              final has = snap.hasData && snap.data!.exists;
-              final m = has ? Match.fromFirestore(snap.data!) : widget.match;
-              final pendingCount = has ? m.pendingApplications.length : _pendingApplications.length;
-              final participantsCount = has ? m.participants.length : _participants.length;
+              final m = snap.data ?? widget.match;
+              final pendingCount = m.pendingApplications.length;
+              final participantsCount = m.participants.length;
 
               return TabBar(
                 controller: _tabController,
@@ -321,19 +331,13 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
   }
 
   Widget _buildApplicationsTab() {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('matches')
-          .doc(widget.match.id)
-          .snapshots(),
+    return StreamBuilder<Match?>(
+      stream: _matchesRepo.watchMatch(widget.match.id),
       builder: (context, snap) {
-        if (!snap.hasData) {
+        if (snap.connectionState == ConnectionState.waiting && snap.data == null) {
           return Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
         }
-        if (!snap.data!.exists) {
-          return Center(child: Text(I18n.inline('Матч не знайдено', 'Match not found'), style: const TextStyle(color: Colors.white70)));
-        }
-        final updated = Match.fromFirestore(snap.data!);
+        final updated = snap.data ?? widget.match;
         final pending = updated.pendingApplications;
         if (pending.isEmpty) {
           return Center(child: Text(I18n.inline('Немає заявок', 'No applications'), style: const TextStyle(color: Colors.white70)));
@@ -350,20 +354,13 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
   // -------- TEAMS TAB --------
 
   Widget _buildTeamsTab() {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('matches')
-          .doc(widget.match.id)
-          .snapshots(),
+    return StreamBuilder<Match?>(
+      stream: _matchesRepo.watchMatch(widget.match.id),
       builder: (context, snap) {
-        if (!snap.hasData) {
+        if (snap.connectionState == ConnectionState.waiting && snap.data == null) {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
         }
-        if (!snap.data!.exists) {
-          return const Center(child: Text('Матч не знайдено', style: TextStyle(color: Colors.white70)));
-        }
-
-        final match = Match.fromFirestore(snap.data!);
+        final match = snap.data ?? widget.match;
         final isOrganizer = AppAuthContext.userId == match.organizerId;
         return _buildTeamsContent(match, isOrganizer);
       },
@@ -1509,13 +1506,6 @@ List<List<String>> _autoDistributePlayers(
   return best;
 }
 
-void _applyDistribution(List<String> playerIds, Map<String, double> ratings, int teamCount) {
-  final distributed = _autoDistributePlayers(playerIds, ratings, teamCount);
-  _editingTeams = distributed;
-  _editingTeamA = distributed.isNotEmpty ? distributed.first : [];
-  _editingTeamB = distributed.length > 1 ? distributed[1] : [];
-}
-
 Future<void> _shuffleTeams(Match match) async {
   setState(() => _isLoading = true);
   try {
@@ -1560,20 +1550,14 @@ setState(() {
 }
 
 Widget _buildSettingsTab() {
-  return StreamBuilder<DocumentSnapshot>(
-    stream: FirebaseFirestore.instance
-        .collection('matches')
-        .doc(widget.match.id)
-        .snapshots(),
+  return StreamBuilder<Match?>(
+    stream: _matchesRepo.watchMatch(widget.match.id),
     builder: (context, snap) {
-      if (!snap.hasData) {
+      if (snap.connectionState == ConnectionState.waiting && snap.data == null) {
         return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
       }
-      if (!snap.data!.exists) {
-        return const Center(child: Text('Матч не знайдено', style: TextStyle(color: Colors.white70)));
-      }
 
-      final m = Match.fromFirestore(snap.data!);
+      final m = snap.data ?? widget.match;
 
       return Padding(
         padding: const EdgeInsets.all(16),
@@ -1685,18 +1669,19 @@ Widget _buildApplicationCard(String userId) {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Заголовок заявки з даними користувача (імʼя/аватар/рейтинг)
-        StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .snapshots(),
+        FutureBuilder<Map<String, dynamic>>(
+          future: _getUserProfile(userId),
           builder: (context, snap) {
-            final Map<String, dynamic> data =
-                (snap.hasData && snap.data!.exists)
-                    ? (snap.data!.data() as Map<String, dynamic>)
-                    : const {};
-            final String displayName = (data['displayName'] ?? I18n.t('player')) as String;
-final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toString();
+            final data = snap.data ??
+                <String, dynamic>{
+                  'displayName': I18n.t('player'),
+                  'avatarUrl': '',
+                  'rating': 0.0,
+                };
+            final String displayName =
+                (data['displayName'] ?? I18n.t('player')).toString();
+            final String avatarUrl =
+                ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toString();
             final double rating = (data['rating'] is num)
                 ? (data['rating'] as num).toDouble()
                 : 0.0;
@@ -1822,58 +1807,34 @@ final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toStrin
     ),
   );
 }
-Widget _hintBox(IconData icon, Color color, String text) {
-  return Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: color.withOpacity(0.3)),
-    ),
-    child: Row(
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 12),
-        Expanded(child: Text(text, style: TextStyle(color: color, fontSize: 14))),
-      ],
-    ),
-  );
-}
-  
+
 Future<Map<String, double>> _fetchRatings(List<String> ids) async {
   final Map<String, double> result = {};
-  const int chunkSize = 10;
+  if (ids.isEmpty) return result;
+  const int chunkSize = 100;
   for (var i = 0; i < ids.length; i += chunkSize) {
-    final chunk = ids.sublist(i, i + chunkSize > ids.length ? ids.length : i + chunkSize);
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .where(FieldPath.documentId, whereIn: chunk)
-        .get();
-    for (final doc in snap.docs) {
-      final data = doc.data();
-      final r = (data['rating'] is num) ? (data['rating'] as num).toDouble() : 0.0;
-      result[doc.id] = r;
-    }
+    final end = i + chunkSize > ids.length ? ids.length : i + chunkSize;
+    final chunk = ids.sublist(i, end);
+    try {
+      final rows = await Supabase.instance.client
+          .from('profiles')
+          .select('id,rating')
+          .inFilter('id', chunk);
+      for (final raw in (rows as List)) {
+        final m = Map<String, dynamic>.from(raw as Map);
+        final id = m['id']?.toString();
+        if (id == null) continue;
+        final r =
+            (m['rating'] is num) ? (m['rating'] as num).toDouble() : 0.0;
+        result[id] = r;
+      }
+    } catch (_) {}
     for (final id in chunk) {
       result.putIfAbsent(id, () => 0.0);
     }
   }
   return result;
 }
-
- double _localAvgFor(List<String> players, double remoteAvg) {
-  if (_ratingsCache.isEmpty || players.isEmpty) return remoteAvg;
-  double sum = 0.0;
-  int n = 0;
-  for (final id in players) {
-    final r = _ratingsCache[id];
-    if (r != null) {
-      sum += r;
-      n++;
-    }
-  }
-  return n > 0 ? sum / n : remoteAvg;
-} 
 
 double _teamTotalRating(List<String> players, Map<String, double> ratings, double remoteAvg) {
   if (players.isEmpty) return 0.0;
@@ -1952,79 +1913,7 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
       );
     }
   }
-    Widget _buildTeamCard(String teamName, Team team) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                teamName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  I18n.inline('Рейтинг: ${team.averageRating.toStringAsFixed(2)}', 'Rating: ${team.averageRating.toStringAsFixed(2)}'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
-          Text(
-            I18n.inline('Гравці (${team.playerIds.length}):', 'Players (${team.playerIds.length}):'),
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
-          ),
-          SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: team.playerIds.map((playerId) {
-              return Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  playerId.substring(0, 2).toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
+
   Widget _mvpTeamCard({
   required String title,
   required Color color,
@@ -2708,18 +2597,28 @@ setState(() {
 
   Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {
     final names = <String, String>{};
-    for (final id in ids) {
+    if (ids.isEmpty) return names;
+    const chunkSize = 50;
+    for (var i = 0; i < ids.length; i += chunkSize) {
+      final end = i + chunkSize > ids.length ? ids.length : i + chunkSize;
+      final chunk = ids.sublist(i, end);
       try {
-        final doc =
-            await FirebaseFirestore.instance.collection('users').doc(id).get();
-        final data = doc.data();
-        names[id] = (data?['displayName'] ??
-                data?['name'] ??
-                data?['authorName'] ??
-                I18n.t('player'))
-            .toString();
-      } catch (_) {
-        names[id] = I18n.t('player');
+        final rows = await Supabase.instance.client
+            .from('profiles')
+            .select('id, display_name, name, surname, email')
+            .inFilter('id', chunk);
+        for (final raw in (rows as List)) {
+          final row = Map<String, dynamic>.from(raw as Map);
+          final id = row['id']?.toString() ?? '';
+          if (id.isEmpty) continue;
+          final snap = UserProfileSnapshot.fromSupabaseRow(row);
+          names[id] = snap.resolveDisplayName().isNotEmpty
+              ? snap.resolveDisplayName()
+              : I18n.t('player');
+        }
+      } catch (_) {}
+      for (final id in chunk) {
+        names.putIfAbsent(id, () => I18n.t('player'));
       }
     }
     return names;
@@ -2804,8 +2703,9 @@ class _ClubInfo {
   });
 
   factory _ClubInfo.fromTeam(Team? team, {required String fallbackLabel}) {
+    final n = team?.name;
     return _ClubInfo(
-      name: team?.name?.isNotEmpty == true ? team!.name : fallbackLabel,
+      name: (n != null && n.isNotEmpty) ? n : fallbackLabel,
       logoUrl: null,
       rating: team?.averageRating,
     );

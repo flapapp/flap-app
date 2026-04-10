@@ -1,4 +1,3 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
 import 'package:flap_app/features/notifications/data/datasources/supabase_notifications_remote_data_source.dart';
@@ -10,28 +9,22 @@ import 'package:flap_app/models/notification.dart';
 import 'package:flap_app/core/router/app_router.dart';
 import 'package:flap_app/utils/app_navigator.dart';
 import 'package:flap_app/utils/i18n.dart';
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// FCM + deep links + high-level send helpers. Persistence uses [NotificationsRepository].
+/// In-app / Supabase notifications + high-level send helpers. Persistence uses [NotificationsRepository].
+/// Device push (FCM) was removed; server-triggered delivery should use your backend + provider.
 class NotificationService {
   NotificationService({NotificationsRepository? notificationsRepository})
       : _repo = notificationsRepository ??
             NotificationsRepositoryImpl(SupabaseNotificationsRemoteDataSource());
 
   final NotificationsRepository _repo;
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
-  /// Set from `main.dart` so cold-start / tap routing can load matches from Supabase.
+  /// Set from `main.dart` so routing can load matches from Supabase when handling notification payloads.
   static MatchesRepository? matchesRepository;
 
   String? get _userId => AppAuthContext.userId;
   SupabaseClient get _sb => Supabase.instance.client;
-
-  static const String _webVapidKey = String.fromEnvironment(
-    'WEB_PUSH_VAPID_KEY',
-    defaultValue: '',
-  );
 
   Future<void> initialize() async {
     try {
@@ -40,85 +33,21 @@ class NotificationService {
         return;
       }
 
-      await _messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-
-      final token = await _getCurrentMessagingToken();
-      if (token != null) {
-        await _saveFCMToken(token);
-      }
-
-      _messaging.onTokenRefresh.listen(_saveFCMToken);
       AppAuthContext.repository?.authStateChanges.listen((user) async {
         if (user != null) {
-          if (await UserSettingsService().isNotificationsEnabled()) {
-            final t = await _getCurrentMessagingToken();
-            if (t != null) {
-              await _saveFCMToken(t);
-            }
-          } else {
+          if (!await UserSettingsService().isNotificationsEnabled()) {
             await _clearNotificationTokens(user.id);
           }
         }
       });
-
-      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
-      final initial = await FirebaseMessaging.instance.getInitialMessage();
-      if (initial != null) {
-        _handleNotificationTap(initial);
-      }
     } catch (e) {
       print('Error initializing NotificationService: $e');
     }
   }
 
-  Future<String?> _getCurrentMessagingToken() async {
-    if (!kIsWeb) {
-      return _messaging.getToken();
-    }
-    if (_webVapidKey.isNotEmpty) {
-      return _messaging.getToken(vapidKey: _webVapidKey);
-    }
-    return _messaging.getToken();
-  }
-
   Future<void> syncCurrentUserToken() async {
     if (!await UserSettingsService().isNotificationsEnabled()) {
       await _clearNotificationTokens();
-      return;
-    }
-    final token = await _getCurrentMessagingToken();
-    if (token != null) {
-      await _saveFCMToken(token);
-    }
-  }
-
-  Future<void> _saveFCMToken(String token) async {
-    final uid = _userId;
-    if (uid == null) return;
-    if (!await UserSettingsService().isNotificationsEnabled()) {
-      await _clearNotificationTokens(uid);
-      return;
-    }
-    try {
-      final row = await _sb
-          .from('profiles')
-          .select('device_tokens')
-          .eq('id', uid)
-          .maybeSingle();
-      final existing = (row?['device_tokens'] as List?)?.cast<String>() ?? <String>[];
-      final merged = <String>{...existing, token}.toList();
-      await _sb.from('profiles').update({
-        'fcm_token': token,
-        'fcm_token_updated_at': DateTime.now().toUtc().toIso8601String(),
-        'device_tokens': merged,
-      }).eq('id', uid);
-    } catch (e) {
-      print('Error saving FCM token: $e');
     }
   }
 
@@ -136,15 +65,8 @@ class NotificationService {
     }
   }
 
-  void _handleForegroundMessage(RemoteMessage message) {
-    print('Received foreground message: ${message.notification?.title}');
-  }
-
-  void _handleNotificationTap(RemoteMessage message) {
-    _navigateFromData(message.data);
-  }
-
-  Future<void> _navigateFromData(Map<String, dynamic> data) async {
+  /// Handle notification payload (e.g. from a custom push integration) and navigate.
+  Future<void> navigateFromNotificationData(Map<String, dynamic> data) async {
     final type = data['type'] as String? ?? '';
     if (type.isEmpty) return;
 

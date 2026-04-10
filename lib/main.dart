@@ -4,9 +4,6 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -49,7 +46,6 @@ import 'features/notifications/data/datasources/supabase_notifications_remote_da
 import 'features/notifications/data/notification_service.dart';
 import 'features/notifications/data/repositories/notifications_repository_impl.dart';
 import 'features/notifications/domain/repositories/notifications_repository.dart';
-import 'firebase_options.dart';
 import 'package:flap_app/features/profile/data/datasources/supabase_profile_remote_data_source.dart';
 import 'package:flap_app/features/profile/data/repositories/profile_repository_impl.dart';
 import 'package:flap_app/features/profile/data/user_settings_service.dart';
@@ -58,18 +54,8 @@ import 'package:flap_app/features/subscription/data/datasources/supabase_subscri
 import 'package:flap_app/features/subscription/data/repositories/subscription_repository_impl.dart';
 import 'package:flap_app/features/subscription/domain/repositories/subscription_repository.dart';
 import 'utils/i18n.dart';
-
-
-@pragma('vm:entry-point')
-Future<void> _pushBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-}
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
 
   SupabaseConfig.assertConfigured();
   await Supabase.initialize(
@@ -188,31 +174,6 @@ Future<void> _bootstrapAppServices(
       });
     }
   } catch (_) {}
-
-  if (!kIsWeb) {
-    FirebaseMessaging.onBackgroundMessage(_pushBackgroundHandler);
-    await _initMessaging();
-  }
-}
-
-Future<void> _initMessaging() async {
-  if (!await UserSettingsService().isNotificationsEnabled()) {
-    return;
-  }
-  final messaging = FirebaseMessaging.instance;
-  await messaging.requestPermission(alert: true, badge: true, sound: true);
-  final token = await messaging.getToken();
-  final userId = AppAuthContext.userId;
-  if (userId != null && token != null) {
-    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-    await userRef.set({
-      'deviceTokens': FieldValue.arrayUnion([token])
-    }, SetOptions(merge: true));
-  }
-
-  FirebaseMessaging.onMessage.listen((message) {
-    // Optionally show in-app notification UI
-  });
 }
 
 class MyApp extends StatefulWidget {
