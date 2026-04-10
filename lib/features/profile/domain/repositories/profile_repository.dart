@@ -8,4 +8,6 @@ abstract class ProfileRepository {
   Future<Map<String, dynamic>> fetchSettings(String userId);
 
   Future<void> mergeSettings(String userId, Map<String, dynamic> partial);
+
+  Stream<List<Map<String, dynamic>>> watchWalletTransactions(String userId);
 }

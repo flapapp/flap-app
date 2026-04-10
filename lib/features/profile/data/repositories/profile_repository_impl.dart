@@ -38,4 +38,26 @@ class ProfileRepositoryImpl implements ProfileRepository {
   Future<void> mergeSettings(String userId, Map<String, dynamic> partial) {
     return _remote.mergeSettings(userId, partial);
   }
+
+  @override
+  Stream<List<Map<String, dynamic>>> watchWalletTransactions(String userId) {
+    return _remote.watchWalletTransactions(userId).map(
+          (rows) => rows.map(_walletRowToLegacy).toList(),
+        );
+  }
+
+  static Map<String, dynamic> _walletRowToLegacy(Map<String, dynamic> row) {
+    final created = row['created_at'];
+    DateTime? dt;
+    if (created is DateTime) {
+      dt = created;
+    } else if (created is String) {
+      dt = DateTime.tryParse(created);
+    }
+    return <String, dynamic>{
+      'amount': row['amount'] ?? 0,
+      'description': (row['description'] ?? '').toString(),
+      'timestamp': dt,
+    };
+  }
 }

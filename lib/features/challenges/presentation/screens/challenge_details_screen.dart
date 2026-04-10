@@ -11,6 +11,7 @@ import 'package:flap_app/features/videos/presentation/screens/video_upload_scree
 import 'challenge_video_player_screen.dart';
 import 'package:flap_app/features/matches/data/rating_service.dart';
 import 'package:flap_app/features/videos/data/thumbnail_service.dart';
+import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'challenge_completion_screen.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/video_preview_box.dart';
@@ -1230,6 +1231,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         final thumbnailService = ThumbnailService();
         final userId = AppAuthContext.userId ?? '';
         final thumbnailUrl = await thumbnailService.generateSubmissionThumbnail(
+          videosRepository: context.read<VideosRepository>(),
           videoUrl: videoUrl,
           challengeId: widget.challenge.id,
           submissionId: submissionUserId,

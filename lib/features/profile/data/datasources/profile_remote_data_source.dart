@@ -14,4 +14,6 @@ abstract class ProfileRemoteDataSource {
     String userId,
     Map<String, dynamic> partial,
   );
+
+  Stream<List<Map<String, dynamic>>> watchWalletTransactions(String userId);
 }

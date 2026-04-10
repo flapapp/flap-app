@@ -1,18 +1,34 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/matches/data/rating_tracking_service.dart';
 import 'package:flap_app/features/matches/data/datasources/matches_remote_data_source.dart';
 import 'package:flap_app/features/matches/data/datasources/supabase_matches_remote_data_source.dart';
+import 'package:flap_app/features/videos/data/datasources/supabase_videos_remote_data_source.dart';
+import 'package:flap_app/features/videos/data/repositories/videos_repository_impl.dart';
+import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'package:flap_app/models/match.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 
 class RatingService {
-  RatingService({MatchesRemoteDataSource? matchesRemote})
-      : _matches = matchesRemote ?? SupabaseMatchesRemoteDataSource();
+  RatingService({
+    MatchesRemoteDataSource? matchesRemote,
+    VideosRepository? videosRepository,
+  })  : _matches = matchesRemote ?? SupabaseMatchesRemoteDataSource(),
+        _videosRepository = videosRepository;
+
+  static VideosRepository? _injectedVideosRepository;
+  static void registerVideosRepository(VideosRepository repository) {
+    _injectedVideosRepository = repository;
+  }
 
   final MatchesRemoteDataSource _matches;
+  final VideosRepository? _videosRepository;
+
+  VideosRepository get _videos =>
+      _videosRepository ??
+      _injectedVideosRepository ??
+      VideosRepositoryImpl(SupabaseVideosRemoteDataSource());
 
   SupabaseClient get _sb => Supabase.instance.client;
 
@@ -61,29 +77,8 @@ class RatingService {
     'quality': 0.1,
   };
 
-  // Перерахунок середньої оцінки відео та збереження в полі videos.rating
-  Future<void> updateVideoAggregate(String videoId) async {
-    try {
-      final votesSnap = await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .collection('votes')
-          .get();
-      double sum = 0.0;
-      for (final d in votesSnap.docs) {
-        final m = d.data() as Map<String, dynamic>;
-        sum += (m['rating'] ?? 0.0).toDouble();
-      }
-      final count = votesSnap.docs.length;
-      final avg = count == 0 ? 0.0 : double.parse((sum / count).toStringAsFixed(2));
-      await FirebaseFirestore.instance.collection('videos').doc(videoId).update({
-        'rating': avg,
-        'voteCount': count,
-      });
-    } catch (e) {
-      // non-fatal
-    }
-  }
+  // DB trigger on `video_votes` maintains `public.videos.rating` / `vote_count`.
+  Future<void> updateVideoAggregate(String videoId) async {}
 
   // Отримати поточний рейтинг користувача
   Future<double> getUserRating(String userId) async {
@@ -105,26 +100,6 @@ class RatingService {
     } catch (e) {
       print('Error getting user rating: $e');
       return _defaultRating;
-    }
-  }
-
-  // Ініціалізувати користувача з початковим рейтингом
-  Future<void> _initializeUserRating(String userId) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .set({
-        'rating': _defaultRating,
-        'matchRating': _defaultRating,
-        'videoRating': _defaultRating,
-        'totalMatches': 0,
-        'totalVideos': 0,
-        'ratingHistory': [],
-        'lastRatingUpdate': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (e) {
-      print('Error initializing user rating: $e');
     }
   }
 
@@ -311,34 +286,22 @@ class RatingService {
         weightedRating += criteria[criterion]! * _videoWeights[criterion]!;
       }
 
-      // Збереження оцінки відео
-      await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .collection('votes')
-          .doc(ratedBy)
-          .set({
-        'ratedBy': ratedBy,
-        'rating': weightedRating,
-        'criteria': criteria,
-        'ratedAt': FieldValue.serverTimestamp(),
-      });
+      await _videos.submitVideoVote(
+        videoId: videoId,
+        ratedBy: ratedBy,
+        rating: weightedRating,
+        criteria: Map<String, dynamic>.from(criteria),
+      );
 
-      // Оновлюємо агрегати відео для відображення зірочки у списках
       await updateVideoAggregate(videoId);
 
-      // Отримуємо автора відео для оновлення його рейтингу
-      final videoDoc = await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .get();
+      final videoRow = await _videos.fetchVideo(videoId);
 
-      if (videoDoc.exists) {
-        final videoData = videoDoc.data()!;
-        final authorId = videoData['userId'] as String?;
-        final videoTitle = (videoData['title'] ?? 'Відео').toString();
+      if (videoRow != null) {
+        final authorId = videoRow.userId;
+        final videoTitle = videoRow.title.isNotEmpty ? videoRow.title : 'Відео';
         
-        if (authorId != null && authorId != ratedBy) {
+        if (authorId.isNotEmpty && authorId != ratedBy) {
           // Отримуємо ім'я того, хто оцінив відео
           String voterName = 'Користувач';
           try {
@@ -567,29 +530,16 @@ class RatingService {
   // Отримати всі оцінки гравця з відео
   Future<List<double>> _getVideoRatings(String userId) async {
     try {
+      final vrows = await _sb.from('videos').select('id').eq('user_id', userId);
+      final ids = (vrows as List).map((e) => (e as Map)['id'].toString()).toList();
+      if (ids.isEmpty) return [];
+      final voteRows2 =
+          await _sb.from('video_votes').select('rating').inFilter('video_id', ids);
       final ratings = <double>[];
-      
-      // Шукаємо всі відео автора
-      final videosQuery = await FirebaseFirestore.instance
-          .collection('videos')
-          .where('userId', isEqualTo: userId)
-          .get();
-
-      for (final videoDoc in videosQuery.docs) {
-        final votesQuery = await FirebaseFirestore.instance
-            .collection('videos')
-            .doc(videoDoc.id)
-            .collection('votes')
-            .get();
-
-        for (final voteDoc in votesQuery.docs) {
-          final data = voteDoc.data() as Map<String, dynamic>?;
-          if (data != null) {
-            ratings.add((data['rating'] ?? 0.0).toDouble());
-          }
-        }
+      for (final r in (voteRows2 as List)) {
+        final m = r as Map;
+        ratings.add(((m['rating'] ?? 0.0) as num).toDouble());
       }
-
       return ratings;
     } catch (e) {
       print('Error getting video ratings: $e');

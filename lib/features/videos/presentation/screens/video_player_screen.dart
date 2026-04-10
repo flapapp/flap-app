@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/features/challenges/domain/challenge_failure.dart';
 import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/features/matches/data/rating_service.dart';
+import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
+import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/profile/data/user_settings_service.dart';
 import 'package:flap_app/widgets/rating_display.dart';
@@ -82,12 +83,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         setState(() {
           _videoAuthorId = widget.submissionUserId;
         });
-        if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty) {
-          final userDoc = await FirebaseFirestore.instance.collection('users').doc(_videoAuthorId!).get();
-          if (userDoc.exists) {
-            final ud = userDoc.data() as Map<String, dynamic>;
+        if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty && mounted) {
+          final ud = await context
+              .read<ProfileRepository>()
+              .fetchLegacyUserMap(_videoAuthorId!);
+          if (ud != null && mounted) {
             setState(() {
-              _videoAuthorName = ud['displayName'] ?? ud['name'] ?? ud['email']?.toString().split('@').first ?? I18n.inline('Користувач', 'User');
+              _videoAuthorName = ud['displayName'] ??
+                  ud['name'] ??
+                  ud['email']?.toString().split('@').first ??
+                  I18n.inline('Користувач', 'User');
               _videoAuthorAvatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
             });
           }
@@ -116,57 +121,60 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           }
         }
       } else {
-        // Завантажуємо дані про лайки/автора з колекції videos
-        final videoDoc = await FirebaseFirestore.instance
-            .collection('videos')
-            .doc(widget.videoId)
-            .get();
-        if (videoDoc.exists) {
-          final data = videoDoc.data()!;
+        if (!mounted) return;
+        final videosRepo = context.read<VideosRepository>();
+        final videoRow = await videosRepo.fetchVideo(widget.videoId);
+        if (videoRow != null && mounted) {
           setState(() {
-            _likesCount = data['likes'] ?? 0;
-            _videoAuthorId = data['userId'] as String?;
+            _likesCount = videoRow.likes;
+            _videoAuthorId = videoRow.userId;
           });
           if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty) {
-            final userDoc = await FirebaseFirestore.instance.collection('users').doc(_videoAuthorId!).get();
-            if (userDoc.exists) {
-              final ud = userDoc.data() as Map<String, dynamic>;
+            final ud = await context
+                .read<ProfileRepository>()
+                .fetchLegacyUserMap(_videoAuthorId!);
+            if (ud != null && mounted) {
               setState(() {
-                _videoAuthorName = ud['displayName'] ?? ud['name'] ?? ud['email']?.toString().split('@').first ?? I18n.inline('Користувач', 'User');
+                _videoAuthorName = ud['displayName'] ??
+                    ud['name'] ??
+                    ud['email']?.toString().split('@').first ??
+                    I18n.inline('Користувач', 'User');
                 _videoAuthorAvatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
               });
             }
           }
           await _computeVideoAverage();
           final currentUser = AppAuthContext.currentUser;
-          if (currentUser != null) {
-            final likeDoc = await FirebaseFirestore.instance
-                .collection('videos')
-                .doc(widget.videoId)
-                .collection('likes')
-                .doc(currentUser.id)
-                .get();
-            setState(() { _isLiked = likeDoc.exists; });
+          if (currentUser != null && mounted) {
+            final liked = await videosRepo.watchUserLikesVideo(
+              videoId: widget.videoId,
+              userId: currentUser.id,
+            ).first;
+            setState(() {
+              _isLiked = liked;
+            });
 
-            final voteDoc = await FirebaseFirestore.instance
-                .collection('videos')
-                .doc(widget.videoId)
-                .collection('votes')
-                .doc(currentUser.id)
-                .get();
-            if (voteDoc.exists) {
-              final v = voteDoc.data() as Map<String, dynamic>;
-              setState(() {
-                _hasVoted = true;
-                _technical = (v['technical'] ?? 0.0).toDouble();
-                _creativity = (v['creativity'] ?? 0.0).toDouble();
-                _difficulty = (v['difficulty'] ?? 0.0).toDouble();
-                _quality = (v['quality'] ?? 0.0).toDouble();
-              });
+            final hasV = await videosRepo.userHasVote(
+              videoId: widget.videoId,
+              userId: currentUser.id,
+            );
+            if (hasV && mounted) {
+              final crit = await videosRepo.fetchUserVoteCriteria(
+                videoId: widget.videoId,
+                userId: currentUser.id,
+              );
+              if (crit != null && mounted) {
+                setState(() {
+                  _hasVoted = true;
+                  _technical = crit['technical'] ?? 2.5;
+                  _creativity = crit['creativity'] ?? 2.5;
+                  _difficulty = crit['difficulty'] ?? 2.5;
+                  _quality = crit['quality'] ?? 2.5;
+                });
+              }
             }
           }
         }
-        // Коментарі актуальні лише для загальних відео
         _loadComments();
       }
     } catch (e) {
@@ -190,27 +198,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Future<void> _computeVideoAverage() async {
     try {
-      final votesSnap = await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(widget.videoId)
-          .collection('votes')
-          .get();
-      if (votesSnap.docs.isEmpty) {
-        setState(() {
-          _videoAverageRating = 0.0;
-          _videoVoteCount = 0;
-        });
-        return;
-      }
-      double sum = 0.0;
-      for (final d in votesSnap.docs) {
-        final m = d.data() as Map<String, dynamic>;
-        final r = (m['rating'] ?? 0.0) as num;
-        sum += r.toDouble();
-      }
+      if (!mounted) return;
+      final videosRepo = context.read<VideosRepository>();
+      final row = await videosRepo.fetchVideo(widget.videoId);
+      if (!mounted) return;
       setState(() {
-        _videoVoteCount = votesSnap.docs.length;
-        _videoAverageRating = double.parse((sum / _videoVoteCount!).toStringAsFixed(2));
+        _videoAverageRating = row?.rating ?? 0.0;
+        _videoVoteCount = row?.voteCount ?? 0;
       });
     } catch (_) {}
   }
@@ -376,26 +370,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Future<void> _loadComments() async {
     try {
-      final commentsSnapshot = await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(widget.videoId)
-          .collection('comments')
-          .orderBy('createdAt', descending: true)
-          .get();
-      
-      final comments = <Map<String, dynamic>>[];
-      for (final doc in commentsSnapshot.docs) {
-        final data = doc.data();
-        comments.add({
-          'id': doc.id,
-          'text': data['text'] ?? '',
-          'authorName': data['authorName'] ?? I18n.inline('Невідомий', 'Unknown'),
-          'createdAt': data['createdAt'],
-        });
-      }
-      
+      if (!mounted) return;
+      final list =
+          await context.read<VideosRepository>().fetchComments(widget.videoId);
+      if (!mounted) return;
       setState(() {
-        _comments = comments;
+        _comments = list.map((c) => c.toLegacyMap()).toList();
       });
     } catch (e) {
       print('Error loading comments: $e');
@@ -476,43 +456,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     try {
       final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) return;
-      
-      final likeRef = FirebaseFirestore.instance
-          .collection('videos')
-          .doc(widget.videoId)
-          .collection('likes')
-          .doc(currentUser.id);
-      
-      if (_isLiked) {
-        // Видаляємо лайк
-        await likeRef.delete();
-        setState(() {
-          _isLiked = false;
-          _likesCount--;
-        });
-        
-        // Оновлюємо загальну кількість лайків
-        await FirebaseFirestore.instance
-            .collection('videos')
-            .doc(widget.videoId)
-            .update({'likes': FieldValue.increment(-1)});
-      } else {
-        // Додаємо лайк
-        await likeRef.set({
-          'userId': currentUser.id,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        setState(() {
-          _isLiked = true;
-          _likesCount++;
-        });
-        
-        // Оновлюємо загальну кількість лайків
-        await FirebaseFirestore.instance
-            .collection('videos')
-            .doc(widget.videoId)
-            .update({'likes': FieldValue.increment(1)});
-      }
+
+      await context.read<VideosRepository>().toggleLike(
+            videoId: widget.videoId,
+            userId: currentUser.id,
+            currentlyLiked: _isLiked,
+          );
+      setState(() {
+        _isLiked = !_isLiked;
+        _likesCount += _isLiked ? 1 : -1;
+      });
     } catch (e) {
       print('Error toggling like: $e');
     }
@@ -536,32 +489,22 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       final currentUser = AppAuthContext.currentUser;
       if (currentUser == null) return;
       
-      // Отримуємо ім'я користувача
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.id)
-          .get();
-      
-      final authorName = userDoc.exists 
-          ? (userDoc.data()!['displayName'] ?? 'Невідомий')
-          : 'Невідомий';
-      
-      // Додаємо коментар
-      await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(widget.videoId)
-          .collection('comments')
-          .add({
-        'text': _commentController.text.trim(),
-        'authorId': currentUser.id,
-        'authorName': authorName,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      
-      // Очищаємо поле та перезавантажуємо коментарі
+      final prof = await context
+          .read<ProfileRepository>()
+          .fetchLegacyUserMap(currentUser.id);
+      final authorName = (prof?['displayName'] ?? prof?['name'] ?? 'Невідомий')
+          .toString();
+
+      await context.read<VideosRepository>().addComment(
+            videoId: widget.videoId,
+            userId: currentUser.id,
+            authorName: authorName,
+            body: _commentController.text.trim(),
+          );
+
       _commentController.clear();
       await _loadComments();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -570,12 +513,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           ),
         );
       }
-      
-      // Оновлюємо кількість коментарів
-      await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(widget.videoId)
-          .update({'commentsCount': FieldValue.increment(1)});
       
     } catch (e) {
       print('Error adding comment: $e');
@@ -586,7 +523,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     if (timestamp == null) return I18n.inline('Нещодавно', 'Recently');
     
     try {
-      final date = timestamp.toDate();
+      final date = timestamp is DateTime
+          ? timestamp
+          : DateTime.tryParse(timestamp.toString());
+      if (date == null) return I18n.inline('Нещодавно', 'Recently');
       final now = DateTime.now();
       final difference = now.difference(date);
       

@@ -2,11 +2,10 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flap_app/constants/video_categories.dart';
 import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/features/videos/data/thumbnail_service.dart';
+import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 
@@ -505,73 +504,59 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         );
       }
 
-      // Генеруємо унікальні імена файлів
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'video_${user.id}_$timestamp.mp4';
-      
-      // Створюємо посилання на Storage
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('videos/${user.id}/$fileName');
 
       print('🎬 Starting video upload: $fileName');
 
-      // Завантажуємо відео (на всіх платформах через байти для веб-сумісності)
       final bytes = await _pickedVideo!.readAsBytes();
-      final uploadTask = storageRef.putData(bytes);
+      final videosRepo = context.read<VideosRepository>();
+      final total = bytes.length;
+      if (total == 0) {
+        throw Exception(I18n.inline('Порожній файл відео', 'Empty video file'));
+      }
 
-      // Відстежуємо прогрес
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        if (!mounted) return;
-        setState(() {
-          _uploadProgress = snapshot.totalBytes == 0 ? 0 : snapshot.bytesTransferred / snapshot.totalBytes;
-        });
-      });
+      setState(() => _uploadProgress = 0.05);
 
-      // Чекаємо завершення завантаження
-      final snapshot = await uploadTask;
-      final videoUrl = await snapshot.ref.getDownloadURL();
-      
+      final uploaded = await videosRepo.uploadVideoBytes(
+        userId: user.id,
+        bytes: bytes,
+        fileName: fileName,
+      );
+
+      if (!mounted) return;
+      setState(() => _uploadProgress = 0.92);
+
+      final videoUrl = uploaded.publicUrl;
       print('✅ Video uploaded successfully: $videoUrl');
 
-      final videoData = <String, dynamic>{
-        'userId': user.id,
-        'authorId': user.id,
-        'authorName': user.displayName ?? user.email?.split('@')[0] ?? I18n.inline('Користувач', 'User'),
-        'title': _titleController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'category': normalizeVideoCategoryValue(_selectedCategoryId ?? 'other'),
-        'difficulty': _selectedDifficulty,
-        'videoUrl': videoUrl,
-        'createdAt': FieldValue.serverTimestamp(),
-        'likes': 0,
-        'rating': 0.0,
-        'views': 0,
-        'thumbnailUrl': null,
-        'thumbnailGenerated': false,
-      };
+      final author =
+          user.displayName ?? user.email?.split('@').first ?? I18n.inline('Користувач', 'User');
+
+      final videoId = await videosRepo.createVideoRecord(
+        userId: user.id,
+        authorName: author,
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim(),
+        category: normalizeVideoCategoryValue(_selectedCategoryId ?? 'other'),
+        difficulty: _selectedDifficulty,
+        videoUrl: videoUrl,
+        videoStoragePath: uploaded.path,
+        challengeId: widget.challengeId,
+        challengeTitle: widget.challengeTitle,
+        isChallengeVideo: widget.challengeId != null,
+      );
+
+      print('✅ Video document created: $videoId');
+
+      if (!mounted) return;
+      setState(() => _uploadProgress = 1.0);
 
       if (widget.challengeId != null) {
-        videoData.addAll({
-          'challengeId': widget.challengeId,
-          'challengeTitle': widget.challengeTitle ?? '',
-          'isChallengeVideo': true,
-        });
+        await _submitVideoToChallenge(videoId, videoUrl);
       }
 
-      final videoDoc = await FirebaseFirestore.instance
-          .collection('videos')
-          .add(videoData);
-
-      print('✅ Video document created: ${videoDoc.id}');
-
-      // Якщо це відео для челенджу
-      if (widget.challengeId != null) {
-        await _submitVideoToChallenge(videoDoc.id, videoUrl);
-      }
-
-      // Генеруємо thumbnail в фоновому режимі
-      _generateThumbnailInBackground(videoDoc.id, videoUrl, user.id);
+      _generateThumbnailInBackground(videosRepo, videoId, videoUrl, user.id);
 
       // Показуємо успішне повідомлення
       if (mounted) {
@@ -630,14 +615,19 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     }
   }
 
-  void _generateThumbnailInBackground(String videoId, String videoUrl, String userId) {
-    // Генеруємо thumbnail в фоновому режимі, не блокуючи UI
+  void _generateThumbnailInBackground(
+    VideosRepository videosRepo,
+    String videoId,
+    String videoUrl,
+    String userId,
+  ) {
     Future.delayed(const Duration(seconds: 2), () async {
       try {
         print('🎬 Starting background thumbnail generation for: $videoId');
-        
+
         final thumbnailService = ThumbnailService();
         final thumbnailUrl = await thumbnailService.generateAndUploadThumbnail(
+          videosRepository: videosRepo,
           videoUrl: videoUrl,
           videoId: videoId,
           userId: userId,

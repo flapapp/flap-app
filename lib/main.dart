@@ -22,6 +22,10 @@ import 'features/auth/domain/repositories/auth_repository.dart';
 import 'features/auth/domain/repositories/user_profile_repository.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/auth/presentation/bloc/auth_event.dart';
+import 'features/matches/data/rating_service.dart';
+import 'features/videos/data/datasources/supabase_videos_remote_data_source.dart';
+import 'features/videos/data/repositories/videos_repository_impl.dart';
+import 'features/videos/domain/repositories/videos_repository.dart';
 import 'features/admin/data/datasources/supabase_admin_remote_data_source.dart';
 import 'features/admin/data/repositories/admin_repository_impl.dart';
 import 'features/admin/domain/repositories/admin_repository.dart';
@@ -114,6 +118,9 @@ Future<void> main() async {
     remote: SupabaseSubscriptionRemoteDataSource(),
   );
 
+  final videosRepo = VideosRepositoryImpl(SupabaseVideosRemoteDataSource());
+  RatingService.registerVideosRepository(videosRepo);
+
   runApp(
     MultiRepositoryProvider(
       providers: [
@@ -134,6 +141,7 @@ Future<void> main() async {
         RepositoryProvider<NotificationsRepository>.value(
           value: notificationsRepo,
         ),
+        RepositoryProvider<VideosRepository>.value(value: videosRepo),
       ],
       child: MyApp(authRepository: authRepo),
     ),

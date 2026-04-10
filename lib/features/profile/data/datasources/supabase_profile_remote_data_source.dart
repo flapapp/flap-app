@@ -27,6 +27,29 @@ class SupabaseProfileRemoteDataSource implements ProfileRemoteDataSource {
   }
 
   @override
+  Stream<List<Map<String, dynamic>>> watchWalletTransactions(String userId) {
+    return _client
+        .from('wallet_transactions')
+        .stream(primaryKey: const ['id'])
+        .eq('user_id', userId)
+        .map((raw) {
+          final rows = (raw as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList()
+            ..sort((a, b) {
+              final as = a['created_at']?.toString();
+              final bs = b['created_at']?.toString();
+              final at = DateTime.tryParse(as ?? '') ??
+                  DateTime.fromMillisecondsSinceEpoch(0);
+              final bt = DateTime.tryParse(bs ?? '') ??
+                  DateTime.fromMillisecondsSinceEpoch(0);
+              return bt.compareTo(at);
+            });
+          return rows;
+        });
+  }
+
+  @override
   Future<void> mergeSettings(
     String userId,
     Map<String, dynamic> partial,

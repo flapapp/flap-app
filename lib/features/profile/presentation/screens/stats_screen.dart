@@ -1,11 +1,11 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_screen_sparkline.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/features/profile/data/profile_legacy_user_map.dart';
 import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
+import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 
 @RoutePage()
 class StatsScreen extends StatefulWidget {
@@ -72,18 +72,11 @@ class _StatsScreenState extends State<StatsScreen> {
             (data['videosUploaded'] ?? data['totalVideos'] ?? 0) as num,
       };
 
-      // videos
-      final vidsSnap = await FirebaseFirestore.instance
-          .collection('videos')
-          .where('userId', isEqualTo: uid)
-          .limit(50)
-          .get();
-      final vids = vidsSnap.docs.map((d) {
-        final m = Map<String, dynamic>.from(d.data());
-        m['id'] = d.id;
-        return m;
-      }).toList();
-      vids.sort((a, b) => ((b['views'] ?? 0) as int).compareTo((a['views'] ?? 0) as int));
+      final vidsEntities = await context
+          .read<VideosRepository>()
+          .fetchUserVideosByViews(userId: uid, limit: 50);
+      final vids = vidsEntities.map((v) => v.toLegacyCardMap()).toList();
+      vids.sort((a, b) => ((b['views'] ?? 0) as num).toInt().compareTo(((a['views'] ?? 0) as num).toInt()));
       _topVideos = vids.take(5).toList();
     } finally {
       if (mounted) setState(() => _loading = false);
