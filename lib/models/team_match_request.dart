@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum TeamMatchRequestStatus { pending, accepted, declined }
 
 class TeamMatchRequest {
@@ -25,31 +23,43 @@ class TeamMatchRequest {
     this.proposedRoster = const [],
   });
 
-  factory TeamMatchRequest.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
+  static DateTime _ts(dynamic v) {
+    if (v == null) return DateTime.now();
+    if (v is DateTime) return v;
+    if (v is String) return DateTime.tryParse(v) ?? DateTime.now();
+    return DateTime.now();
+  }
+
+  static List<String> _uuidList(dynamic raw) {
+    if (raw == null) return const [];
+    if (raw is! List) return const [];
+    return raw.map((e) => e.toString()).toList();
+  }
+
+  factory TeamMatchRequest.fromSupabaseRow(Map<String, dynamic> row) {
     return TeamMatchRequest(
-      id: doc.id,
-      matchId: (data['matchId'] ?? '').toString(),
-      teamId: (data['teamId'] ?? '').toString(),
-      opponentTeamId: (data['opponentTeamId'] ?? '').toString(),
-      opponentName: (data['opponentName'] ?? '').toString(),
-      createdBy: (data['createdBy'] ?? '').toString(),
-      status: _statusFromString((data['status'] ?? 'pending').toString()),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      proposedRoster: List<String>.from(data['proposedRoster'] ?? const []),
+      id: row['id'].toString(),
+      matchId: (row['match_id'] ?? '').toString(),
+      teamId: (row['team_id'] ?? '').toString(),
+      opponentTeamId: (row['opponent_team_id'] ?? '').toString(),
+      opponentName: (row['opponent_name'] ?? '').toString(),
+      createdBy: (row['created_by'] ?? '').toString(),
+      status: _statusFromString((row['status'] ?? 'pending').toString()),
+      createdAt: _ts(row['created_at']),
+      proposedRoster: _uuidList(row['proposed_roster']),
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toSupabaseInsert() {
     return {
-      'matchId': matchId,
-      'teamId': teamId,
-      'opponentTeamId': opponentTeamId,
-      'opponentName': opponentName,
-      'createdBy': createdBy,
+      'match_id': matchId,
+      'team_id': teamId,
+      'opponent_team_id': opponentTeamId,
+      'opponent_name': opponentName,
+      'created_by': createdBy,
       'status': status.name,
-      'proposedRoster': proposedRoster,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'proposed_roster': proposedRoster,
+      'created_at': createdAt.toUtc().toIso8601String(),
     };
   }
 
@@ -64,14 +74,3 @@ class TeamMatchRequest {
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-

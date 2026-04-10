@@ -16,7 +16,7 @@ import 'package:flap_app/features/friends/domain/repositories/friends_repository
 import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/models/challenge.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
-import 'package:flap_app/features/teams/data/team_service.dart';
+import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/features/teams/presentation/screens/team_details_screen.dart';
 import 'package:flap_app/widgets/video_preview_box.dart';
@@ -36,7 +36,6 @@ class PlayerProfileScreen extends StatefulWidget {
 }
 
 class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
-  final TeamService _teamService = TeamService();
   Map<String, dynamic>? playerData;
   List<Map<String, dynamic>> playerVideos = [];
   bool isLoading = true;
@@ -146,7 +145,8 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     if (!mounted) return;
     setState(() => _loadingTeams = true);
     try {
-      final teams = await _teamService.fetchUserTeams(widget.playerId);
+      final teams =
+          await context.read<TeamsRepository>().fetchUserTeams(widget.playerId);
       if (mounted) {
         setState(() => _playerTeams = teams);
       }
@@ -1784,17 +1784,13 @@ class _MiniTeamCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('teamStats')
-          .doc(team.id)
-          .snapshots(),
+    return StreamBuilder<AppTeam?>(
+      stream: context.read<TeamsRepository>().watchTeam(team.id),
       builder: (context, snapshot) {
-        final stats = snapshot.data?.data() ?? const <String, dynamic>{};
-
-        final wins = (stats['wins'] as num?)?.toInt() ?? team.wins;
-        final losses = (stats['losses'] as num?)?.toInt() ?? team.losses;
-        final draws = (stats['draws'] as num?)?.toInt() ?? team.draws;
+        final live = snapshot.data ?? team;
+        final wins = live.wins;
+        final losses = live.losses;
+        final draws = live.draws;
 
         final total = wins + losses + draws;
         final winRate = total > 0
@@ -1821,13 +1817,13 @@ class _MiniTeamCard extends StatelessWidget {
                       radius: 22,
                       backgroundColor: const Color(0xFF4caf50),
                       backgroundImage:
-                          team.logoUrl != null && team.logoUrl!.isNotEmpty
-                          ? NetworkImage(team.logoUrl!)
+                          live.logoUrl != null && live.logoUrl!.isNotEmpty
+                          ? NetworkImage(live.logoUrl!)
                           : null,
-                      child: (team.logoUrl == null || team.logoUrl!.isEmpty)
+                      child: (live.logoUrl == null || live.logoUrl!.isEmpty)
                           ? Text(
-                              team.name.isNotEmpty
-                                  ? team.name[0].toUpperCase()
+                              live.name.isNotEmpty
+                                  ? live.name[0].toUpperCase()
                                   : '?',
                               style: const TextStyle(
                                 color: Colors.white,
@@ -1842,7 +1838,7 @@ class _MiniTeamCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            team.name,
+                            live.name,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
@@ -1852,8 +1848,8 @@ class _MiniTeamCard extends StatelessWidget {
                           ),
                           Text(
                             I18n.inline(
-                              '${team.memberIds.length} гравців',
-                              '${team.memberIds.length} players',
+                              '${live.memberIds.length} гравців',
+                              '${live.memberIds.length} players',
                             ),
                             style: const TextStyle(
                               color: Colors.white60,

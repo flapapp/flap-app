@@ -1,9 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
-import 'package:flap_app/features/teams/data/team_service.dart';
+import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/city_autocomplete_field.dart';
 
@@ -24,7 +25,6 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
   bool _isPublic = true;
   bool _isSaving = false;
   Uint8List? _logoBytes;
-  final _teamService = TeamService();
 
   @override
   void dispose() {
@@ -51,7 +51,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
     try {
-      await _teamService.createTeam(
+      await context.read<TeamsRepository>().createTeam(
         name: _nameCtrl.text.trim(),
         description: _descCtrl.text.trim(),
         city: _cityCtrl.text.trim().isEmpty ? null : _cityCtrl.text.trim(),

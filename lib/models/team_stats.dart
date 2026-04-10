@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/models/app_team.dart';
 
 class TeamStats {
   final String teamId;
@@ -25,25 +25,18 @@ class TeamStats {
     this.updatedAt,
   });
 
-  factory TeamStats.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? const <String, dynamic>{};
+  factory TeamStats.fromAppTeam(AppTeam team) {
     return TeamStats(
-      teamId: doc.id,
-      teamName: (data['teamName'] ?? '').toString(),
-      wins: (data['wins'] ?? 0) as int,
-      draws: (data['draws'] ?? 0) as int,
-      losses: (data['losses'] ?? 0) as int,
-      goalsFor: (data['goalsFor'] ?? 0) as int,
-      goalsAgainst: (data['goalsAgainst'] ?? 0) as int,
-      playerGoals: Map<String, int>.from(
-        (data['playerGoals'] ?? const <String, dynamic>{}).map(
-          (key, value) => MapEntry(key.toString(), (value as num).toInt()),
-        ),
-      ),
-      recentMatches: ((data['recentMatches'] as List?) ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .toList(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+      teamId: team.id,
+      teamName: team.name,
+      wins: team.wins,
+      draws: team.draws,
+      losses: team.losses,
+      goalsFor: team.goalsFor,
+      goalsAgainst: team.goalsAgainst,
+      playerGoals: team.playerGoals,
+      recentMatches: team.recentMatches,
+      updatedAt: team.updatedAt,
     );
   }
 
@@ -55,5 +48,3 @@ class TeamStats {
   int get points => wins * 3 + draws;
   int get goalDiff => goalsFor - goalsAgainst;
 }
-
-

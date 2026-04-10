@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class AppTeam {
   final String id;
   final String name;
@@ -41,60 +39,61 @@ class AppTeam {
     this.recentMatches = const [],
   });
 
-  factory AppTeam.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
-    return AppTeam(
-      id: doc.id,
-      name: (data['name'] ?? '').toString(),
-      description: (data['description'] ?? '').toString(),
-      captainId: (data['captainId'] ?? '').toString(),
-      viceCaptainIds: List<String>.from(data['viceCaptainIds'] ?? const []),
-      memberIds: List<String>.from(data['memberIds'] ?? const []),
-      isPublic: data['isPublic'] is bool ? data['isPublic'] as bool : true,
-      logoUrl: (data['logoUrl'] ?? '').toString().isEmpty
-          ? null
-          : (data['logoUrl'] as String),
-      city: (data['city'] ?? '').toString().isEmpty
-          ? null
-          : (data['city'] as String),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      wins: (data['wins'] ?? 0) as int,
-      losses: (data['losses'] ?? 0) as int,
-      draws: (data['draws'] ?? 0) as int,
-      goalsFor: (data['goalsFor'] ?? 0) as int,
-      goalsAgainst: (data['goalsAgainst'] ?? 0) as int,
-      playerGoals: Map<String, int>.from(
-        (data['playerGoals'] ?? const <String, int>{})
-            .map((key, value) => MapEntry(key, (value as num).toInt())),
-      ),
-      recentMatches: ((data['recentMatches'] as List?) ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .toList(),
+  static List<String> _uuidList(dynamic raw) {
+    if (raw == null) return const [];
+    if (raw is! List) return const [];
+    return raw.map((e) => e.toString()).toList();
+  }
+
+  static Map<String, int> _intStringMap(dynamic raw) {
+    if (raw == null) return {};
+    if (raw is! Map) return {};
+    return raw.map(
+      (k, v) => MapEntry(k.toString(), (v is num) ? v.toInt() : int.tryParse('$v') ?? 0),
     );
   }
 
-  Map<String, dynamic> toFirestore() {
-    return {
-      'name': name,
-      'nameLower': name.toLowerCase(),
-      'description': description,
-      'captainId': captainId,
-      'viceCaptainIds': viceCaptainIds,
-      'memberIds': memberIds,
-      'isPublic': isPublic,
-      'logoUrl': logoUrl,
-      'city': city,
-      'wins': wins,
-      'losses': losses,
-      'draws': draws,
-      'goalsFor': goalsFor,
-      'goalsAgainst': goalsAgainst,
-      'playerGoals': playerGoals,
-      'recentMatches': recentMatches,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
-    };
+  static List<Map<String, dynamic>> _recentList(dynamic raw) {
+    if (raw == null) return const [];
+    if (raw is! List) return const [];
+    return raw
+        .map((e) =>
+            e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{})
+        .toList();
+  }
+
+  static DateTime _ts(dynamic v) {
+    if (v == null) return DateTime.now();
+    if (v is DateTime) return v;
+    if (v is String) {
+      return DateTime.tryParse(v) ?? DateTime.now();
+    }
+    return DateTime.now();
+  }
+
+  factory AppTeam.fromSupabaseRow(Map<String, dynamic> row) {
+    final logo = row['logo_url'];
+    final city = row['city'];
+    return AppTeam(
+      id: row['id'].toString(),
+      name: (row['name'] ?? '').toString(),
+      description: (row['description'] ?? '').toString(),
+      captainId: (row['captain_id'] ?? '').toString(),
+      viceCaptainIds: _uuidList(row['vice_captain_ids']),
+      memberIds: _uuidList(row['member_ids']),
+      isPublic: row['is_public'] is bool ? row['is_public'] as bool : true,
+      logoUrl: logo == null || logo.toString().isEmpty ? null : logo.toString(),
+      city: city == null || city.toString().isEmpty ? null : city.toString(),
+      wins: (row['wins'] as num?)?.toInt() ?? 0,
+      losses: (row['losses'] as num?)?.toInt() ?? 0,
+      draws: (row['draws'] as num?)?.toInt() ?? 0,
+      goalsFor: (row['goals_for'] as num?)?.toInt() ?? 0,
+      goalsAgainst: (row['goals_against'] as num?)?.toInt() ?? 0,
+      playerGoals: _intStringMap(row['player_goals']),
+      recentMatches: _recentList(row['recent_matches']),
+      createdAt: _ts(row['created_at']),
+      updatedAt: _ts(row['updated_at']),
+    );
   }
 
   AppTeam copyWith({
@@ -145,14 +144,3 @@ class AppTeam {
     return wins / total * 100;
   }
 }
-
-
-
-
-
-
-
-
-
-
-

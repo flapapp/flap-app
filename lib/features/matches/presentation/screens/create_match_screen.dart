@@ -6,7 +6,7 @@ import 'package:flap_app/models/match.dart';
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
-import 'package:flap_app/features/teams/data/team_service.dart';
+import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
 import 'package:flap_app/models/notification.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
@@ -44,7 +44,6 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   List<String> get _levels => [I18n.t('beginner'), I18n.inline('Середній', 'Intermediate'), I18n.inline('Високий', 'Advanced'), I18n.t('professional')];
   final List<int> _playerOptions = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
   final ScrollController _friendsScrollController = ScrollController();
-  final TeamService _teamService = TeamService();
   bool _isCreating = false;
   bool _teamMode = false;
   bool _loadingTeams = true;
@@ -835,7 +834,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       
       if (_teamMode) {
         if (_selectedTeam != null && !hostIsMyTeam) {
-          await _teamService.sendMatchRequest(
+          await context.read<TeamsRepository>().sendMatchRequest(
             teamId: _selectedTeam!.id,
             opponentTeamId: _opponentTeam?.id ?? '',
             opponentName:
@@ -845,7 +844,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
           );
         }
         if (_opponentTeam != null) {
-          await _teamService.sendMatchRequest(
+          await context.read<TeamsRepository>().sendMatchRequest(
             teamId: _opponentTeam!.id,
             opponentTeamId: _selectedTeam!.id,
             opponentName: _selectedTeam!.name,
@@ -986,7 +985,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
           if (query.isEmpty) return;
           setSheetState(() => loading = true);
           try {
-            final found = await _teamService.searchTeams(query, limit: 15);
+            final found = await ctx.read<TeamsRepository>().searchTeams(query, limit: 15);
             setSheetState(() => results = found);
           } finally {
             setSheetState(() => loading = false);
@@ -1398,7 +1397,8 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
     final currentUser = AppAuthContext.currentUser;
     if (currentUser == null) return;
     try {
-      final teams = await _teamService.fetchUserTeams(currentUser.id);
+      final teams =
+          await context.read<TeamsRepository>().fetchUserTeams(currentUser.id);
       AppTeam? team = teams.isNotEmpty ? teams.first : null;
       Map<String, String> names = {};
       if (team != null) {
@@ -1747,7 +1747,8 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
     final query = _opponentSearchCtrl.text.trim();
     if (query.isEmpty) return;
     setState(() => _opponentSearching = true);
-    final results = await _teamService.searchTeams(query, limit: 5);
+    final results =
+        await context.read<TeamsRepository>().searchTeams(query, limit: 5);
     if (!mounted) return;
     setState(() {
       _opponentResults =

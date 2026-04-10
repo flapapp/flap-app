@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -7,10 +6,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import 'package:flap_app/models/app_team.dart';
-import 'package:flap_app/models/match.dart' as app_match;
 import 'package:flap_app/models/team_match_request.dart';
 import 'package:flap_app/models/team_stats.dart';
-import 'package:flap_app/features/teams/data/team_service.dart';
+import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
+import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
 import 'package:flap_app/features/friends/domain/repositories/friends_repository.dart';
 import 'package:flap_app/models/friend_request.dart';
 import 'package:flap_app/models/team_join_request.dart';
@@ -32,26 +31,27 @@ class TeamDetailsScreen extends StatefulWidget {
 }
 
 class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
-  final _teamService = TeamService();
-  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _teamStream;
-  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _teamStatsStream;
-  late final Stream<List<TeamMatchRequest>> _requestsStream;
+  late TeamsRepository _teams;
+  Stream<AppTeam?>? _teamStream;
+  Stream<List<TeamMatchRequest>>? _requestsStream;
+  final Map<String, Future<Map<String, dynamic>?>> _profileFutures = {};
   bool _isSendingJoinRequest = false;
   bool _isLeavingTeam = false;
   final Set<String> _processingJoinRequestIds = {};
 
   @override
-  void initState() {
-    super.initState();
-    _teamStream = FirebaseFirestore.instance
-        .collection('teams')
-        .doc(widget.teamId)
-        .snapshots();
-    _teamStatsStream = FirebaseFirestore.instance
-        .collection('teamStats')
-        .doc(widget.teamId)
-        .snapshots();
-    _requestsStream = _teamService.watchMatchRequests(widget.teamId);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _teams = context.read<TeamsRepository>();
+    _teamStream ??= _teams.watchTeam(widget.teamId);
+    _requestsStream ??= _teams.watchMatchRequests(widget.teamId);
+  }
+
+  Future<Map<String, dynamic>?> _displayProfile(String userId) {
+    return _profileFutures.putIfAbsent(
+      userId,
+      () => _teams.fetchProfileForDisplay(userId),
+    );
   }
 
   @override
@@ -63,53 +63,54 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         elevation: 0,
         title: Text(I18n.inline('Команда', 'Team')),
       ),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _teamStream,
+      body: StreamBuilder<AppTeam?>(
+        stream: _teamStream!,
         builder: (context, snapshot) {
-          if (!snapshot.hasData || !snapshot.data!.exists) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              snapshot.data == null) {
             return const Center(child: CircularProgressIndicator());
           }
-          final team = AppTeam.fromDoc(snapshot.data!);
+          final team = snapshot.data;
+          if (team == null) {
+            return Center(
+              child: Text(
+                I18n.inline('Команду не знайдено', 'Team not found'),
+              ),
+            );
+          }
           final uid = AppAuthContext.userId;
           final isCaptain = uid == team.captainId;
           final isVice = team.viceCaptainIds.contains(uid);
           final canManage = isCaptain || isVice;
-          return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: _teamStatsStream,
-            builder: (context, statsSnap) {
-              final stats = (statsSnap.hasData && statsSnap.data!.exists)
-                  ? TeamStats.fromDoc(statsSnap.data!)
-                  : TeamStats.empty(team.id, name: team.name);
-              return SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeroSection(team, canManage, stats),
-                    const SizedBox(height: 20),
-                    _buildMetricGrid(team, stats),
-                    const SizedBox(height: 20),
-                    _buildHighlights(team, stats),
-                    const SizedBox(height: 20),
-                    _buildScorersList(stats),
-                    if (canManage) ...[
-                      const SizedBox(height: 24),
-                      _buildJoinRequests(team),
-                    ],
-                    if (canManage) ...[
-                      const SizedBox(height: 24),
-                      _buildCoachDesk(team),
-                    ],
-                    const SizedBox(height: 24),
-                    _buildMembers(team, canManage),
-                    const SizedBox(height: 24),
-                    _buildRecentMatches(stats),
-                    const SizedBox(height: 24),
-                    _buildMatchRequests(canManage),
-                  ],
-                ),
-              );
-            },
+          final stats = TeamStats.fromAppTeam(team);
+          return SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeroSection(team, canManage, stats),
+                const SizedBox(height: 20),
+                _buildMetricGrid(team, stats),
+                const SizedBox(height: 20),
+                _buildHighlights(team, stats),
+                const SizedBox(height: 20),
+                _buildScorersList(stats),
+                if (canManage) ...[
+                  const SizedBox(height: 24),
+                  _buildJoinRequests(team),
+                ],
+                if (canManage) ...[
+                  const SizedBox(height: 24),
+                  _buildCoachDesk(team),
+                ],
+                const SizedBox(height: 24),
+                _buildMembers(team, canManage),
+                const SizedBox(height: 24),
+                _buildRecentMatches(stats),
+                const SizedBox(height: 24),
+                _buildMatchRequests(canManage),
+              ],
+            ),
           );
         },
       ),
@@ -258,7 +259,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   Widget _buildJoinRequestWidget(AppTeam team, String userId) {
     return StreamBuilder<TeamJoinRequest?>(
-      stream: _teamService.watchMyJoinRequest(team.id, userId),
+      stream: _teams.watchMyJoinRequest(team.id, userId),
       builder: (context, snapshot) {
         final request = snapshot.data;
         if (request != null) {
@@ -370,7 +371,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
               try {
                 setState(() => _isLeavingTeam = true);
-                await _teamService.leaveTeam(teamId: team.id, userId: userId);
+                await _teams.leaveTeam(teamId: team.id, userId: userId);
                 if (!mounted) return;
                 Navigator.pop(context); // назад зі сторінки команди
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -452,7 +453,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     if (_isSendingJoinRequest) return;
     setState(() => _isSendingJoinRequest = true);
     try {
-      await _teamService.requestToJoinTeam(
+      await _teams.requestToJoinTeam(
         teamId: team.id,
         teamName: team.name,
       );
@@ -484,7 +485,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       TeamJoinRequest request, bool accept) async {
     setState(() => _processingJoinRequestIds.add(request.id));
     try {
-      await _teamService.respondToJoinRequest(
+      await _teams.respondToJoinRequest(
         request: request,
         accept: accept,
       );
@@ -738,19 +739,15 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        ...top.map((entry) => FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              future: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(entry.key)
-                  .get(),
+        ...top.map((entry) => FutureBuilder<Map<String, dynamic>?>(
+              future: _displayProfile(entry.key),
               builder: (context, snapshot) {
-                final data = snapshot.data?.data();
+                final data = snapshot.data;
                 final name = (data?['displayName'] ??
-                        data?['name'] ??
                         I18n.inline('Гравець', 'Player'))
                     .toString();
                 final avatarUrl =
-                    (data?['avatarUrl'] ?? data?['avatar'] ?? '').toString();
+                    (data?['avatarUrl'] ?? '').toString();
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -807,7 +804,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   Widget _buildJoinRequests(AppTeam team) {
     return StreamBuilder<List<TeamJoinRequest>>(
-      stream: _teamService.watchJoinRequests(team.id),
+      stream: _teams.watchJoinRequests(team.id),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const SizedBox.shrink();
@@ -834,14 +831,12 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   Widget _joinRequestTile(TeamJoinRequest request) {
     final busy = _processingJoinRequestIds.contains(request.id);
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future: FirebaseFirestore.instance.collection('users').doc(request.userId).get(),
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _displayProfile(request.userId),
       builder: (context, snapshot) {
-        final userData = snapshot.data?.data() ?? const <String, dynamic>{};
-        final avatarUrl = (userData['avatarUrl'] ?? userData['photoUrl'] ?? '').toString();
-        final name = userData['displayName'] ??
-            userData['name'] ??
-            request.userName;
+        final userData = snapshot.data ?? const <String, dynamic>{};
+        final avatarUrl = (userData['avatarUrl'] ?? '').toString();
+        final name = userData['displayName'] ?? request.userName;
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
@@ -972,13 +967,11 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     final entries = stats.playerGoals.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final best = entries.first;
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future:
-          FirebaseFirestore.instance.collection('users').doc(best.key).get(),
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _displayProfile(best.key),
       builder: (context, snapshot) {
-        final data = snapshot.data?.data();
+        final data = snapshot.data;
         final name = data?['displayName'] ??
-            data?['name'] ??
             I18n.inline('Гравець', 'Player');
         return _highlightTile(
           icon: Icons.star,
@@ -1024,8 +1017,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     final result = (match['result'] ?? 'draw').toString();
     final playedRaw = match['playedAt'];
     DateTime? playedAt;
-    if (playedRaw is Timestamp) {
-      playedAt = playedRaw.toDate();
+    if (playedRaw is String) {
+      playedAt = DateTime.tryParse(playedRaw);
     }
     final label = playedAt != null
         ? DateFormat('d MMM').format(playedAt)
@@ -1096,11 +1089,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   Future<void> _openMatchDetails(String matchId) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('matches')
-          .doc(matchId)
-          .get();
-      if (!doc.exists) {
+      final match = await context.read<MatchesRepository>().fetchMatch(matchId);
+      if (match == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(I18n.inline('Матч не знайдено', 'Match not found')),
@@ -1108,7 +1098,6 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         );
         return;
       }
-      final match = app_match.Match.fromFirestore(doc);
       if (!mounted) return;
       Navigator.push(
         context,
@@ -1139,22 +1128,18 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         ),
         const SizedBox(height: 12),
         ...team.memberIds.map(
-          (memberId) => FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            future: FirebaseFirestore.instance
-                .collection('users')
-                .doc(memberId)
-                .get(),
+          (memberId) => FutureBuilder<Map<String, dynamic>?>(
+            future: _displayProfile(memberId),
             builder: (context, snapshot) {
-              final data = snapshot.data?.data();
+              final data = snapshot.data;
               final name = data?['displayName'] ??
-                  data?['name'] ??
                   I18n.inline('Гравець', 'Player');
               final role = memberId == team.captainId
                   ? I18n.inline('Капітан', 'Captain')
                   : team.viceCaptainIds.contains(memberId)
                       ? I18n.inline('Віце', 'Vice')
                       : I18n.inline('Гравець', 'Player');
-              final avatarUrl = (data?['avatarUrl'] ?? data?['avatar']) as String?;
+              final avatarUrl = data?['avatarUrl'] as String?;
               return InkWell(
                 onTap: () {
                   Navigator.pushNamed(
@@ -1256,25 +1241,19 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   }
 
   void _handleMemberAction(String action, AppTeam team, String memberId) async {
-    final teamRef =
-        FirebaseFirestore.instance.collection('teams').doc(team.id);
     if (action == 'promote') {
-      await teamRef.update({
-        'viceCaptainIds': FieldValue.arrayUnion([memberId]),
-      });
+      await _teams.promoteViceCaptain(team.id, memberId);
     } else if (action == 'demote') {
-      await teamRef.update({
-        'viceCaptainIds': FieldValue.arrayRemove([memberId]),
-      });
+      await _teams.demoteViceCaptain(team.id, memberId);
     } else if (action == 'remove') {
-  await _teamService.leaveTeam(teamId: team.id, userId: memberId);
+      await _teams.leaveTeam(teamId: team.id, userId: memberId);
     }
   }
 
   Widget _buildMatchRequests(bool canManage) {
     if (!canManage) return const SizedBox.shrink();
     return StreamBuilder<List<TeamMatchRequest>>(
-      stream: _requestsStream,
+      stream: _requestsStream!,
       builder: (context, snapshot) {
         final requests = snapshot.data ?? const [];
         if (requests.isEmpty) {
@@ -1457,15 +1436,12 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       {required bool accepted}) async {
     List<String> roster = request.proposedRoster;
     if (accepted) {
-      final teamDoc = await FirebaseFirestore.instance
-          .collection('teams')
-          .doc(widget.teamId)
-          .get();
-      final team = AppTeam.fromDoc(teamDoc);
+      final team = await _teams.getTeam(widget.teamId);
+      if (team == null) return;
       roster = await _pickRoster(team.memberIds, request.matchId);
       if (roster.isEmpty) return;
     }
-    await _teamService.respondToMatchRequest(
+    await _teams.respondToMatchRequest(
       request: request,
       accept: accepted,
       confirmedRoster: roster,
@@ -1474,12 +1450,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   Future<List<String>> _pickRoster(
       List<String> members, String matchId) async {
-    final matchDoc = await FirebaseFirestore.instance
-        .collection('matches')
-        .doc(matchId)
-        .get();
-    final data = matchDoc.data() ?? {};
-    final maxPlayers = (data['maxPlayers'] ?? 10) as int;
+    final matchRow = await context.read<MatchesRepository>().fetchMatch(matchId);
+    final maxPlayers = matchRow?.maxPlayers ?? 10;
     final limit = (maxPlayers / 2).ceil();
     final current = members.take(limit).toSet();
     final currentUserId = AppAuthContext.userId;
@@ -1501,10 +1473,9 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     final namesCache = <String, String>{};
     final futures = members.map((id) async {
       try {
-        final doc = await FirebaseFirestore.instance.collection('users').doc(id).get();
-        final data = doc.data();
+        final row = await _teams.fetchProfileForDisplay(id);
         namesCache[id] =
-            (data?['displayName'] ?? data?['name'] ?? 'Player').toString();
+            (row?['displayName'] ?? 'Player').toString();
       } catch (_) {
         namesCache[id] = 'Player';
       }
@@ -1614,7 +1585,6 @@ class _InviteSheet extends StatefulWidget {
 }
 
 class _InviteSheetState extends State<_InviteSheet> {
-  final _teamService = TeamService();
   final _searchCtrl = TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
   final Set<String> _selectedIds = {};
@@ -1638,7 +1608,8 @@ class _InviteSheetState extends State<_InviteSheet> {
       return;
     }
     setState(() => _isSearching = true);
-    final results = await _teamService.searchPlayers(query, limit: 10);
+    final results =
+        await context.read<TeamsRepository>().searchPlayers(query, limit: 10);
     setState(() {
       _searchResults = results;
       _isSearching = false;
@@ -1660,7 +1631,7 @@ class _InviteSheetState extends State<_InviteSheet> {
 
   Future<void> _sendInvites() async {
     if (_selectedIds.isEmpty) return;
-    await _teamService.invitePlayers(
+    await context.read<TeamsRepository>().invitePlayers(
       teamId: widget.team.id,
       teamName: widget.team.name,
       userIds: _selectedIds.toList(),

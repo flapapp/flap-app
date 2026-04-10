@@ -1,10 +1,14 @@
 import 'package:auto_route/auto_route.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/models/team_stats.dart';
-import 'package:flap_app/features/teams/data/team_service.dart';
+import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
+import 'package:flap_app/features/teams/presentation/bloc/teams_bloc.dart';
+import 'package:flap_app/features/teams/presentation/bloc/teams_event.dart';
+import 'package:flap_app/features/teams/presentation/bloc/teams_state.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/mode_speed_dial.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
@@ -12,8 +16,6 @@ import 'package:flap_app/widgets/team_logo_button.dart';
 import 'team_create_screen.dart';
 import 'team_details_screen.dart';
 import 'package:flap_app/core/app_auth_context.dart';
-import 'package:flap_app/core/router/app_router.dart';
-
 @RoutePage()
 class TeamHubScreen extends StatefulWidget {
   const TeamHubScreen({super.key});
@@ -23,25 +25,21 @@ class TeamHubScreen extends StatefulWidget {
 }
 
 class _TeamHubScreenState extends State<TeamHubScreen> {
-  final TeamService _teamService = TeamService();
-
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _teamsStream;
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _teamStatsStream;
-  late final Stream<List<AppTeam>> _myTeamsStream;
+  Stream<List<AppTeam>>? _leaderboardStream;
+  bool _myTeamsListenStarted = false;
 
   @override
-  void initState() {
-    super.initState();
-    _teamsStream = FirebaseFirestore.instance
-        .collection('teams')
-        .orderBy('wins', descending: true)
-        .snapshots();
-    _teamStatsStream =
-        FirebaseFirestore.instance.collection('teamStats').snapshots();
-    final uid = AppAuthContext.userId;
-    _myTeamsStream = uid != null
-        ? _teamService.watchUserTeams(uid)
-        : Stream<List<AppTeam>>.value(const []);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _leaderboardStream ??=
+        context.read<TeamsRepository>().watchTeamsLeaderboard();
+    if (!_myTeamsListenStarted) {
+      _myTeamsListenStarted = true;
+      final uid = AppAuthContext.userId;
+      if (uid != null) {
+        context.read<TeamsBloc>().add(TeamsMyTeamsListenRequested(uid));
+      }
+    }
   }
 
   @override
@@ -86,55 +84,44 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
           ),
         ),
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _teamsStream,
+      body: StreamBuilder<List<AppTeam>>(
+        stream: _leaderboardStream!,
         builder: (context, teamSnapshot) {
-          final teams = teamSnapshot.data?.docs
-                  .map(AppTeam.fromDoc)
-                  .toList(growable: false) ??
-              const [];
-          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _teamStatsStream,
-            builder: (context, statsSnapshot) {
-              final statsMap = <String, TeamStats>{};
-              if (statsSnapshot.hasData) {
-                for (final doc in statsSnapshot.data!.docs) {
-                  statsMap[doc.id] = TeamStats.fromDoc(doc);
-                }
-              }
-              final teamNameMap = {
-                for (final team in teams) team.id: team.name,
-              };
-              final enriched = teams
-                  .map((team) => _TeamWithStats(
-                        team: team,
-                        stats: statsMap[team.id] ??
-                            TeamStats.empty(team.id, name: team.name),
-                      ))
-                  .toList();
-              enriched.sort(_compareTeams);
-              final leader = enriched.isNotEmpty ? enriched.first : null;
-
-              return RefreshIndicator(
-                onRefresh: () async => setState(() {}),
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHero(leader),
-                      const SizedBox(height: 24),
-                      _buildMyTeams(),
-                      const SizedBox(height: 24),
-                      _buildLeaderboard(enriched),
-                      const SizedBox(height: 24),
-                      _buildGoldenBootSection(statsMap, teamNameMap),
-                    ],
-                  ),
+          final teams = teamSnapshot.data ?? const [];
+          final statsMap = <String, TeamStats>{
+            for (final t in teams) t.id: TeamStats.fromAppTeam(t),
+          };
+          final teamNameMap = {for (final team in teams) team.id: team.name};
+          final enriched = teams
+              .map(
+                (team) => _TeamWithStats(
+                  team: team,
+                  stats: statsMap[team.id] ??
+                      TeamStats.empty(team.id, name: team.name),
                 ),
-              );
-            },
+              )
+              .toList();
+          enriched.sort(_compareTeams);
+          final leader = enriched.isNotEmpty ? enriched.first : null;
+
+          return RefreshIndicator(
+            onRefresh: () async => setState(() {}),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHero(leader),
+                  const SizedBox(height: 24),
+                  _buildMyTeams(),
+                  const SizedBox(height: 24),
+                  _buildLeaderboard(enriched),
+                  const SizedBox(height: 24),
+                  _buildGoldenBootSection(statsMap, teamNameMap),
+                ],
+              ),
+            ),
           );
         },
       ),
@@ -171,16 +158,13 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
       );
       return;
     }
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.id)
-        .get();
-    final teamIds = (userDoc.data()?['teamIds'] as List<dynamic>?) ?? [];
+    final teams =
+        await context.read<TeamsRepository>().fetchUserTeams(user.id);
     if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TeamCreateScreen(existingTeams: teamIds.length),
+        builder: (_) => TeamCreateScreen(existingTeams: teams.length),
       ),
     );
   }
@@ -333,10 +317,9 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
   }
 
   Widget _buildMyTeams() {
-    return StreamBuilder<List<AppTeam>>(
-      stream: _myTeamsStream,
-      builder: (context, snapshot) {
-        final myTeams = snapshot.data ?? const [];
+    return BlocBuilder<TeamsBloc, TeamsState>(
+      builder: (context, state) {
+        final myTeams = state.myTeams;
         if (myTeams.isEmpty) {
           return _emptyState(
             title: I18n.inline('Немає клубів', 'No clubs yet'),
@@ -749,12 +732,17 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
   Future<Map<String, Map<String, dynamic>>> _fetchUsers(
       List<String> ids) async {
     if (ids.isEmpty) return {};
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .where(FieldPath.documentId, whereIn: ids)
-        .get();
+    final rows = await Supabase.instance.client
+        .from('profiles')
+        .select('id, display_name, name, surname, email, avatar_url')
+        .inFilter('id', ids);
     return {
-      for (final doc in snap.docs) doc.id: doc.data(),
+      for (final r in (rows as List).cast<Map>())
+        r['id'].toString(): <String, dynamic>{
+          'displayName': r['display_name'] ?? r['name'] ?? '',
+          'name': r['name'],
+          'avatarUrl': r['avatar_url'],
+        },
     };
   }
 

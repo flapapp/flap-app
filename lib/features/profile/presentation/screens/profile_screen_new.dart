@@ -20,7 +20,7 @@ import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/models/team_stats.dart';
 import 'package:flap_app/models/team_invite.dart';
-import 'package:flap_app/features/teams/data/team_service.dart';
+import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
 import 'package:flap_app/features/teams/presentation/screens/team_details_screen.dart';
 import 'package:flap_app/features/teams/presentation/screens/team_create_screen.dart';
 
@@ -34,7 +34,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseStorage _storage = FirebaseStorage.instance;
-  final TeamService _teamService = TeamService();
   final ImagePicker _picker = ImagePicker();
   
   Stream<Map<String, dynamic>>? _profileStream;
@@ -62,8 +61,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
         _loadUserBadges();
         _loadFriendsCount();
-        _teamsStream = _teamService.watchUserTeams(uid);
-        _teamInvitesStream = _teamService.watchInvites(uid);
+        _teamsStream = context.read<TeamsRepository>().watchUserTeams(uid);
+        _teamInvitesStream = context.read<TeamsRepository>().watchInvites(uid);
         _checkAndShowDonationPrompt(uid);
       });
     }
@@ -486,7 +485,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   final isTight = constraints.maxWidth < 320;
                   final cancelButton = TextButton(
                     onPressed: () async {
-                      await _teamService.respondToInvite(
+                      await context.read<TeamsRepository>().respondToInvite(
                         invite: invite,
                         accept: false,
                       );
@@ -505,7 +504,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   final joinButton = ElevatedButton(
                     onPressed: () async {
                       try {
-                        await _teamService.respondToInvite(
+                        await context.read<TeamsRepository>().respondToInvite(
                           invite: invite,
                           accept: true,
                         );
@@ -1764,17 +1763,13 @@ class _TeamCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('teamStats')
-          .doc(team.id)
-          .snapshots(),
+    return StreamBuilder<AppTeam?>(
+      stream: context.read<TeamsRepository>().watchTeam(team.id),
       builder: (context, snapshot) {
-        final stats = snapshot.hasData && snapshot.data!.exists
-            ? TeamStats.fromDoc(snapshot.data!)
-            : TeamStats.empty(team.id, name: team.name);
+        final live = snapshot.data ?? team;
+        final stats = TeamStats.fromAppTeam(live);
         return _TeamCardBody(
-          team: team,
+          team: live,
           stats: stats,
           onTap: onTap,
         );

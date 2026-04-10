@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/models/match.dart';
 import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
+import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/matches/data/rating_service.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -1244,13 +1245,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
   Future<AppTeam?> _getTeam(String teamId) async {
     if (_teamCache.containsKey(teamId)) return _teamCache[teamId];
-    final snap = await FirebaseFirestore.instance
-        .collection('teams')
-        .doc(teamId)
-        .get();
-    if (!snap.exists) return null;
-    final team = AppTeam.fromDoc(snap);
-    _teamCache[teamId] = team;
+    final team = await context.read<TeamsRepository>().getTeam(teamId);
+    if (team != null) _teamCache[teamId] = team;
     return team;
   }
 

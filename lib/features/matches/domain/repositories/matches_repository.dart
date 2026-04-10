@@ -3,7 +3,7 @@ import 'package:flap_app/models/match.dart';
 import 'package:flap_app/models/app_team.dart';
 
 /// Matches lifecycle + fixtures (Supabase `matches`, `match_fixtures`).
-/// Team standings updates for linked [AppTeam] may still use legacy Firestore.
+/// Team standings for linked [AppTeam] rows use [TeamsRepository] (Supabase RPC).
 abstract class MatchesRepository {
   Stream<List<Match>> getAvailableMatches();
 
@@ -92,6 +92,8 @@ abstract class MatchesRepository {
   });
 
   Future<Match?> fetchMatch(String matchId);
+
+  Future<void> saveMatch(Match match);
 
   Stream<Match?> watchMatch(String matchId);
 }

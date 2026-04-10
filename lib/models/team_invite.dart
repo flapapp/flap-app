@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum TeamInviteStatus { pending, accepted, declined }
 
 class TeamInvite {
@@ -21,27 +19,33 @@ class TeamInvite {
     required this.createdAt,
   });
 
-  factory TeamInvite.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
+  static DateTime _ts(dynamic v) {
+    if (v == null) return DateTime.now();
+    if (v is DateTime) return v;
+    if (v is String) return DateTime.tryParse(v) ?? DateTime.now();
+    return DateTime.now();
+  }
+
+  factory TeamInvite.fromSupabaseRow(Map<String, dynamic> row) {
     return TeamInvite(
-      id: doc.id,
-      teamId: (data['teamId'] ?? '').toString(),
-      teamName: (data['teamName'] ?? '').toString(),
-      userId: (data['userId'] ?? '').toString(),
-      invitedBy: (data['invitedBy'] ?? '').toString(),
-      status: _statusFromString((data['status'] ?? 'pending').toString()),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      id: row['id'].toString(),
+      teamId: (row['team_id'] ?? '').toString(),
+      teamName: (row['team_name'] ?? '').toString(),
+      userId: (row['user_id'] ?? '').toString(),
+      invitedBy: (row['invited_by'] ?? '').toString(),
+      status: _statusFromString((row['status'] ?? 'pending').toString()),
+      createdAt: _ts(row['created_at']),
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toSupabaseInsert() {
     return {
-      'teamId': teamId,
-      'teamName': teamName,
-      'userId': userId,
-      'invitedBy': invitedBy,
+      'team_id': teamId,
+      'team_name': teamName,
+      'user_id': userId,
+      'invited_by': invitedBy,
       'status': status.name,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'created_at': createdAt.toUtc().toIso8601String(),
     };
   }
 
@@ -56,14 +60,3 @@ class TeamInvite {
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-

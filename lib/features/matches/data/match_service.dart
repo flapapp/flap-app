@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flap_app/models/match.dart';
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
+import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -11,13 +11,11 @@ import '../domain/repositories/matches_repository.dart';
 import 'datasources/matches_remote_data_source.dart';
 
 class MatchesRepositoryImpl implements MatchesRepository {
-  MatchesRepositoryImpl(this._remote, this._profiles);
+  MatchesRepositoryImpl(this._remote, this._profiles, this._teams);
 
   final MatchesRemoteDataSource _remote;
   final UserProfileRepository _profiles;
-
-  /// Legacy Firestore (teams, `teamStats`, `teamMatchRequests`) until those migrate.
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final TeamsRepository _teams;
 
   SupabaseClient get _sb => Supabase.instance.client;
 
@@ -71,6 +69,9 @@ class MatchesRepositoryImpl implements MatchesRepository {
 
   @override
   Future<Match?> fetchMatch(String matchId) => _remote.fetchMatch(matchId);
+
+  @override
+  Future<void> saveMatch(Match match) => _remote.saveMatch(match);
 
   @override
   Stream<Match?> watchMatch(String matchId) {
@@ -881,7 +882,12 @@ class MatchesRepositoryImpl implements MatchesRepository {
         );
       }
 
-      await _updateTeamsAfterMatch(m, teamAScore, teamBScore, goalsByPlayer);
+      await _teams.applyStandingsAfterTeamMatch(
+        m,
+        teamAScore,
+        teamBScore,
+        goalsByPlayer,
+      );
       try {
         final teamAName = m.teamA?.name ?? 'Команда A';
         final teamBName = m.teamB?.name ?? 'Команда B';
@@ -963,14 +969,6 @@ class MatchesRepositoryImpl implements MatchesRepository {
 
       await _remote.deleteMatchRow(matchId);
 
-      final reqSnap = await _firestore
-          .collection('teamMatchRequests')
-          .where('matchId', isEqualTo: matchId)
-          .get();
-      for (final doc in reqSnap.docs) {
-        await doc.reference.delete();
-      }
-
       return true;
     } catch (e) {
       print('Error deleting match: $e');
@@ -996,172 +994,6 @@ class MatchesRepositoryImpl implements MatchesRepository {
       print('Error saveMultiTeamResults: $e');
       return false;
     }
-  }
-
-  Future<void> _updateTeamsAfterMatch(
-    Match match,
-    int teamAScore,
-    int teamBScore,
-    Map<String, int> goalsByPlayer,
-  ) async {
-    if (match.teamAId == null || match.teamBId == null) return;
-    final aRef = _firestore.collection('teams').doc(match.teamAId);
-    final bRef = _firestore.collection('teams').doc(match.teamBId);
-    final aDoc = await aRef.get();
-    final bDoc = await bRef.get();
-    if (!aDoc.exists || !bDoc.exists) return;
-    final teamA = AppTeam.fromDoc(aDoc);
-    final teamB = AppTeam.fromDoc(bDoc);
-    final rosterA =
-        match.teamRosters['teamA'] ?? match.teamA?.playerIds ?? const [];
-    final rosterB =
-        match.teamRosters['teamB'] ?? match.teamB?.playerIds ?? const [];
-    final resultA = teamAScore.compareTo(teamBScore);
-    final now = Timestamp.now();
-    final summaryA = {
-      'matchId': match.id,
-      'opponentTeamId': match.teamBId,
-      'opponentName': teamB.name,
-      'score': '$teamAScore:$teamBScore',
-      'result': resultA > 0
-          ? 'win'
-          : resultA < 0
-              ? 'loss'
-              : 'draw',
-      'playedAt': now,
-    };
-    final summaryB = {
-      'matchId': match.id,
-      'opponentTeamId': match.teamAId,
-      'opponentName': teamA.name,
-      'score': '$teamBScore:$teamAScore',
-      'result': resultA < 0
-          ? 'win'
-          : resultA > 0
-              ? 'loss'
-              : 'draw',
-      'playedAt': now,
-    };
-    final recentA = [summaryA, ...teamA.recentMatches];
-    final recentB = [summaryB, ...teamB.recentMatches];
-    final aPlayerUpdates = <String, dynamic>{};
-    final bPlayerUpdates = <String, dynamic>{};
-    final aGoalDeltas = <String, int>{};
-    final bGoalDeltas = <String, int>{};
-    for (final uid in rosterA) {
-      final goals = goalsByPlayer[uid] ?? 0;
-      if (goals > 0) {
-        aPlayerUpdates['playerGoals.$uid'] = FieldValue.increment(goals);
-        aGoalDeltas[uid] = goals;
-      }
-    }
-    for (final uid in rosterB) {
-      final goals = goalsByPlayer[uid] ?? 0;
-      if (goals > 0) {
-        bPlayerUpdates['playerGoals.$uid'] = FieldValue.increment(goals);
-        bGoalDeltas[uid] = goals;
-      }
-    }
-    final batch = _firestore.batch();
-    batch.update(aRef, {
-      'wins': FieldValue.increment(resultA > 0 ? 1 : 0),
-      'losses': FieldValue.increment(resultA < 0 ? 1 : 0),
-      'draws': FieldValue.increment(resultA == 0 ? 1 : 0),
-      'goalsFor': FieldValue.increment(teamAScore),
-      'goalsAgainst': FieldValue.increment(teamBScore),
-      'recentMatches': recentA.take(5).toList(),
-      'updatedAt': now,
-      ...aPlayerUpdates,
-    });
-    batch.update(bRef, {
-      'wins': FieldValue.increment(resultA < 0 ? 1 : 0),
-      'losses': FieldValue.increment(resultA > 0 ? 1 : 0),
-      'draws': FieldValue.increment(resultA == 0 ? 1 : 0),
-      'goalsFor': FieldValue.increment(teamBScore),
-      'goalsAgainst': FieldValue.increment(teamAScore),
-      'recentMatches': recentB.take(5).toList(),
-      'updatedAt': now,
-      ...bPlayerUpdates,
-    });
-    try {
-      await batch.commit();
-    } catch (e) {
-      print('Warning updating teams standings: $e');
-    }
-
-    await _updateTeamStatsDoc(
-      teamId: match.teamAId!,
-      teamName: teamA.name,
-      goalsFor: teamAScore,
-      goalsAgainst: teamBScore,
-      isWin: resultA > 0,
-      isDraw: resultA == 0,
-      playerGoalDeltas: aGoalDeltas,
-      summary: summaryA,
-    );
-    await _updateTeamStatsDoc(
-      teamId: match.teamBId!,
-      teamName: teamB.name,
-      goalsFor: teamBScore,
-      goalsAgainst: teamAScore,
-      isWin: resultA < 0,
-      isDraw: resultA == 0,
-      playerGoalDeltas: bGoalDeltas,
-      summary: summaryB,
-    );
-  }
-
-  Future<void> _updateTeamStatsDoc({
-    required String teamId,
-    required String teamName,
-    required int goalsFor,
-    required int goalsAgainst,
-    required bool isWin,
-    required bool isDraw,
-    required Map<String, int> playerGoalDeltas,
-    required Map<String, dynamic> summary,
-  }) async {
-    final ref = _firestore.collection('teamStats').doc(teamId);
-    await _firestore.runTransaction((tx) async {
-      final snap = await tx.get(ref);
-      final data = snap.data() ?? const <String, dynamic>{};
-      final currentWins = (data['wins'] ?? 0) as int;
-      final currentDraws = (data['draws'] ?? 0) as int;
-      final currentLosses = (data['losses'] ?? 0) as int;
-      final currentGoalsFor = (data['goalsFor'] ?? 0) as int;
-      final currentGoalsAgainst = (data['goalsAgainst'] ?? 0) as int;
-      final playerGoals = Map<String, int>.from(
-        (data['playerGoals'] ?? const <String, dynamic>{}).map(
-          (key, value) => MapEntry(key.toString(), (value as num).toInt()),
-        ),
-      );
-      playerGoalDeltas.forEach((playerId, delta) {
-        playerGoals[playerId] = (playerGoals[playerId] ?? 0) + delta;
-      });
-
-      final recent = List<Map<String, dynamic>>.from(
-        (data['recentMatches'] as List?) ?? const [],
-      );
-      recent.insert(0, summary);
-      final trimmedRecent = recent.take(5).toList();
-
-      tx.set(
-        ref,
-        {
-          'teamId': teamId,
-          'teamName': teamName,
-          'wins': currentWins + (isWin ? 1 : 0),
-          'draws': currentDraws + (isDraw ? 1 : 0),
-          'losses': currentLosses + ((!isWin && !isDraw) ? 1 : 0),
-          'goalsFor': currentGoalsFor + goalsFor,
-          'goalsAgainst': currentGoalsAgainst + goalsAgainst,
-          'playerGoals': playerGoals,
-          'recentMatches': trimmedRecent,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-    });
   }
 
   @override

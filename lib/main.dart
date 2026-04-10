@@ -37,6 +37,10 @@ import 'features/friends/domain/repositories/friends_repository.dart';
 import 'features/matches/data/datasources/supabase_matches_remote_data_source.dart';
 import 'features/matches/data/match_service.dart';
 import 'features/matches/domain/repositories/matches_repository.dart';
+import 'features/teams/data/datasources/supabase_teams_remote_data_source.dart';
+import 'features/teams/data/repositories/teams_repository_impl.dart';
+import 'features/teams/domain/repositories/teams_repository.dart';
+import 'features/teams/presentation/bloc/teams_bloc.dart';
 import 'features/notifications/data/datasources/supabase_notifications_remote_data_source.dart';
 import 'features/notifications/data/notification_service.dart';
 import 'features/notifications/data/repositories/notifications_repository_impl.dart';
@@ -85,10 +89,17 @@ Future<void> main() async {
     SupabaseFriendsRemoteDataSource(),
     userProfileRepo,
   );
+  MatchesRepository? matchesRepoRef;
+  final teamsRepo = TeamsRepositoryImpl(
+    SupabaseTeamsRemoteDataSource(),
+    () => matchesRepoRef!,
+  );
   final matchesRepo = MatchesRepositoryImpl(
     SupabaseMatchesRemoteDataSource(),
     userProfileRepo,
+    teamsRepo,
   );
+  matchesRepoRef = matchesRepo;
   final notificationsRepo = NotificationsRepositoryImpl(
     SupabaseNotificationsRemoteDataSource(),
   );
@@ -118,6 +129,7 @@ Future<void> main() async {
         RepositoryProvider<BadgeRepository>.value(value: badgeRepo),
         RepositoryProvider<ChallengeRepository>.value(value: challengeRepo),
         RepositoryProvider<FriendsRepository>.value(value: friendsRepo),
+        RepositoryProvider<TeamsRepository>.value(value: teamsRepo),
         RepositoryProvider<MatchesRepository>.value(value: matchesRepo),
         RepositoryProvider<NotificationsRepository>.value(
           value: notificationsRepo,
@@ -227,11 +239,18 @@ class _MyAppState extends State<MyApp> {
       useMaterial3: true,
     );
 
-    return BlocProvider(
-      create: (context) => AuthBloc(
-            widget.authRepository,
-            context.read<UserProfileRepository>(),
-          )..add(const AuthStarted()),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) => AuthBloc(
+                widget.authRepository,
+                context.read<UserProfileRepository>(),
+              )..add(const AuthStarted()),
+        ),
+        BlocProvider(
+          create: (context) => TeamsBloc(context.read<TeamsRepository>()),
+        ),
+      ],
       child: ValueListenableBuilder<String>(
       valueListenable: I18n.language,
       builder: (context, lang, _) => MaterialApp.router(
@@ -256,6 +275,6 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
     ),
-    );
+  );
   }
 }
