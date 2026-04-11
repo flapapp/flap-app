@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'core/theme/flap_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -203,11 +203,6 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    final baseTheme = ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4caf50)),
-      useMaterial3: true,
-    );
-
     return MultiBlocProvider(
       providers: [
         BlocProvider(
@@ -225,20 +220,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, lang, _) => MaterialApp.router(
         debugShowCheckedModeBanner: false,
         title: 'FLAP',
-        theme: baseTheme.copyWith(
-          textTheme: GoogleFonts.robotoTextTheme(baseTheme.textTheme),
-          appBarTheme: baseTheme.appBarTheme.copyWith(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            iconTheme: const IconThemeData(color: Colors.white),
-            titleTextStyle: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-            foregroundColor: Colors.white,
-          ),
-        ),
+        theme: FlapTheme.theme(),
         routerConfig: appRouter.config(
           reevaluateListenable: _authReevaluateListenable,
         ),

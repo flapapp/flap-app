@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:flap_app/core/theme/flap_theme.dart';
+
 class ModeDialAction {
   final IconData icon;
   final String tooltip;
@@ -11,7 +13,7 @@ class ModeDialAction {
     required this.icon,
     required this.tooltip,
     required this.onTap,
-    this.background = const Color(0xFF1F2535),
+    this.background = FlapTheme.surfaceElevated,
     this.iconColor = Colors.white,
   });
 }
@@ -27,7 +29,7 @@ class ModeSpeedDial extends StatefulWidget {
     required this.shortcuts,
     required this.onCreate,
     required this.createTooltip,
-    this.createGradient = const [Color(0xFF4caf50), Color(0xFF66bb6a)],
+    this.createGradient = const [FlapTheme.accent, FlapTheme.accentDim],
   });
 
   @override
@@ -184,7 +186,7 @@ class _ActionLabel extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF0F1424).withValues(alpha: 0.92),
+          color: FlapTheme.surface.withValues(alpha: 0.94),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.white12),
         ),

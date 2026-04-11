@@ -22,7 +22,10 @@ import 'package:flap_app/features/teams/domain/repositories/teams_repository.dar
 import 'package:flap_app/features/teams/presentation/screens/team_details_screen.dart';
 import 'package:flap_app/features/teams/presentation/screens/team_create_screen.dart';
 
+import 'package:flap_app/core/navigation/flap_navigation.dart';
 import 'package:flap_app/core/router/app_router.dart';
+import 'package:flap_app/features/shell/presentation/home_hub_screen.dart';
+import 'package:flap_app/core/theme/flap_theme.dart';
 
 /// Win/draw/loss stats from Supabase-backed [Match] rows (same rules as legacy Firestore).
 Map<String, dynamic> _profileScreenMatchStats(List<Match> userMatches, String userId) {
@@ -644,7 +647,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0f0f23),
+      backgroundColor: FlapTheme.pitch,
       body: StreamBuilder<Map<String, dynamic>>(
         stream: _profileStream,
         builder: (context, snapshot) {
@@ -695,7 +698,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SliverAppBar(
           pinned: true,
           elevation: 0,
-          backgroundColor: const Color(0xFF0f0f23),
+          backgroundColor: FlapTheme.pitch,
           actions: [
             IconButton(
               icon: const Icon(Icons.settings, color: Colors.white),
@@ -1036,7 +1039,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               (userData['matchesPlayed'] ?? 0).toString(),
               Icons.sports_soccer,
               const Color(0xFF4caf50),
-              onTap: () => context.pushRoute(MatchesRoute(initialTabIndex: 1)),
+              onTap: () => flapOpenMainTab(
+                    context,
+                    FlapMainTab.matches,
+                    matchesRoute: MatchesRoute(initialTabIndex: 1),
+                  ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1046,7 +1053,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               (userData['videosUploaded'] ?? 0).toString(),
               Icons.videocam,
               const Color(0xFFFF6B35),
-              onTap: () => context.pushRoute(VideoMainRoute(myContent: 'videos')),
+              onTap: () => flapOpenMainTab(
+                    context,
+                    FlapMainTab.home,
+                    homeHubRoute: HomeHubRoute(myContent: 'videos'),
+                  ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1530,15 +1541,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _openMyMatches() {
-    context.pushRoute(MatchesRoute(initialTabIndex: 1));
+    flapOpenMainTab(
+      context,
+      FlapMainTab.matches,
+      matchesRoute: MatchesRoute(initialTabIndex: 1),
+    );
   }
 
   void _openMyVideos() {
-    context.pushRoute(VideoMainRoute(myContent: 'videos'));
+    flapOpenMainTab(
+      context,
+      FlapMainTab.home,
+      homeHubRoute: HomeHubRoute(myContent: 'videos'),
+    );
   }
 
   void _openMyChallenges() {
-    context.pushRoute(VideoMainRoute(myContent: 'challenges'));
+    flapOpenMainTab(
+      context,
+      FlapMainTab.home,
+      homeHubRoute: HomeHubRoute(myContent: 'challenges'),
+    );
   }
 
   void _openStats(Map<String, dynamic> userData) {
@@ -1793,7 +1816,7 @@ class ProfileStatsPage extends StatelessWidget {
     final cleanSheetsValue = (userData['cleanSheets'] ?? 0) as num;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0f0f23),
+      backgroundColor: FlapTheme.pitch,
       appBar: AppBar(
         title: Text(I18n.t('statistics_title')),
         backgroundColor: Colors.transparent,

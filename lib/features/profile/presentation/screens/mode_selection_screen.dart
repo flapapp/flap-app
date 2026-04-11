@@ -11,10 +11,11 @@ import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/navigation/flap_navigation.dart';
 import 'package:flap_app/core/router/app_router.dart';
+import 'package:flap_app/core/theme/flap_theme.dart';
 import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 
-@RoutePage()
 class ModeSelectionScreen extends StatefulWidget {
   const ModeSelectionScreen({super.key});
 
@@ -28,13 +29,13 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
   void _pushNewsRoute(BuildContext context, String path) {
     switch (path) {
       case '/matches':
-        context.pushRoute(MatchesRoute());
+        flapOpenMainTab(context, FlapMainTab.matches);
         break;
       case '/teams':
-        context.pushRoute(TeamHubRoute());
+        flapOpenMainTab(context, FlapMainTab.teams);
         break;
       case '/video-main':
-        context.pushRoute(VideoMainRoute());
+        flapOpenMainTab(context, FlapMainTab.home);
         break;
       default:
         break;
@@ -480,168 +481,165 @@ Widget _buildNewsCardItem(_NewsEntry entry, {required bool primary}) {
 }
 
   @override
-Widget build(BuildContext context) {
-  return Scaffold(
-    backgroundColor: const Color(0xFF0f1923),
-    appBar: AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      actions: [
-        StreamBuilder<Map<String, dynamic>>(
-          stream: _profileStream,
-          builder: (context, snapshot) {
-            final data = snapshot.data;
-            final rating = (data?['rating'] ?? 0.0).toDouble();
-            return Row(
-              children: [
-                Text(
-                  '⭐ ${rating.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+  Widget build(BuildContext context) {
+    final hubBody = Padding(
+      padding: const EdgeInsets.all(20),
+      child: StreamBuilder<Map<String, dynamic>>(
+        stream: _profileStream,
+        builder: (context, snapshot) {
+          final data = snapshot.data;
+          const matchColors = [Color(0xFF0f9d58), Color(0xFF0c6f3c)];
+          const videoColors = [Color(0xFFc62828), Color(0xFF8e24aa)];
+          const teamColors = [Color(0xFF1976d2), Color(0xFF0d47a1)];
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeroCard(data),
+              const SizedBox(height: 20),
+              _buildNewsSection(),
+              const SizedBox(height: 24),
+              _ModeCard(
+                title: I18n.t('matches'),
+                subtitle: I18n.inline(
+                  'Знаходь матчі поблизу, керуй командами',
+                  'Find matches, manage squads',
                 ),
-                IconButton(
-                  icon: const Icon(Icons.sports_soccer, color: Colors.white),
-                  onPressed: () => context.pushRoute(MatchesRoute()),
+                highlights: [
+                  I18n.inline('Новий Team Hub', 'New Team Hub'),
+                  I18n.inline('Гнучкі формати', 'Flexible formats'),
+                  I18n.inline('Рейтинг гравців', 'Player rating'),
+                ],
+                icon: Icons.sports_soccer,
+                colors: matchColors,
+                badge: I18n.inline('Матч-день', 'Match day'),
+                actionLabel: I18n.inline('До матчів', 'Browse matches'),
+                illustration: _ModeArt(type: _ModeArtType.matches, colors: matchColors),
+                onTap: () => flapOpenMainTab(context, FlapMainTab.matches),
+              ),
+              const SizedBox(height: 16),
+              _ModeCard(
+                title: I18n.t('videos'),
+                subtitle: I18n.inline(
+                  'Кидай челенджі, збирай перегляди',
+                  'Join challenges, grow your audience',
                 ),
-                IconButton(
-                  icon: const Icon(Icons.video_collection, color: Colors.white),
-                  onPressed: () => context.pushRoute(VideoMainRoute()),
+                highlights: [
+                  I18n.inline('16:9 превʼю', '16:9 previews'),
+                  I18n.inline('Челендж-стрічка', 'Challenge feed'),
+                  I18n.inline('Запити на оцінку', 'Rating requests'),
+                ],
+                icon: Icons.video_collection,
+                colors: videoColors,
+                badge: I18n.inline('Пульс контенту', 'Content pulse'),
+                actionLabel: I18n.inline('До відео', 'Open videos'),
+                illustration: _ModeArt(type: _ModeArtType.videos, colors: videoColors),
+                onTap: () => flapOpenMainTab(context, FlapMainTab.home),
+              ),
+              const SizedBox(height: 16),
+              _ModeCard(
+                title: I18n.inline('Команди', 'Teams'),
+                subtitle: I18n.inline(
+                  'Створюй клуби, керуй ростером',
+                  'Create clubs, manage rosters',
                 ),
-                StreamBuilder<int>(
-                  stream: _notificationService.getUnreadCount(),
-                  builder: (context, notifSnapshot) {
-                    final unreadCount = notifSnapshot.data ?? 0;
-                    return Stack(
-                      children: [
-                        IconButton(
-                          tooltip: I18n.t('notifications'),
-                          icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                          onPressed: () => context.pushRoute(NotificationsRoute()),
-                        ),
-                        if (unreadCount > 0)
-                          Positioned(
-                            right: 6,
-                            top: 6,
-                            child: IgnorePointer(
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 16,
-                                  minHeight: 16,
-                                ),
-                                child: Text(
-                                  unreadCount > 99 ? '99+' : unreadCount.toString(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.person, color: Colors.white),
-                  onPressed: () => context.pushRoute(AppProfileRoute()),
-                ),
-              ],
-            );
-          },
+                highlights: [
+                  I18n.inline('Запрошення в 1 клік', 'One-tap invites'),
+                  I18n.inline('Матчі між командами', 'Team-only matches'),
+                  I18n.inline('Статистика голів', 'Goal tracking'),
+                ],
+                icon: Icons.groups_2,
+                colors: teamColors,
+                badge: I18n.inline('Club DNA', 'Club DNA'),
+                actionLabel: I18n.inline('Мої команди', 'Your clubs'),
+                illustration: _ModeArt(type: _ModeArtType.teams, colors: teamColors),
+                onTap: () => flapOpenMainTab(context, FlapMainTab.teams),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return Scaffold(
+      backgroundColor: FlapTheme.pitch,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'assets/logo/flap_logo.jpg',
+                width: 28,
+                height: 28,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'FLAP',
+              style: GoogleFonts.plusJakartaSans(
+                color: FlapTheme.onDark,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-    body: SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: StreamBuilder<Map<String, dynamic>>(
-          stream: _profileStream,
-          builder: (context, snapshot) {
-            final data = snapshot.data;
-            const matchColors = [Color(0xFF0f9d58), Color(0xFF0c6f3c)];
-            const videoColors = [Color(0xFFc62828), Color(0xFF8e24aa)];
-            const teamColors = [Color(0xFF1976d2), Color(0xFF0d47a1)];
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeroCard(data),
-                const SizedBox(height: 20),
-                _buildNewsSection(),
-                const SizedBox(height: 24),
-                _ModeCard(
-                  title: I18n.t('matches'),
-                  subtitle: I18n.inline(
-                    'Знаходь матчі поблизу, керуй командами',
-                    'Find matches, manage squads',
+        actions: [
+          StreamBuilder<int>(
+            stream: _notificationService.getUnreadCount(),
+            builder: (context, notifSnapshot) {
+              final unreadCount = notifSnapshot.data ?? 0;
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    tooltip: I18n.t('notifications'),
+                    icon: const Icon(Icons.notifications_outlined, color: FlapTheme.onDark),
+                    onPressed: () => context.pushRoute(const NotificationsRoute()),
                   ),
-                  highlights: [
-                    I18n.inline('Новий Team Hub', 'New Team Hub'),
-                    I18n.inline('Гнучкі формати', 'Flexible formats'),
-                    I18n.inline('Рейтинг гравців', 'Player rating'),
-                  ],
-                  icon: Icons.sports_soccer,
-                  colors: matchColors,
-                  badge: I18n.inline('Матч-день', 'Match day'),
-                  actionLabel: I18n.inline('До матчів', 'Browse matches'),
-                  illustration: _ModeArt(type: _ModeArtType.matches, colors: matchColors),
-                  onTap: () => context.pushRoute(MatchesRoute()),
-                ),
-                const SizedBox(height: 16),
-                _ModeCard(
-                  title: I18n.t('videos'),
-                  subtitle: I18n.inline(
-                    'Кидай челенджі, збирай перегляди',
-                    'Join challenges, grow your audience',
-                  ),
-                  highlights: [
-                    I18n.inline('16:9 превʼю', '16:9 previews'),
-                    I18n.inline('Челендж-стрічка', 'Challenge feed'),
-                    I18n.inline('Запити на оцінку', 'Rating requests'),
-                  ],
-                  icon: Icons.video_collection,
-                  colors: videoColors,
-                  badge: I18n.inline('Пульс контенту', 'Content pulse'),
-                  actionLabel: I18n.inline('До відео', 'Open videos'),
-                  illustration: _ModeArt(type: _ModeArtType.videos, colors: videoColors),
-                  onTap: () => context.pushRoute(VideoMainRoute()),
-                ),
-                const SizedBox(height: 16),
-                _ModeCard(
-                  title: I18n.inline('Команди', 'Teams'),
-                  subtitle: I18n.inline(
-                    'Створюй клуби, керуй ростером',
-                    'Create clubs, manage rosters',
-                  ),
-                  highlights: [
-                    I18n.inline('Запрошення в 1 клік', 'One-tap invites'),
-                    I18n.inline('Матчі між командами', 'Team-only matches'),
-                    I18n.inline('Статистика голів', 'Goal tracking'),
-                  ],
-                  icon: Icons.groups_2,
-                  colors: teamColors,
-                  badge: I18n.inline('Club DNA', 'Club DNA'),
-                  actionLabel: I18n.inline('Мої команди', 'Your clubs'),
-                  illustration: _ModeArt(type: _ModeArtType.teams, colors: teamColors),
-                  onTap: () => context.pushRoute(TeamHubRoute()),
-                ),
-              ],
-            );
-          },
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: FlapTheme.danger,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          constraints: const BoxConstraints(minWidth: 18, minHeight: 16),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.zero,
+          child: hubBody,
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildHeroCard(Map<String, dynamic>? data) {
     final displayName = data?['displayName'] ??

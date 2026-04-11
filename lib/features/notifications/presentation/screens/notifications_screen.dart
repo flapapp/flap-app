@@ -11,6 +11,8 @@ import 'package:flap_app/features/notifications/presentation/bloc/notifications_
 import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'package:flap_app/features/videos/presentation/screens/video_player_screen.dart';
 import 'package:flap_app/models/notification.dart';
+import 'package:flap_app/core/navigation/flap_navigation.dart';
+import 'package:flap_app/core/router/app_router.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 @RoutePage()
@@ -514,7 +516,7 @@ class _NotificationsViewState extends State<_NotificationsView> {
         return;
       }
       if (!mounted) return;
-      Navigator.pushNamed(context, '/challenge-details', arguments: challenge);
+      context.pushRoute(ChallengeDetailsRoute(challenge: challenge));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -535,7 +537,7 @@ class _NotificationsViewState extends State<_NotificationsView> {
         return;
       }
       if (!mounted) return;
-      Navigator.pushNamed(context, '/match_rating', arguments: match);
+      context.pushRoute(MatchRatingRoute(match: match));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -557,7 +559,7 @@ class _NotificationsViewState extends State<_NotificationsView> {
         return;
       }
       if (!mounted) return;
-      Navigator.pushNamed(context, '/match-details', arguments: match);
+      context.pushRoute(MatchDetailsRoute(match: match));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -568,17 +570,17 @@ class _NotificationsViewState extends State<_NotificationsView> {
     void _navigateToAction(String actionUrl) {
     if (actionUrl.startsWith('/')) {
       if (actionUrl == '/friends') {
-        Navigator.pushNamed(context, '/friends');
+        context.pushRoute(const FriendsRoute());
       } else if (actionUrl == '/profile') {
-        Navigator.pushNamed(context, '/profile');
+        flapOpenMainTab(context, FlapMainTab.profile);
       } else if (actionUrl == '/video-main') {
-        Navigator.pushNamed(context, '/video-main');
+        flapOpenMainTab(context, FlapMainTab.home);
       } else if (actionUrl.startsWith('/video/')) {
         final videoId = actionUrl.split('/').last;
         _openVideoById(videoId);
       } else if (actionUrl.startsWith('/challenge-details/')) {
         final challengeId = actionUrl.split('/').last;
-        Navigator.pushNamed(context, '/challenge-details', arguments: challengeId);
+        _openChallengeById(challengeId);
       } else if (actionUrl.startsWith('/match/') && actionUrl.endsWith('/rate')) {
         final segments = actionUrl.split('/');
         if (segments.length >= 3) {

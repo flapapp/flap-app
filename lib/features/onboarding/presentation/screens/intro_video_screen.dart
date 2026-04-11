@@ -59,7 +59,7 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
     _navigated = true;
     final isAuthenticated = AppAuthContext.repository?.currentUser != null;
     if (isAuthenticated) {
-      context.replaceRoute(const ModeSelectionRoute());
+      context.replaceRoute(const MainShellRoute());
       return;
     }
     context.replaceRoute(const WelcomeRoute());

@@ -686,7 +686,11 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                                 setState(() => _submitting = false);
                                 Navigator.pop(context);
                               } else {
-                                context.replaceRoute(VideoMainRoute());
+                                context.replaceRoute(
+                                  MainShellRoute(
+                                    children: [HomeHubRoute()],
+                                  ),
+                                );
                               }
                             },
                       child: _submitting

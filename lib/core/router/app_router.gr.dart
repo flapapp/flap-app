@@ -18,7 +18,7 @@ abstract class _$AppRouter extends RootStackRouter {
     AdminRoute.name: (routeData) {
       return AutoRoutePage<dynamic>(
         routeData: routeData,
-        child: AdminScreen(),
+        child: const AdminScreen(),
       );
     },
     ChallengeCreateRoute.name: (routeData) {
@@ -55,6 +55,17 @@ abstract class _$AppRouter extends RootStackRouter {
         child: FriendsScreen(),
       );
     },
+    HomeHubRoute.name: (routeData) {
+      final args = routeData.argsAs<HomeHubRouteArgs>(
+          orElse: () => const HomeHubRouteArgs());
+      return AutoRoutePage<dynamic>(
+        routeData: routeData,
+        child: HomeHubScreen(
+          key: args.key,
+          myContent: args.myContent,
+        ),
+      );
+    },
     IntroVideoRoute.name: (routeData) {
       return AutoRoutePage<dynamic>(
         routeData: routeData,
@@ -65,6 +76,12 @@ abstract class _$AppRouter extends RootStackRouter {
       return AutoRoutePage<dynamic>(
         routeData: routeData,
         child: LoginScreen(),
+      );
+    },
+    MainShellRoute.name: (routeData) {
+      return AutoRoutePage<dynamic>(
+        routeData: routeData,
+        child: const MainShellScreen(),
       );
     },
     MatchDetailsRoute.name: (routeData) {
@@ -109,16 +126,10 @@ abstract class _$AppRouter extends RootStackRouter {
         ),
       );
     },
-    ModeSelectionRoute.name: (routeData) {
-      return AutoRoutePage<dynamic>(
-        routeData: routeData,
-        child: const ModeSelectionScreen(),
-      );
-    },
     NotificationsRoute.name: (routeData) {
       return AutoRoutePage<dynamic>(
         routeData: routeData,
-        child: NotificationsScreen(),
+        child: const NotificationsScreen(),
       );
     },
     PlayerProfileRoute.name: (routeData) {
@@ -197,6 +208,7 @@ abstract class _$AppRouter extends RootStackRouter {
         child: VideoMainScreen(
           key: args.key,
           myContent: args.myContent,
+          embedded: args.embedded,
         ),
       );
     },
@@ -330,6 +342,44 @@ class FriendsRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [HomeHubScreen]
+class HomeHubRoute extends PageRouteInfo<HomeHubRouteArgs> {
+  HomeHubRoute({
+    Key? key,
+    String? myContent,
+    List<PageRouteInfo>? children,
+  }) : super(
+          HomeHubRoute.name,
+          args: HomeHubRouteArgs(
+            key: key,
+            myContent: myContent,
+          ),
+          initialChildren: children,
+        );
+
+  static const String name = 'HomeHubRoute';
+
+  static const PageInfo<HomeHubRouteArgs> page =
+      PageInfo<HomeHubRouteArgs>(name);
+}
+
+class HomeHubRouteArgs {
+  const HomeHubRouteArgs({
+    this.key,
+    this.myContent,
+  });
+
+  final Key? key;
+
+  final String? myContent;
+
+  @override
+  String toString() {
+    return 'HomeHubRouteArgs{key: $key, myContent: $myContent}';
+  }
+}
+
+/// generated route for
 /// [IntroVideoScreen]
 class IntroVideoRoute extends PageRouteInfo<void> {
   const IntroVideoRoute({List<PageRouteInfo>? children})
@@ -353,6 +403,20 @@ class LoginRoute extends PageRouteInfo<void> {
         );
 
   static const String name = 'LoginRoute';
+
+  static const PageInfo<void> page = PageInfo<void>(name);
+}
+
+/// generated route for
+/// [MainShellScreen]
+class MainShellRoute extends PageRouteInfo<void> {
+  const MainShellRoute({List<PageRouteInfo>? children})
+      : super(
+          MainShellRoute.name,
+          initialChildren: children,
+        );
+
+  static const String name = 'MainShellRoute';
 
   static const PageInfo<void> page = PageInfo<void>(name);
 }
@@ -512,20 +576,6 @@ class MatchesRouteArgs {
   String toString() {
     return 'MatchesRouteArgs{key: $key, initialTabIndex: $initialTabIndex}';
   }
-}
-
-/// generated route for
-/// [ModeSelectionScreen]
-class ModeSelectionRoute extends PageRouteInfo<void> {
-  const ModeSelectionRoute({List<PageRouteInfo>? children})
-      : super(
-          ModeSelectionRoute.name,
-          initialChildren: children,
-        );
-
-  static const String name = 'ModeSelectionRoute';
-
-  static const PageInfo<void> page = PageInfo<void>(name);
 }
 
 /// generated route for
@@ -751,12 +801,14 @@ class VideoMainRoute extends PageRouteInfo<VideoMainRouteArgs> {
   VideoMainRoute({
     Key? key,
     String? myContent,
+    bool embedded = false,
     List<PageRouteInfo>? children,
   }) : super(
           VideoMainRoute.name,
           args: VideoMainRouteArgs(
             key: key,
             myContent: myContent,
+            embedded: embedded,
           ),
           initialChildren: children,
         );
@@ -771,15 +823,18 @@ class VideoMainRouteArgs {
   const VideoMainRouteArgs({
     this.key,
     this.myContent,
+    this.embedded = false,
   });
 
   final Key? key;
 
   final String? myContent;
 
+  final bool embedded;
+
   @override
   String toString() {
-    return 'VideoMainRouteArgs{key: $key, myContent: $myContent}';
+    return 'VideoMainRouteArgs{key: $key, myContent: $myContent, embedded: $embedded}';
   }
 }
 

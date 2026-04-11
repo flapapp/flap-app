@@ -2,6 +2,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flap_app/core/router/app_router.dart';
+import 'package:flap_app/core/theme/flap_theme.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 @RoutePage()
@@ -64,9 +65,13 @@ class WelcomeScreen extends StatelessWidget {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1e7d32), Color(0xFF2e7d32)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF0D3D2A),
+              FlapTheme.pitch,
+              Color(0xFF0A2E22),
+            ],
           ),
         ),
         child: SafeArea(

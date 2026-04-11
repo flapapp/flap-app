@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -21,21 +23,40 @@ import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
 import 'package:flap_app/widgets/mode_speed_dial.dart';
 import 'package:flap_app/widgets/city_autocomplete_field.dart';
-import 'package:flap_app/utils/city_catalog.dart';
+import 'package:flap_app/core/navigation/flap_navigation.dart';
 import 'package:flap_app/core/router/app_router.dart';
+import 'package:flap_app/core/theme/flap_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 @RoutePage()
 class VideoMainScreen extends StatefulWidget {
   /// When set (e.g. from profile shortcuts), filters to "my" videos or challenges.
   final String? myContent;
 
-  const VideoMainScreen({super.key, this.myContent});
+  /// Embedded under [HomeHubScreen] (no [Scaffold]/[AppBar]/FAB; lists use shrink-wrap).
+  final bool embedded;
+
+  const VideoMainScreen({super.key, this.myContent, this.embedded = false});
 
   @override
   _VideoMainScreenState createState() => _VideoMainScreenState();
 }
 
 class _VideoMainScreenState extends State<VideoMainScreen> {
+  bool get _embed => widget.embedded;
+
+  ScrollPhysics? get _listPhysics =>
+      _embed ? const NeverScrollableScrollPhysics() : null;
+
+  Widget _embedSizedPlaceholder({double minHeight = 200, required Widget child}) {
+    if (!_embed) return child;
+    return SizedBox(
+      width: double.infinity,
+      height: minHeight,
+      child: child,
+    );
+  }
+
   final NotificationService _notificationService = NotificationService();
   final RatingService _ratingService = RatingService();
   String _selectedCity = '';
@@ -273,47 +294,896 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     }
   }
 
-  @override
-Widget build(BuildContext context) {
-  return Scaffold(
-    backgroundColor: const Color(0xFF0f0f23), // Темний фон як у HTML MVP
-    appBar: AppBar(
-      backgroundColor: const Color(0xFF0f0f23).withValues(alpha: 0.95),
-      elevation: 0,
-      title: InkWell(
-        onTap: () => Navigator.pushNamed(context, '/mode'),
-        borderRadius: BorderRadius.circular(10),
-        child: Row(
-          children: [
-            Container(
-              width: 28,
-              height: 28,
+  bool get _hasActiveVideoFilters {
+    return _selectedCity.isNotEmpty ||
+        _selectedCategory.isNotEmpty ||
+        _selectedRating.isNotEmpty ||
+        _selectedSort != 'newest';
+  }
+
+  void _resetVideoFilters() {
+    setState(() {
+      _selectedCity = '';
+      _cityFilterController.clear();
+      _selectedCategory = '';
+      _selectedRating = '';
+      _selectedSort = 'newest';
+    });
+  }
+
+  Widget _filterSheetSection({
+    required String title,
+    String? subtitle,
+    required IconData icon,
+    required Widget child,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            FlapTheme.accent.withValues(alpha: 0.35),
+                            FlapTheme.accentSecondary.withValues(alpha: 0.25),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          if (subtitle != null && subtitle.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                subtitle,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.55),
+                                  fontSize: 12,
+                                  height: 1.25,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                child,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sheetCategoryChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(22),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: selected
+                  ? LinearGradient(
+                      colors: [
+                        FlapTheme.accent,
+                        FlapTheme.accentSecondary.withValues(alpha: 0.9),
+                      ],
+                    )
+                  : null,
+              color: selected ? null : Colors.white.withValues(alpha: 0.08),
+              border: Border.all(
+                color: selected
+                    ? Colors.transparent
+                    : Colors.white.withValues(alpha: 0.14),
+              ),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: FlapTheme.accent.withValues(alpha: 0.45),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                color: selected ? FlapTheme.pitch : Colors.white.withValues(alpha: 0.88),
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sheetRatingPill({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+                borderRadius: BorderRadius.circular(14),
+                color: selected
+                    ? const Color(0xFFFFC107).withValues(alpha: 0.22)
+                    : Colors.white.withValues(alpha: 0.06),
+                border: Border.all(
+                  color: selected
+                      ? const Color(0xFFFFC107).withValues(alpha: 0.75)
+                      : Colors.white.withValues(alpha: 0.1),
+                ),
+              ),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  color: selected ? Colors.white : Colors.white70,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _sortModeIcon(String mode) {
+    switch (mode) {
+      case 'my_city':
+        return Icons.location_city_rounded;
+      case 'rating_asc':
+        return Icons.trending_up_rounded;
+      case 'rating_desc':
+        return Icons.trending_down_rounded;
+      case 'newest':
+      default:
+        return Icons.schedule_rounded;
+    }
+  }
+
+  Widget _sheetSortTile({
+    required String mode,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: selected
+                  ? FlapTheme.accent.withValues(alpha: 0.16)
+                  : Colors.white.withValues(alpha: 0.04),
+              border: Border.all(
+                color: selected
+                    ? FlapTheme.accent.withValues(alpha: 0.55)
+                    : Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _sortModeIcon(mode),
+                  color: selected ? FlapTheme.accent : Colors.white54,
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _sortLabel(mode),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: selected ? Colors.white : Colors.white70,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                if (selected)
+                  Icon(Icons.check_circle_rounded, color: FlapTheme.accent, size: 22),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Category chips + city + category dropdown + rating + sort (embed), or sectioned sheet UI.
+  Widget _buildVideoFiltersEditor({VoidCallback? onApplied, bool forSheet = false}) {
+    void apply() {
+      onApplied?.call();
+    }
+
+    if (forSheet) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _filterSheetSection(
+            title: I18n.inline('Швидкі теми', 'Quick topics'),
+            subtitle: I18n.inline(
+              'Обери тег або всі категорії нижче',
+              'Pick a tag or use full category below',
+            ),
+            icon: Icons.local_fire_department_rounded,
+            child: SizedBox(
+              height: 42,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _sheetCategoryChip(
+                    label: I18n.inline('Усі теги', 'All tags'),
+                    selected: _selectedCategory.isEmpty,
+                    onTap: () {
+                      setState(() => _selectedCategory = '');
+                      apply();
+                    },
+                  ),
+                  ...quickVideoCategories().map(
+                    (category) => _sheetCategoryChip(
+                      label: category.label(),
+                      selected: _selectedCategory == category.id,
+                      onTap: () {
+                        setState(() {
+                          _selectedCategory = _selectedCategory == category.id
+                              ? ''
+                              : category.id;
+                        });
+                        apply();
+                      },
+                    ),
                   ),
                 ],
               ),
-              clipBehavior: Clip.antiAlias,
-              child: Image.asset(
-                'assets/logo/flap_logo.jpg',
-                fit: BoxFit.cover,
-                width: 28,
-                height: 28,
+            ),
+          ),
+          _filterSheetSection(
+            title: I18n.inline('Місто', 'City'),
+            subtitle: I18n.inline('Фільтр за містом автора', 'Filter by creator city'),
+            icon: Icons.location_on_outlined,
+            child: CityAutocompleteField(
+              controller: _cityFilterController,
+              label: '',
+              hint: I18n.inline('Введіть місто', 'Enter city'),
+              includeAllOption: true,
+              requiredField: false,
+              style: const TextStyle(color: Color(0xFF1a1f2e), fontSize: 15),
+              labelStyle: const TextStyle(color: Colors.black54),
+              filled: true,
+              fillColor: const Color(0xFFF2F4F8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: FlapTheme.accent, width: 2),
+              ),
+              prefixIcon: Icon(
+                Icons.apartment_rounded,
+                color: FlapTheme.accentSecondary.withValues(alpha: 0.9),
+                size: 22,
+              ),
+              onSelected: (value) {
+                final v = value.trim();
+                final allValues = <String>{
+                  I18n.t('all_cities').toLowerCase(),
+                  'all cities',
+                  'всі міста',
+                };
+
+                if (v.isEmpty) {
+                  setState(() {
+                    _selectedCity = '';
+                    _cityFilterController.text = '';
+                  });
+                  apply();
+                  return;
+                }
+
+                final isAll = allValues.contains(v.toLowerCase());
+
+                setState(() {
+                  _selectedCity = isAll ? '' : v;
+                  _cityFilterController.text = isAll ? '' : v;
+                  _cityFilterController.selection = TextSelection.collapsed(
+                    offset: _cityFilterController.text.length,
+                  );
+                });
+                apply();
+              },
+            ),
+          ),
+          _filterSheetSection(
+            title: I18n.inline('Категорія', 'Category'),
+            subtitle: I18n.inline('Повний список категорій', 'Full category list'),
+            icon: Icons.dashboard_customize_outlined,
+            child: _buildCategoryFilterDropdown(
+              onApplied: onApplied,
+              dropdownMenuColor: const Color(0xFF2a3142),
+              sheetField: true,
+            ),
+          ),
+          _filterSheetSection(
+            title: I18n.inline('Мін. рейтинг', 'Min. rating'),
+            subtitle: I18n.inline('Лише відео з оцінкою не нижче', 'Only videos rated at least'),
+            icon: Icons.star_outline_rounded,
+            child: Row(
+              children: [
+                _sheetRatingPill(
+                  label: I18n.inline('Усі', 'Any'),
+                  selected: _selectedRating.isEmpty,
+                  onTap: () {
+                    setState(() => _selectedRating = '');
+                    apply();
+                  },
+                ),
+                _sheetRatingPill(
+                  label: '4.0+',
+                  selected: _selectedRating == '4.0+',
+                  onTap: () {
+                    setState(() => _selectedRating = '4.0+');
+                    apply();
+                  },
+                ),
+                _sheetRatingPill(
+                  label: '4.5+',
+                  selected: _selectedRating == '4.5+',
+                  onTap: () {
+                    setState(() => _selectedRating = '4.5+');
+                    apply();
+                  },
+                ),
+              ],
+            ),
+          ),
+          _filterSheetSection(
+            title: I18n.inline('Сортування', 'Sort'),
+            subtitle: I18n.inline('Як упорядковувати стрічку', 'How to order the feed'),
+            icon: Icons.sort_rounded,
+            child: Column(
+              children: _sortModes
+                  .map(
+                    (mode) => _sheetSortTile(
+                      mode: mode,
+                      selected: _selectedSort == mode,
+                      onTap: () {
+                        setState(() => _selectedSort = mode);
+                        onApplied?.call();
+                      },
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 36,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: quickVideoCategories()
+                .map(
+                  (category) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      selected: _selectedCategory == category.id,
+                      onSelected: (selected) {
+                        setState(() {
+                          _selectedCategory = selected ? category.id : '';
+                        });
+                        apply();
+                      },
+                      label: Text(category.label()),
+                      selectedColor: const Color(0xFF4caf50),
+                      labelStyle: TextStyle(
+                        color: _selectedCategory == category.id
+                            ? Colors.white
+                            : Colors.black87,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: CityAutocompleteField(
+                controller: _cityFilterController,
+                label: '',
+                hint: I18n.inline('Введіть місто', 'Enter city'),
+                includeAllOption: true,
+                requiredField: false,
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
+                labelStyle: const TextStyle(color: Colors.black54),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderSide: BorderSide(color: Color(0xFF4caf50)),
+                ),
+                prefixIcon: const Icon(
+                  Icons.location_city,
+                  color: Colors.black54,
+                  size: 18,
+                ),
+                onSelected: (value) {
+                  final v = value.trim();
+                  final allValues = <String>{
+                    I18n.t('all_cities').toLowerCase(),
+                    'all cities',
+                    'всі міста',
+                  };
+
+                  if (v.isEmpty) {
+                    setState(() {
+                      _selectedCity = '';
+                      _cityFilterController.text = '';
+                    });
+                    apply();
+                    return;
+                  }
+
+                  final isAll = allValues.contains(v.toLowerCase());
+
+                  setState(() {
+                    _selectedCity = isAll ? '' : v;
+                    _cityFilterController.text = isAll ? '' : v;
+                    _cityFilterController.selection = TextSelection.collapsed(
+                      offset: _cityFilterController.text.length,
+                    );
+                  });
+                  apply();
+                },
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildCategoryFilterDropdown(onApplied: onApplied),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _buildFilterDropdown(
+          _ratings,
+          _selectedRating.isEmpty
+              ? I18n.inline('Всі рейтинги', 'All ratings')
+              : _selectedRating,
+          (value) {
+            setState(() {
+              _selectedRating =
+                  value == I18n.inline('Всі рейтинги', 'All ratings')
+                      ? ''
+                      : value;
+            });
+            apply();
+          },
+          '⭐',
+        ),
+        const SizedBox(height: 10),
+        _buildSortDropdown(onApplied: onApplied),
+      ],
+    );
+  }
+
+  void _showVideoFiltersBottomSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            void bump() {
+              setState(() {});
+              setModalState(() {});
+            }
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.9,
+              minChildSize: 0.42,
+              maxChildSize: 0.96,
+              builder: (context, scrollController) {
+                final bottomInset = MediaQuery.paddingOf(context).bottom;
+                return DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFF1c2230).withValues(alpha: 0.98),
+                        const Color(0xFF0b0e14),
+                      ],
+                    ),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: FlapTheme.accent.withValues(alpha: 0.08),
+                        blurRadius: 40,
+                        spreadRadius: -8,
+                        offset: const Offset(0, -12),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 10, 8, 0),
+                        child: Center(
+                          child: Container(
+                            width: 48,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.35),
+                                  Colors.white.withValues(alpha: 0.12),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    I18n.inline('Фільтри стрічки', 'Feed filters'),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    I18n.inline(
+                                      'Налаштуй відображення відео під себе',
+                                      'Tune how videos appear for you',
+                                    ),
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.55),
+                                      fontSize: 14,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                _resetVideoFilters();
+                                bump();
+                              },
+                              child: Text(
+                                I18n.inline('Скинути', 'Reset'),
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: FlapTheme.accent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView(
+                          controller: scrollController,
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                          children: [
+                            _buildVideoFiltersEditor(onApplied: bump, forSheet: true),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.fromLTRB(20, 10, 20, 12 + bottomInset),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          border: Border(
+                            top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                          ),
+                        ),
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: FlapTheme.accent,
+                            foregroundColor: FlapTheme.pitch,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          onPressed: () => Navigator.of(modalContext).pop(),
+                          icon: const Icon(Icons.check_rounded, size: 22),
+                          label: Text(
+                            I18n.inline('Застосувати і закрити', 'Apply & close'),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// TikTok-style top tabs for the standalone [AppBar.title].
+  Widget _buildAppBarUnderlineTabs() {
+    return Row(
+      children: [
+        Expanded(
+          child: _appBarUnderlineTab(
+            I18n.inline('Усі', 'All'),
+            'all',
+          ),
+        ),
+        Expanded(
+          child: _appBarUnderlineTab(
+            I18n.t('challenges'),
+            'challenges',
+          ),
+        ),
+        Expanded(
+          child: _appBarUnderlineTab(
+            I18n.inline('Тренди', 'Trending'),
+            'trending',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _appBarUnderlineTab(String label, String tab) {
+    final active = _selectedTab == tab;
+    return InkWell(
+      onTap: () {
+        if (_selectedTab == tab) return;
+        setState(() => _selectedTab = tab);
+      },
+      splashFactory: NoSplash.splashFactory,
+      highlightColor: Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 15,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                letterSpacing: -0.2,
+                color: active
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.45),
+                shadows: active
+                    ? const [
+                        Shadow(
+                          color: Colors.black45,
+                          blurRadius: 6,
+                          offset: Offset(0, 1),
+                        ),
+                      ]
+                    : null,
+              ),
+            ),
+            const SizedBox(height: 6),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              height: 3,
+              width: active ? 28 : 0,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
           ],
         ),
       ),
-      actions: [
-        // User chips: coins and rating
-        _buildUserChips(),
+    );
+  }
 
+  /// Tabs, filters, and feed (standalone [Scaffold] or embedded under [HomeHubScreen]).
+  Widget _buildMainColumn() {
+    if (_embed) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!_showOnlyMyVideos && !_showOnlyMyChallenges)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  _buildTab(I18n.t('all'), 'all'),
+                  _buildTab(I18n.t('challenges'), 'challenges'),
+                  _buildTab(I18n.inline('Тренди', 'Trending'), 'trending'),
+                ],
+              ),
+            ),
+          if (_selectedTab != 'challenges' &&
+              !_showOnlyMyVideos &&
+              !_showOnlyMyChallenges)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: _buildVideoFiltersEditor(),
+            ),
+          _buildContent(),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.max,
+      children: [
+        Expanded(child: _buildContent()),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_embed) {
+      return _buildMainColumn();
+    }
+    return Scaffold(
+    extendBody: true,
+    backgroundColor: Colors.black,
+    appBar: AppBar(
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      automaticallyImplyLeading: false,
+      leadingWidth: 0,
+      leading: const SizedBox.shrink(),
+      title: _showOnlyMyVideos || _showOnlyMyChallenges
+          ? Text(
+              _showOnlyMyChallenges
+                  ? I18n.t('challenges')
+                  : I18n.inline('Мої відео', 'My videos'),
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+              ),
+            )
+          : _buildAppBarUnderlineTabs(),
+      centerTitle: true,
+      actions: [
+        IconButton(
+          onPressed: _showVideoFiltersBottomSheet,
+          icon: const Icon(Icons.tune_rounded, color: Colors.white),
+        ),
         // Notifications
         StreamBuilder<int>(
           stream: _notificationService.getUnreadCount(),
@@ -323,8 +1193,13 @@ Widget build(BuildContext context) {
               children: [
                 IconButton(
                   tooltip: I18n.t('notifications'),
-                  icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                  onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  icon: Icon(
+                    Icons.notifications_none_rounded,
+                    color: Colors.white.withValues(alpha: 0.95),
+                    size: 26,
+                  ),
+                  onPressed: () => context.pushRoute(const NotificationsRoute()),
                 ),
                 if (unreadCount > 0)
                   Positioned(
@@ -355,238 +1230,23 @@ Widget build(BuildContext context) {
             );
           },
         ),
-
-        // Profile button with avatar
-        Builder(
-          builder: (context) {
-            final uid = AppAuthContext.userId;
-            if (uid == null) {
-              return IconButton(
-                icon: const Icon(Icons.person, color: Colors.white),
-                onPressed: () => _showProfile(context),
-              );
-            }
-            return StreamBuilder<Map<String, dynamic>>(
-              stream: context.read<ProfileRepository>().watchLegacyUserMap(uid),
-              builder: (context, snapshot) {
-                final userData = snapshot.data ?? const <String, dynamic>{};
-                if (userData.isEmpty) {
-                  return IconButton(
-                    icon: const Icon(Icons.person, color: Colors.white),
-                    onPressed: () => _showProfile(context),
-                  );
-                }
-                final avatarUrl =
-                    (userData['avatarUrl'] ?? userData['avatar'] ?? '').toString();
-                final userName = (userData['displayName'] ??
-                        userData['name'] ??
-                        userData['email']?.toString().split('@').first ??
-                        'User')
-                    .toString();
-
-                return IconButton(
-                  onPressed: () => _showProfile(context),
-                  icon: CircleAvatar(
-                    radius: 16,
-                    backgroundColor: const Color(0xFF4caf50),
-                    backgroundImage:
-                        avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                    child: avatarUrl.isEmpty
-                        ? Text(
-                            userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          )
-                        : null,
-                  ),
-                );
-              },
-            );
-          },
-        ),
       ],
     ),
-    body: SafeArea(
-      child: Column(
-        children: [
-          // Tabs
-          if (!_showOnlyMyVideos && !_showOnlyMyChallenges)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  _buildTab(I18n.t('all'), 'all'),
-                  _buildTab(I18n.t('challenges'), 'challenges'),
-                  _buildTab(I18n.inline('Тренди', 'Trending'), 'trending'),
-                ],
-              ),
-            ),
-
-          // Filters (тільки для відео та трендів)
-          if (_selectedTab != 'challenges' &&
-              !_showOnlyMyVideos &&
-              !_showOnlyMyChallenges)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Column(
-                children: [
-                  // Швидкі категорії
-                  SizedBox(
-                    height: 36,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: quickVideoCategories()
-                          .map(
-                            (category) => Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                selected: _selectedCategory == category.id,
-                                onSelected: (selected) {
-                                  setState(() {
-                                    _selectedCategory = selected ? category.id : '';
-                                  });
-                                },
-                                label: Text(category.label()),
-                                selectedColor: const Color(0xFF4caf50),
-                                labelStyle: TextStyle(
-                                  color: _selectedCategory == category.id
-                                      ? Colors.white
-                                      : Colors.black87,
-                                ),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // City and Category filters
-                  Row(
-                    children: [
-                      Expanded(
-                        child: CityAutocompleteField(
-                          controller: _cityFilterController,
-                          label: '',
-                          hint: I18n.inline('Введіть місто', 'Enter city'),
-                          includeAllOption: true,
-                          requiredField: false,
-                          style: const TextStyle(color: Colors.black87, fontSize: 14),
-                          labelStyle: const TextStyle(color: Colors.black54),
-                          filled: true,
-                          fillColor: Colors.white.withValues(alpha: 0.9),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          focusedBorder: const OutlineInputBorder(
-                            borderSide: BorderSide(color: Color(0xFF4caf50)),
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.location_city,
-                            color: Colors.black54,
-                            size: 18,
-                          ),
-                          onSelected: (value) {
-                        final v = value.trim();
-                        final allValues = <String>{
-                          I18n.t('all_cities').toLowerCase(),
-                          'all cities',
-                          'всі міста',
-                        };
-
-                        if (v.isEmpty) {
-                          setState(() {
-                            _selectedCity = '';
-                            _cityFilterController.text = '';
-                          });
-                          return;
-                        }
-
-                        final isAll = allValues.contains(v.toLowerCase());
-
-                        setState(() {
-                          _selectedCity = isAll ? '' : v;
-                          _cityFilterController.text = isAll ? '' : v;
-                          _cityFilterController.selection = TextSelection.collapsed(
-                            offset: _cityFilterController.text.length,
-                          );
-                        });
-                      },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildCategoryFilterDropdown(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Rating filter
-                  _buildFilterDropdown(
-                    _ratings,
-                    _selectedRating.isEmpty
-                        ? I18n.inline('Всі рейтинги', 'All ratings')
-                        : _selectedRating,
-                    (value) {
-                      setState(() {
-                        _selectedRating =
-                            value == I18n.inline('Всі рейтинги', 'All ratings')
-                                ? ''
-                                : value;
-                      });
-                    },
-                    '⭐',
-                  ),
-                  const SizedBox(height: 10),
-
-                  _buildSortDropdown(),
-                ],
-              ),
-            ),
-
-          // Content based on selected tab
-          Expanded(
-            child: _buildContent(),
-          ),
-        ],
-      ),
-    ),
+    body: _buildMainColumn(),
     floatingActionButton: ModeSpeedDial(
       shortcuts: [
         ModeDialAction(
           icon: Icons.sports_soccer,
           tooltip: I18n.t('matches'),
-          onTap: () => Navigator.pushNamed(context, '/matches'),
+          onTap: () => flapOpenMainTab(context, FlapMainTab.matches),
         ),
         ModeDialAction(
-          icon: Icons.groups_outlined,
-          tooltip: I18n.t('teams'),
-          onTap: () => Navigator.pushNamed(context, '/teams'),
-        ),
+            icon: Icons.groups_outlined,
+            tooltip: I18n.t('teams'),
+            onTap: () => flapOpenMainTab(context, FlapMainTab.teams),
+          ),
       ],
-      onCreate: _showVideoCreateSheet,
+      onCreate: () => showFlapVideoCreateSheet(context),
       createTooltip: I18n.inline('Створити', 'Create'),
       createGradient: const [Color(0xFFFF6B35), Color(0xFFFF8A65)],
     ),
@@ -595,40 +1255,7 @@ Widget build(BuildContext context) {
 }
 
   void _showVideoCreateSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF101320),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.videocam_outlined, color: Colors.white),
-              title: Text(I18n.t('upload_video'),
-                  style: const TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(ctx);
-                Navigator.pushNamed(context, '/video-upload');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.emoji_events_outlined,
-                  color: Colors.white),
-              title: Text(I18n.t('create_challenge'),
-                  style: const TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(ctx);
-                Navigator.pushNamed(context, '/challenge-create');
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
+    showFlapVideoCreateSheet(context);
   }
 
   Widget _buildVideoChip(
@@ -1291,7 +1918,7 @@ Widget build(BuildContext context) {
     );
   }
 
-  Widget _buildSortDropdown() {
+  Widget _buildSortDropdown({VoidCallback? onApplied}) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.9),
@@ -1322,19 +1949,32 @@ Widget build(BuildContext context) {
           onChanged: (String? mode) {
             if (mode == null) return;
             setState(() => _selectedSort = mode);
+            onApplied?.call();
           },
         ),
       ),
     );
   }
 
-  Widget _buildCategoryFilterDropdown() {
+  Widget _buildCategoryFilterDropdown({
+    VoidCallback? onApplied,
+    Color? dropdownMenuColor,
+    bool sheetField = false,
+  }) {
+    final menuBg = dropdownMenuColor ?? Colors.white;
+    final primary = sheetField ? Colors.white : const Color(0xFF1a1f2e);
+    final secondary = sheetField ? Colors.white60 : Colors.black54;
+    final fieldFill =
+        sheetField ? const Color(0xFF252b3a) : Colors.white.withValues(alpha: 0.9);
+    final borderColor =
+        sheetField ? Colors.white.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.3);
+
     final items = [
       DropdownMenuItem<String>(
         value: '',
         child: Text(
           I18n.inline('Всі категорії', 'All categories'),
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          style: TextStyle(fontWeight: FontWeight.w600, color: primary),
         ),
       ),
       ...kVideoCategories.map(
@@ -1345,14 +1985,14 @@ Widget build(BuildContext context) {
             children: [
               Text(
                 category.label(),
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                style: TextStyle(fontWeight: FontWeight.w600, color: primary),
               ),
               if (category.description().isNotEmpty)
                 Text(
                   category.description(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: Colors.black54,
+                    color: secondary,
                   ),
                 ),
             ],
@@ -1363,22 +2003,24 @@ Widget build(BuildContext context) {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+        color: fieldFill,
+        borderRadius: BorderRadius.circular(sheetField ? 14 : 10),
+        border: Border.all(color: borderColor),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _selectedCategory,
           isExpanded: true,
-          padding: const EdgeInsets.symmetric(horizontal: 15),
-          dropdownColor: Colors.white,
-          style: const TextStyle(color: Colors.black87, fontSize: 14),
+          padding: EdgeInsets.symmetric(horizontal: 15, vertical: sheetField ? 2 : 0),
+          dropdownColor: menuBg,
+          iconEnabledColor: sheetField ? Colors.white70 : null,
+          style: TextStyle(color: primary, fontSize: 14),
           items: items,
           onChanged: (String? newValue) {
             setState(() {
               _selectedCategory = newValue ?? '';
             });
+            onApplied?.call();
           },
         ),
       ),
@@ -1474,27 +2116,34 @@ Widget build(BuildContext context) {
       stream: _libraryVideosStream(context),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          return _embedSizedPlaceholder(
+            child: const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
             ),
           );
         }
 
         if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              I18n.inline('Помилка завантаження: ${snapshot.error}', 'Error loading: ${snapshot.error}'),
-              style: const TextStyle(color: Colors.white),
+          return _embedSizedPlaceholder(
+            minHeight: 120,
+            child: Center(
+              child: Text(
+                I18n.inline('Помилка завантаження: ${snapshot.error}', 'Error loading: ${snapshot.error}'),
+                style: const TextStyle(color: Colors.white),
+              ),
             ),
           );
         }
 
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
+          return _embedSizedPlaceholder(
+            minHeight: 280,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
                 const Icon(
                   Icons.videocam_off,
                   color: Colors.white,
@@ -1519,7 +2168,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/video-upload'),
+                  onPressed: () => context.pushRoute(VideoUploadRoute()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4caf50),
                     shape: RoundedRectangleBorder(
@@ -1532,6 +2181,7 @@ Widget build(BuildContext context) {
                   ),
                 ),
               ],
+              ),
             ),
           );
         }
@@ -1543,6 +2193,8 @@ Widget build(BuildContext context) {
             'videos-list-$_selectedTab-${_showOnlyMyVideos ? "mine" : "all"}',
           ),
           padding: const EdgeInsets.all(20),
+          shrinkWrap: _embed,
+          physics: _listPhysics,
           itemCount: docs.length,
           itemBuilder: (context, index) {
             return _buildVideoCard(docs[index]);
@@ -1791,13 +2443,11 @@ Widget build(BuildContext context) {
                         behavior: HitTestBehavior.opaque,
                         onTap: () {
                           if (authorId != null) {
-                            Navigator.pushNamed(
-                              context,
-                              '/player-profile',
-                              arguments: {
-                                'playerId': authorId,
-                                'playerName': authorDisplayName,
-                              },
+                            context.pushRoute(
+                              PlayerProfileRoute(
+                                playerId: authorId,
+                                playerName: authorDisplayName,
+                              ),
                             );
                           }
                         },
@@ -2030,11 +2680,7 @@ Widget build(BuildContext context) {
         throw Exception('Challenge not found');
       }
       if (!mounted) return;
-      Navigator.pushNamed(
-        context,
-        '/challenge-details',
-        arguments: challenge,
-      );
+      context.pushRoute(ChallengeDetailsRoute(challenge: challenge));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2084,7 +2730,7 @@ Widget build(BuildContext context) {
   }
 
   void _showProfile(BuildContext context) {
-    Navigator.pushNamed(context, '/profile');
+    flapOpenMainTab(context, FlapMainTab.profile);
   }
 
   Widget _buildProfileSheet() {
@@ -2194,7 +2840,7 @@ Widget build(BuildContext context) {
                        title: 'Редагувати профіль',
                        onTap: () {
                          Navigator.pop(context);
-                         Navigator.pushNamed(context, '/profile');
+                         flapOpenMainTab(context, FlapMainTab.profile);
                        },
                      ),
                     _buildProfileOption(
@@ -2229,7 +2875,7 @@ Widget build(BuildContext context) {
                         await signOutViaBlocAndWait(context);
                         if (!context.mounted) return;
                         Navigator.pop(context);
-                        Navigator.pushReplacementNamed(context, '/login');
+                        context.router.replaceAll([const WelcomeRoute()]);
                       },
                     ),
                   ],
@@ -2322,7 +2968,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/challenge-create'),
+                  onPressed: () => context.pushRoute(const ChallengeCreateRoute()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4caf50),
                     shape: RoundedRectangleBorder(
@@ -2342,6 +2988,8 @@ Widget build(BuildContext context) {
         return ListView.builder(
           key: const PageStorageKey<String>('challenges-list'),
           padding: const EdgeInsets.all(20),
+          shrinkWrap: _embed,
+          physics: _listPhysics,
           itemCount: challenges.length,
           itemBuilder: (context, index) {
             return _buildChallengeCard(challenges[index]);
@@ -3036,7 +3684,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/video-upload'),
+                  onPressed: () => context.pushRoute(VideoUploadRoute()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4caf50),
                     shape: RoundedRectangleBorder(
@@ -3056,6 +3704,8 @@ Widget build(BuildContext context) {
         return ListView.builder(
           key: const PageStorageKey<String>('my-videos-list'),
           padding: const EdgeInsets.all(20),
+          shrinkWrap: _embed,
+          physics: _listPhysics,
           itemCount: videos.length,
           itemBuilder: (context, index) {
             final video = videos[index];
@@ -3187,6 +3837,8 @@ Widget build(BuildContext context) {
         return ListView.builder(
           key: const PageStorageKey<String>('trending-videos-list'),
           padding: const EdgeInsets.all(20),
+          shrinkWrap: _embed,
+          physics: _listPhysics,
           itemCount: videos.length,
           itemBuilder: (context, index) {
             return _buildVideoCard(videos[index]);
@@ -3263,14 +3915,11 @@ Widget build(BuildContext context) {
               try {
                 await context.read<ChallengeRepository>().joinChallenge(challengeId);
                 if (!mounted) return;
-                Navigator.pushNamed(
-                  context,
-                  '/video-upload',
-                  arguments: {
-                    'challengeId': challengeId,
-                    'challengeTitle': challenge.title,
-                    'isChallengeVideo': true,
-                  },
+                context.pushRoute(
+                  VideoUploadRoute(
+                    challengeId: challengeId,
+                    challengeTitle: challenge.title,
+                  ),
                 );
               } on ChallengeFailure catch (f) {
                 if (!mounted) return;
@@ -3298,11 +3947,7 @@ Widget build(BuildContext context) {
   }
 
   void _viewChallengeDetails(Challenge challenge) {
-    Navigator.pushNamed(
-      context,
-      '/challenge-details',
-      arguments: challenge,
-    );
+    context.pushRoute(ChallengeDetailsRoute(challenge: challenge));
   }
 
   // Interactive methods
@@ -3490,13 +4135,11 @@ Widget build(BuildContext context) {
                                       GestureDetector(
                                         onTap: () {
                                           if (userId.isEmpty) return;
-                                          Navigator.pushNamed(
-                                            context,
-                                            '/player-profile',
-                                            arguments: {
-                                              'playerId': userId,
-                                              'playerName': authorName,
-                                            },
+                                          context.pushRoute(
+                                            PlayerProfileRoute(
+                                              playerId: userId,
+                                              playerName: authorName,
+                                            ),
                                           );
                                         },
                                         child: Text(
@@ -4254,6 +4897,47 @@ Widget build(BuildContext context) {
             : I18n.inline('Зміна рейтингу', 'Rating change');
     }
   }
+}
+
+/// Create action: upload video or new challenge (used from [HomeHubScreen] FAB and video hub).
+void showFlapVideoCreateSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF101320),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.videocam_outlined, color: Colors.white),
+            title: Text(
+              I18n.t('upload_video'),
+              style: const TextStyle(color: Colors.white),
+            ),
+            onTap: () {
+              Navigator.pop(ctx);
+              context.pushRoute(VideoUploadRoute());
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.emoji_events_outlined, color: Colors.white),
+            title: Text(
+              I18n.t('create_challenge'),
+              style: const TextStyle(color: Colors.white),
+            ),
+            onTap: () {
+              Navigator.pop(ctx);
+              context.pushRoute(const ChallengeCreateRoute());
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    ),
+  );
 }
 
 class _CachedUserProfile {

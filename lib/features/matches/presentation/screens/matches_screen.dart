@@ -23,7 +23,9 @@ import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/city_autocomplete_field.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/navigation/flap_navigation.dart';
 import 'package:flap_app/core/router/app_router.dart';
+import 'package:flap_app/core/theme/flap_theme.dart';
 
 @RoutePage()
 class MatchesScreen extends StatefulWidget {
@@ -440,7 +442,7 @@ void _resetFindFilters() {
   Widget build(BuildContext context) {
     final bool isCompact = MediaQuery.of(context).size.width < 400;
     return Scaffold(
-      backgroundColor: const Color(0xFF1a1a2e),
+      backgroundColor: FlapTheme.pitch,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -454,7 +456,7 @@ void _resetFindFilters() {
           ),
         ),
         title: InkWell(
-          onTap: () => Navigator.pushNamed(context, '/mode'),
+          onTap: () => flapOpenMainTab(context, FlapMainTab.home),
           borderRadius: BorderRadius.circular(10),
           child: Row(
             children: [
@@ -496,7 +498,7 @@ void _resetFindFilters() {
           children: [
             IconButton(
               icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 20),
-              onPressed: () => Navigator.pushNamed(context, '/notifications'),
+              onPressed: () => context.pushRoute(const NotificationsRoute()),
               padding: EdgeInsets.zero,
               tooltip: I18n.t('notifications'),
             ),
@@ -531,7 +533,7 @@ void _resetFindFilters() {
         }
         return IconButton(
           padding: EdgeInsets.zero,
-          onPressed: () => Navigator.pushNamed(context, '/profile'),
+          onPressed: () => flapOpenMainTab(context, FlapMainTab.profile),
           icon: CircleAvatar(
             radius: 14,
             backgroundColor: const Color(0xFF4caf50),
@@ -603,15 +605,15 @@ void _resetFindFilters() {
           ModeDialAction(
             icon: Icons.groups_outlined,
             tooltip: I18n.t('teams'),
-            onTap: () => Navigator.pushNamed(context, '/teams'),
+            onTap: () => flapOpenMainTab(context, FlapMainTab.teams),
           ),
           ModeDialAction(
             icon: Icons.play_circle_outline,
             tooltip: I18n.t('videos'),
-            onTap: () => Navigator.pushNamed(context, '/video-main'),
+            onTap: () => flapOpenMainTab(context, FlapMainTab.home),
           ),
         ],
-        onCreate: () => Navigator.pushNamed(context, '/create-match'),
+        onCreate: () => context.pushRoute(const CreateMatchRoute()),
         createTooltip: I18n.inline('Створити', 'Create'),
       ),
     );
@@ -2154,7 +2156,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
         const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: () =>
-              Navigator.pushNamed(context, '/match-details', arguments: match),
+              context.pushRoute(MatchDetailsRoute(match: match)),
           icon: const Icon(Icons.info_outline, size: 16),
           label: Text(I18n.t('details'),
               style:
@@ -2210,7 +2212,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
     );
 
     final detailsBtn = OutlinedButton.icon(
-      onPressed: () => Navigator.pushNamed(context, '/match-details', arguments: match),
+      onPressed: () => context.pushRoute(MatchDetailsRoute(match: match)),
       icon: const Icon(Icons.info_outline, size: 16),
       label: Text(I18n.t('details'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
       style: OutlinedButton.styleFrom(
@@ -2275,7 +2277,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
           ),
           child: TextButton(
             onPressed: () {
-              Navigator.pushNamed(context, '/match-details', arguments: match);
+              context.pushRoute(MatchDetailsRoute(match: match));
             },
             child: Text(
               I18n.t('details'),
@@ -2645,7 +2647,7 @@ IconData _getStatusIcon(MatchStatus status) {
             ),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pushNamed(context, '/create-match'),
+            onPressed: () => context.pushRoute(const CreateMatchRoute()),
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFF4caf50),
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -2800,11 +2802,7 @@ Column(
     !match.isUnplayedByTimeout)
               ElevatedButton(
                 onPressed: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/match_management',
-                    arguments: match,
-                  );
+                  context.pushRoute(MatchManagementRoute(match: match));
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Color(0xFF4caf50),
@@ -2825,11 +2823,7 @@ Column(
     if (isOrganizer && match.status != MatchStatus.finished) SizedBox(width: 8),
     ElevatedButton(
       onPressed: () {
-        Navigator.pushNamed(
-          context,
-          '/match-details',
-          arguments: match,
-        );
+        context.pushRoute(MatchDetailsRoute(match: match));
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white.withValues(alpha: 0.1),
@@ -3497,7 +3491,7 @@ Future<void> _onLeaveMatch(Match match) async {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: () => Navigator.pushNamed(context, '/match-details', arguments: match),
+                  onPressed: () => context.pushRoute(MatchDetailsRoute(match: match)),
                   child: Text(
                     I18n.t('match_details'),
                     style: TextStyle(
@@ -3512,11 +3506,7 @@ Future<void> _onLeaveMatch(Match match) async {
                     match.participants.contains(currentUserId))
                   TextButton(
                     onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/match_rating',
-                        arguments: match,
-                      );
+                      context.pushRoute(MatchRatingRoute(match: match));
                     },
                     child: Text(
                       I18n.t('rate_players'),
@@ -3586,11 +3576,11 @@ Future<void> _onLeaveMatch(Match match) async {
   }
 
   void _navigateToMatchDetails(Match match) {
-    Navigator.pushNamed(context, '/match-details', arguments: match);
+    context.pushRoute(MatchDetailsRoute(match: match));
   }
 
   void _navigateToMatchManagement(Match match) {
-    Navigator.pushNamed(context, '/match-management', arguments: match);
+    context.pushRoute(MatchManagementRoute(match: match));
   }
   // Додати цей метод після рядка 1812 (після _getLevelText)
 
@@ -3635,10 +3625,11 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
   final cityLabel = _localizedCity(city);
 
   return InkWell(
-    onTap: () => Navigator.pushNamed(
-      context,
-      '/player-profile',
-      arguments: {'playerId': p['id'], 'playerName': name},
+    onTap: () => context.pushRoute(
+      PlayerProfileRoute(
+        playerId: p['id'].toString(),
+        playerName: name,
+      ),
     ),
     child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),

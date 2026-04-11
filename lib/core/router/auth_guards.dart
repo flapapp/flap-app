@@ -73,7 +73,7 @@ class GuestOnlyGuard extends AutoRouteGuard {
       return;
     }
 
-    router.replaceAll([const ModeSelectionRoute()]);
+    router.replaceAll([const MainShellRoute()]);
     resolver.next(false);
   }
 }
@@ -97,7 +97,7 @@ class FirstLaunchGuard extends AutoRouteGuard {
 
     final isAuthenticated = AppAuthContext.repository?.currentUser != null;
     if (isAuthenticated) {
-      router.replaceAll([const ModeSelectionRoute()]);
+      router.replaceAll([const MainShellRoute()]);
     } else {
       router.replaceAll([const WelcomeRoute()]);
     }

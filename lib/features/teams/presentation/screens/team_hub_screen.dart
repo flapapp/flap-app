@@ -13,9 +13,11 @@ import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/mode_speed_dial.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
 import 'package:flap_app/widgets/team_logo_button.dart';
-import 'team_create_screen.dart';
-import 'team_details_screen.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/navigation/flap_navigation.dart';
+import 'package:flap_app/core/router/app_router.dart';
+import 'package:flap_app/core/theme/flap_theme.dart';
+import 'team_create_screen.dart';
 @RoutePage()
 class TeamHubScreen extends StatefulWidget {
   const TeamHubScreen({super.key});
@@ -45,12 +47,12 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF04070f),
+      backgroundColor: FlapTheme.pitch,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: InkWell(
-          onTap: () => Navigator.pushNamed(context, '/mode'),
+          onTap: () => flapOpenMainTab(context, FlapMainTab.home),
           borderRadius: BorderRadius.circular(10),
           child: Row(
             children: [
@@ -130,12 +132,12 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
           ModeDialAction(
             icon: Icons.sports_soccer,
             tooltip: I18n.t('matches'),
-            onTap: () => Navigator.pushNamed(context, '/matches'),
+            onTap: () => flapOpenMainTab(context, FlapMainTab.matches),
           ),
           ModeDialAction(
             icon: Icons.play_circle_outline,
             tooltip: I18n.t('videos'),
-            onTap: () => Navigator.pushNamed(context, '/video-main'),
+            onTap: () => flapOpenMainTab(context, FlapMainTab.home),
           ),
         ],
         onCreate: _onCreateTeamPressed,
@@ -279,12 +281,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => TeamDetailsScreen(teamId: team.id),
-                ),
-              );
+              context.pushRoute(TeamDetailsRoute(teamId: team.id));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
@@ -351,12 +348,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
                   final team = myTeams[index];
                   return GestureDetector(
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TeamDetailsScreen(teamId: team.id),
-                        ),
-                      );
+                      context.pushRoute(TeamDetailsRoute(teamId: team.id));
                     },
                     child: Container(
                       width: 200,
@@ -633,12 +625,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             : Colors.white70;
     return InkWell(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => TeamDetailsScreen(teamId: team.id),
-          ),
-        );
+        context.pushRoute(TeamDetailsRoute(teamId: team.id));
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

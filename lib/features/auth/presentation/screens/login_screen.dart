@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/router/app_router.dart';
+import '../../../../core/theme/flap_theme.dart';
 import '../../../../utils/i18n.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
@@ -51,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return true;
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF1e7d32),
+        backgroundColor: FlapTheme.pitch,
         resizeToAvoidBottomInset: true,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
@@ -85,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
               if (state is AuthAuthenticated) {
                 setState(() => _isLoading = false);
                 if (context.mounted) {
-                  context.replaceRoute(ModeSelectionRoute());
+                  context.replaceRoute(const MainShellRoute());
                 }
               }
             },

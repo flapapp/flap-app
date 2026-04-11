@@ -14,13 +14,14 @@ import 'package:flap_app/features/matches/presentation/screens/matches_screen.da
 import 'package:flap_app/features/onboarding/presentation/screens/intro_video_screen.dart';
 import 'package:flap_app/features/onboarding/presentation/screens/welcome_screen.dart';
 import 'package:flap_app/features/notifications/presentation/screens/notifications_screen.dart';
-import 'package:flap_app/features/profile/presentation/screens/mode_selection_screen.dart';
+import 'package:flap_app/features/shell/presentation/home_hub_screen.dart';
 import 'package:flap_app/features/profile/presentation/screens/player_profile_screen.dart';
 import 'package:flap_app/features/profile/presentation/screens/profile_creation_screen.dart';
 import 'package:flap_app/features/profile/presentation/screens/profile_screen_new.dart';
 import 'package:flap_app/features/profile/presentation/screens/profile_settings_screen.dart';
 import 'package:flap_app/features/profile/presentation/screens/stats_screen.dart';
 import 'package:flap_app/features/teams/presentation/screens/team_details_screen.dart';
+import 'package:flap_app/features/shell/presentation/main_shell_screen.dart';
 import 'package:flap_app/features/teams/presentation/screens/team_hub_screen.dart';
 import 'package:flap_app/features/videos/presentation/screens/video_main_screen.dart';
 import 'package:flap_app/features/videos/presentation/screens/video_upload_screen.dart';
@@ -53,18 +54,24 @@ class AppRouter extends _$AppRouter {
         AutoRoute(page: WelcomeRoute.page, guards: [_guestOnlyGuard]),
         AutoRoute(page: LoginRoute.page, guards: [_guestOnlyGuard]),
         AutoRoute(page: RegisterRoute.page, guards: [_guestOnlyGuard]),
-        AutoRoute(page: AppProfileRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(
+          page: MainShellRoute.page,
+          guards: [_authGuard, _profileCompletionGuard],
+          children: [
+            AutoRoute(page: HomeHubRoute.page, path: 'home', initial: true),
+            AutoRoute(page: MatchesRoute.page, path: 'matches'),
+            AutoRoute(page: TeamHubRoute.page, path: 'teams'),
+            AutoRoute(page: AppProfileRoute.page, path: 'profile'),
+          ],
+        ),
         AutoRoute(page: ProfileSettingsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
         AutoRoute(page: ProfileCreationRoute.page, guards: [_authGuard]),
-        AutoRoute(page: ModeSelectionRoute.page, guards: [_authGuard, _profileCompletionGuard]),
         AutoRoute(page: FriendsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
-        AutoRoute(page: TeamHubRoute.page, guards: [_authGuard, _profileCompletionGuard]),
-        AutoRoute(page: VideoUploadRoute.page, guards: [_authGuard, _profileCompletionGuard]),
         AutoRoute(page: VideoMainRoute.page, guards: [_authGuard, _profileCompletionGuard]),
+        AutoRoute(page: VideoUploadRoute.page, guards: [_authGuard, _profileCompletionGuard]),
         AutoRoute(page: ChallengeListRoute.page, guards: [_authGuard, _profileCompletionGuard]),
         AutoRoute(page: ChallengeCreateRoute.page, guards: [_authGuard, _profileCompletionGuard]),
         AutoRoute(page: ChallengeDetailsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
-        AutoRoute(page: MatchesRoute.page, guards: [_authGuard, _profileCompletionGuard]),
         AutoRoute(page: RatingsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
         AutoRoute(page: MatchRatingRoute.page, guards: [_authGuard, _profileCompletionGuard]),
         AutoRoute(page: MatchDetailsRoute.page, guards: [_authGuard, _profileCompletionGuard]),
