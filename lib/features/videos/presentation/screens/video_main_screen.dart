@@ -13,6 +13,7 @@ import 'package:flap_app/features/videos/domain/entities/library_video.dart';
 import 'package:flap_app/features/videos/domain/entities/video_comment.dart';
 import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'video_player_screen.dart';
+import 'package:flap_app/features/videos/presentation/vertical_feed/vertical_video_feed_screen.dart';
 import 'package:flap_app/constants/video_categories.dart';
 import 'package:flap_app/models/challenge.dart';
 import 'package:flap_app/widgets/rating_display.dart';
@@ -2039,7 +2040,21 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     case 'challenges':
       return _buildChallengesList();
     case 'trending':
-      return _buildTrendingVideos();
+      if (_embed) return _buildTrendingVideos();
+      return VerticalVideoFeedScreen(
+        key: const ValueKey<String>('vertical-feed-trending'),
+        scopeKey: 'trending',
+        forUserId: null,
+        prepareVideos: (raw) => _filterAndSortVideoDocs(raw),
+      );
+    case 'all':
+      if (_embed) return _buildVideosList();
+      return VerticalVideoFeedScreen(
+        key: const ValueKey<String>('vertical-feed-all'),
+        scopeKey: 'all',
+        forUserId: null,
+        prepareVideos: (raw) => _filterAndSortVideoDocs(raw),
+      );
     default:
       return _buildVideosList();
   }

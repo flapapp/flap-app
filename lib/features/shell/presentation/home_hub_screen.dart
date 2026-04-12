@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:flap_app/features/videos/presentation/screens/video_main_screen.dart';
 
-/// Home tab: videos and challenges only (same as the former Watch tab).
+/// Home tab: [VideoMainScreen] with All / Challenges / Trending (All & Trending use the vertical feed).
 @RoutePage()
 class HomeHubScreen extends StatelessWidget {
   /// Same semantics as [VideoMainScreen.myContent] for deep links from profile.
