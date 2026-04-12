@@ -51,7 +51,7 @@ class FeedRightActionsColumn extends StatelessWidget {
     final letter = initial.isNotEmpty ? initial[0].toUpperCase() : '?';
 
     return Padding(
-      padding: EdgeInsets.only(right: 10, bottom: bottomPadding + 4),
+      padding: EdgeInsets.only(right: 10, bottom: bottomPadding),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

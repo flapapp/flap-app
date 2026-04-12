@@ -12,13 +12,13 @@ class FeedBottomCaptionBlock extends StatelessWidget {
   final String username;
   final String description;
 
-  /// Include tab bar + home indicator so text clears the nav bar.
+  /// Bottom inset (e.g. home indicator) so text clears system chrome.
   final double bottomPadding;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 88, bottomPadding + 8),
+      padding: EdgeInsets.fromLTRB(16, 0, 88, bottomPadding),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

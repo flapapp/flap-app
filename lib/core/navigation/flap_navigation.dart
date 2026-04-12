@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:flap_app/core/router/app_router.dart';
 
-/// Indices for [MainShellScreen] bottom navigation (must match route order).
+/// Indices for [MainShellScreen] tab router (4 routes; the bar also has a center create slot).
 abstract final class FlapMainTab {
   static const int home = 0;
   static const int matches = 1;

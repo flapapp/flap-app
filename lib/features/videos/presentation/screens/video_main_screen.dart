@@ -22,7 +22,6 @@ import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/matches/data/rating_service.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
-import 'package:flap_app/widgets/mode_speed_dial.dart';
 import 'package:flap_app/widgets/city_autocomplete_field.dart';
 import 'package:flap_app/core/navigation/flap_navigation.dart';
 import 'package:flap_app/core/router/app_router.dart';
@@ -1234,30 +1233,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
       ],
     ),
     body: _buildMainColumn(),
-    floatingActionButton: ModeSpeedDial(
-      shortcuts: [
-        ModeDialAction(
-          icon: Icons.sports_soccer,
-          tooltip: I18n.t('matches'),
-          onTap: () => flapOpenMainTab(context, FlapMainTab.matches),
-        ),
-        ModeDialAction(
-            icon: Icons.groups_outlined,
-            tooltip: I18n.t('teams'),
-            onTap: () => flapOpenMainTab(context, FlapMainTab.teams),
-          ),
-      ],
-      onCreate: () => showFlapVideoCreateSheet(context),
-      createTooltip: I18n.inline('Створити', 'Create'),
-      createGradient: const [Color(0xFFFF6B35), Color(0xFFFF8A65)],
-    ),
-    floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
   );
 }
-
-  void _showVideoCreateSheet() {
-    showFlapVideoCreateSheet(context);
-  }
 
   Widget _buildVideoChip(
     String label,
@@ -4912,47 +4889,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
             : I18n.inline('Зміна рейтингу', 'Rating change');
     }
   }
-}
-
-/// Create action: upload video or new challenge (used from [HomeHubScreen] FAB and video hub).
-void showFlapVideoCreateSheet(BuildContext context) {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: const Color(0xFF101320),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.videocam_outlined, color: Colors.white),
-            title: Text(
-              I18n.t('upload_video'),
-              style: const TextStyle(color: Colors.white),
-            ),
-            onTap: () {
-              Navigator.pop(ctx);
-              context.pushRoute(VideoUploadRoute());
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.emoji_events_outlined, color: Colors.white),
-            title: Text(
-              I18n.t('create_challenge'),
-              style: const TextStyle(color: Colors.white),
-            ),
-            onTap: () {
-              Navigator.pop(ctx);
-              context.pushRoute(const ChallengeCreateRoute());
-            },
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
-    ),
-  );
 }
 
 class _CachedUserProfile {

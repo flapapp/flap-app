@@ -10,14 +10,12 @@ import 'package:flap_app/features/teams/presentation/bloc/teams_bloc.dart';
 import 'package:flap_app/features/teams/presentation/bloc/teams_event.dart';
 import 'package:flap_app/features/teams/presentation/bloc/teams_state.dart';
 import 'package:flap_app/utils/i18n.dart';
-import 'package:flap_app/widgets/mode_speed_dial.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
 import 'package:flap_app/widgets/team_logo_button.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/navigation/flap_navigation.dart';
 import 'package:flap_app/core/router/app_router.dart';
 import 'package:flap_app/core/theme/flap_theme.dart';
-import 'team_create_screen.dart';
 @RoutePage()
 class TeamHubScreen extends StatefulWidget {
   const TeamHubScreen({super.key});
@@ -126,47 +124,6 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             ),
           );
         },
-      ),
-      floatingActionButton: ModeSpeedDial(
-        shortcuts: [
-          ModeDialAction(
-            icon: Icons.sports_soccer,
-            tooltip: I18n.t('matches'),
-            onTap: () => flapOpenMainTab(context, FlapMainTab.matches),
-          ),
-          ModeDialAction(
-            icon: Icons.play_circle_outline,
-            tooltip: I18n.t('videos'),
-            onTap: () => flapOpenMainTab(context, FlapMainTab.home),
-          ),
-        ],
-        onCreate: _onCreateTeamPressed,
-        createTooltip: I18n.inline('Нова команда', 'Create team'),
-      ),
-    );
-  }
-
-  Future<void> _onCreateTeamPressed() async {
-    final user = AppAuthContext.currentUser;
-    if (user == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            I18n.inline('Увійдіть, щоб створити команду.', 'Sign in to create a team.'),
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-    final teams =
-        await context.read<TeamsRepository>().fetchUserTeams(user.id);
-    if (!mounted) return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TeamCreateScreen(existingTeams: teams.length),
       ),
     );
   }

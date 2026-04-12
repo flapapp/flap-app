@@ -18,7 +18,6 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:async';
 import 'package:flap_app/widgets/user_chip.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
-import 'package:flap_app/widgets/mode_speed_dial.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/city_autocomplete_field.dart';
@@ -599,22 +598,6 @@ void _resetFindFilters() {
           // ВКЛАДКА 4: Рейтинги
           _buildRatingsTab(),
         ],
-      ),
-      floatingActionButton: ModeSpeedDial(
-        shortcuts: [
-          ModeDialAction(
-            icon: Icons.groups_outlined,
-            tooltip: I18n.t('teams'),
-            onTap: () => flapOpenMainTab(context, FlapMainTab.teams),
-          ),
-          ModeDialAction(
-            icon: Icons.play_circle_outline,
-            tooltip: I18n.t('videos'),
-            onTap: () => flapOpenMainTab(context, FlapMainTab.home),
-          ),
-        ],
-        onCreate: () => context.pushRoute(const CreateMatchRoute()),
-        createTooltip: I18n.inline('Створити', 'Create'),
       ),
     );
   }

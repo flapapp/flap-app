@@ -1,7 +1,11 @@
 import 'dart:async';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
+import 'package:flap_app/core/navigation/flap_navigation.dart';
+import 'package:flap_app/core/navigation/flap_route_observer.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
@@ -59,11 +63,16 @@ class VerticalFeedVideoPage extends StatefulWidget {
 }
 
 class _VerticalFeedVideoPageState extends State<VerticalFeedVideoPage>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, RouteAware, WidgetsBindingObserver {
   VideoPlayerController? _controller;
   bool _initFailed = false;
   bool _showPlayIcon = false;
   bool _wasBuffering = false;
+
+  bool _routeObserverRegistered = false;
+  TabsRouter? _tabsRouter;
+  bool _userPausedManually = false;
+  bool _pausedByAppBackground = false;
 
   late int _likeCount;
   late int _commentCount;
@@ -102,6 +111,7 @@ class _VerticalFeedVideoPageState extends State<VerticalFeedVideoPage>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _likeCount = widget.video.likes;
     _commentCount = widget.video.commentsCount;
     _displayAvgRating = widget.video.rating;
@@ -116,6 +126,71 @@ class _VerticalFeedVideoPageState extends State<VerticalFeedVideoPage>
       _scheduleViewIncrement();
     }
     _resolveAuthorAvatar();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_routeObserverRegistered) {
+      final route = ModalRoute.of(context);
+      if (route != null) {
+        flapRouteObserver.subscribe(this, route);
+        _routeObserverRegistered = true;
+      }
+    }
+    TabsRouter? next;
+    try {
+      next = AutoTabsRouter.of(context, watch: false);
+    } catch (_) {
+      next = null;
+    }
+    if (!identical(next, _tabsRouter)) {
+      _tabsRouter?.removeListener(_onTabsRouterChanged);
+      _tabsRouter = next;
+      _tabsRouter?.addListener(_onTabsRouterChanged);
+    }
+  }
+
+  void _onTabsRouterChanged() {
+    if (!mounted) return;
+    _syncPlayback();
+  }
+
+  @override
+  void didPushNext() {
+    _syncPlayback();
+  }
+
+  @override
+  void didPopNext() {
+    _syncPlayback();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final c = _controller;
+    if (state == AppLifecycleState.paused) {
+      if (c != null && c.value.isInitialized && c.value.isPlaying) {
+        _pausedByAppBackground = true;
+        unawaited(c.pause());
+      }
+    } else if (state == AppLifecycleState.resumed && _pausedByAppBackground) {
+      _pausedByAppBackground = false;
+      _syncPlayback();
+    }
+  }
+
+  bool _playbackContextAllowsPlay() {
+    try {
+      if (AutoTabsRouter.of(context, watch: false).activeIndex != FlapMainTab.home) {
+        return false;
+      }
+    } catch (_) {
+      // Feed may be used outside the main shell (e.g. embedded); only apply route visibility.
+    }
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return false;
+    return true;
   }
 
   @override
@@ -255,6 +330,13 @@ class _VerticalFeedVideoPageState extends State<VerticalFeedVideoPage>
 
   @override
   void dispose() {
+    _tabsRouter?.removeListener(_onTabsRouterChanged);
+    _tabsRouter = null;
+    if (_routeObserverRegistered) {
+      flapRouteObserver.unsubscribe(this);
+      _routeObserverRegistered = false;
+    }
+    WidgetsBinding.instance.removeObserver(this);
     _likedSub?.cancel();
     _liveRatingSub?.cancel();
     _disposePlayer();
@@ -343,10 +425,21 @@ class _VerticalFeedVideoPageState extends State<VerticalFeedVideoPage>
   void _syncPlayback() {
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
-    if (widget.isActive) {
-      c.play();
-    } else {
-      c.pause();
+    if (!widget.isActive) {
+      unawaited(c.pause());
+      return;
+    }
+    if (!_playbackContextAllowsPlay()) {
+      unawaited(c.pause());
+      return;
+    }
+    if (_userPausedManually) {
+      unawaited(c.pause());
+      return;
+    }
+    unawaited(c.play());
+    if (_showPlayIcon && mounted) {
+      setState(() => _showPlayIcon = false);
     }
   }
 
@@ -355,10 +448,18 @@ class _VerticalFeedVideoPageState extends State<VerticalFeedVideoPage>
     if (c == null || !c.value.isInitialized) return;
     if (c.value.isPlaying) {
       await c.pause();
-      setState(() => _showPlayIcon = true);
+      if (!mounted) return;
+      setState(() {
+        _showPlayIcon = true;
+        _userPausedManually = true;
+      });
     } else {
       await c.play();
-      setState(() => _showPlayIcon = false);
+      if (!mounted) return;
+      setState(() {
+        _showPlayIcon = false;
+        _userPausedManually = false;
+      });
     }
   }
 

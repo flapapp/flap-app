@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'core/app_auth_context.dart';
 import 'core/app_user_profile_context.dart';
+import 'core/navigation/flap_route_observer.dart';
 import 'core/router/app_router.dart';
 import 'core/supabase_config.dart';
 import 'features/auth/data/datasources/supabase_auth_data_source.dart';
@@ -223,6 +224,7 @@ class _MyAppState extends State<MyApp> {
         theme: FlapTheme.theme(),
         routerConfig: appRouter.config(
           reevaluateListenable: _authReevaluateListenable,
+          navigatorObservers: () => [flapRouteObserver],
         ),
       ),
     ),

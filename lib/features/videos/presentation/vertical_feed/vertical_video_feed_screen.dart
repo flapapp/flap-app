@@ -81,7 +81,8 @@ class _VerticalVideoFeedScreenState extends State<VerticalVideoFeedScreen> {
   }
 
   double _bottomOverlayPadding(BuildContext context) {
-    return MediaQuery.of(context).padding.bottom + 16;
+    // Tab shell already clears the bottom bar; only respect system insets here.
+    return MediaQuery.paddingOf(context).bottom;
   }
 
   static bool _excludeFromFeed(LibraryVideo v) {
