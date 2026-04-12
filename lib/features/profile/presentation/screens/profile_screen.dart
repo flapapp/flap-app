@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flap_app/features/profile/data/profile_legacy_user_map.dart';
 import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/core/auth_sign_out_helper.dart';
 import 'package:flap_app/models/badge.dart' as app_badge;
 import 'package:flap_app/features/badges/domain/repositories/badge_repository.dart';
@@ -215,10 +216,13 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                 ),
                 child: ClipOval(
                   child: avatarUrl != null && avatarUrl.isNotEmpty
-                      ? Image.network(
-                          avatarUrl,
+                      ? FlapCachedImage(
+                          imageUrl: avatarUrl,
+                          width: 100,
+                          height: 100,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
+                          memCacheWidth: 200,
+                          errorWidget: (_, __, ___) =>
                               _buildAvatarPlaceholder(displayName),
                         )
                       : _buildAvatarPlaceholder(displayName),
@@ -694,27 +698,27 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                                 final videoUrl = (v['videoUrl'] ?? '') as String;
                                 if (kIsWeb) {
                                   if (thumb.isNotEmpty && thumb != videoUrl) {
-                                    return Image.network(
-                                      thumb,
+                                    return FlapCachedImage(
+                                      imageUrl: thumb,
                                       width: 160,
                                       height: 110,
                                       fit: BoxFit.cover,
                                       filterQuality: FilterQuality.low,
-                                      cacheWidth: 320,
-                                      errorBuilder: (_, __, ___) => _videoThumbFallback(title),
+                                      memCacheWidth: 320,
+                                      errorWidget: (_, __, ___) => _videoThumbFallback(title),
                                     );
                                   }
                                   return _videoThumbFallback(title);
                                 } else {
                                   if (thumb.isNotEmpty) {
-                                    return Image.network(
-                                      thumb,
+                                    return FlapCachedImage(
+                                      imageUrl: thumb,
                                       width: 160,
                                       height: 110,
                                       fit: BoxFit.cover,
                                       filterQuality: FilterQuality.low,
-                                      cacheWidth: 320,
-                                      errorBuilder: (_, __, ___) => _videoThumbFallback(title),
+                                      memCacheWidth: 320,
+                                      errorWidget: (_, __, ___) => _videoThumbFallback(title),
                                     );
                                   }
                                   return _videoThumbFallback(title);

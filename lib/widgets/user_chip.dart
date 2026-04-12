@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 class UserChip extends StatelessWidget {
@@ -78,7 +80,8 @@ class UserChip extends StatelessWidget {
           CircleAvatar(
             radius: size / 2,
             backgroundColor: const Color(0xFF4caf50),
-            backgroundImage: resolvedAvatarUrl.isNotEmpty ? NetworkImage(resolvedAvatarUrl) : null,
+            backgroundImage:
+                resolvedAvatarUrl.isNotEmpty ? flapCachedImageProvider(resolvedAvatarUrl) : null,
             child: resolvedAvatarUrl.isEmpty
                 ? Text(
                     displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',

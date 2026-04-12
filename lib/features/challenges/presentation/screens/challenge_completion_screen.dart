@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flap_app/features/auth/domain/repositories/user_profile_repository.dart';
 import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/models/challenge.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 class ChallengeCompletionScreen extends StatefulWidget {
@@ -414,9 +415,8 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
           // Аватар
           CircleAvatar(
             radius: 25,
-            backgroundImage: userAvatar.isNotEmpty
-                ? NetworkImage(userAvatar)
-                : null,
+            backgroundImage:
+                userAvatar.isNotEmpty ? flapCachedImageProvider(userAvatar) : null,
             child: userAvatar.isEmpty
                 ? Text(
                     userName.isNotEmpty ? userName[0].toUpperCase() : '?',

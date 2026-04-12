@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flap_app/features/matches/domain/repositories/matches_repository.dart';
 import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/core/auth_sign_out_helper.dart';
 import 'package:flap_app/models/match.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -510,7 +511,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       radius: 28,
                       backgroundColor: const Color(0xFF1A2737),
                       backgroundImage:
-                          logoUrl.isNotEmpty ? NetworkImage(logoUrl) : null,
+                          logoUrl.isNotEmpty ? flapCachedImageProvider(logoUrl) : null,
                       child: logoUrl.isEmpty
                           ? Text(
                               invite.teamName.isNotEmpty
@@ -822,10 +823,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             child: ClipOval(
                               child: avatarUrl != null && avatarUrl.isNotEmpty
-                                  ? Image.network(
-                                      avatarUrl,
+                                  ? FlapCachedImage(
+                                      imageUrl: avatarUrl,
+                                      width: 96,
+                                      height: 96,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
+                                      memCacheWidth: 192,
+                                      errorWidget: (_, __, ___) =>
                                           _buildAvatarPlaceholder(displayName),
                                     )
                                   : _buildAvatarPlaceholder(displayName),
@@ -1698,8 +1702,9 @@ class _TeamCardBody extends StatelessWidget {
                 CircleAvatar(
                   radius: 26,
                   backgroundColor: const Color(0xFF4caf50),
-                  backgroundImage:
-                      team.logoUrl != null ? NetworkImage(team.logoUrl!) : null,
+                  backgroundImage: team.logoUrl != null
+                      ? flapCachedImageProvider(team.logoUrl!)
+                      : null,
                   child: team.logoUrl == null
                       ? Text(
                           team.name.isNotEmpty ? team.name[0].toUpperCase() : 'T',

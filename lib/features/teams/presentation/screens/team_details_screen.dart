@@ -19,6 +19,7 @@ import 'package:flap_app/widgets/player_avatar_button.dart';
 import 'package:flap_app/features/matches/presentation/screens/create_match_screen.dart';
 import 'package:flap_app/features/matches/presentation/screens/match_details_screen.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 
 @RoutePage()
 class TeamDetailsScreen extends StatefulWidget {
@@ -133,7 +134,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         ),
         image: team.logoUrl != null
             ? DecorationImage(
-                image: NetworkImage(team.logoUrl!),
+                image: flapCachedImageProvider(team.logoUrl!),
                 fit: BoxFit.cover,
                 colorFilter:
                     ColorFilter.mode(Colors.black.withOpacity(0.55), BlendMode.darken),

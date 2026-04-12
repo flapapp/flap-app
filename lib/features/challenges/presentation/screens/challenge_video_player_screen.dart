@@ -10,6 +10,8 @@ import 'package:flap_app/features/profile/data/user_settings_service.dart';
 import 'package:flap_app/widgets/user_chip.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/cached_video_controller.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 
 class ChallengeVideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
@@ -65,7 +67,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   Future<void> _initializeVideo() async {
     try {
       _autoplayVideos = await UserSettingsService().isAutoplayEnabled();
-      _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      _videoPlayerController = await createCachedVideoController(Uri.parse(widget.videoUrl));
       await _videoPlayerController.initialize();
       
       _chewieController = ChewieController(
@@ -134,10 +136,11 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       return Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(
-            thumb,
+          FlapCachedImage(
+            imageUrl: thumb,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _placeholderBackdrop(),
+            memCacheWidth: 720,
+            errorWidget: (_, __, ___) => _placeholderBackdrop(),
           ),
           Container(
             color: Colors.black.withOpacity(0.35),

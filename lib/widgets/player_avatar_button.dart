@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:flap_app/core/media/flap_cached_image.dart';
+
 /// Reusable avatar button that routes to the player profile by default.
 class PlayerAvatarButton extends StatelessWidget {
   final String userId;
@@ -48,7 +50,7 @@ class PlayerAvatarButton extends StatelessWidget {
       radius: size / 2,
       backgroundColor: backgroundColor,
       backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
-          ? NetworkImage(avatarUrl!)
+          ? flapCachedImageProvider(avatarUrl!)
           : null,
       child: (avatarUrl == null || avatarUrl!.isEmpty)
           ? Text(

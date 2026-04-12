@@ -5,6 +5,7 @@ import 'package:flap_app/features/matches/data/rating_service.dart';
 import 'package:flap_app/features/profile/presentation/screens/player_profile_screen.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 
 @RoutePage()
 class RatingsScreen extends StatefulWidget {
@@ -299,7 +300,7 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
                   radius: 24,
                   backgroundColor: levelColor.withOpacity(0.2),
                   backgroundImage: (player['avatarUrl'] ?? '').toString().isNotEmpty
-                      ? NetworkImage(player['avatarUrl'])
+                      ? flapCachedImageProvider((player['avatarUrl'] ?? '').toString())
                       : null,
                   child: (player['avatarUrl'] ?? '').toString().isEmpty
                       ? Text(
@@ -896,7 +897,7 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
                   radius: 22,
                   backgroundColor: levelColor.withOpacity(0.2),
                   backgroundImage: (player['avatarUrl'] ?? '').toString().isNotEmpty
-                      ? NetworkImage(player['avatarUrl'])
+                      ? flapCachedImageProvider((player['avatarUrl'] ?? '').toString())
                       : null,
                   child: (player['avatarUrl'] ?? '').toString().isEmpty
                       ? Text(

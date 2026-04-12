@@ -6,6 +6,7 @@ import 'package:flap_app/models/match.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 
 enum RatingMode { simple, advanced }
 
@@ -461,10 +462,12 @@ final alreadyRatedIds = widget.match.playerRatings
               ),
               child: ClipOval(
   child: (avatarUrl.isNotEmpty)
-      ? Image.network(
-          avatarUrl,
+      ? FlapCachedImage(
+          imageUrl: avatarUrl,
+          width: 40,
+          height: 40,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _AvatarFallback(initials: initials),
+          errorWidget: (_, __, ___) => _AvatarFallback(initials: initials),
         )
       : _AvatarFallback(initials: initials),
 )

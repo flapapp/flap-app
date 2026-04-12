@@ -7,6 +7,7 @@ import 'package:flap_app/features/friends/domain/repositories/friends_repository
 import 'package:flap_app/features/friends/presentation/bloc/friends_bloc.dart';
 import 'package:flap_app/features/friends/presentation/bloc/friends_event.dart';
 import 'package:flap_app/features/friends/presentation/bloc/friends_state.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 
 @RoutePage()
 class FriendsScreen extends StatefulWidget {
@@ -270,10 +271,12 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                 child: friend.avatar.isNotEmpty
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(28),
-                        child: Image.network(
-                          friend.avatar,
+                        child: FlapCachedImage(
+                          imageUrl: friend.avatar,
+                          width: 56,
+                          height: 56,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
+                          errorWidget: (_, __, ___) =>
                               _buildAvatarPlaceholder(friend.name),
                         ),
                       )
@@ -543,10 +546,12 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                 child: user['avatar']!.isNotEmpty
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(24),
-                        child: Image.network(
-                          user['avatar']!,
+                        child: FlapCachedImage(
+                          imageUrl: user['avatar']!,
+                          width: 48,
+                          height: 48,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
+                          errorWidget: (_, __, ___) =>
                               _buildAvatarPlaceholder(user['name']!),
                         ),
                       )
@@ -761,12 +766,12 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                                   child: avatarUrl.toString().isNotEmpty
                                       ? ClipRRect(
                                           borderRadius: BorderRadius.circular(20),
-                                          child: Image.network(
-                                            avatarUrl.toString(),
+                                          child: FlapCachedImage(
+                                            imageUrl: avatarUrl.toString(),
                                             width: 40,
                                             height: 40,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) =>
+                                            errorWidget: (_, __, ___) =>
                                                 _buildAvatarPlaceholder(userName.toString()),
                                           ),
                                         )

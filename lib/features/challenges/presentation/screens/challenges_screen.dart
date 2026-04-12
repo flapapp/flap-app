@@ -18,6 +18,7 @@ import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/video_preview_box.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 
 class ChallengesScreen extends StatefulWidget {
   final bool showOnlyMyChallenges;
@@ -471,10 +472,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                           child: ClipRRect(
                                             borderRadius: BorderRadius.circular(16),
                                             child: avatarUrl.isNotEmpty
-                                                ? Image.network(
-                                                    avatarUrl,
+                                                ? FlapCachedImage(
+                                                    imageUrl: avatarUrl,
+                                                    width: 32,
+                                                    height: 32,
                                                     fit: BoxFit.cover,
-                                                    errorBuilder: (context, error, stackTrace) =>
+                                                    errorWidget: (_, __, ___) =>
                                                         _buildMiniAvatar(authorName),
                                                   )
                                                 : _buildMiniAvatar(authorName),

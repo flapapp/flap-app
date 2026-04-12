@@ -22,6 +22,7 @@ import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/city_autocomplete_field.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/core/navigation/flap_navigation.dart';
 import 'package:flap_app/core/router/app_router.dart';
 import 'package:flap_app/core/theme/flap_theme.dart';
@@ -536,7 +537,8 @@ void _resetFindFilters() {
           icon: CircleAvatar(
             radius: 14,
             backgroundColor: const Color(0xFF4caf50),
-            backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+            backgroundImage:
+                avatarUrl.isNotEmpty ? flapCachedImageProvider(avatarUrl) : null,
             child: avatarUrl.isEmpty ? Text(displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)) : null,
                 ),
               );
@@ -1831,10 +1833,11 @@ void _shareMatch(Match match) {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.network(
-              match.coverPhotoUrl!,
+            FlapCachedImage(
+              imageUrl: match.coverPhotoUrl!,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
+              memCacheWidth: 800,
+              errorWidget: (_, __, ___) => Container(
                 color: Colors.black12,
                 child: const Center(
                   child: Icon(Icons.broken_image, color: Colors.white54),
@@ -3636,10 +3639,12 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
             ),
             clipBehavior: Clip.antiAlias,
             child: avatar.isNotEmpty
-                ? Image.network(
-                    avatar,
+                ? FlapCachedImage(
+                    imageUrl: avatar,
+                    width: 44,
+                    height: 44,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
+                    errorWidget: (_, __, ___) {
                       return Center(
                         child: Text(
                           name.isNotEmpty ? name[0].toUpperCase() : 'U',

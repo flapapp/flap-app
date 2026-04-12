@@ -13,6 +13,7 @@ import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
 import 'package:flap_app/widgets/team_logo_button.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/core/navigation/flap_navigation.dart';
 import 'package:flap_app/core/router/app_router.dart';
 import 'package:flap_app/core/theme/flap_theme.dart';
@@ -174,7 +175,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         border: Border.all(color: Colors.white.withOpacity(0.06)),
         image: team.logoUrl != null
             ? DecorationImage(
-                image: NetworkImage(team.logoUrl!),
+                image: flapCachedImageProvider(team.logoUrl!),
                 fit: BoxFit.cover,
                 colorFilter: ColorFilter.mode(
                   Colors.black.withOpacity(0.55),

@@ -1,6 +1,7 @@
-import 'package:video_player/video_player.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:video_player/video_player.dart';
 
+import 'package:flap_app/core/media/cached_video_controller.dart';
 import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 
 class WebThumbnailService {
@@ -18,7 +19,7 @@ class WebThumbnailService {
     try {
       print('🌐 Starting web thumbnail generation for: $videoId');
 
-      final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+      final controller = await createCachedVideoController(Uri.parse(videoUrl));
 
       await controller.initialize();
 

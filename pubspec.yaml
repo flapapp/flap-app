@@ -51,6 +51,8 @@ dependencies:
   url_launcher_android: 6.3.14
   shared_preferences: ^2.5.5
   persistent_bottom_nav_bar: ^6.2.1
+  cached_network_image: ^3.4.0
+  flutter_cache_manager: ^3.4.1
 
 dev_dependencies:
   flutter_test:

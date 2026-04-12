@@ -20,6 +20,7 @@ import 'package:flap_app/features/teams/presentation/screens/team_details_screen
 import 'package:flap_app/widgets/video_preview_box.dart';
 import 'package:flap_app/features/videos/presentation/screens/video_player_screen.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 
 /// Win/draw/loss stats from Supabase-backed [Match] rows (same rules as legacy Firestore).
 Map<String, dynamic> _aggregateMatchStatsForUser(
@@ -626,10 +627,13 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(48),
                 child: avatarUrl.isNotEmpty
-                    ? Image.network(
-                        avatarUrl,
+                    ? FlapCachedImage(
+                        imageUrl: avatarUrl,
+                        width: 96,
+                        height: 96,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
+                        memCacheWidth: 192,
+                        errorWidget: (_, __, ___) =>
                             _buildDefaultAvatar(displayName),
                       )
                     : _buildDefaultAvatar(displayName),
@@ -1559,7 +1563,7 @@ class _MiniTeamCard extends StatelessWidget {
                       backgroundColor: const Color(0xFF4caf50),
                       backgroundImage:
                           live.logoUrl != null && live.logoUrl!.isNotEmpty
-                          ? NetworkImage(live.logoUrl!)
+                          ? flapCachedImageProvider(live.logoUrl!)
                           : null,
                       child: (live.logoUrl == null || live.logoUrl!.isEmpty)
                           ? Text(

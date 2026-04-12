@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'profile_screen_sparkline.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/features/profile/data/profile_legacy_user_map.dart';
 import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
@@ -220,8 +221,14 @@ class _StatsScreenState extends State<StatsScreen> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: thumb.isNotEmpty
-                            ? Image.network(thumb, width: 160, height: 110, fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => _videoThumbFallback(title))
+                            ? FlapCachedImage(
+                                imageUrl: thumb,
+                                width: 160,
+                                height: 110,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 320,
+                                errorWidget: (_, __, ___) => _videoThumbFallback(title),
+                              )
                             : _videoThumbFallback(title),
                       ),
                       Positioned(

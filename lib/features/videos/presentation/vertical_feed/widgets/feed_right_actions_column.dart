@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 /// Profile, like, comment, share stacked on the right (TikTok-style).
@@ -127,10 +128,12 @@ class _AvatarRing extends StatelessWidget {
                   ),
                 ),
               )
-            : Image.network(
-                avatarUrl,
+            : FlapCachedImage(
+                imageUrl: avatarUrl,
+                width: 52,
+                height: 52,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => ColoredBox(
+                errorWidget: (_, __, ___) => ColoredBox(
                   color: Colors.white24,
                   child: Center(
                     child: Text(

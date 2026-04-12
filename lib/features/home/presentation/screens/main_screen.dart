@@ -11,6 +11,7 @@ import 'package:flap_app/features/videos/presentation/screens/video_upload_scree
 import 'package:flap_app/features/challenges/presentation/screens/challenge_create_screen.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/features/profile/data/profile_legacy_user_map.dart';
 
 class MainScreen extends StatefulWidget {
@@ -171,7 +172,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 icon: CircleAvatar(
                   radius: 16,
                   backgroundColor: const Color(0xFF4caf50),
-                  backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                  backgroundImage:
+                      avatarUrl.isNotEmpty ? flapCachedImageProvider(avatarUrl) : null,
                   child: avatarUrl.isEmpty
                       ? Text(
                           userName.isNotEmpty ? userName[0].toUpperCase() : 'U',

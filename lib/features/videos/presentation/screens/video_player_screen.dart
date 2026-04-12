@@ -13,6 +13,7 @@ import 'package:flap_app/widgets/rating_display.dart';
 import 'package:flap_app/widgets/user_chip.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/cached_video_controller.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
@@ -385,7 +386,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   Future<void> _initializePlayer() async {
     try {
       _autoplayVideos = await UserSettingsService().isAutoplayEnabled();
-      _videoPlayerController = VideoPlayerController.networkUrl(
+      _videoPlayerController = await createCachedVideoController(
         Uri.parse(widget.videoUrl),
       );
       

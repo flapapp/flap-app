@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/core/router/app_router.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/city_autocomplete_field.dart';
@@ -231,12 +232,13 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                                 _existingAvatarUrl!.isNotEmpty)
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(58),
-                              child: Image.network(
-                                _existingAvatarUrl!,
-                                fit: BoxFit.cover,
+                              child: FlapCachedImage(
+                                imageUrl: _existingAvatarUrl!,
                                 width: 120,
                                 height: 120,
-                                errorBuilder: (_, __, ___) => Column(
+                                fit: BoxFit.cover,
+                                memCacheWidth: 240,
+                                errorWidget: (_, __, ___) => Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     const Icon(

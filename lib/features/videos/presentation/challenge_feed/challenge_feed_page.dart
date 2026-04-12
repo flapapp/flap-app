@@ -6,6 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:flap_app/core/media/cached_video_controller.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/core/navigation/flap_navigation.dart';
 import 'package:flap_app/core/navigation/flap_route_observer.dart';
 import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
@@ -215,7 +217,7 @@ class _ChallengeFeedPageState extends State<ChallengeFeedPage>
     }
     if (_controller != null) return;
     _initFailed = false;
-    final c = VideoPlayerController.networkUrl(uri);
+    final c = await createCachedVideoController(uri);
     try {
       await c.initialize();
       if (!mounted) {
@@ -408,10 +410,11 @@ class _ChallengeFeedPageState extends State<ChallengeFeedPage>
       );
     }
     if (thumb.isNotEmpty) {
-      return Image.network(
-        thumb,
+      return FlapCachedImage(
+        imageUrl: thumb,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _placeholderLayer(),
+        memCacheWidth: 720,
+        errorWidget: (_, __, ___) => _placeholderLayer(),
       );
     }
     return _placeholderLayer();

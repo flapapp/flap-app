@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/core/auth_sign_out_helper.dart';
 import 'package:flap_app/features/profile/data/profile_legacy_user_map.dart';
 import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
@@ -2797,10 +2798,13 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(50),
                         child: avatarUrl != null && avatarUrl.isNotEmpty
-                            ? Image.network(
-                                avatarUrl,
+                            ? FlapCachedImage(
+                                imageUrl: avatarUrl,
+                                width: 100,
+                                height: 100,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(
+                                memCacheWidth: 200,
+                                errorWidget: (_, __, ___) => const Icon(
                                   Icons.person,
                                   size: 50,
                                   color: Color(0xFF6a1b9a),

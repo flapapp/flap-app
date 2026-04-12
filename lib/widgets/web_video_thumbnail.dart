@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:flap_app/core/media/cached_video_controller.dart';
+
 class WebVideoThumbnail extends StatefulWidget {
   final String videoUrl;
   final double? width;
@@ -36,7 +38,7 @@ class _WebVideoThumbnailState extends State<WebVideoThumbnail> {
     if (_initTried) return;
     _initTried = true;
     try {
-      final controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      final controller = await createCachedVideoController(Uri.parse(widget.videoUrl));
       await controller.initialize();
       await controller.seekTo(const Duration(seconds: 1));
       await controller.pause();

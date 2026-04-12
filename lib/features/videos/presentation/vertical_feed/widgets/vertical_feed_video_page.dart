@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/cached_video_controller.dart';
 import 'package:flap_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:flap_app/features/videos/domain/entities/library_video.dart';
 import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
@@ -379,7 +380,7 @@ class _VerticalFeedVideoPageState extends State<VerticalFeedVideoPage>
       if (mounted) setState(() => _initFailed = true);
       return;
     }
-    final c = VideoPlayerController.networkUrl(uri);
+    final c = await createCachedVideoController(uri);
     try {
       await c.initialize();
       if (!mounted) {

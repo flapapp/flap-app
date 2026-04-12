@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
+
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'web_video_thumbnail.dart';
 
 class VideoPreviewBox extends StatefulWidget {
@@ -174,16 +176,13 @@ class _VideoPreviewBoxState extends State<VideoPreviewBox> {
     if (thumbUrl != null &&
         thumbUrl.isNotEmpty &&
         !_looksLikeVideoUrl(thumbUrl)) {
-      return Image.network(
-        thumbUrl,
+      return FlapCachedImage(
+        imageUrl: thumbUrl,
         fit: BoxFit.cover,
         filterQuality: FilterQuality.low,
-        cacheWidth: 720,
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return _buildPlaceholder();
-        },
-        errorBuilder: (_, __, ___) => _buildPlaceholder(),
+        memCacheWidth: 720,
+        placeholder: (_, __) => _buildPlaceholder(),
+        errorWidget: (_, __, ___) => _buildPlaceholder(),
       );
     }
     if (_localThumb != null) {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:flap_app/core/media/flap_cached_image.dart';
+
 /// Reusable tappable badge for any place we show a team crest/logo.
 class TeamLogoButton extends StatelessWidget {
   final String? teamId;
@@ -50,10 +52,12 @@ class TeamLogoButton extends StatelessWidget {
         height: size,
         color: const Color(0xFF0E1A2B),
         child: logoUrl != null && logoUrl!.isNotEmpty
-            ? Image.network(
-                logoUrl!,
+            ? FlapCachedImage(
+                imageUrl: logoUrl!,
+                width: size,
+                height: size,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _fallback(placeholder),
+                errorWidget: (_, __, ___) => _fallback(placeholder),
               )
             : _fallback(placeholder),
       ),

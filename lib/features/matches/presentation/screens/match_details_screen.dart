@@ -16,6 +16,7 @@ import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
 import 'package:flap_app/widgets/user_chip.dart';
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/media/flap_cached_image.dart';
 
 @RoutePage()
 class MatchDetailsScreen extends StatefulWidget {
@@ -207,21 +208,14 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                     ? Stack(
                         fit: StackFit.expand,
                         children: [
-                          Image.network(
-                            photoUrl!,
+                          FlapCachedImage(
+                            imageUrl: photoUrl,
                             fit: BoxFit.cover,
-                            loadingBuilder: (context, child, progress) {
-                              if (progress == null) return child;
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  value: progress.expectedTotalBytes != null
-                                      ? progress.cumulativeBytesLoaded /
-                                          progress.expectedTotalBytes!
-                                      : null,
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) =>
+                            memCacheWidth: 1200,
+                            placeholder: (_, __) => const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                            errorWidget: (_, __, ___) =>
                                 _buildCoverPlaceholderContent(),
                           ),
                           Positioned(
