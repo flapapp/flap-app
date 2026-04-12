@@ -16,6 +16,7 @@ import 'package:flap_app/features/videos/domain/repositories/videos_repository.d
 import 'package:flap_app/features/videos/presentation/vertical_feed/widgets/double_tap_heart_overlay.dart';
 import 'package:flap_app/features/videos/presentation/vertical_feed/widgets/feed_video_comments_sheet.dart';
 import 'package:flap_app/features/videos/presentation/vertical_feed/widgets/feed_bottom_caption_block.dart';
+import 'package:flap_app/features/videos/presentation/vertical_feed/widgets/feed_dimming_gradients.dart';
 import 'package:flap_app/features/videos/presentation/vertical_feed/widgets/feed_right_actions_column.dart';
 import 'package:flap_app/features/videos/presentation/vertical_feed/widgets/feed_video_vote_sheet.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -584,7 +585,7 @@ class _VerticalFeedVideoPageState extends State<VerticalFeedVideoPage>
       fit: StackFit.expand,
       children: [
         ColoredBox(color: Colors.black, child: _buildVideoLayer()),
-        const _FeedDimmingGradients(),
+        const FeedDimmingGradients(),
         if (_showPlayIcon)
           const IgnorePointer(
             child: Center(
@@ -698,27 +699,3 @@ class _VerticalFeedVideoPageState extends State<VerticalFeedVideoPage>
   }
 }
 
-class _FeedDimmingGradients extends StatelessWidget {
-  const _FeedDimmingGradients();
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.black.withValues(alpha: 0.55),
-              Colors.transparent,
-              Colors.transparent,
-              Colors.black.withValues(alpha: 0.72),
-            ],
-            stops: const [0, 0.18, 0.52, 1],
-          ),
-        ),
-      ),
-    );
-  }
-}

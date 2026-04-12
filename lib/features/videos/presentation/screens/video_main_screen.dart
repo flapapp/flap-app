@@ -1,9 +1,10 @@
+import 'dart:async';
+
 import 'dart:ui' show ImageFilter;
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flap_app/features/challenges/domain/challenge_failure.dart';
 import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/auth_sign_out_helper.dart';
@@ -13,6 +14,9 @@ import 'package:flap_app/features/videos/domain/entities/library_video.dart';
 import 'package:flap_app/features/videos/domain/entities/video_comment.dart';
 import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'video_player_screen.dart';
+import 'package:flap_app/features/videos/presentation/challenge_feed/challenge_details_bottom_sheet.dart';
+import 'package:flap_app/features/videos/presentation/challenge_feed/challenge_join_flow.dart';
+import 'package:flap_app/features/videos/presentation/challenge_feed/challenge_vertical_feed_screen.dart';
 import 'package:flap_app/features/videos/presentation/vertical_feed/vertical_video_feed_screen.dart';
 import 'package:flap_app/constants/video_categories.dart';
 import 'package:flap_app/models/challenge.dart';
@@ -2015,7 +2019,14 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
 
   switch (_selectedTab) {
     case 'challenges':
-      return _buildChallengesList();
+      if (_embed) return _buildChallengesList();
+      return ChallengeVerticalFeedScreen(
+        key: ValueKey<String>(
+          'challenge-vertical-${_showOnlyMyChallenges ? 'mine' : 'all'}',
+        ),
+        scopeKey: _showOnlyMyChallenges ? 'mine' : 'all',
+        onlyMine: _showOnlyMyChallenges,
+      );
     case 'trending':
       if (_embed) return _buildTrendingVideos();
       return VerticalVideoFeedScreen(
@@ -3842,104 +3853,11 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
 
   // Методи для роботи з челенджами
   void _joinChallenge(Challenge challenge) {
-    final challengeId = challenge.id;
-    final currentUser = AppAuthContext.currentUser;
-    if (currentUser == null) return;
-    final now = DateTime.now();
-    final isCompletedByDate =
-        now.isAfter(challenge.votingDeadline) || now.isAfter(challenge.endDate);
-    if (challenge.status == ChallengeStatus.completed || isCompletedByDate) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            I18n.inline(
-              'Челендж завершено. Подати відео вже неможливо.',
-              'Challenge is completed. Video submission is closed.',
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-    
-    // Показуємо підтвердження участі
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1e7d32),
-        title: Text(
-          I18n.inline('Приєднатися до челенджу', 'Join challenge'),
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              I18n.inline(
-                'Ви приєднуєтеся до челенджу "${challenge.title}"',
-                'You are joining the challenge "${challenge.title}"',
-              ),
-              style: const TextStyle(color: Colors.white),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              I18n.inline(
-                'Ставка входу: ${challenge.entryFee} монет',
-                'Entry fee: ${challenge.entryFee} coins',
-              ),
-              style: const TextStyle(color: Colors.white70),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              I18n.t('cancel'),
-              style: const TextStyle(color: Colors.white70),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-
-              try {
-                await context.read<ChallengeRepository>().joinChallenge(challengeId);
-                if (!mounted) return;
-                context.pushRoute(
-                  VideoUploadRoute(
-                    challengeId: challengeId,
-                    challengeTitle: challenge.title,
-                  ),
-                );
-              } on ChallengeFailure catch (f) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(I18n.inline('Помилка приєднання: ${f.message}', 'Join error: ${f.message}')),
-                  ),
-                );
-              } catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(I18n.inline('Помилка приєднання: $e', 'Join error: $e'))),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4caf50)),
-            child: Text(
-              I18n.inline('Завантажити відео', 'Upload video'),
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
+    showChallengeJoinDialog(context, challenge);
   }
 
   void _viewChallengeDetails(Challenge challenge) {
-    context.pushRoute(ChallengeDetailsRoute(challenge: challenge));
+    unawaited(showChallengeDetailsBottomSheet(context, challenge: challenge));
   }
 
   // Interactive methods
