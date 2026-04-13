@@ -284,16 +284,29 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
   Future<List<Map<String, dynamic>>> searchPlayersProfiles(
     String query, {
     int limit = 10,
+    List<String>? positionsAnyOf,
   }) async {
     final trimmed = query.trim();
-    if (trimmed.isEmpty) return [];
     final lower = trimmed.toLowerCase();
-    final rows = await _c
-        .from('profiles')
-        .select(
-          'id, display_name, name, surname, email, avatar_url',
-        )
-        .limit(200);
+    final hasText = trimmed.isNotEmpty;
+    final hasPosition =
+        positionsAnyOf != null && positionsAnyOf.isNotEmpty;
+
+    if (!hasText && !hasPosition) {
+      return [];
+    }
+
+    dynamic request = _c.from('profiles').select(
+          'id, display_name, name, surname, email, avatar_url, position',
+        );
+    if (hasPosition) {
+      request = request.inFilter('position', positionsAnyOf);
+    }
+    final rows = await request.limit(hasPosition ? 400 : 200);
+
+    String normalize(dynamic value) =>
+        (value ?? '').toString().toLowerCase().trim();
+
     final results = <Map<String, dynamic>>[];
     for (final r in (rows as List).cast<Map>()) {
       final m = Map<String, dynamic>.from(r);
@@ -302,47 +315,52 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
       final firstName = (m['name'] ?? '').toString().trim();
       final lastName = (m['surname'] ?? '').toString().trim();
       final email = (m['email'] ?? '').toString().trim();
-      final searchFields = <String>[
-        displayNameRaw.toLowerCase(),
-        firstName.toLowerCase(),
-        lastName.toLowerCase(),
-        '$firstName $lastName'.trim().toLowerCase(),
-        email.toLowerCase(),
-      ];
-      var matches = false;
-      for (final field in searchFields) {
-        if (field.isEmpty) continue;
-        if (field.startsWith(lower) || field.contains(lower)) {
-          matches = true;
-          break;
+      if (hasText) {
+        final searchFields = <String>[
+          displayNameRaw.toLowerCase(),
+          firstName.toLowerCase(),
+          lastName.toLowerCase(),
+          '$firstName $lastName'.trim().toLowerCase(),
+          email.toLowerCase(),
+        ];
+        var matches = false;
+        for (final field in searchFields) {
+          if (field.isEmpty) continue;
+          if (field.startsWith(lower) || field.contains(lower)) {
+            matches = true;
+            break;
+          }
         }
+        if (!matches) continue;
       }
-      if (matches) {
-        results.add({
-          'id': m['id'].toString(),
-          'displayName': displayNameRaw.isNotEmpty
-              ? displayNameRaw
-              : I18n.inline('Гравець', 'Player'),
-          'avatarUrl': (m['avatar_url'] ?? '').toString(),
-          'firstName': firstName,
-          'lastName': lastName,
-          'email': email,
-        });
-      }
+      results.add({
+        'id': m['id'].toString(),
+        'displayName': displayNameRaw.isNotEmpty
+            ? displayNameRaw
+            : I18n.inline('Гравець', 'Player'),
+        'avatarUrl': (m['avatar_url'] ?? '').toString(),
+        'firstName': firstName,
+        'lastName': lastName,
+        'email': email,
+        'profilePosition': (m['position'] ?? '').toString(),
+      });
     }
-    results.sort((a, b) {
-      String normalize(dynamic value) =>
-          (value ?? '').toString().toLowerCase().trim();
-      final aName = normalize(a['displayName']);
-      final bName = normalize(b['displayName']);
-      final aExact = aName == lower ? 1 : 0;
-      final bExact = bName == lower ? 1 : 0;
-      if (aExact != bExact) return bExact - aExact;
-      final aStarts = aName.startsWith(lower) ? 1 : 0;
-      final bStarts = bName.startsWith(lower) ? 1 : 0;
-      if (aStarts != bStarts) return bStarts - aStarts;
-      return aName.compareTo(bName);
-    });
+    if (hasText) {
+      results.sort((a, b) {
+        final aName = normalize(a['displayName']);
+        final bName = normalize(b['displayName']);
+        final aExact = aName == lower ? 1 : 0;
+        final bExact = bName == lower ? 1 : 0;
+        if (aExact != bExact) return bExact - aExact;
+        final aStarts = aName.startsWith(lower) ? 1 : 0;
+        final bStarts = bName.startsWith(lower) ? 1 : 0;
+        if (aStarts != bStarts) return bStarts - aStarts;
+        return aName.compareTo(bName);
+      });
+    } else {
+      results.sort((a, b) => normalize(a['displayName'])
+          .compareTo(normalize(b['displayName'])));
+    }
     return results.take(limit).toList();
   }
 

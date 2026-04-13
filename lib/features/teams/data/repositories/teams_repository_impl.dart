@@ -430,9 +430,16 @@ class TeamsRepositoryImpl implements TeamsRepository {
       _remote.searchTeamsLocalFilter(query, limit: limit);
 
   @override
-  Future<List<Map<String, dynamic>>> searchPlayers(String query,
-          {int limit = 10}) =>
-      _remote.searchPlayersProfiles(query, limit: limit);
+  Future<List<Map<String, dynamic>>> searchPlayers(
+    String query, {
+    int limit = 10,
+    List<String>? profilePositionsAnyOf,
+  }) =>
+      _remote.searchPlayersProfiles(
+        query,
+        limit: limit,
+        positionsAnyOf: profilePositionsAnyOf,
+      );
 
   @override
   Future<Map<String, dynamic>?> fetchProfileForDisplay(String userId) =>

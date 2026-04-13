@@ -78,7 +78,11 @@ abstract class TeamsRepository {
 
   Future<List<AppTeam>> searchTeams(String query, {int limit});
 
-  Future<List<Map<String, dynamic>>> searchPlayers(String query, {int limit});
+  Future<List<Map<String, dynamic>>> searchPlayers(
+    String query, {
+    int limit,
+    List<String>? profilePositionsAnyOf,
+  });
 
   Future<void> leaveTeam({
     required String teamId,

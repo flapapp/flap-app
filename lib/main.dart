@@ -39,6 +39,9 @@ import 'features/friends/domain/repositories/friends_repository.dart';
 import 'features/matches/data/datasources/supabase_matches_remote_data_source.dart';
 import 'features/matches/data/match_service.dart';
 import 'features/matches/domain/repositories/matches_repository.dart';
+import 'features/team_creation/data/datasources/team_creation_remote_data_source.dart';
+import 'features/team_creation/data/repositories/team_creation_repository_impl.dart';
+import 'features/team_creation/domain/repositories/team_creation_repository.dart';
 import 'features/teams/data/datasources/supabase_teams_remote_data_source.dart';
 import 'features/teams/data/repositories/teams_repository_impl.dart';
 import 'features/teams/domain/repositories/teams_repository.dart';
@@ -108,6 +111,10 @@ Future<void> main() async {
   final videosRepo = VideosRepositoryImpl(SupabaseVideosRemoteDataSource());
   RatingService.registerVideosRepository(videosRepo);
 
+  final teamCreationRepo = TeamCreationRepositoryImpl(
+    SupabaseTeamCreationRemoteDataSource(),
+  );
+
   runApp(
     MultiRepositoryProvider(
       providers: [
@@ -129,6 +136,9 @@ Future<void> main() async {
           value: notificationsRepo,
         ),
         RepositoryProvider<VideosRepository>.value(value: videosRepo),
+        RepositoryProvider<TeamCreationRepository>.value(
+          value: teamCreationRepo,
+        ),
       ],
       child: MyApp(authRepository: authRepo),
     ),

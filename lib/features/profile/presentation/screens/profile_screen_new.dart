@@ -19,9 +19,14 @@ import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/models/team_stats.dart';
 import 'package:flap_app/models/team_invite.dart';
+import 'package:flap_app/features/team_creation/domain/repositories/team_creation_repository.dart';
+import 'package:flap_app/features/team_creation/domain/usecases/add_player_usecase.dart';
+import 'package:flap_app/features/team_creation/domain/usecases/create_team_usecase.dart';
+import 'package:flap_app/features/team_creation/domain/usecases/generate_squad_usecase.dart';
+import 'package:flap_app/features/team_creation/presentation/bloc/team_creation_bloc.dart';
+import 'package:flap_app/features/team_creation/presentation/screens/team_creation_wizard_screen.dart';
 import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
 import 'package:flap_app/features/teams/presentation/screens/team_details_screen.dart';
-import 'package:flap_app/features/teams/presentation/screens/team_create_screen.dart';
 
 import 'package:flap_app/core/navigation/flap_navigation.dart';
 import 'package:flap_app/core/router/app_router.dart';
@@ -130,6 +135,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _matchStatsUserId;
   bool _donationPromptCheckStarted = false;
   bool _donationDialogVisible = false;
+
+  Future<void> _openTeamCreationWizard(int existingTeams) async {
+    final uid = _userId;
+    if (uid == null || !mounted) return;
+    final creationRepo = context.read<TeamCreationRepository>();
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (ctx) => BlocProvider(
+          create: (_) => TeamCreationBloc(
+            createTeam: CreateTeamUseCase(creationRepo),
+            generateSquad: GenerateSquadUseCase(),
+            addPlayerUseCase: AddPlayerUseCase(),
+            teamsRepository: ctx.read<TeamsRepository>(),
+            userId: uid,
+          ),
+          child: TeamCreationWizardScreen(
+            existingTeams: existingTeams,
+            currentUserId: uid,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -339,12 +368,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onPressed: canCreate
                         ? () async {
                             if (_userId == null) return;
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    TeamCreateScreen(existingTeams: teams.length),
-                              ),
-                            );
+                            await _openTeamCreationWizard(teams.length);
                           }
                         : null,
                     icon: const Icon(Icons.add, color: Colors.white),
@@ -394,14 +418,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 12),
                       ElevatedButton(
                         onPressed: canCreate
-                            ? () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => TeamCreateScreen(
-                                      existingTeams: teams.length,
-                                    ),
-                                  ),
-                                );
+                            ? () async {
+                                await _openTeamCreationWizard(teams.length);
                               }
                             : null,
                         child: Text(I18n.inline('Створити команду', 'Create team')),

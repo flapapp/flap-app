@@ -7,8 +7,13 @@ import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/router/app_router.dart';
 import 'package:flap_app/core/theme/flap_theme.dart';
 import 'package:flap_app/features/shell/presentation/shell_create_expandable_fab.dart';
+import 'package:flap_app/features/team_creation/domain/repositories/team_creation_repository.dart';
+import 'package:flap_app/features/team_creation/domain/usecases/add_player_usecase.dart';
+import 'package:flap_app/features/team_creation/domain/usecases/create_team_usecase.dart';
+import 'package:flap_app/features/team_creation/domain/usecases/generate_squad_usecase.dart';
+import 'package:flap_app/features/team_creation/presentation/bloc/team_creation_bloc.dart';
+import 'package:flap_app/features/team_creation/presentation/screens/team_creation_wizard_screen.dart';
 import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
-import 'package:flap_app/features/teams/presentation/screens/team_create_screen.dart';
 import 'package:flap_app/utils/i18n.dart';
 
 /// Primary signed-in shell: Home, Matches, Create (center slot), Teams, Profile.
@@ -76,9 +81,22 @@ class _MainShellScreenState extends State<MainShellScreen> {
     }
     final teams = await context.read<TeamsRepository>().fetchUserTeams(user.id);
     if (!mounted) return;
+    final creationRepo = context.read<TeamCreationRepository>();
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => TeamCreateScreen(existingTeams: teams.length),
+        builder: (ctx) => BlocProvider(
+          create: (_) => TeamCreationBloc(
+            createTeam: CreateTeamUseCase(creationRepo),
+            generateSquad: GenerateSquadUseCase(),
+            addPlayerUseCase: AddPlayerUseCase(),
+            teamsRepository: ctx.read<TeamsRepository>(),
+            userId: user.id,
+          ),
+          child: TeamCreationWizardScreen(
+            existingTeams: teams.length,
+            currentUserId: user.id,
+          ),
+        ),
       ),
     );
   }

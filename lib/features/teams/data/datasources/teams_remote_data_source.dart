@@ -71,6 +71,7 @@ abstract class TeamsRemoteDataSource {
   Future<List<Map<String, dynamic>>> searchPlayersProfiles(
     String query, {
     int limit,
+    List<String>? positionsAnyOf,
   });
 
   Future<void> leaveTeamRpc(String teamId);
