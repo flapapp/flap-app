@@ -167,11 +167,13 @@ class VideosRepositoryImpl implements VideosRepository {
     required String userId,
     required List<int> bytes,
     required String fileName,
+    bool isChallengeVideo = false,
   }) {
     return _remote.uploadVideoBytes(
       userId: userId,
       bytes: bytes,
       fileName: fileName,
+      isChallengeVideo: isChallengeVideo,
     );
   }
 

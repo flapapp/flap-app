@@ -7,6 +7,12 @@ abstract class ChallengeRepository {
 
   Stream<List<ChallengeSubmissionEntry>> watchSubmissions(String challengeId);
 
+  Future<List<ChallengeSubmissionEntry>> getSubmissionsPage(
+    String challengeId, {
+    int limit = 5,
+    int offset = 0,
+  });
+
   Future<ChallengeSubmissionEntry?> getSubmission({
     required String challengeId,
     required String submissionUserId,

@@ -11,8 +11,10 @@ import 'videos_remote_data_source.dart';
 class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
   SupabaseClient get _c => Supabase.instance.client;
 
-  static const _videoBucket = 'video-uploads';
-  static const _thumbBucket = 'video-thumbnails';
+  // Keep bucket names aligned with current Supabase schema/policies.
+  static const _videoBucket = 'videos';
+  static const _challengeVideoBucket = 'challenge_videos';
+  static const _thumbBucket = 'thumbnails';
 
   @override
   Stream<List<LibraryVideo>> watchLibraryVideos({
@@ -278,18 +280,51 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
     required String userId,
     required List<int> bytes,
     required String fileName,
+    bool isChallengeVideo = false,
   }) async {
     final path = '$userId/$fileName';
-    await _c.storage.from(_videoBucket).uploadBinary(
-          path,
-          Uint8List.fromList(bytes),
-          fileOptions: const FileOptions(
-            contentType: 'video/mp4',
-            upsert: true,
-          ),
-        );
-    final url = _c.storage.from(_videoBucket).getPublicUrl(path);
-    return (publicUrl: url, path: path);
+    final bytesData = Uint8List.fromList(bytes);
+    final preferredBucket = isChallengeVideo ? _challengeVideoBucket : _videoBucket;
+
+    Future<bool> _isRetriableError(Object e) async {
+      if (e is! StorageException) return false;
+      final status = e.statusCode?.toString() ?? '';
+      final msg = (e.message).toLowerCase();
+      return status == '502' ||
+          status == '503' ||
+          status == '504' ||
+          msg.contains('bad gateway') ||
+          msg.contains('timeout') ||
+          msg.contains('temporar');
+    }
+
+    Future<({String publicUrl, String path})> _uploadToBucket(String bucket) async {
+      const backoffMs = <int>[0, 500, 1500];
+      Object? lastError;
+      for (final ms in backoffMs) {
+        if (ms > 0) {
+          await Future<void>.delayed(Duration(milliseconds: ms));
+        }
+        try {
+          await _c.storage.from(bucket).uploadBinary(
+                path,
+                bytesData,
+                fileOptions: const FileOptions(
+                  contentType: 'video/mp4',
+                  upsert: true,
+                ),
+              );
+          final url = _c.storage.from(bucket).getPublicUrl(path);
+          return (publicUrl: url, path: path);
+        } catch (e) {
+          lastError = e;
+          if (!await _isRetriableError(e)) rethrow;
+        }
+      }
+      throw lastError ?? Exception('Video upload failed after retries');
+    }
+
+    return _uploadToBucket(preferredBucket);
   }
 
   @override

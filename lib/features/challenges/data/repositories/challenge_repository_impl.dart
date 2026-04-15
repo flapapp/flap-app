@@ -20,6 +20,20 @@ class ChallengeRepositoryImpl implements ChallengeRepository {
       _remote.watchSubmissions(challengeId);
 
   @override
+  Future<List<ChallengeSubmissionEntry>> getSubmissionsPage(
+    String challengeId, {
+    int limit = 5,
+    int offset = 0,
+  }) async {
+    final rows = await _remote.fetchSubmissionRowsPage(
+      challengeId,
+      limit: limit,
+      offset: offset,
+    );
+    return rows.map(ChallengeSubmissionEntry.fromSupabaseRow).toList();
+  }
+
+  @override
   Future<Challenge?> getChallenge(String id) async {
     final row = await _remote.fetchChallengeRow(id);
     if (row == null) return null;

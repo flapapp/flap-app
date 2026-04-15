@@ -522,6 +522,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         userId: user.id,
         bytes: bytes,
         fileName: fileName,
+        isChallengeVideo: widget.challengeId != null,
       );
 
       if (!mounted) return;

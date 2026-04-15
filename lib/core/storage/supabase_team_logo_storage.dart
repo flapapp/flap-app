@@ -2,14 +2,14 @@ import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Uploads club crests to Supabase Storage (`team-logos` bucket, public URLs).
+/// Uploads club crests to Supabase Storage (`team_logos` bucket, public URLs).
 ///
 /// Object path: `{teamId}/logo.png` — must satisfy storage RLS (see
 /// `20250422100000_storage_team_logos.sql` and `20260416000000_storage_team_logo_rls_helper.sql`).
 class SupabaseTeamLogoStorage {
   SupabaseTeamLogoStorage._();
 
-  static const _bucket = 'team-logos';
+  static const _bucket = 'team_logos';
   static const _fileName = 'logo.png';
 
   static Future<String> uploadTeamLogo({

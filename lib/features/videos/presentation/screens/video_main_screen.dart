@@ -1333,6 +1333,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         return const Color(0xFF26A69A);
       case ChallengeType.trick:
         return const Color(0xFFFFCA28);
+      case ChallengeType.freestyle:
+        return const Color(0xFFEC407A);
       case ChallengeType.other:
         return const Color(0xFF78909C);
     }
@@ -1362,6 +1364,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         return I18n.inline('Стратегія', 'Strategy');
       case ChallengeType.trick:
         return I18n.inline('Трюк', 'Trick');
+      case ChallengeType.freestyle:
+        return I18n.inline('Фрістайл', 'Freestyle');
       case ChallengeType.other:
         return I18n.inline('Інше', 'Other');
     }

@@ -21,8 +21,8 @@ import 'package:flap_app/utils/i18n.dart';
 
 String _hostLine(Challenge c) {
   final n = c.creatorName.trim();
-  if (n.isEmpty) return '@host';
-  return n.startsWith('@') ? n : '@$n';
+  if (n.isEmpty) return 'Host';
+  return n.startsWith('@') ? n.substring(1) : n;
 }
 
 String _caption(Challenge c) {
@@ -65,6 +65,7 @@ class _ChallengeFeedPageState extends State<ChallengeFeedPage>
   bool _pausedByAppBackground = false;
 
   String? _authorAvatarUrl;
+  String? _ownerDisplayName;
   int _avatarLoadGen = 0;
 
   bool get _joinEnabled {
@@ -159,7 +160,10 @@ class _ChallengeFeedPageState extends State<ChallengeFeedPage>
       }
     }
     if (oldWidget.challenge.creatorId != widget.challenge.creatorId) {
-      setState(() => _authorAvatarUrl = null);
+      setState(() {
+        _authorAvatarUrl = null;
+        _ownerDisplayName = null;
+      });
       _resolveAuthorAvatar();
     } else if (oldWidget.challenge.id != widget.challenge.id) {
       _resolveAuthorAvatar();
@@ -183,7 +187,12 @@ class _ChallengeFeedPageState extends State<ChallengeFeedPage>
   void _resolveAuthorAvatar() {
     final userId = widget.challenge.creatorId.trim();
     if (userId.isEmpty) {
-      if (mounted) setState(() => _authorAvatarUrl = '');
+      if (mounted) {
+        setState(() {
+          _authorAvatarUrl = '';
+          _ownerDisplayName = widget.challenge.creatorName.trim();
+        });
+      }
       return;
     }
     final gen = ++_avatarLoadGen;
@@ -197,10 +206,23 @@ class _ChallengeFeedPageState extends State<ChallengeFeedPage>
       final data = await profileRepo.fetchLegacyUserMap(userId);
       if (!mounted || gen != _avatarLoadGen) return;
       final url = (data?['avatarUrl'] ?? data?['avatar'] ?? '').toString().trim();
-      setState(() => _authorAvatarUrl = url);
+      final displayName = (data?['displayName'] ??
+              data?['authorName'] ??
+              data?['name'] ??
+              data?['username'] ??
+              widget.challenge.creatorName)
+          .toString()
+          .trim();
+      setState(() {
+        _authorAvatarUrl = url;
+        _ownerDisplayName = displayName;
+      });
     } catch (_) {
       if (!mounted || gen != _avatarLoadGen) return;
-      setState(() => _authorAvatarUrl = '');
+      setState(() {
+        _authorAvatarUrl = '';
+        _ownerDisplayName = widget.challenge.creatorName.trim();
+      });
     }
   }
 
@@ -304,7 +326,12 @@ class _ChallengeFeedPageState extends State<ChallengeFeedPage>
 
   @override
   Widget build(BuildContext context) {
-    final host = _hostLine(widget.challenge);
+    final resolvedOwnerName = _ownerDisplayName?.trim() ?? '';
+    final host = resolvedOwnerName.isNotEmpty
+        ? (resolvedOwnerName.startsWith('@')
+            ? resolvedOwnerName.substring(1)
+            : resolvedOwnerName)
+        : _hostLine(widget.challenge);
     final cap = _caption(widget.challenge);
     final thumb = widget.challenge.creatorThumbnailUrl?.trim() ?? '';
     final hasVideo = (widget.challenge.creatorVideoUrl?.trim().isNotEmpty ?? false) &&

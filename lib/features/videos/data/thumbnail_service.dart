@@ -14,7 +14,7 @@ class ThumbnailService {
 
   SupabaseClient get _client => Supabase.instance.client;
 
-  static const _thumbBucket = 'video-thumbnails';
+  static const _thumbBucket = 'thumbnails';
 
   /// Генерує thumbnail для відео та зберігає його в Supabase Storage
   Future<String?> generateAndUploadThumbnail({

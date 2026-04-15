@@ -1,4 +1,4 @@
-/// One row in `public.submissions` for a challenge (legacy doc id = [userId]).
+/// One row in `public.challenge_submissions` for a challenge.
 class ChallengeSubmissionEntry {
   const ChallengeSubmissionEntry({
     required this.userId,
@@ -25,13 +25,18 @@ class ChallengeSubmissionEntry {
   final bool isCreatorVideo;
 
   factory ChallengeSubmissionEntry.fromSupabaseRow(Map<String, dynamic> row) {
+    final createdAt = ChallengeSubmissionEntry._ts(row['created_at']);
     return ChallengeSubmissionEntry(
       userId: row['user_id']?.toString() ?? '',
-      videoId: row['video_id']?.toString() ?? '',
+      videoId: row['video_storage_path']?.toString() ?? '',
       videoUrl: row['video_url']?.toString() ?? '',
       title: row['title']?.toString() ?? '',
-      authorName: row['author_name']?.toString() ?? '',
-      createdAt: ChallengeSubmissionEntry._ts(row['created_at']),
+      authorName:
+          row['author_name']?.toString() ??
+          row['user_profiles']?['display_name']?.toString() ??
+          row['user_profiles']?['username']?.toString() ??
+          '',
+      createdAt: createdAt,
       averageRating: (row['average_rating'] as num?)?.toDouble() ?? 0.0,
       voteCount: (row['vote_count'] as num?)?.toInt() ?? 0,
       thumbnailUrl: row['thumbnail_url']?.toString() ?? '',

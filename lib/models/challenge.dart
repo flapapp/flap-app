@@ -12,6 +12,7 @@ enum ChallengeType {
   wall,
   strategy,
   trick,
+  freestyle,
   other,
 }
 
@@ -27,6 +28,42 @@ enum ChallengeStatus {
   submission,   // Подання відео (7 днів)
   voting,       // Голосування (5 днів)
   completed     // Завершено
+}
+
+ChallengeStatus challengeStatusFromSchema(String? raw) {
+  final value = (raw ?? '').toUpperCase();
+  switch (value) {
+    case 'RECRUITING':
+      return ChallengeStatus.recruiting;
+    case 'SUBMISSION':
+      return ChallengeStatus.submission;
+    case 'COMPLETED':
+    case 'FINISHED':
+      return ChallengeStatus.completed;
+    case 'DRAFT':
+      return ChallengeStatus.recruiting;
+    case 'ACTIVE':
+      return ChallengeStatus.submission;
+    case 'VOTING':
+      return ChallengeStatus.voting;
+    case 'ENDED':
+      return ChallengeStatus.completed;
+    default:
+      return ChallengeStatus.recruiting;
+  }
+}
+
+String challengeStatusToSchema(ChallengeStatus status) {
+  switch (status) {
+    case ChallengeStatus.recruiting:
+      return 'DRAFT';
+    case ChallengeStatus.submission:
+      return 'ACTIVE';
+    case ChallengeStatus.voting:
+      return 'VOTING';
+    case ChallengeStatus.completed:
+      return 'ENDED';
+  }
 }
 
 class Challenge {
@@ -103,6 +140,13 @@ class Challenge {
     return DateTime.tryParse(v.toString()) ?? DateTime.now();
   }
 
+  static int _toInt(dynamic value, {int fallback = 0}) {
+    if (value == null) return fallback;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString()) ?? fallback;
+  }
+
   static List<String> _stringIdList(dynamic v) {
     if (v == null) return [];
     if (v is List) return v.map((e) => e.toString()).toList();
@@ -117,6 +161,23 @@ class Challenge {
   static Map<String, int> _stringIntMap(dynamic v) {
     if (v == null || v is! Map) return {};
     return v.map((k, val) => MapEntry(k.toString(), (val as num?)?.toInt() ?? 0));
+  }
+
+  static double _prizePoolFromDistribution(dynamic v) {
+    if (v is! Map) return 0.0;
+    final total = v['total_pool'];
+    if (total is num) return total.toDouble();
+    final rows = v['distribution'];
+    if (rows is List) {
+      var sum = 0.0;
+      for (final row in rows) {
+        if (row is Map) {
+          sum += (row['amount'] as num?)?.toDouble() ?? 0.0;
+        }
+      }
+      return sum;
+    }
+    return 0.0;
   }
 
   static Map<String, Map<String, double>> _parseDetailedVotes(dynamic v) {
@@ -134,15 +195,21 @@ class Challenge {
 
   /// Supabase row (snake_case) or legacy camelCase map.
   factory Challenge.fromJson(Map<String, dynamic> j) {
-    final rawStatus = (j['status'] ?? 'recruiting').toString();
-    final normalizedStatus = rawStatus == 'finished' ? 'completed' : rawStatus;
-
-    final audienceStr =
-        (j['audience'] ?? 'city').toString().split('.').last;
+    final rawStatus = (j['status'] ?? 'DRAFT').toString();
+    final audienceStr = (j['audience'] ?? 'WORLDWIDE').toString().split('.').last.toLowerCase();
+    final audienceNormalized = audienceStr == 'worldwide' ? 'world' : audienceStr;
 
     final submissions = _stringIdList(
       j['submission_user_ids'] ?? j['submissions'],
     );
+
+    final submitDueDate = _parseTs(
+      j['submit_due_date'] ?? j['submission_deadline'] ?? j['submissionDeadline'],
+    );
+    final voteStartDate = _parseTs(
+      j['vote_start_date'] ?? j['voting_deadline'] ?? j['votingDeadline'],
+    );
+    final voteEndDate = _parseTs(j['vote_end_date'] ?? j['end_date'] ?? j['endDate']);
 
     return Challenge(
       id: j['id']?.toString() ?? '',
@@ -150,31 +217,33 @@ class Challenge {
       description: (j['description'] ?? '') as String,
       type: parseChallengeType(j['type'] as String?),
       audience: ChallengeAudience.values.firstWhere(
-        (e) => e.toString().split('.').last == audienceStr,
-        orElse: () => ChallengeAudience.city,
+        (e) => e.toString().split('.').last == audienceNormalized,
+        orElse: () => ChallengeAudience.world,
       ),
-      creatorId: (j['creator_id'] ?? j['creatorId'] ?? '') as String,
-      creatorName: (j['creator_name'] ?? j['creatorName'] ?? '') as String,
-      creatorVideoUrl: j['creator_video_url'] ?? j['creatorVideoUrl'] as String?,
+      creatorId: (j['user_id'] ?? j['creator_id'] ?? j['creatorId'] ?? '').toString(),
+      creatorName: (j['creator_name'] ??
+              j['creatorName'] ??
+              j['user_profiles']?['display_name'] ??
+              j['user_profiles']?['username'] ??
+              '')
+          .toString(),
+      creatorVideoUrl: (j['video_url'] ?? j['creator_video_url'] ?? j['creatorVideoUrl'])?.toString(),
       creatorThumbnailUrl:
-          j['creator_thumbnail_url'] ?? j['creatorThumbnailUrl'] as String?,
-      city: (j['city'] ?? '') as String,
-      entryFee: (j['entry_fee'] ?? j['entryFee'] ?? 10) as int,
-      duration: (j['duration'] ?? 7) as int,
+          (j['thumbnail_url'] ?? j['creator_thumbnail_url'] ?? j['creatorThumbnailUrl'])?.toString(),
+      city: (j['city'] ?? j['user_profiles']?['city'] ?? '').toString(),
+      entryFee: _toInt(j['entry_fee'] ?? j['entryFee'], fallback: 0),
+      duration: submitDueDate.difference(_parseTs(j['created_at'])).inDays.abs().clamp(1, 3650),
       createdAt: _parseTs(j['created_at'] ?? j['createdAt']),
-      startDate: _parseTs(j['start_date'] ?? j['startDate']),
-      submissionDeadline:
-          _parseTs(j['submission_deadline'] ?? j['submissionDeadline']),
-      votingDeadline: _parseTs(j['voting_deadline'] ?? j['votingDeadline']),
-      endDate: _parseTs(j['end_date'] ?? j['endDate']),
-      status: ChallengeStatus.values.firstWhere(
-        (e) => e.toString().split('.').last == normalizedStatus,
-        orElse: () => ChallengeStatus.recruiting,
-      ),
-      maxParticipants: (j['max_participants'] ?? j['maxParticipants'] ?? 50) as int,
+      startDate: _parseTs(j['created_at'] ?? j['start_date'] ?? j['startDate']),
+      submissionDeadline: submitDueDate,
+      votingDeadline: voteStartDate,
+      endDate: voteEndDate,
+      status: challengeStatusFromSchema(rawStatus),
+      maxParticipants: _toInt(j['max_participants'] ?? j['maxParticipants'], fallback: 50),
       currentParticipants:
-          (j['current_participants'] ?? j['currentParticipants'] ?? 0) as int,
-      prizePool: ((j['prize_pool'] ?? j['prizePool'] ?? 0.0) as num).toDouble(),
+          _toInt(j['current_participants'] ?? j['currentParticipants'], fallback: submissions.length),
+      prizePool: ((j['prize_pool'] ?? j['prizePool']) as num?)?.toDouble() ??
+          _prizePoolFromDistribution(j['prize_distribution']),
       participants: _stringIdList(j['participants']),
       submissions: submissions,
       votes: _stringDoubleMap(j['votes']),
@@ -200,6 +269,8 @@ class Challenge {
     String? creatorVideoUrl,
     String? creatorThumbnailUrl,
     String? city,
+    int? entryFee,
+    int? duration,
     DateTime? createdAt,
     DateTime? startDate,
     DateTime? submissionDeadline,
@@ -326,6 +397,8 @@ class Challenge {
         return I18n.inline('Стратегія', 'Strategy');
       case ChallengeType.trick:
         return I18n.inline('Трюк', 'Trick');
+      case ChallengeType.freestyle:
+        return I18n.inline('Фрістайл', 'Freestyle');
       case ChallengeType.other:
         return I18n.inline('Інше', 'Other');
     }
@@ -383,6 +456,8 @@ class Challenge {
         return '🧠';
       case ChallengeType.trick:
         return '✨';
+      case ChallengeType.freestyle:
+        return '🤹';
       case ChallengeType.other:
         return '🎲';
     }
@@ -434,6 +509,8 @@ ChallengeType parseChallengeType(String? raw) {
       return ChallengeType.strategy;
     case 'trick':
       return ChallengeType.trick;
+    case 'freestyle':
+      return ChallengeType.freestyle;
     case 'other':
       return ChallengeType.other;
     default:
@@ -465,6 +542,8 @@ String challengeTypeToSlug(ChallengeType type) {
       return 'strategy';
     case ChallengeType.trick:
       return 'trick';
+    case ChallengeType.freestyle:
+      return 'freestyle';
     case ChallengeType.other:
       return 'other';
   }

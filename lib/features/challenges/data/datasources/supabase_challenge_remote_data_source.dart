@@ -1,5 +1,6 @@
 import 'package:flap_app/models/challenge.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../domain/challenge_failure.dart';
 import '../../domain/entities/challenge_submission_entry.dart';
@@ -10,15 +11,94 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
 
   String? get _uid => _client.auth.currentUser?.id;
 
+  String _audienceToSchema(ChallengeAudience audience) {
+    switch (audience) {
+      case ChallengeAudience.friends:
+        return 'FRIENDS';
+      case ChallengeAudience.city:
+        return 'CITY';
+      case ChallengeAudience.country:
+        return 'COUNTRY';
+      case ChallengeAudience.world:
+        return 'WORLDWIDE';
+    }
+  }
+
+  Map<String, dynamic> _buildPrizeDistributionJson(Challenge draft) {
+    final pool = draft.prizePool > 0 ? draft.prizePool : (draft.entryFee * 20).toDouble();
+    final first = (pool * 0.5).round();
+    final second = (pool * 0.3).round();
+    final third = (pool * 0.2).round();
+    return <String, dynamic>{
+      'currency': 'COINS',
+      'total_pool': pool,
+      'distribution': <Map<String, dynamic>>[
+        <String, dynamic>{'position': 1, 'percent': 50, 'amount': first},
+        <String, dynamic>{'position': 2, 'percent': 30, 'amount': second},
+        <String, dynamic>{'position': 3, 'percent': 20, 'amount': third},
+      ],
+    };
+  }
+
   @override
   Stream<List<Challenge>> watchChallenges({int limit = 50}) {
     return _client
         .from('challenges')
         .stream(primaryKey: ['id'])
-        .map((raw) {
-          final list = (raw as List)
-              .map((e) => Challenge.fromJson(Map<String, dynamic>.from(e as Map)))
-              .toList()
+        .asyncMap((raw) async {
+          final challengeRows = (raw as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+          if (challengeRows.isEmpty) return <Challenge>[];
+          final challengeIds = challengeRows.map((e) => e['id'].toString()).toList();
+          final submissionRows = await _client
+              .from('challenge_submissions')
+              .select('challenge_id, user_id, rank, is_winner')
+              .inFilter('challenge_id', challengeIds);
+          final byChallenge = <String, List<Map<String, dynamic>>>{};
+          for (final rawSubmission in (submissionRows as List)) {
+            final row = Map<String, dynamic>.from(rawSubmission as Map);
+            final challengeId = row['challenge_id']?.toString() ?? '';
+            if (challengeId.isEmpty) continue;
+            byChallenge.putIfAbsent(challengeId, () => <Map<String, dynamic>>[]).add(row);
+          }
+
+          final list = challengeRows.map((row) {
+            final cid = row['id']?.toString() ?? '';
+            final creatorId = row['user_id']?.toString() ?? '';
+            final rowsForChallenge = byChallenge[cid] ?? const <Map<String, dynamic>>[];
+            final participantIds = rowsForChallenge
+                .map((e) => e['user_id']?.toString() ?? '')
+                .where((id) => id.isNotEmpty)
+                .toSet()
+                .toList();
+            if (creatorId.isNotEmpty && !participantIds.contains(creatorId)) {
+              participantIds.add(creatorId);
+            }
+            final sortedWinners = rowsForChallenge
+                .where((e) => e['is_winner'] == true)
+                .toList()
+              ..sort((a, b) {
+                final ar = (a['rank'] as num?)?.toInt() ?? 999;
+                final br = (b['rank'] as num?)?.toInt() ?? 999;
+                return ar.compareTo(br);
+              });
+            final winners = sortedWinners
+                .map((e) => e['user_id']?.toString() ?? '')
+                .where((id) => id.isNotEmpty)
+                .toList();
+
+            return Challenge.fromJson(<String, dynamic>{
+              ...row,
+              'participants': participantIds,
+              'submission_user_ids': rowsForChallenge
+                  .map((e) => e['user_id']?.toString() ?? '')
+                  .where((id) => id.isNotEmpty)
+                  .toList(),
+              'current_participants': participantIds.length,
+              'winners': winners,
+            });
+          }).toList()
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
           if (list.length > limit) {
             return list.sublist(0, limit);
@@ -30,19 +110,142 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
   @override
   Stream<List<ChallengeSubmissionEntry>> watchSubmissions(String challengeId) {
     return _client
-        .from('submissions')
+        .from('challenge_submissions')
         .stream(primaryKey: ['id'])
         .eq('challenge_id', challengeId)
-        .map((raw) {
-          final rows = (raw as List).cast<Map>();
-          final entries = rows
-              .map((e) =>
-                  ChallengeSubmissionEntry.fromSupabaseRow(Map<String, dynamic>.from(e)))
+        .asyncMap((raw) async {
+          final rows = (raw as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+          final enriched = await _enrichSubmissionRows(challengeId, rows);
+          final entries = enriched
+              .map(ChallengeSubmissionEntry.fromSupabaseRow)
               .where((s) => s.userId.isNotEmpty)
               .toList()
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return entries;
         });
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchSubmissionRowsPage(
+    String challengeId, {
+    int limit = 5,
+    int offset = 0,
+  }) async {
+    final safeLimit = limit <= 0 ? 5 : limit;
+    final safeOffset = offset < 0 ? 0 : offset;
+    final rows = await _client
+        .from('challenge_submissions')
+        .select()
+        .eq('challenge_id', challengeId)
+        .order('created_at', ascending: false)
+        .range(safeOffset, safeOffset + safeLimit - 1);
+    final rawRows = List<Map<String, dynamic>>.from(
+      (rows as List).map((e) => Map<String, dynamic>.from(e as Map)),
+    );
+    return _enrichSubmissionRows(challengeId, rawRows);
+  }
+
+  Future<List<Map<String, dynamic>>> _enrichSubmissionRows(
+    String challengeId,
+    List<Map<String, dynamic>> rows,
+  ) async {
+    if (rows.isEmpty) return <Map<String, dynamic>>[];
+
+    final challengeRow = await _client
+        .from('challenges')
+        .select('user_id')
+        .eq('id', challengeId)
+        .maybeSingle();
+    final creatorId = challengeRow?['user_id']?.toString() ?? '';
+
+    final userIds = rows
+        .map((e) => e['user_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    final videoIds = rows
+        .map((e) => e['video_storage_path']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    final submissionIds = rows
+        .map((e) => e['id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+
+    final displayNameByUserId = <String, String>{};
+    if (userIds.isNotEmpty) {
+      final profileRows = await _client
+          .from('user_profiles')
+          .select('id, display_name, username')
+          .inFilter('id', userIds);
+      for (final rawProfile in (profileRows as List)) {
+        final profile = Map<String, dynamic>.from(rawProfile as Map);
+        final userId = profile['id']?.toString() ?? '';
+        if (userId.isEmpty) continue;
+        final name = (profile['display_name'] ?? profile['username'] ?? '').toString();
+        if (name.isNotEmpty) {
+          displayNameByUserId[userId] = name;
+        }
+      }
+    }
+
+    final videoById = <String, Map<String, dynamic>>{};
+    if (videoIds.isNotEmpty) {
+      final videoRows = await _client
+          .from('videos')
+          .select('id, title, thumbnail_url')
+          .inFilter('id', videoIds);
+      for (final rawVideo in (videoRows as List)) {
+        final video = Map<String, dynamic>.from(rawVideo as Map);
+        final id = video['id']?.toString() ?? '';
+        if (id.isNotEmpty) {
+          videoById[id] = video;
+        }
+      }
+    }
+
+    var voteStats = <String, Map<String, dynamic>>{};
+    if (submissionIds.isNotEmpty) {
+      final voteRows = await _client
+          .from('challenge_votes')
+          .select('submission_id, rating')
+          .inFilter('submission_id', submissionIds);
+      final grouped = <String, List<double>>{};
+      for (final rawVote in (voteRows as List)) {
+        final vote = Map<String, dynamic>.from(rawVote as Map);
+        final sid = vote['submission_id']?.toString() ?? '';
+        if (sid.isEmpty) continue;
+        final rating = (vote['rating'] as num?)?.toDouble();
+        if (rating == null) continue;
+        grouped.putIfAbsent(sid, () => <double>[]).add(rating);
+      }
+      voteStats = grouped.map((key, ratings) {
+        final count = ratings.length;
+        final avg = count == 0 ? 0.0 : ratings.reduce((a, b) => a + b) / count;
+        return MapEntry(
+          key,
+          <String, dynamic>{'average_rating': avg, 'vote_count': count},
+        );
+      });
+    }
+
+    return rows.map((row) {
+      final userId = row['user_id']?.toString() ?? '';
+      final videoId = row['video_storage_path']?.toString() ?? '';
+      final video = videoById[videoId];
+      final id = row['id']?.toString() ?? '';
+      return <String, dynamic>{
+        ...row,
+        'title': (video?['title'] ?? row['title'] ?? '').toString(),
+        'author_name': (displayNameByUserId[userId] ?? row['author_name'] ?? '').toString(),
+        'thumbnail_url': (row['thumbnail_url'] ?? video?['thumbnail_url'] ?? '').toString(),
+        'is_creator_video': creatorId.isNotEmpty && creatorId == userId,
+        ...?voteStats[id],
+      };
+    }).toList();
   }
 
   @override
@@ -56,9 +259,9 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
   ) async {
     if (videoId.isEmpty) return null;
     final rows = await _client
-        .from('submissions')
+        .from('challenge_submissions')
         .select('challenge_id')
-        .eq('video_id', videoId)
+        .or('video_storage_path.eq.$videoId,video_url.eq.$videoId')
         .limit(1);
     final list = rows as List;
     if (list.isEmpty) return null;
@@ -77,13 +280,20 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
   Future<Map<String, dynamic>?> fetchSubmissionRow({
     required String challengeId,
     required String submissionUserId,
-  }) {
-    return _client
-        .from('submissions')
+  }) async {
+    final row = await _client
+        .from('challenge_submissions')
         .select()
         .eq('challenge_id', challengeId)
         .eq('user_id', submissionUserId)
         .maybeSingle();
+    if (row == null) return null;
+    final enriched = await _enrichSubmissionRows(
+      challengeId,
+      <Map<String, dynamic>>[Map<String, dynamic>.from(row)],
+    );
+    if (enriched.isEmpty) return null;
+    return enriched.first;
   }
 
   @override
@@ -92,41 +302,51 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
     int limit = 3,
   }) async {
     final rows = await _client
-        .from('submissions')
+        .from('challenge_submissions')
         .select()
         .eq('challenge_id', challengeId)
-        .eq('is_active', true)
-        .order('average_rating', ascending: false)
+        .eq('status', 'APPROVED')
+        .order('rank', ascending: true)
         .limit(limit);
-    return List<Map<String, dynamic>>.from(
+    final rawRows = List<Map<String, dynamic>>.from(
       (rows as List).map((e) => Map<String, dynamic>.from(e as Map)),
     );
+    return _enrichSubmissionRows(challengeId, rawRows);
   }
 
   @override
   Future<String> rpcCreateChallenge(Challenge draft) async {
     try {
-      final res = await _client.rpc<dynamic>(
-        'create_challenge',
-        params: <String, dynamic>{
-          'p_title': draft.title,
-          'p_description': draft.description,
-          'p_type': challengeTypeToSlug(draft.type),
-          'p_audience': draft.audience.toString().split('.').last,
-          'p_creator_name': draft.creatorName,
-          'p_city': draft.city,
-          'p_entry_fee': draft.entryFee,
-          'p_duration': draft.duration,
-          'p_start_date': draft.startDate.toUtc().toIso8601String(),
-          'p_submission_deadline': draft.submissionDeadline.toUtc().toIso8601String(),
-          'p_voting_deadline': draft.votingDeadline.toUtc().toIso8601String(),
-          'p_end_date': draft.endDate.toUtc().toIso8601String(),
-          'p_max_participants': draft.maxParticipants,
-          'p_status': draft.status.toString().split('.').last,
-          'p_tags': draft.tags,
-        },
-      );
-      return res.toString();
+      try {
+        await _client.auth.refreshSession();
+      } on AuthException catch (_) {
+        // Keep going; insert may still work if the access token is valid.
+      }
+      final uid = _uid;
+      if (uid == null) {
+        throw const ChallengeFailure(code: 'not-authenticated', message: 'Not signed in.');
+      }
+      // Supply id and skip .select() so PostgREST does not run INSERT … RETURNING.
+      // Returning the row re-applies SELECT RLS (visibility helper + recursion).
+      final id = const Uuid().v4();
+      await _client.from('challenges').insert(<String, dynamic>{
+        'id': id,
+        'user_id': uid,
+        'title': draft.title,
+        'description': draft.description,
+        'type': challengeTypeToSlug(draft.type).toUpperCase(),
+        'audience': _audienceToSchema(draft.audience),
+        'entry_fee': draft.entryFee.toDouble(),
+        'max_participants': draft.maxParticipants,
+        'winner_count': 3,
+        'submit_due_date': draft.submissionDeadline.toUtc().toIso8601String(),
+        'vote_start_date': draft.votingDeadline.toUtc().toIso8601String(),
+        'vote_end_date': draft.endDate.toUtc().toIso8601String(),
+        'prize_distribution': _buildPrizeDistributionJson(draft),
+        'status': challengeStatusToSchema(draft.status),
+        'is_active': draft.isActive,
+      });
+      return id;
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
     }
@@ -134,34 +354,23 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
 
   @override
   Future<void> rpcAddCreatorParticipant(String challengeId) async {
-    try {
-      await _client.rpc<void>(
-        'challenge_add_creator_participant',
-        params: {'p_challenge_id': challengeId},
-      );
-    } on PostgrestException catch (e) {
-      throw _mapPostgrest(e);
-    }
+    return;
   }
 
   @override
   Future<void> rpcJoinChallenge(String challengeId) async {
-    try {
-      await _client.rpc<void>(
-        'join_challenge',
-        params: {'p_challenge_id': challengeId},
-      );
-    } on PostgrestException catch (e) {
-      throw _mapPostgrest(e);
-    }
+    return;
   }
 
   @override
   Future<void> rpcCompleteChallenge(String challengeId) async {
     try {
-      await _client.rpc<void>(
-        'complete_challenge',
-        params: {'p_challenge_id': challengeId},
+      await _client.from('challenges').update(<String, dynamic>{
+        'status': 'ENDED',
+      }).eq('id', challengeId);
+      await _client.rpc<dynamic>(
+        'calculate_challenge_rankings',
+        params: {'_challenge_id': challengeId},
       );
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
@@ -171,10 +380,7 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
   @override
   Future<void> rpcDeleteChallenge(String challengeId) async {
     try {
-      await _client.rpc<void>(
-        'delete_challenge',
-        params: {'p_challenge_id': challengeId},
-      );
+      await _client.from('challenges').delete().eq('id', challengeId);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
     }
@@ -187,14 +393,12 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
     String? thumbnailUrl,
   }) async {
     try {
-      await _client.rpc<void>(
-        'challenge_set_creator_video',
-        params: <String, dynamic>{
-          'p_challenge_id': challengeId,
-          'p_creator_video_url': videoUrl,
-          'p_creator_thumbnail_url': thumbnailUrl,
-        },
-      );
+      await _client.from('challenges').update(<String, dynamic>{
+        'video_url': videoUrl,
+        'video_storage_path': videoUrl,
+        'thumbnail_url': thumbnailUrl,
+        'thumbnail_generated': thumbnailUrl != null && thumbnailUrl.isNotEmpty,
+      }).eq('id', challengeId);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
     }
@@ -212,18 +416,18 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
     String? thumbnailUrl,
   }) async {
     try {
-      await _client.rpc<void>(
-        'upsert_challenge_submission',
-        params: <String, dynamic>{
-          'p_challenge_id': challengeId,
-          'p_user_id': userId,
-          'p_video_id': videoId,
-          'p_video_url': videoUrl,
-          'p_title': title,
-          'p_author_name': authorName,
-          'p_is_creator_video': isCreatorVideo,
-          'p_thumbnail_url': thumbnailUrl,
+      await _client.from('challenge_submissions').upsert(
+        <String, dynamic>{
+          'challenge_id': challengeId,
+          'user_id': userId,
+          'video_url': videoUrl,
+          'video_storage_path': videoId.isEmpty ? videoUrl : videoId,
+          'thumbnail_url': thumbnailUrl,
+          'thumbnail_storage_path': thumbnailUrl,
+          'thumbnail_generated': thumbnailUrl != null && thumbnailUrl.isNotEmpty,
+          'status': 'PENDING',
         },
+        onConflict: 'challenge_id,user_id',
       );
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
@@ -237,14 +441,11 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
     required String thumbnailUrl,
   }) async {
     try {
-      await _client.rpc<void>(
-        'challenge_submission_set_thumbnail',
-        params: <String, dynamic>{
-          'p_challenge_id': challengeId,
-          'p_user_id': userId,
-          'p_thumbnail_url': thumbnailUrl,
-        },
-      );
+      await _client.from('challenge_submissions').update(<String, dynamic>{
+        'thumbnail_url': thumbnailUrl,
+        'thumbnail_storage_path': thumbnailUrl,
+        'thumbnail_generated': true,
+      }).eq('challenge_id', challengeId).eq('user_id', userId);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
     }
@@ -258,14 +459,28 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
     required bool awardCoin,
   }) async {
     try {
-      await _client.rpc<void>(
-        'cast_challenge_vote',
-        params: <String, dynamic>{
-          'p_challenge_id': challengeId,
-          'p_submission_user_id': submissionUserId,
-          'p_rating': rating,
-          'p_award_coin': awardCoin,
+      final uid = _uid;
+      if (uid == null) {
+        throw const ChallengeFailure(code: 'not-authenticated', message: 'Not signed in.');
+      }
+      final subRow = await _client
+          .from('challenge_submissions')
+          .select('id')
+          .eq('challenge_id', challengeId)
+          .eq('user_id', submissionUserId)
+          .maybeSingle();
+      final submissionId = subRow?['id']?.toString();
+      if (submissionId == null || submissionId.isEmpty) {
+        throw const ChallengeFailure(code: 'submission-not-found', message: 'Submission not found.');
+      }
+      await _client.from('challenge_votes').upsert(
+        <String, dynamic>{
+          'challenge_id': challengeId,
+          'submission_id': submissionId,
+          'voter_id': uid,
+          'rating': rating.round().clamp(1, 5),
         },
+        onConflict: 'challenge_id,voter_id',
       );
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
@@ -278,12 +493,42 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
     if (uid == null) return [];
     final rows = await _client
         .from('challenge_votes')
-        .select('submission_user_id, rating')
+        .select('submission_id, rating')
         .eq('challenge_id', challengeId)
         .eq('voter_id', uid);
-    return List<Map<String, dynamic>>.from(
+    final voteRows = List<Map<String, dynamic>>.from(
       (rows as List).map((e) => Map<String, dynamic>.from(e as Map)),
     );
+    final submissionIds = voteRows
+        .map((e) => e['submission_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+    if (submissionIds.isEmpty) return const <Map<String, dynamic>>[];
+    final submissionRows = await _client
+        .from('challenge_submissions')
+        .select('id, user_id')
+        .inFilter('id', submissionIds);
+    final userBySubmissionId = <String, String>{};
+    for (final raw in (submissionRows as List)) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final sid = row['id']?.toString() ?? '';
+      final userId = row['user_id']?.toString() ?? '';
+      if (sid.isNotEmpty && userId.isNotEmpty) {
+        userBySubmissionId[sid] = userId;
+      }
+    }
+    return voteRows
+        .map((voteRow) {
+          final sid = voteRow['submission_id']?.toString() ?? '';
+          final userId = userBySubmissionId[sid];
+          if (userId == null) return null;
+          return <String, dynamic>{
+            'submission_user_id': userId,
+            'rating': voteRow['rating'],
+          };
+        })
+        .whereType<Map<String, dynamic>>()
+        .toList();
   }
 
   @override
@@ -296,14 +541,33 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
         .from('challenge_votes')
         .stream(primaryKey: ['id'])
         .eq('challenge_id', challengeId)
-        .map((raw) {
+        .asyncMap((raw) async {
           final rows = (raw as List).cast<Map>();
+          final mine = rows.where((e) => e['voter_id']?.toString() == uid).toList();
+          final submissionIds = mine
+              .map((e) => e['submission_id']?.toString() ?? '')
+              .where((id) => id.isNotEmpty)
+              .toList();
+          if (submissionIds.isEmpty) return <String, double>{};
+          final submissionRows = await _client
+              .from('challenge_submissions')
+              .select('id, user_id')
+              .inFilter('id', submissionIds);
+          final userBySubmissionId = <String, String>{};
+          for (final rawRow in (submissionRows as List)) {
+            final row = Map<String, dynamic>.from(rawRow as Map);
+            final sid = row['id']?.toString() ?? '';
+            final sidUser = row['user_id']?.toString() ?? '';
+            if (sid.isNotEmpty && sidUser.isNotEmpty) {
+              userBySubmissionId[sid] = sidUser;
+            }
+          }
           final m = <String, double>{};
-          for (final e in rows) {
-            if (e['voter_id']?.toString() != uid) continue;
-            final sid = e['submission_user_id']?.toString() ?? '';
-            if (sid.isEmpty) continue;
-            m[sid] = (e['rating'] as num?)?.toDouble() ?? 0.0;
+          for (final e in mine) {
+            final submissionId = e['submission_id']?.toString() ?? '';
+            final userId = userBySubmissionId[submissionId];
+            if (userId == null || userId.isEmpty) continue;
+            m[userId] = (e['rating'] as num?)?.toDouble() ?? 0.0;
           }
           return m;
         });
@@ -311,26 +575,12 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
 
   @override
   Future<bool> hasCelebrationAck(String challengeId) async {
-    final uid = _uid;
-    if (uid == null) return false;
-    final row = await _client
-        .from('challenge_celebration_ack')
-        .select('user_id')
-        .eq('user_id', uid)
-        .eq('challenge_id', challengeId)
-        .maybeSingle();
-    return row != null;
+    return false;
   }
 
   @override
   Future<void> ackCelebration(String challengeId) async {
-    final uid = _uid;
-    if (uid == null) return;
-    await _client.from('challenge_celebration_ack').upsert(<String, dynamic>{
-      'user_id': uid,
-      'challenge_id': challengeId,
-      'shown_at': DateTime.now().toUtc().toIso8601String(),
-    });
+    return;
   }
 
   @override
@@ -342,7 +592,7 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
     switch (audience) {
       case ChallengeAudience.friends:
         final rows = await _client
-            .from('user_friends')
+            .from('friendships')
             .select('friend_id')
             .eq('user_id', creatorId);
         return (rows as List)
@@ -358,10 +608,17 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
             .limit(50);
         return (rows as List).map((e) => (e as Map)['id'].toString()).toList();
       case ChallengeAudience.country:
+        final profile = await _client
+            .from('user_profiles')
+            .select('country')
+            .eq('id', creatorId)
+            .maybeSingle();
+        final country = profile?['country']?.toString() ?? '';
+        if (country.isEmpty) return const <String>[];
         final rows = await _client
             .from('user_profiles')
             .select('id')
-            .eq('country', 'Україна')
+            .eq('country', country)
             .neq('id', creatorId)
             .limit(100);
         return (rows as List).map((e) => (e as Map)['id'].toString()).toList();

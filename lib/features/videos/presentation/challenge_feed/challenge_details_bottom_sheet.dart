@@ -22,6 +22,16 @@ String _statusLabel(String status) {
   }
 }
 
+String _organizerName(Challenge challenge) {
+  final raw = challenge.creatorName.trim();
+  if (raw.isEmpty) return I18n.inline('Невідомо', 'Unknown');
+  final normalized = raw.startsWith('@') ? raw.substring(1).trim() : raw;
+  if (normalized.isEmpty || normalized.toLowerCase() == 'host') {
+    return I18n.inline('Невідомо', 'Unknown');
+  }
+  return normalized;
+}
+
 Future<void> showChallengeDetailsBottomSheet(
   BuildContext context, {
   required Challenge challenge,
@@ -39,6 +49,11 @@ Future<void> showChallengeDetailsBottomSheet(
       final remaining = challenge.votingDeadline.difference(now);
       final remainingDays =
           remaining.inSeconds <= 0 ? 0 : (remaining.inHours / 24).ceil();
+      final organizerName = _organizerName(challenge);
+      final participantsLabel = challenge.maxParticipants > 0
+          ? '${challenge.currentParticipants}/${challenge.maxParticipants}'
+          : '${challenge.currentParticipants}';
+      final videosCount = challenge.submissions.length;
       final totalSeconds =
           challenge.votingDeadline.difference(challenge.createdAt).inSeconds;
       final elapsedSeconds =
@@ -121,9 +136,7 @@ Future<void> showChallengeDetailsBottomSheet(
                       _metaRow(
                         icon: Icons.person_outline_rounded,
                         label: I18n.inline('Організатор', 'Organizer'),
-                        value: challenge.creatorName.isNotEmpty
-                            ? challenge.creatorName
-                            : I18n.inline('Невідомо', 'Unknown'),
+                        value: organizerName,
                       ),
                       _metaRow(
                         icon: Icons.location_city_outlined,
@@ -188,8 +201,16 @@ Future<void> showChallengeDetailsBottomSheet(
                           Expanded(
                             child: _statTile(
                               icon: Icons.people_rounded,
-                              value: '${challenge.currentParticipants}',
+                              value: participantsLabel,
                               label: I18n.inline('Учасники', 'Participants'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _statTile(
+                              icon: Icons.video_collection_outlined,
+                              value: '$videosCount',
+                              label: I18n.inline('Відео', 'Videos'),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -198,14 +219,6 @@ Future<void> showChallengeDetailsBottomSheet(
                               icon: Icons.payments_outlined,
                               value: '${challenge.entryFee}',
                               label: I18n.inline('Вхід', 'Entry'),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _statTile(
-                              icon: Icons.emoji_events_outlined,
-                              value: '${challenge.prizePool.toInt()}',
-                              label: I18n.inline('Приз', 'Prize'),
                             ),
                           ),
                         ],

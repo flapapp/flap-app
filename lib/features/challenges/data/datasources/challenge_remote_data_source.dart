@@ -7,6 +7,12 @@ abstract class ChallengeRemoteDataSource {
 
   Stream<List<ChallengeSubmissionEntry>> watchSubmissions(String challengeId);
 
+  Future<List<Map<String, dynamic>>> fetchSubmissionRowsPage(
+    String challengeId, {
+    int limit = 5,
+    int offset = 0,
+  });
+
   Future<Map<String, dynamic>?> fetchChallengeRow(String id);
 
   /// First challenge that contains a submission with this [videoId] (Firestore `videoId`).

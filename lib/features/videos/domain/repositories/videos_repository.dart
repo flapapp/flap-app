@@ -80,6 +80,7 @@ abstract class VideosRepository {
     required String userId,
     required List<int> bytes,
     required String fileName,
+    bool isChallengeVideo = false,
   });
 
   Future<({String publicUrl, String path})> uploadThumbnailBytes({
