@@ -83,7 +83,7 @@ class RatingService {
   Future<double> getUserRating(String userId) async {
     try {
       final row = await _sb
-          .from('profiles')
+          .from('user_profiles')
           .select('rating')
           .eq('id', userId)
           .maybeSingle();
@@ -106,7 +106,7 @@ class RatingService {
   Future<Map<String, dynamic>> getUserRatingStats(String userId) async {
     try {
       final row = await _sb
-          .from('profiles')
+          .from('user_profiles')
           .select(
             'rating, match_rating, video_rating, total_matches, total_videos, rating_history',
           )
@@ -234,8 +234,8 @@ class RatingService {
       String raterName = I18n.inline('Гравець', 'Player');
       try {
         final raterRow = await _sb
-            .from('profiles')
-            .select('display_name, name, surname')
+            .from('user_profiles')
+            .select('display_name, first_name, last_name')
             .eq('id', ratedBy)
             .maybeSingle();
         if (raterRow != null) {
@@ -305,8 +305,8 @@ class RatingService {
           String voterName = 'Користувач';
           try {
             final voterRow = await _sb
-                .from('profiles')
-                .select('display_name, name, surname, email')
+                .from('user_profiles')
+                .select('display_name, first_name, last_name, email')
                 .eq('id', ratedBy)
                 .maybeSingle();
             if (voterRow != null) {
@@ -332,7 +332,7 @@ class RatingService {
           } catch (_) {}
 
           final beforeRow = await _sb
-              .from('profiles')
+              .from('user_profiles')
               .select('rating')
               .eq('id', authorId)
               .maybeSingle();
@@ -360,7 +360,7 @@ class RatingService {
 
             // 2) Нотифікація про зміну рейтингу (дельта і нове значення)
             final afterRow = await _sb
-                .from('profiles')
+                .from('user_profiles')
                 .select('rating')
                 .eq('id', authorId)
                 .maybeSingle();
@@ -395,7 +395,7 @@ class RatingService {
   }) async {
     try {
       final profileRow = await _sb
-          .from('profiles')
+          .from('user_profiles')
           .select('rating')
           .eq('id', userId)
           .maybeSingle();
@@ -434,7 +434,7 @@ class RatingService {
       // Розрахунок загального рейтингу з вагами
       double overallRating = (matchRating * _matchWeight) + (videoRating * _videoWeight);
 
-      await _sb.from('profiles').update({
+      await _sb.from('user_profiles').update({
         'rating': double.parse(overallRating.toStringAsFixed(2)),
         'match_rating': double.parse(matchRating.toStringAsFixed(2)),
         'video_rating': double.parse(videoRating.toStringAsFixed(2)),
@@ -535,7 +535,7 @@ class RatingService {
       };
 
       final row = await _sb
-          .from('profiles')
+          .from('user_profiles')
           .select('rating_history')
           .eq('id', userId)
           .maybeSingle();
@@ -552,7 +552,7 @@ class RatingService {
         trimmed = trimmed.sublist(trimmed.length - 30);
       }
 
-      await _sb.from('profiles').update({
+      await _sb.from('user_profiles').update({
         'rating_history': trimmed,
       }).eq('id', userId);
     } catch (e) {
@@ -567,8 +567,8 @@ class RatingService {
     String? position,
   }) async {
     try {
-      final rows = await _sb.from('profiles').select(
-            'id, display_name, name, surname, email, rating, total_matches, total_videos, city, position, avatar_url',
+      final rows = await _sb.from('user_profiles').select(
+            'id, display_name, first_name, last_name, email, rating, total_matches, total_videos, city, position, avatar_url',
           ).limit(500);
 
       final allPlayers = <Map<String, dynamic>>[];
@@ -594,8 +594,8 @@ class RatingService {
 
         final id = data['id']?.toString() ?? '';
         final dn = data['display_name']?.toString();
-        final nm = data['name']?.toString();
-        final sn = data['surname']?.toString();
+        final nm = data['first_name']?.toString() ?? data['name']?.toString();
+        final sn = data['last_name']?.toString() ?? data['surname']?.toString();
         final em = data['email']?.toString();
         final combined = [nm, sn]
             .where((s) => s != null && s.toString().trim().isNotEmpty)
@@ -655,7 +655,7 @@ class RatingService {
   Future<void> createUserWithDefaultRating(
       String userId, Map<String, dynamic> userData) async {
     try {
-      await _sb.from('profiles').update({
+      await _sb.from('user_profiles').update({
         'rating': _defaultRating,
         'match_rating': _defaultRating,
         'video_rating': _defaultRating,
@@ -725,7 +725,7 @@ class RatingService {
       var from = 0;
       while (true) {
         final rows = await _sb
-            .from('profiles')
+            .from('user_profiles')
             .select('id')
             .order('id')
             .range(from, from + pageSize - 1);

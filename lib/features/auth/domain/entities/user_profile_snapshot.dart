@@ -1,14 +1,17 @@
 import 'package:equatable/equatable.dart';
 
-/// Read model for `public.profiles` (Supabase).
+/// Read model for `public.user_profiles` (Supabase).
 class UserProfileSnapshot extends Equatable {
   const UserProfileSnapshot({
     this.name,
     this.surname,
+    this.username,
     this.displayName,
     this.email,
     this.phone,
+    this.country,
     this.city,
+    this.dateOfBirth,
     this.age,
     this.position,
     this.experience,
@@ -18,10 +21,13 @@ class UserProfileSnapshot extends Equatable {
 
   final String? name;
   final String? surname;
+  final String? username;
   final String? displayName;
   final String? email;
   final String? phone;
+  final String? country;
   final String? city;
+  final DateTime? dateOfBirth;
   final int? age;
   final String? position;
   final String? experience;
@@ -29,6 +35,20 @@ class UserProfileSnapshot extends Equatable {
   final double? rating;
 
   factory UserProfileSnapshot.fromSupabaseRow(Map<String, dynamic> row) {
+    DateTime? dateOfBirth;
+    final rawDob = row['date_of_birth'];
+    if (rawDob != null) {
+      if (rawDob is String) {
+        final d = DateTime.tryParse(rawDob);
+        if (d != null) {
+          dateOfBirth = DateTime.utc(d.year, d.month, d.day);
+        }
+      } else if (rawDob is DateTime) {
+        dateOfBirth =
+            DateTime.utc(rawDob.year, rawDob.month, rawDob.day);
+      }
+    }
+
     final ageVal = row['age'];
     int? age;
     if (ageVal is int) {
@@ -44,12 +64,15 @@ class UserProfileSnapshot extends Equatable {
     }
 
     return UserProfileSnapshot(
-      name: row['name'] as String?,
-      surname: row['surname'] as String?,
+      name: row['first_name'] as String?,
+      surname: row['last_name'] as String?,
+      username: row['username'] as String?,
       displayName: row['display_name'] as String?,
       email: row['email'] as String?,
       phone: row['phone'] as String?,
+      country: row['country'] as String?,
       city: row['city'] as String?,
+      dateOfBirth: dateOfBirth,
       age: age,
       position: row['position'] as String?,
       experience: row['experience'] as String?,
@@ -62,10 +85,13 @@ class UserProfileSnapshot extends Equatable {
   List<Object?> get props => [
     name,
     surname,
+    username,
     displayName,
     email,
     phone,
+    country,
     city,
+    dateOfBirth,
     age,
     position,
     experience,
@@ -85,6 +111,10 @@ class UserProfileSnapshot extends Equatable {
         return '$n $s'.trim();
       }
       return n.trim();
+    }
+    final un = username;
+    if (un != null && un.trim().isNotEmpty) {
+      return un.trim();
     }
     final em = email;
     if (em != null && em.contains('@')) {

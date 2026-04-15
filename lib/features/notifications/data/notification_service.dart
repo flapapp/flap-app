@@ -55,7 +55,7 @@ class NotificationService {
     final userId = uid ?? _userId;
     if (userId == null) return;
     try {
-      await _sb.from('profiles').update({
+      await _sb.from('user_profiles').update({
         'fcm_token': null,
         'fcm_token_updated_at': DateTime.now().toUtc().toIso8601String(),
         'device_tokens': <String>[],

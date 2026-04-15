@@ -1427,9 +1427,9 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
       final me = AppAuthContext.currentUser;
       if (me == null) return [];
       final rows = await Supabase.instance.client
-          .from('profiles')
+          .from('user_profiles')
           .select(
-            'id, display_name, name, surname, email, avatar_url, rating, city, position',
+            'id, display_name, first_name, last_name, email, avatar_url, rating, city, position',
           )
           .neq('id', me.id)
           .limit(100);
@@ -1445,7 +1445,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
         result.add({
           'id': id,
           'displayName': label,
-          'name': row['name'],
+          'name': row['first_name'] ?? row['name'],
           'city': (row['city'] ?? '').toString(),
           'rating': (row['rating'] as num?)?.toDouble() ?? 0.0,
           'avatarUrl': (row['avatar_url'] ?? '').toString(),
@@ -1726,8 +1726,8 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
       final chunk = ids.sublist(i, end);
       try {
         final rows = await Supabase.instance.client
-            .from('profiles')
-            .select('id, display_name, name, surname, email')
+            .from('user_profiles')
+            .select('id, display_name, first_name, last_name, email')
             .inFilter('id', chunk);
         for (final raw in (rows as List)) {
           final row = Map<String, dynamic>.from(raw as Map);

@@ -58,7 +58,7 @@ class SupabaseBadgeRemoteDataSource implements BadgeRemoteDataSource {
   @override
   Future<int> fetchUserCoins(String userId) async {
     final row = await _client
-        .from('profiles')
+        .from('user_profiles')
         .select('coins')
         .eq('id', userId)
         .maybeSingle();
@@ -112,7 +112,7 @@ class SupabaseBadgeRemoteDataSource implements BadgeRemoteDataSource {
   @override
   Future<Map<String, dynamic>?> fetchProfileActivityRow(String userId) async {
     return _client
-        .from('profiles')
+        .from('user_profiles')
         .select('friends_count, matches, total_matches, video_rating')
         .eq('id', userId)
         .maybeSingle();

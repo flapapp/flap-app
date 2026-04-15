@@ -1,19 +1,15 @@
 import 'package:equatable/equatable.dart';
 
-/// Minimal fields collected on the sign-up form (credentials + display names only).
+/// Minimal fields collected on the sign-up form.
 class RegistrationProfile extends Equatable {
   const RegistrationProfile({
-    required this.name,
-    required this.surname,
     required this.email,
+    required this.username,
   });
 
-  final String name;
-  final String surname;
   final String email;
-
-  String get displayFullName => '$name $surname'.trim();
+  final String username;
 
   @override
-  List<Object?> get props => [name, surname, email];
+  List<Object?> get props => [email, username];
 }

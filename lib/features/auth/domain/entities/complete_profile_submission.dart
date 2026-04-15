@@ -6,8 +6,9 @@ class CompleteProfileSubmission extends Equatable {
     required this.name,
     required this.surname,
     required this.phone,
+    required this.country,
     required this.city,
-    required this.age,
+    required this.dateOfBirth,
     required this.position,
     required this.experience,
   });
@@ -15,8 +16,10 @@ class CompleteProfileSubmission extends Equatable {
   final String name;
   final String surname;
   final String phone;
+  final String country;
   final String city;
-  final int age;
+  /// Calendar date only (maps to `user_profiles.date_of_birth`).
+  final DateTime dateOfBirth;
   final String position;
   final String experience;
 
@@ -27,8 +30,9 @@ class CompleteProfileSubmission extends Equatable {
     name,
     surname,
     phone,
+    country,
     city,
-    age,
+    dateOfBirth,
     position,
     experience,
   ];

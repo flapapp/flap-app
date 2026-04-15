@@ -296,8 +296,8 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
       return [];
     }
 
-    dynamic request = _c.from('profiles').select(
-          'id, display_name, name, surname, email, avatar_url, position',
+    dynamic request = _c.from('user_profiles').select(
+          'id, display_name, first_name, last_name, email, avatar_url, position',
         );
     if (hasPosition) {
       request = request.inFilter('position', positionsAnyOf);
@@ -310,10 +310,16 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
     final results = <Map<String, dynamic>>[];
     for (final r in (rows as List).cast<Map>()) {
       final m = Map<String, dynamic>.from(r);
-      final displayNameRaw =
-          (m['display_name'] ?? m['name'] ?? m['surname'] ?? '').toString().trim();
-      final firstName = (m['name'] ?? '').toString().trim();
-      final lastName = (m['surname'] ?? '').toString().trim();
+      final firstName =
+          (m['first_name'] ?? m['name'] ?? '').toString().trim();
+      final lastName =
+          (m['last_name'] ?? m['surname'] ?? '').toString().trim();
+      final displayNameRaw = (m['display_name'] ??
+              (firstName.isEmpty && lastName.isEmpty
+                  ? ''
+                  : '$firstName $lastName'.trim()))
+          .toString()
+          .trim();
       final email = (m['email'] ?? '').toString().trim();
       if (hasText) {
         final searchFields = <String>[
@@ -391,15 +397,15 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
   @override
   Future<Map<String, dynamic>?> fetchProfileForDisplay(String userId) async {
     final row = await _c
-        .from('profiles')
-        .select('display_name, name, surname, avatar_url')
+        .from('user_profiles')
+        .select('display_name, first_name, last_name, avatar_url')
         .eq('id', userId)
         .maybeSingle();
     if (row == null) return null;
     final m = Map<String, dynamic>.from(row);
     final dn = (m['display_name'] ?? '').toString().trim();
-    final n = (m['name'] ?? '').toString().trim();
-    final s = (m['surname'] ?? '').toString().trim();
+    final n = (m['first_name'] ?? m['name'] ?? '').toString().trim();
+    final s = (m['last_name'] ?? m['surname'] ?? '').toString().trim();
     final combined = '$n $s'.trim();
     final display = dn.isNotEmpty
         ? dn
@@ -415,16 +421,16 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
   @override
   Future<String?> fetchProfileDisplayName(String userId) async {
     final row = await _c
-        .from('profiles')
-        .select('display_name, name, surname')
+        .from('user_profiles')
+        .select('display_name, first_name, last_name')
         .eq('id', userId)
         .maybeSingle();
     if (row == null) return null;
     final m = Map<String, dynamic>.from(row);
     final dn = (m['display_name'] ?? '').toString().trim();
     if (dn.isNotEmpty) return dn;
-    final n = (m['name'] ?? '').toString().trim();
-    final s = (m['surname'] ?? '').toString().trim();
+    final n = (m['first_name'] ?? m['name'] ?? '').toString().trim();
+    final s = (m['last_name'] ?? m['surname'] ?? '').toString().trim();
     final combined = '$n $s'.trim();
     return combined.isNotEmpty ? combined : null;
   }

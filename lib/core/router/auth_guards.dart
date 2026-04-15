@@ -5,7 +5,7 @@ import '../app_auth_context.dart';
 import '../app_user_profile_context.dart';
 import 'app_router.dart';
 
-/// After auth: requires `profiles.profile_complete` before main app routes.
+/// After auth: requires `user_profiles.profile_complete` before main app routes.
 /// [ProfileCreationRoute] is always allowed for signed-in users.
 class ProfileCompletionGuard extends AutoRouteGuard {
   const ProfileCompletionGuard();
@@ -39,7 +39,9 @@ class ProfileCompletionGuard extends AutoRouteGuard {
         resolver.next(false);
       }
     } catch (_) {
-      resolver.next(true);
+      // Fail closed so users still complete profile if profile-read errors occur.
+      await router.replaceAll([ProfileCreationRoute()]);
+      resolver.next(false);
     }
   }
 }

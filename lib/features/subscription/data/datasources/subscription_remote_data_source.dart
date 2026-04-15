@@ -1,4 +1,4 @@
-/// Remote persistence for subscription state on `public.profiles`.
+/// Remote persistence for subscription state on `public.user_profiles` (legacy columns).
 abstract class SubscriptionRemoteDataSource {
   static const String kSelectSubscriptionFields =
       'id, subscription, subscription_expiry, subscription_active, subscription_status, '

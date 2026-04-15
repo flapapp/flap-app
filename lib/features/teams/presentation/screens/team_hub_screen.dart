@@ -678,8 +678,8 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
       List<String> ids) async {
     if (ids.isEmpty) return {};
     final rows = await Supabase.instance.client
-        .from('profiles')
-        .select('id, display_name, name, surname, email, avatar_url')
+        .from('user_profiles')
+        .select('id, display_name, first_name, last_name, email, avatar_url')
         .inFilter('id', ids);
     return {
       for (final r in (rows as List).cast<Map>())

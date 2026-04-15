@@ -6,8 +6,8 @@ class SupabaseConfig {
   // static const String url = String.fromEnvironment('SUPABASE_URL');
   // static const String anonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
-  static const String url = 'https://uaftylfyqzvhjlgddrey.supabase.co';
-  static const String anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVhZnR5bGZ5cXp2aGpsZ2RkcmV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODkzNzcsImV4cCI6MjA5MTI2NTM3N30.G97_t-wNefKhqAOHEklwz3_2PrGwVpL5w4vxrgNMTK0';
+  static const String url = 'https://lqsbqtxioxxwdhsdophf.supabase.co';
+  static const String anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2JxdHhpb3h4d2Roc2RvcGhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMjYyNzMsImV4cCI6MjA5MTcwMjI3M30.IMSIkLt_p3a1Hc-4ssuCOVxe2V25MfQDmmKxhRmK0MM';
 
   static void assertConfigured() {
     if (url.isEmpty || anonKey.isEmpty) {

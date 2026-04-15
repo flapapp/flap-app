@@ -41,9 +41,9 @@ class SupabaseFriendsRemoteDataSource implements FriendsRemoteDataSource {
     final profById = <String, Map<String, dynamic>>{};
     if (friendIds.isNotEmpty) {
       final profiles = await _client
-          .from('profiles')
+          .from('user_profiles')
           .select(
-            'id, display_name, name, surname, email, avatar_url, rating, city, position',
+            'id, display_name, first_name, last_name, email, avatar_url, rating, city, position',
           )
           .inFilter('id', friendIds);
       for (final p in (profiles as List).cast<Map>()) {
@@ -151,9 +151,9 @@ class SupabaseFriendsRemoteDataSource implements FriendsRemoteDataSource {
     int limit = 300,
   }) async {
     final rows = await _client
-        .from('profiles')
+        .from('user_profiles')
         .select(
-          'id, display_name, name, surname, email, city, avatar_url, rating, position',
+          'id, display_name, first_name, last_name, email, city, avatar_url, rating, position',
         )
         .neq('id', excludeUserId)
         .limit(limit);

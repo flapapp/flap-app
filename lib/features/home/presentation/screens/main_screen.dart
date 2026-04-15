@@ -848,7 +848,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       return const Stream.empty();
     }
     return Supabase.instance.client
-        .from('profiles')
+        .from('user_profiles')
         .stream(primaryKey: ['id'])
         .eq('id', uid)
         .map((raw) => (raw as List)

@@ -2,7 +2,7 @@ import '../entities/complete_profile_submission.dart';
 import '../entities/registration_profile.dart';
 import '../entities/user_profile_snapshot.dart';
 
-/// Persists profile fields after email sign-up (Supabase `profiles`).
+/// Persists profile fields after email sign-up (Supabase `user_profiles`).
 abstract class UserProfileRepository {
   Future<void> createAfterSignUp({
     required String userId,
@@ -17,5 +17,11 @@ abstract class UserProfileRepository {
     required String userId,
     required CompleteProfileSubmission submission,
     String? avatarUrl,
+  });
+
+  /// After uploading to the `avatars` bucket, save the public URL to `user_profiles`.
+  Future<void> setAvatarUrl({
+    required String userId,
+    required String avatarUrl,
   });
 }

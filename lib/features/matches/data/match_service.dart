@@ -470,7 +470,7 @@ class MatchesRepositoryImpl implements MatchesRepository {
     if (playerIds.isEmpty) return {};
     final map = <String, double>{for (final id in playerIds) id: 0.0};
     try {
-      final rows = await _sb.from('profiles').select('id,rating').inFilter('id', playerIds);
+      final rows = await _sb.from('user_profiles').select('id,rating').inFilter('id', playerIds);
       for (final r in (rows as List)) {
         final m = Map<String, dynamic>.from(r as Map);
         final id = m['id']?.toString();
@@ -785,12 +785,12 @@ class MatchesRepositoryImpl implements MatchesRepository {
     required int drawsDelta,
   }) async {
     final row = await _sb
-        .from('profiles')
+        .from('user_profiles')
         .select('total_matches,matches,goals,wins,losses,draws')
         .eq('id', userId)
         .maybeSingle();
     if (row == null) return;
-    await _sb.from('profiles').update({
+    await _sb.from('user_profiles').update({
       'total_matches': ((row['total_matches'] ?? 0) as num).toInt() + 1,
       'matches': ((row['matches'] ?? 0) as num).toInt() + 1,
       'goals': ((row['goals'] ?? 0) as num).toInt() + goalsDelta,

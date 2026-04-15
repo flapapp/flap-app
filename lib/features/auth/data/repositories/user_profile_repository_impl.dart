@@ -47,4 +47,12 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
       avatarUrl: avatarUrl,
     );
   }
+
+  @override
+  Future<void> setAvatarUrl({
+    required String userId,
+    required String avatarUrl,
+  }) {
+    return _supabase.setAvatarUrl(userId: userId, avatarUrl: avatarUrl);
+  }
 }

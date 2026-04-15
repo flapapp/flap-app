@@ -25,7 +25,7 @@ class SupabaseSubscriptionRemoteDataSource implements SubscriptionRemoteDataSour
   @override
   Future<Map<String, dynamic>?> fetchProfileSubscriptionRow(String userId) async {
     var row = await _client
-        .from('profiles')
+        .from('user_profiles')
         .select(SubscriptionRemoteDataSource.kSelectSubscriptionFields)
         .eq('id', userId)
         .maybeSingle();
@@ -38,9 +38,9 @@ class SupabaseSubscriptionRemoteDataSource implements SubscriptionRemoteDataSour
 
     if (needsFree) {
       final now = DateTime.now();
-      await _client.from('profiles').update(_freeTierPatch(now)).eq('id', userId);
+      await _client.from('user_profiles').update(_freeTierPatch(now)).eq('id', userId);
       row = await _client
-          .from('profiles')
+          .from('user_profiles')
           .select(SubscriptionRemoteDataSource.kSelectSubscriptionFields)
           .eq('id', userId)
           .maybeSingle();
@@ -52,7 +52,7 @@ class SupabaseSubscriptionRemoteDataSource implements SubscriptionRemoteDataSour
   @override
   Stream<Map<String, dynamic>> watchProfileSubscriptionRow(String userId) {
     return _client
-        .from('profiles')
+        .from('user_profiles')
         .stream(primaryKey: const ['id'])
         .eq('id', userId)
         .asyncMap((raw) async {
@@ -63,11 +63,11 @@ class SupabaseSubscriptionRemoteDataSource implements SubscriptionRemoteDataSour
               (subRaw is String && subRaw.trim().isEmpty);
           if (needsFree) {
             await _client
-                .from('profiles')
+                .from('user_profiles')
                 .update(_freeTierPatch(DateTime.now()))
                 .eq('id', userId);
             final refreshed = await _client
-                .from('profiles')
+                .from('user_profiles')
                 .select(SubscriptionRemoteDataSource.kSelectSubscriptionFields)
                 .eq('id', userId)
                 .maybeSingle();
@@ -84,7 +84,7 @@ class SupabaseSubscriptionRemoteDataSource implements SubscriptionRemoteDataSour
   ) async {
     final map = Map<String, dynamic>.from(patch);
     map['updated_at'] = DateTime.now().toUtc().toIso8601String();
-    await _client.from('profiles').update(map).eq('id', userId);
+    await _client.from('user_profiles').update(map).eq('id', userId);
   }
 
   @override

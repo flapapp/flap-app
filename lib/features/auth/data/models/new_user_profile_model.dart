@@ -1,5 +1,6 @@
 import 'package:json_annotation/json_annotation.dart';
 
+import '../../../../core/profile_db_codec.dart';
 import '../../domain/entities/new_user_profile.dart';
 
 part 'new_user_profile_model.g.dart';
@@ -40,25 +41,21 @@ class NewUserProfileModel extends NewUserProfile {
     required DateTime subscriptionExpiry,
     required DateTime updatedAt,
   }) {
+    final _ = subscriptionExpiry;
+    final now = DateTime.now().toUtc();
+    final safeAge = age < 1 ? 1 : age;
+    final dateOfBirth = DateTime.utc(now.year - safeAge, now.month, now.day);
     return {
-      ...toJson(),
-      'display_name': displayFullName,
+      'first_name': name,
+      'last_name': surname,
+      'email': email,
+      'phone': phone,
+      'city': city,
+      'date_of_birth': dateOfBirth.toIso8601String().split('T').first,
+      'position': ProfileDbCodec.encodePositionForDb(position),
+      'experience': ProfileDbCodec.encodeExperienceForDb(experience),
       if (avatarUrl != null) 'avatar_url': avatarUrl,
-      'rating': 0.0,
-      'match_rating': 0.0,
-      'video_rating': 0.0,
-      'total_matches': 0,
-      'total_videos': 0,
-      'rating_history': <dynamic>[],
-      'coins': 0,
-      'matches': 0,
-      'goals': 0,
-      'assists': 0,
-      'subscription': null,
-      'subscription_expiry': null,
-      'subscription_active': false,
-      'challenges_created': 0,
-      'max_challenges_per_month': 0,
+      'profile_complete': true,
       'updated_at': updatedAt.toUtc().toIso8601String(),
     };
   }

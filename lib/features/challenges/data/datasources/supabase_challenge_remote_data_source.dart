@@ -351,7 +351,7 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
             .toList();
       case ChallengeAudience.city:
         final rows = await _client
-            .from('profiles')
+            .from('user_profiles')
             .select('id')
             .eq('city', city)
             .neq('id', creatorId)
@@ -359,7 +359,7 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
         return (rows as List).map((e) => (e as Map)['id'].toString()).toList();
       case ChallengeAudience.country:
         final rows = await _client
-            .from('profiles')
+            .from('user_profiles')
             .select('id')
             .eq('country', 'Україна')
             .neq('id', creatorId)
@@ -367,7 +367,7 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
         return (rows as List).map((e) => (e as Map)['id'].toString()).toList();
       case ChallengeAudience.world:
         final rows =
-            await _client.from('profiles').select('id').neq('id', creatorId).limit(200);
+            await _client.from('user_profiles').select('id').neq('id', creatorId).limit(200);
         return (rows as List).map((e) => (e as Map)['id'].toString()).toList();
     }
   }

@@ -4,6 +4,20 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/utils/i18n.dart';
 
+String? _displayNameFromProfileRow(Map<String, dynamic> data) {
+  final dn = data['display_name']?.toString().trim();
+  if (dn != null && dn.isNotEmpty) return dn;
+  final fn = data['first_name']?.toString().trim() ?? '';
+  final ln = data['last_name']?.toString().trim() ?? '';
+  final combined = '$fn $ln'.trim();
+  if (combined.isNotEmpty) return combined;
+  final legacy = data['name']?.toString().trim() ?? '';
+  if (legacy.isNotEmpty) return legacy;
+  final em = data['email']?.toString();
+  if (em != null && em.contains('@')) return em.split('@').first;
+  return null;
+}
+
 class UserChip extends StatelessWidget {
   final String userId;
   final String? name;
@@ -37,11 +51,8 @@ class UserChip extends StatelessWidget {
       builder: (context, snapshot) {
         final data = snapshot.data ?? <String, dynamic>{};
         final displayName = name ??
-            (data['display_name'] ??
-                    data['name'] ??
-                    data['email']?.toString().split('@').first ??
-                    I18n.inline('Користувач', 'User'))
-                .toString();
+            _displayNameFromProfileRow(data) ??
+            I18n.inline('Користувач', 'User');
         final resolvedAvatarUrl =
             avatarUrl ?? (data['avatar_url'] ?? data['avatar'] ?? '').toString();
         return _buildContent(context, displayName: displayName, resolvedAvatarUrl: resolvedAvatarUrl);
@@ -52,8 +63,8 @@ class UserChip extends StatelessWidget {
   static Future<Map<String, dynamic>?> _fetchProfileRow(String id) async {
     try {
       final row = await Supabase.instance.client
-          .from('profiles')
-          .select('display_name, name, surname, email, avatar_url')
+          .from('user_profiles')
+          .select('display_name, first_name, last_name, email, avatar_url')
           .eq('id', id)
           .maybeSingle();
       return row != null ? Map<String, dynamic>.from(row) : null;

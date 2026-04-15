@@ -1,4 +1,4 @@
-/// Maps a Supabase `profiles` row to the legacy Firestore `users` document shape
+/// Maps a Supabase `user_profiles` row to the legacy Firestore `users` document shape
 /// consumed by profile UI.
 Map<String, dynamic> profileRowToLegacyUserMap(Map<String, dynamic> row) {
   final settingsRaw = row['settings'];
@@ -7,8 +7,11 @@ Map<String, dynamic> profileRowToLegacyUserMap(Map<String, dynamic> row) {
       : <String, dynamic>{};
 
   final id = row['id']?.toString() ?? '';
+  final fn = row['first_name']?.toString().trim();
+  final ln = row['last_name']?.toString().trim();
   final displayName = row['display_name']?.toString();
-  final name = row['name']?.toString();
+  final name = row['name']?.toString() ?? (fn ?? '');
+  final surname = row['surname']?.toString() ?? (ln ?? '');
 
   final ratingHistRaw = row['rating_history'];
   final ratingHistory = <Map<String, dynamic>>[];
@@ -24,17 +27,25 @@ Map<String, dynamic> profileRowToLegacyUserMap(Map<String, dynamic> row) {
       (row['total_matches'] ?? row['matches'] ?? 0) as num? ?? 0;
   final totalVideos = (row['total_videos'] ?? 0) as num? ?? 0;
 
+  final combined = _combinedFirstLast(fn, ln);
+  final resolvedDisplay = (displayName != null && displayName.trim().isNotEmpty)
+      ? displayName
+      : (combined.isNotEmpty ? combined : name);
+
   return <String, dynamic>{
     'uid': id,
     'id': id,
-    'displayName': displayName ?? name,
-    'authorName': displayName ?? name,
+    'displayName': resolvedDisplay,
+    'authorName': resolvedDisplay,
     'name': name,
-    'surname': row['surname'],
+    'surname': surname,
     'email': row['email'],
     'phone': row['phone'],
     'city': row['city'],
-    'age': row['age'],
+    'age': row['age'] ??
+        (row['date_of_birth'] != null
+            ? _ageFromDob(row['date_of_birth'])
+            : null),
     'position': row['position'],
     'experience': row['experience'],
     'rating': row['rating'] ?? 0.0,
@@ -62,6 +73,26 @@ Map<String, dynamic> profileRowToLegacyUserMap(Map<String, dynamic> row) {
     'ratingHistory': ratingHistory,
     'settings': settingsMap,
   };
+}
+
+String _combinedFirstLast(String? a, String? b) {
+  final p = <String>[];
+  if (a != null && a.isNotEmpty) p.add(a);
+  if (b != null && b.isNotEmpty) p.add(b);
+  return p.join(' ');
+}
+
+int? _ageFromDob(dynamic raw) {
+  if (raw == null) return null;
+  final dt = raw is DateTime ? raw : DateTime.tryParse(raw.toString());
+  if (dt == null) return null;
+  final now = DateTime.now();
+  var age = now.year - dt.year;
+  if (now.month < dt.month ||
+      (now.month == dt.month && now.day < dt.day)) {
+    age--;
+  }
+  return age < 0 ? 0 : age;
 }
 
 /// Parses [ratingHistory] entries from Supabase (ISO strings).

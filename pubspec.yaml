@@ -53,6 +53,8 @@ dependencies:
   persistent_bottom_nav_bar: ^6.2.1
   cached_network_image: ^3.4.0
   flutter_cache_manager: ^3.4.1
+  flutter_countries: ^1.0.2
+  flutter_image_compress: ^2.3.0
 
 dev_dependencies:
   flutter_test:

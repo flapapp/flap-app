@@ -63,9 +63,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
     }
     try {
       final row = await Supabase.instance.client
-          .from('profiles')
+          .from('user_profiles')
           .select(
-            'display_name, name, surname, email, avatar_url, rating, wins, draws, losses',
+            'display_name, first_name, last_name, email, avatar_url, rating, wins, draws, losses',
           )
           .eq('id', userId)
           .maybeSingle();
@@ -1817,7 +1817,7 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
     final chunk = ids.sublist(i, end);
     try {
       final rows = await Supabase.instance.client
-          .from('profiles')
+          .from('user_profiles')
           .select('id,rating')
           .inFilter('id', chunk);
       for (final raw in (rows as List)) {
@@ -2604,8 +2604,8 @@ setState(() {
       final chunk = ids.sublist(i, end);
       try {
         final rows = await Supabase.instance.client
-            .from('profiles')
-            .select('id, display_name, name, surname, email')
+            .from('user_profiles')
+            .select('id, display_name, first_name, last_name, email')
             .inFilter('id', chunk);
         for (final raw in (rows as List)) {
           final row = Map<String, dynamic>.from(raw as Map);
