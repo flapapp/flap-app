@@ -9,6 +9,7 @@ import 'package:flap_app/features/profile/domain/repositories/profile_repository
 import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'package:flap_app/features/notifications/data/notification_service.dart';
 import 'package:flap_app/features/profile/data/user_settings_service.dart';
+import 'package:flap_app/widgets/player_avatar_button.dart';
 import 'package:flap_app/widgets/rating_display.dart';
 import 'package:flap_app/widgets/user_chip.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -129,6 +130,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           setState(() {
             _likesCount = videoRow.likes;
             _videoAuthorId = videoRow.userId;
+            // Shown immediately; profile fetch may refine avatar / display name.
+            if (videoRow.authorName.trim().isNotEmpty) {
+              _videoAuthorName = videoRow.authorName;
+            }
           });
           if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty) {
             final ud = await context
@@ -137,7 +142,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             if (ud != null && mounted) {
               setState(() {
                 _videoAuthorName = ud['displayName'] ??
+                    ud['authorName'] ??
                     ud['name'] ??
+                    _videoAuthorName ??
                     ud['email']?.toString().split('@').first ??
                     I18n.inline('Користувач', 'User');
                 _videoAuthorAvatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
@@ -912,6 +919,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       itemCount: _comments.length,
                       itemBuilder: (context, index) {
                         final comment = _comments[index];
+                        final uid = (comment['userId'] ?? '').toString();
+                        final avatar =
+                            (comment['authorAvatarUrl'] ?? '').toString();
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(12),
@@ -919,35 +929,56 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                             color: Colors.white.withOpacity(0.05),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Column(
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    comment['authorName'],
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    _formatCommentDate(comment['createdAt']),
-                                    style: const TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
+                              PlayerAvatarButton(
+                                userId: uid,
+                                displayName:
+                                    (comment['authorName'] ?? 'User').toString(),
+                                avatarUrl: avatar.isEmpty ? null : avatar,
+                                size: 36,
+                                backgroundColor: const Color(0xFF4caf50),
+                                borderColor: Colors.white24,
+                                borderWidth: 1,
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                comment['text'],
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 14,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            (comment['authorName'] ?? 'User')
+                                                .toString(),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          _formatCommentDate(
+                                              comment['createdAt']),
+                                          style: const TextStyle(
+                                            color: Colors.white54,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      comment['text'],
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],

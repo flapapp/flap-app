@@ -2,7 +2,9 @@ import 'package:equatable/equatable.dart';
 
 import 'player_position.dart';
 
-/// Squad member (maps to `public.players`); [userId] is the owning account.
+/// Draft squad row in the creation wizard (display + validation only).
+/// Persisted members are `public.team_members` rows keyed by `user_profiles.id`;
+/// invite flows use `public.team_memberships`.
 class Player extends Equatable {
   const Player({
     this.id,

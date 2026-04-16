@@ -2,6 +2,7 @@ import '../../domain/entities/library_video.dart';
 import '../../domain/entities/video_comment.dart';
 import '../../domain/repositories/videos_repository.dart';
 import '../datasources/videos_remote_data_source.dart';
+import '../video_db_mapping.dart';
 
 class VideosRepositoryImpl implements VideosRepository {
   VideosRepositoryImpl(this._remote);
@@ -117,20 +118,19 @@ class VideosRepositoryImpl implements VideosRepository {
     String? challengeTitle,
     required bool isChallengeVideo,
   }) async {
-    // authorName is not written to DB; display name is resolved via user_id → user_profiles.
+    // `public.videos` has no challenge/city flags; difficulty + `video_storage_path` are required.
+    final storagePath = (videoStoragePath ?? '').trim();
+    if (storagePath.isEmpty) {
+      throw StateError('video_storage_path is required for public.videos');
+    }
     final row = <String, dynamic>{
       'user_id': userId,
-      'title': title,
-      'description': description,
-      'category': category,
+      'title': title.trim().isEmpty ? 'Video' : title.trim(),
+      if (description.trim().isNotEmpty) 'description': description.trim(),
+      if (category.trim().isNotEmpty) 'category': category.trim(),
+      'difficulty': videoDifficultyToPostgres(difficulty),
       'video_url': videoUrl,
-      if (videoStoragePath != null) 'video_storage_path': videoStoragePath,
-      if (difficulty != null) 'difficulty': difficulty,
-      if (city != null && city.isNotEmpty) 'city': city,
-      if (challengeId != null && challengeId.isNotEmpty) 'challenge_id': challengeId,
-      if (challengeTitle != null && challengeTitle.isNotEmpty)
-        'challenge_title': challengeTitle,
-      'is_challenge_video': isChallengeVideo,
+      'video_storage_path': storagePath,
     };
     return _remote.insertVideoRow(row);
   }
@@ -158,7 +158,6 @@ class VideosRepositoryImpl implements VideosRepository {
       videoId: videoId,
       thumbnailUrl: videoUrl,
       thumbnailGenerated: true,
-      thumbnailType: 'web_video_preview',
     );
   }
 

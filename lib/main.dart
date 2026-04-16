@@ -39,9 +39,9 @@ import 'features/friends/domain/repositories/friends_repository.dart';
 import 'features/matches/data/datasources/supabase_matches_remote_data_source.dart';
 import 'features/matches/data/match_service.dart';
 import 'features/matches/domain/repositories/matches_repository.dart';
-import 'features/team_creation/data/datasources/team_creation_remote_data_source.dart';
-import 'features/team_creation/data/repositories/team_creation_repository_impl.dart';
-import 'features/team_creation/domain/repositories/team_creation_repository.dart';
+import 'features/teams/team_creation/data/datasources/team_creation_remote_data_source.dart';
+import 'features/teams/team_creation/data/repositories/team_creation_repository_impl.dart';
+import 'features/teams/team_creation/domain/repositories/team_creation_repository.dart';
 import 'features/teams/data/datasources/supabase_teams_remote_data_source.dart';
 import 'features/teams/data/repositories/teams_repository_impl.dart';
 import 'features/teams/domain/repositories/teams_repository.dart';
@@ -57,6 +57,12 @@ import 'package:flap_app/features/profile/domain/repositories/profile_repository
 import 'package:flap_app/features/subscription/data/datasources/supabase_subscription_remote_data_source.dart';
 import 'package:flap_app/features/subscription/data/repositories/subscription_repository_impl.dart';
 import 'package:flap_app/features/subscription/domain/repositories/subscription_repository.dart';
+import 'package:flap_app/features/tournaments/data/datasources/supabase_tournaments_remote_data_source.dart';
+import 'package:flap_app/features/tournaments/data/repositories/tournaments_repository_impl.dart';
+import 'package:flap_app/features/tournaments/domain/repositories/tournaments_repository.dart';
+import 'package:flap_app/features/wallet/data/datasources/supabase_wallet_remote_data_source.dart';
+import 'package:flap_app/features/wallet/data/repositories/wallet_repository_impl.dart';
+import 'package:flap_app/features/wallet/domain/repositories/wallet_repository.dart';
 import 'utils/i18n.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -114,6 +120,9 @@ Future<void> main() async {
   final teamCreationRepo = TeamCreationRepositoryImpl(
     SupabaseTeamCreationRemoteDataSource(),
   );
+  final walletRepo = WalletRepositoryImpl(SupabaseWalletRemoteDataSource());
+  final tournamentsRepo =
+      TournamentsRepositoryImpl(SupabaseTournamentsRemoteDataSource());
 
   runApp(
     MultiRepositoryProvider(
@@ -139,6 +148,8 @@ Future<void> main() async {
         RepositoryProvider<TeamCreationRepository>.value(
           value: teamCreationRepo,
         ),
+        RepositoryProvider<WalletRepository>.value(value: walletRepo),
+        RepositoryProvider<TournamentsRepository>.value(value: tournamentsRepo),
       ],
       child: MyApp(authRepository: authRepo),
     ),

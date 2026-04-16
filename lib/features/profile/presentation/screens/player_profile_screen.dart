@@ -21,6 +21,12 @@ import 'package:flap_app/widgets/video_preview_box.dart';
 import 'package:flap_app/features/videos/presentation/screens/video_player_screen.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/media/flap_cached_image.dart';
+import 'package:flap_app/core/theme/app_colors.dart';
+import 'package:flap_app/core/theme/app_spacing.dart';
+import 'package:flap_app/shared/ui/app_button.dart';
+import 'package:flap_app/shared/ui/app_card.dart';
+import 'package:flap_app/shared/ui/app_scaffold.dart';
+import 'package:flap_app/shared/ui/app_top_bar.dart';
 
 /// Win/draw/loss stats from Supabase-backed [Match] rows (same rules as legacy Firestore).
 Map<String, dynamic> _aggregateMatchStatsForUser(
@@ -513,45 +519,35 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0f0f23),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
+      return AppScaffold(
+        appBar: AppTopBar(
+          title: widget.playerName ?? 'Профіль гравця'.i18n('Player profile'),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            widget.playerName ?? 'Профіль гравця'.i18n('Player profile'),
-            style: const TextStyle(color: Colors.white),
           ),
         ),
         body: const Center(
-          child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+          child: CircularProgressIndicator(color: AppColors.accentPrimary),
         ),
       );
     }
 
     if (playerData == null) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0f0f23),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
+      return AppScaffold(
+        appBar: AppTopBar(
+          title: I18n.t('profile_not_found'),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            I18n.t('profile_not_found'),
-            style: const TextStyle(color: Colors.white),
           ),
         ),
         body: Center(
           child: Text(
             'Профіль гравця не знайдено'.i18n('Player profile not found'),
-            style: const TextStyle(color: Colors.white70, fontSize: 16),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
           ),
         ),
       );
@@ -597,114 +593,94 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     final losses = _losses > 0 ? _losses : lossesFromProfile;
     final matches = _matchesPlayed > 0 ? _matchesPlayed : matchesFromProfile;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0f0f23),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+    return AppScaffold(
+      appBar: AppTopBar(
+        title: widget.playerName ?? 'Профіль гравця'.i18n('Player profile'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          widget.playerName ?? 'Профіль гравця'.i18n('Player profile'),
-          style: const TextStyle(color: Colors.white),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Аватар
-            Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(48),
-                border: Border.all(color: Colors.white24, width: 2),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(48),
-                child: avatarUrl.isNotEmpty
-                    ? FlapCachedImage(
-                        imageUrl: avatarUrl,
-                        width: 96,
-                        height: 96,
-                        fit: BoxFit.cover,
-                        memCacheWidth: 192,
-                        errorWidget: (_, __, ___) =>
-                            _buildDefaultAvatar(displayName),
-                      )
-                    : _buildDefaultAvatar(displayName),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              displayName,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 6),
-            if (position.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '⚽ $position',
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-            const SizedBox(height: 12),
-            if (city.isNotEmpty)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.location_on,
-                    color: Colors.white70,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(city, style: const TextStyle(color: Colors.white70)),
-                ],
-              ),
-            const SizedBox(height: 20),
-
-            // Рейтинг
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(12),
-              ),
+            AppCard(
               child: Column(
                 children: [
+                  Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(48),
+                      border: Border.all(color: AppColors.borderSubtle, width: 2),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(48),
+                      child: avatarUrl.isNotEmpty
+                          ? FlapCachedImage(
+                              imageUrl: avatarUrl,
+                              width: 96,
+                              height: 96,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 192,
+                              errorWidget: (_, __, ___) =>
+                                  _buildDefaultAvatar(displayName),
+                            )
+                          : _buildDefaultAvatar(displayName),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(displayName, style: Theme.of(context).textTheme.headlineMedium),
+                  const SizedBox(height: 6),
+                  if (position.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentSoft,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '⚽ $position',
+                        style: const TextStyle(color: AppColors.textPrimary),
+                      ),
+                    ),
+                  const SizedBox(height: AppSpacing.sm),
+                  if (city.isNotEmpty)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.location_on,
+                          color: AppColors.textSecondary,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          city,
+                          style: const TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: AppSpacing.md),
                   Text(
                     rating.toStringAsFixed(2),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 34,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: Theme.of(context).textTheme.displayLarge,
                   ),
                   Text(
                     I18n.t('overall_rating'),
-                    style: const TextStyle(color: Colors.white70),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
                 Expanded(
@@ -712,60 +688,53 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                     value: matches.toString(),
                     label: 'Матчі'.i18n('Matches'),
                     icon: Icons.sports_soccer,
-                    color: const Color(0xFF4CAF50),
+                    color: AppColors.accentPrimary,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: _statBox(
                     value: averageRating.toStringAsFixed(2),
                     label: 'Середня'.i18n('Average'),
                     icon: Icons.star_border,
-                    color: const Color(0xFFFFD54F),
+                    color: AppColors.warning,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: _statBox(
                     value: '${_winRate.toStringAsFixed(0)}%',
                     label: 'Win rate',
                     icon: Icons.percent,
-                    color: const Color(0xFF64B5F6),
+                    color: AppColors.accentSoft,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: _statBox(
                     value: goals.toString(),
                     label: I18n.inline('Голи', 'Goals'),
                     icon: Icons.sports,
-                    color: const Color(0xFFFF7043),
+                    color: AppColors.warning,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpacing.lg),
 
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _resultChip('W', wins, Colors.greenAccent),
+                _resultChip('W', wins, AppColors.success),
                 const SizedBox(width: 8),
-                _resultChip('L', losses, Colors.redAccent),
+                _resultChip('L', losses, AppColors.error),
                 const SizedBox(width: 8),
-                _resultChip('D', draws, Colors.orangeAccent),
+                _resultChip('D', draws, AppColors.warning),
               ],
             ),
 
-            // Win Rate + останні 5
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(12),
-              ),
+            const SizedBox(height: AppSpacing.sm),
+            AppCard(
               child: Column(
                 children: [
                   Row(
@@ -774,14 +743,14 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                     children: [
                       const Icon(
                         Icons.percent,
-                        color: Colors.white70,
+                        color: AppColors.textSecondary,
                         size: 16,
                       ),
                       const SizedBox(width: 6),
                       Text(
                         'Win Rate: ${_winRate.toStringAsFixed(0)}%',
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -792,14 +761,15 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: _recentResults.map((r) {
                       Color c;
-                      if (r == 'W')
-                        c = const Color(0xFF4CAF50);
-                      else if (r == 'D')
-                        c = Colors.grey;
-                      else if (r == 'L')
-                        c = Colors.red;
-                      else
-                        c = Colors.grey;
+                      if (r == 'W') {
+                        c = AppColors.success;
+                      } else if (r == 'D') {
+                        c = AppColors.textMuted;
+                      } else if (r == 'L') {
+                        c = AppColors.error;
+                      } else {
+                        c = AppColors.textMuted;
+                      }
                       return Container(
                         margin: const EdgeInsets.symmetric(horizontal: 4),
                         width: 28,
@@ -824,7 +794,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
 
             if (_loadingTeams)
               const Padding(
@@ -836,10 +806,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   I18n.inline('Команди', 'Teams'),
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
               const SizedBox(height: 8),
@@ -889,73 +856,46 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                     final isFriend = data['isFriend']!;
                     final hasPendingRequest = data['hasPendingRequest']!;
 
-                    return Row(
+                    return Column(
                       children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed:
-                                isFriend ||
-                                    hasPendingRequest ||
-                                    _isSendingRequest
-                                ? null
-                                : () => _sendFriendRequest(),
-                            icon: Icon(
-                              isFriend
-                                  ? Icons.people
-                                  : hasPendingRequest
-                                  ? Icons.schedule
-                                  : Icons.person_add,
-                            ),
-                            label: Text(
-                              isFriend
-                                  ? I18n.t('friends')
-                                  : hasPendingRequest
-                                  ? 'Запрошення надіслано'.i18n(
-                                      'Invitation sent',
-                                    )
-                                  : _isSendingRequest
-                                  ? 'Надсилання...'.i18n('Sending...')
-                                  : 'Додати в друзі'.i18n('Add friend'),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4caf50),
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor: hasPendingRequest
-                                  ? Colors.orange.withOpacity(0.4)
-                                  : Colors.grey.withOpacity(0.4),
-                              disabledForegroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                              side: BorderSide(
-                                color: Colors.white.withOpacity(0.2),
+                        AppButton(
+                          label: isFriend
+                              ? I18n.t('friends')
+                              : hasPendingRequest
+                              ? 'Запрошення надіслано'.i18n('Invitation sent')
+                              : _isSendingRequest
+                              ? 'Надсилання...'.i18n('Sending...')
+                              : 'Додати в друзі'.i18n('Add friend'),
+                          icon: isFriend
+                              ? Icons.people
+                              : hasPendingRequest
+                              ? Icons.schedule
+                              : Icons.person_add,
+                          onPressed: isFriend || hasPendingRequest || _isSendingRequest
+                              ? null
+                              : _sendFriendRequest,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: AppButton(
+                                label: I18n.inline('Запросити', 'Invite'),
+                                variant: AppButtonVariant.secondary,
+                                icon: Icons.emoji_events,
+                                onPressed: _showInviteToChallengeDialog,
                               ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () => _showInviteToChallengeDialog(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white.withOpacity(0.12),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: AppButton(
+                                label: 'Оціни мене'.i18n('Rate me'),
+                                variant: AppButtonVariant.secondary,
+                                icon: Icons.star_border,
+                                onPressed: _showRateMeDialog,
+                              ),
                             ),
-                          ),
-                          child: const Icon(Icons.emoji_events, size: 16),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () => _showRateMeDialog(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4caf50),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
-                          child: Text('Оціни мене'.i18n('Rate me')),
+                          ],
                         ),
                       ],
                     );
@@ -964,29 +904,21 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               },
             ),
 
-            // Бейджі
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(12),
-              ),
+            AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     I18n.t('badges'),
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   if (_userBadges.isEmpty)
                     Text(
                       'Бейджів поки немає'.i18n('No badges yet'),
-                      style: const TextStyle(color: Colors.white54),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     )
                   else
                     SizedBox(
@@ -1007,9 +939,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.08),
+                                color: AppColors.bgHover,
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.white24),
+                                border: Border.all(color: AppColors.borderSubtle),
                               ),
                               child: Row(
                                 children: [
@@ -1043,7 +975,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
-                                            color: Colors.white,
+                                            color: AppColors.textPrimary,
                                             fontSize: 12,
                                             fontWeight: FontWeight.w700,
                                           ),
@@ -1101,7 +1033,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                                                         ? catColor.withOpacity(
                                                             0.25,
                                                           )
-                                                        : Colors.white
+                                                        : AppColors.bgElevated
                                                               .withOpacity(
                                                                 0.12,
                                                               ),
@@ -1112,7 +1044,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                                                     border: Border.all(
                                                       color: endorsed
                                                           ? catColor
-                                                          : Colors.white24,
+                                                          : AppColors.borderSubtle,
                                                     ),
                                                   ),
                                                   child: Row(
@@ -1124,7 +1056,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                                                         size: 11,
                                                         color: endorsed
                                                             ? catColor
-                                                            : Colors.white70,
+                                                            : AppColors.textSecondary,
                                                       ),
                                                       const SizedBox(width: 3),
                                                       Text(
@@ -1132,7 +1064,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                                                         style: TextStyle(
                                                           color: endorsed
                                                               ? catColor
-                                                              : Colors.white,
+                                                              : AppColors.textPrimary,
                                                           fontWeight:
                                                               FontWeight.w600,
                                                           fontSize: 10,
@@ -1145,7 +1077,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                                                   const SizedBox(width: 3),
                                                   const Icon(
                                                     Icons.check_circle,
-                                                    color: Colors.greenAccent,
+                                                    color: AppColors.success,
                                                     size: 13,
                                                   ),
                                                 ],
@@ -1167,7 +1099,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
 
             // Відео гравця
             if (playerVideos.isNotEmpty) ...[
@@ -1175,10 +1107,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   I18n.t('videos'),
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
               const SizedBox(height: 8),
@@ -1219,16 +1148,12 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 ),
               ),
             ] else ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(12),
-                ),
+              AppCard(
                 child: Text(
                   'Поки що немає відео'.i18n('No videos yet'),
-                  style: const TextStyle(color: Colors.white54),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             ],
@@ -1263,16 +1188,12 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 
   Widget _buildDefaultAvatar(String name) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-        ),
-      ),
+      decoration: const BoxDecoration(color: AppColors.accentPrimary),
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
           style: const TextStyle(
-            color: Colors.white,
+            color: AppColors.bgBase,
             fontSize: 36,
             fontWeight: FontWeight.bold,
           ),
@@ -1287,16 +1208,12 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     IconData? icon,
     Color? color,
   }) {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(12),
-      ),
       child: Column(
         children: [
           if (icon != null) ...[
-            Icon(icon, color: color ?? Colors.white70, size: 18),
+            Icon(icon, color: color ?? AppColors.textSecondary, size: 18),
             const SizedBox(height: 4),
           ],
           FittedBox(
@@ -1306,7 +1223,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
@@ -1315,7 +1232,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
           ),
@@ -1544,15 +1461,11 @@ class _MiniTeamCard extends StatelessWidget {
 
         return GestureDetector(
           onTap: onTap,
-          child: Container(
-            width: 190,
-            margin: const EdgeInsets.only(right: 12),
+          child: AppCard(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white12),
-            ),
+            onTap: onTap,
+            child: SizedBox(
+            width: 190,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1560,7 +1473,7 @@ class _MiniTeamCard extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 22,
-                      backgroundColor: const Color(0xFF4caf50),
+                      backgroundColor: AppColors.accentPrimary,
                       backgroundImage:
                           live.logoUrl != null && live.logoUrl!.isNotEmpty
                           ? flapCachedImageProvider(live.logoUrl!)
@@ -1571,7 +1484,7 @@ class _MiniTeamCard extends StatelessWidget {
                                   ? live.name[0].toUpperCase()
                                   : '?',
                               style: const TextStyle(
-                                color: Colors.white,
+                                color: AppColors.bgBase,
                                 fontWeight: FontWeight.bold,
                               ),
                             )
@@ -1585,7 +1498,7 @@ class _MiniTeamCard extends StatelessWidget {
                           Text(
                             live.name,
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               fontWeight: FontWeight.w600,
                             ),
                             maxLines: 1,
@@ -1597,7 +1510,7 @@ class _MiniTeamCard extends StatelessWidget {
                               '${live.memberIds.length} players',
                             ),
                             style: const TextStyle(
-                              color: Colors.white60,
+                              color: AppColors.textSecondary,
                               fontSize: 11,
                             ),
                           ),
@@ -1618,10 +1531,14 @@ class _MiniTeamCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   I18n.inline('Win rate: $winRate%', 'Win rate: $winRate%'),
-                  style: const TextStyle(color: Colors.white60, fontSize: 11),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
+          ),
           ),
         );
       },

@@ -27,7 +27,7 @@ class SupabaseFriendsRemoteDataSource implements FriendsRemoteDataSource {
   @override
   Future<List<Map<String, dynamic>>> fetchFriendsWithProfiles(String userId) async {
     final edges = await _client
-        .from('user_friends')
+        .from('friendships')
         .select('friend_id, created_at')
         .eq('user_id', userId);
     final list = (edges as List).cast<Map>();
@@ -122,7 +122,7 @@ class SupabaseFriendsRemoteDataSource implements FriendsRemoteDataSource {
   @override
   Future<bool> fetchAreFriends(String userId1, String userId2) async {
     final row = await _client
-        .from('user_friends')
+        .from('friendships')
         .select('user_id')
         .eq('user_id', userId1)
         .eq('friend_id', userId2)

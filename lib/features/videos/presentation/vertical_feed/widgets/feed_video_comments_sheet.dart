@@ -6,6 +6,7 @@ import 'package:flap_app/features/profile/domain/repositories/profile_repository
 import 'package:flap_app/features/videos/domain/entities/video_comment.dart';
 import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
 import 'package:flap_app/utils/i18n.dart';
+import 'package:flap_app/widgets/player_avatar_button.dart';
 
 String _formatCommentDate(DateTime? timestamp) {
   if (timestamp == null) return I18n.inline('Нещодавно', 'Recently');
@@ -274,36 +275,54 @@ class _FeedVideoCommentsSheetState extends State<_FeedVideoCommentsSheet> {
                                   color: Colors.white.withValues(alpha: 0.05),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: Column(
+                                child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            c.authorName,
+                                    PlayerAvatarButton(
+                                      userId: c.userId,
+                                      displayName: c.authorName,
+                                      avatarUrl: c.authorAvatarUrl,
+                                      size: 36,
+                                      backgroundColor: const Color(0xFF4caf50),
+                                      borderColor: Colors.white24,
+                                      borderWidth: 1,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  c.authorName,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                              Text(
+                                                _formatCommentDate(c.createdAt),
+                                                style: const TextStyle(
+                                                  color: Colors.white54,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            c.body,
                                             style: const TextStyle(
-                                              color: Colors.white,
+                                              color: Colors.white70,
                                               fontSize: 14,
-                                              fontWeight: FontWeight.w600,
                                             ),
                                           ),
-                                        ),
-                                        Text(
-                                          _formatCommentDate(c.createdAt),
-                                          style: const TextStyle(
-                                            color: Colors.white54,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      c.body,
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 14,
+                                        ],
                                       ),
                                     ),
                                   ],

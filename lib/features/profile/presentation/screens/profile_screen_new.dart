@@ -19,19 +19,21 @@ import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/models/app_team.dart';
 import 'package:flap_app/models/team_stats.dart';
 import 'package:flap_app/models/team_invite.dart';
-import 'package:flap_app/features/team_creation/domain/repositories/team_creation_repository.dart';
-import 'package:flap_app/features/team_creation/domain/usecases/add_player_usecase.dart';
-import 'package:flap_app/features/team_creation/domain/usecases/create_team_usecase.dart';
-import 'package:flap_app/features/team_creation/domain/usecases/generate_squad_usecase.dart';
-import 'package:flap_app/features/team_creation/presentation/bloc/team_creation_bloc.dart';
-import 'package:flap_app/features/team_creation/presentation/screens/team_creation_wizard_screen.dart';
+import 'package:flap_app/features/teams/team_creation/domain/repositories/team_creation_repository.dart';
+import 'package:flap_app/features/teams/team_creation/domain/usecases/add_player_usecase.dart';
+import 'package:flap_app/features/teams/team_creation/domain/usecases/create_team_usecase.dart';
+import 'package:flap_app/features/teams/team_creation/domain/usecases/generate_squad_usecase.dart';
+import 'package:flap_app/features/teams/team_creation/presentation/bloc/team_creation_bloc.dart';
+import 'package:flap_app/features/teams/team_creation/presentation/screens/team_creation_wizard_screen.dart';
 import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
 import 'package:flap_app/features/teams/presentation/screens/team_details_screen.dart';
 
 import 'package:flap_app/core/navigation/flap_navigation.dart';
 import 'package:flap_app/core/router/app_router.dart';
-import 'package:flap_app/features/shell/presentation/home_hub_screen.dart';
-import 'package:flap_app/core/theme/flap_theme.dart';
+import 'package:flap_app/core/theme/app_colors.dart';
+import 'package:flap_app/core/theme/app_spacing.dart';
+import 'package:flap_app/shared/ui/app_card.dart';
+import 'package:flap_app/shared/ui/app_scaffold.dart';
 
 /// Win/draw/loss stats from Supabase-backed [Match] rows (same rules as legacy Firestore).
 Map<String, dynamic> _profileScreenMatchStats(List<Match> userMatches, String userId) {
@@ -665,14 +667,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: FlapTheme.pitch,
+    return AppScaffold(
+      safeArea: false,
       body: StreamBuilder<Map<String, dynamic>>(
         stream: _profileStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+              child: CircularProgressIndicator(
+                color: AppColors.accentPrimary,
+              ),
             );
           }
 
@@ -682,7 +686,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             return Center(
               child: Text(
                 'Профіль не знайдено'.i18n('Profile not found'),
-                style: const TextStyle(color: Colors.white),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyLarge
+                    ?.copyWith(color: AppColors.textPrimary),
               ),
             );
           }
@@ -713,32 +720,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     
     return CustomScrollView(
       slivers: [
-        // App bar with gradient
-                SliverAppBar(
+        SliverAppBar(
           pinned: true,
           elevation: 0,
-          backgroundColor: FlapTheme.pitch,
+          backgroundColor: AppColors.bgBase,
           actions: [
             IconButton(
-              icon: const Icon(Icons.settings, color: Colors.white),
+              icon: const Icon(Icons.settings),
               onPressed: _showSettings,
             ),
           ],
         ),
-
-                SliverToBoxAdapter(
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF1a1a2e),
-                  Color(0xFF16213e),
-                  Color(0xFF0f0f23),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding:
+                const EdgeInsets.fromLTRB(AppSpacing.lg, 32, AppSpacing.lg, 20),
             child: _buildProfileHeader(
               userData,
               displayName,
@@ -749,19 +745,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
-        
-        // Content
         SliverToBoxAdapter(
-          child: Column(
-            children: [
-  _buildStatsCards(userData),
-  _buildBadgesSection(userData),
-  _buildTeamsSection(),
-  const SizedBox(height: 20),
-  _buildTeamInvitesSection(),
-  _buildActionsMenu(userData),
-  const SizedBox(height: 20),
-],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Column(
+              children: [
+                _buildStatsCards(userData),
+                _buildBadgesSection(userData),
+                _buildTeamsSection(),
+                const SizedBox(height: AppSpacing.lg),
+                _buildTeamInvitesSection(),
+                _buildActionsMenu(userData),
+                const SizedBox(height: AppSpacing.lg),
+              ],
+            ),
           ),
         ),
       ],
@@ -792,28 +789,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final wdlText =
             '${stats['wins'] ?? 0}W · ${stats['draws'] ?? 0}D · ${stats['losses'] ?? 0}L';
 
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 32, 16, 20),
-          child: Center(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 460),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF162035), Color(0xFF0F1624)],
-                ),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Colors.white.withOpacity(0.07)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.4),
-                    blurRadius: 30,
-                    offset: const Offset(0, 20),
-                  ),
-                ],
-              ),
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: AppCard(
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -830,14 +810,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                  color: Colors.white.withOpacity(0.2), width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF4caf50).withOpacity(0.35),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
+                                color: AppColors.borderSubtle,
+                                width: 2,
+                              ),
                             ),
                             child: ClipOval(
                               child: avatarUrl != null && avatarUrl.isNotEmpty
@@ -864,22 +839,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               displayName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineLarge
+                                  ?.copyWith(fontSize: 22),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               '${_getPositionDisplay(userData['position'])} • ${userData['city'] ?? 'Earth'}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: AppColors.textSecondary),
                             ),
                             const SizedBox(height: 10),
                             Text(
@@ -887,10 +860,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   'Hunt for moments — the pitch remembers.'),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.85),
-                                fontSize: 13,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: AppColors.textPrimary),
                             ),
                             const SizedBox(height: 14),
                             LayoutBuilder(
@@ -900,7 +873,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     icon: Icons.star_border_rounded,
                                     label: I18n.t('rating'),
                                     value: rating.toStringAsFixed(2),
-                                    accent: const Color(0xFFFFD54F),
+                                    accent: AppColors.accentPrimary,
                                   ),
                                   _profilePill(
                                     icon: Icons.sports_soccer,
@@ -908,24 +881,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     value:
                                         ((userData['matchesPlayed'] ?? 0) as num)
                                             .toString(),
-                                    accent: const Color(0xFF4CAF50),
+                                    accent: AppColors.accentPrimary,
                                   ),
                                   _profilePill(
                                     icon: Icons.percent,
                                     label: 'Win rate',
                                     value: '${winRate.toStringAsFixed(0)}%',
-                                    accent: const Color(0xFF64B5F6),
+                                    accent: AppColors.accentSoft,
                                   ),
                                   _profilePill(
                                     icon: Icons.sports,
                                     label: I18n.inline('Голи', 'Goals'),
                                     value:
                                         ((userData['goals'] ?? 0) as num).toString(),
-                                    accent: const Color(0xFFFF7043),
+                                    accent: AppColors.warning,
                                   ),
                                 ];
-                                final isCompact = constraints.maxWidth < 500;
-                                final columns = isCompact ? 2 : 4;
+                                final maxWidth = constraints.maxWidth;
+                                final columns = maxWidth < 360
+                                    ? 1
+                                    : (maxWidth < 640 ? 2 : 4);
                                 final spacing = 10.0;
                                 final itemWidth = columns == 1
                                     ? constraints.maxWidth
@@ -954,11 +929,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 18),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.03),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                      color: AppColors.bgHover,
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      border: Border.all(color: AppColors.borderSubtle),
                     ),
                     child: Row(
                       children: [
@@ -1011,39 +988,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String value,
     Color? accent,
   }) {
-    final primary = accent ?? Colors.white70;
-    final bg = (accent ?? Colors.white).withOpacity(0.08);
+    final primary = accent ?? AppColors.textSecondary;
+    final bg = (accent ?? AppColors.bgElevated).withOpacity(0.12);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: (accent ?? Colors.white).withOpacity(0.2)),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: (accent ?? AppColors.borderSubtle)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: primary),
           const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 11,
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
                 ),
-              ),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1052,7 +1035,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildStatsCards(Map<String, dynamic> userData) {
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
       child: Row(
         children: [
           Expanded(
@@ -1060,36 +1043,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
               I18n.t('matches'),
               (userData['matchesPlayed'] ?? 0).toString(),
               Icons.sports_soccer,
-              const Color(0xFF4caf50),
+              AppColors.accentPrimary,
               onTap: () => flapOpenMainTab(
-                    context,
-                    FlapMainTab.matches,
-                    matchesRoute: MatchesRoute(initialTabIndex: 1),
-                  ),
+                context,
+                FlapMainTab.matches,
+                matchesRoute: MatchesRoute(initialTabIndex: 1),
+              ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: _buildStatCard(
               I18n.t('videos'),
               (userData['videosUploaded'] ?? 0).toString(),
               Icons.videocam,
-              const Color(0xFFFF6B35),
+              AppColors.warning,
               onTap: () => flapOpenMainTab(
-                    context,
-                    FlapMainTab.home,
-                    homeHubRoute: HomeHubRoute(myContent: 'videos'),
-                  ),
+                context,
+                FlapMainTab.home,
+                homeHubRoute: HomeHubRoute(myContent: 'videos'),
+              ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: _buildStatCard(
               I18n.t('friends'),
               _friendsCount.toString(),
               Icons.people,
-              const Color(0xFF2196F3),
-              onTap: () => _openFriends(),
+              AppColors.accentSoft,
+              onTap: _openFriends,
             ),
           ),
         ],
@@ -1100,34 +1083,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildStatCard(String title, String value, IconData icon, Color color, {VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color.withOpacity(0.25),
-              Colors.white.withOpacity(0.02),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.4)),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.2),
-              blurRadius: 18,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           children: [
             Container(
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.08),
+                color: color.withOpacity(0.16),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Icon(icon, color: color, size: 20),
@@ -1135,19 +1099,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 8),
             Text(
               value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 4),
             Text(
               title,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 12,
-              ),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -1158,7 +1118,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildBadgesSection(Map<String, dynamic> userData) {
   final String userId = userData['uid'] ?? AppAuthContext.userId ?? '';
   return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1167,17 +1127,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Text(
                 I18n.inline('Скіли', 'Skills'),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
               TextButton(
                 onPressed: _openBadgesStore,
                 child: Text(
                   I18n.inline('Додати', 'Add'),
-                  style: const TextStyle(color: Color(0xFF4caf50)),
+                  style: const TextStyle(color: AppColors.accentPrimary),
                 ),
               ),
             ],
@@ -1185,28 +1141,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 12),
           
           if (_userBadges.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
-              ),
+            AppCard(
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 children: [
                   Icon(
                     Icons.emoji_events_outlined,
                     size: 48,
-                    color: Colors.white.withOpacity(0.5),
+                    color: AppColors.textSecondary,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     I18n.inline('Ще немає скілів', 'No skills yet'),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 14,
-                    ),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -1345,7 +1295,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildActionsMenu(Map<String, dynamic> userData) {
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.only(top: AppSpacing.lg),
       child: Column(
         children: [
           _buildActionItem(
@@ -1402,49 +1352,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildActionItem(String title, String subtitle, IconData icon, VoidCallback onTap, {bool isDestructive = false}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        onTap: onTap,
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: isDestructive 
-                ? Colors.red.withOpacity(0.2)
-                : const Color(0xFF4caf50).withOpacity(0.2),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Icon(
-            icon,
-            color: isDestructive ? Colors.red : const Color(0xFF4caf50),
-            size: 20,
-          ),
+  Widget _buildActionItem(String title, String subtitle, IconData icon,
+      VoidCallback onTap,
+      {bool isDestructive = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
         ),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: isDestructive ? Colors.red : Colors.white,
-            fontWeight: FontWeight.w600,
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          onTap: onTap,
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isDestructive
+                  ? AppColors.error.withOpacity(0.1)
+                  : AppColors.accentSoft.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(
+              icon,
+              color: isDestructive ? AppColors.error : AppColors.accentPrimary,
+              size: 20,
+            ),
           ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.7),
-            fontSize: 12,
+          title: Text(
+            title,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color:
+                      isDestructive ? AppColors.error : AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
           ),
-        ),
-        trailing: Icon(
-          Icons.arrow_forward_ios,
-          color: Colors.white.withOpacity(0.5),
-          size: 16,
-        ),
-        tileColor: Colors.white.withOpacity(0.05),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withOpacity(0.1)),
+          subtitle: Text(
+            subtitle,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.textSecondary),
+          ),
+          trailing: const Icon(
+            Icons.arrow_forward_ios,
+            color: AppColors.textSecondary,
+            size: 16,
+          ),
         ),
       ),
     );
@@ -1453,16 +1408,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildAvatarPlaceholder(String name) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-        ),
+        color: AppColors.accentPrimary,
         shape: BoxShape.circle,
       ),
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
           style: const TextStyle(
-            color: Colors.white,
+            color: AppColors.bgBase,
             fontSize: 48,
             fontWeight: FontWeight.bold,
           ),
@@ -1630,19 +1583,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF1a1a2e),
+        backgroundColor: AppColors.bgElevated,
         title: Text(
-  I18n.t('logout_confirm'),
-  style: TextStyle(color: Colors.white),
-),
+          I18n.t('logout_confirm'),
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
         content: Text(
-          'Ви впевнені, що хочете вийти?'.i18n('Are you sure you want to log out?'),
-          style: const TextStyle(color: Colors.white70),
+          'Ви впевнені, що хочете вийти?'
+              .i18n('Are you sure you want to log out?'),
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
+            child: Text(
+              I18n.t('cancel'),
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -1651,7 +1611,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (!parentContext.mounted) return;
               parentContext.router.replace(LoginRoute());
             },
-            child: Text(I18n.t('logout'), style: const TextStyle(color: Colors.red)),
+            child: Text(
+              I18n.t('logout'),
+              style: const TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -1838,12 +1801,9 @@ class ProfileStatsPage extends StatelessWidget {
     final assistsValue = (userData['assists'] ?? 0) as num;
     final cleanSheetsValue = (userData['cleanSheets'] ?? 0) as num;
 
-    return Scaffold(
-      backgroundColor: FlapTheme.pitch,
+    return AppScaffold(
       appBar: AppBar(
         title: Text(I18n.t('statistics_title')),
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
       ),
       body: FutureBuilder<Map<String, dynamic>>(
         future: statsFuture,

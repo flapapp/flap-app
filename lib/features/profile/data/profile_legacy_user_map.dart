@@ -10,6 +10,7 @@ Map<String, dynamic> profileRowToLegacyUserMap(Map<String, dynamic> row) {
   final fn = row['first_name']?.toString().trim();
   final ln = row['last_name']?.toString().trim();
   final displayName = row['display_name']?.toString();
+  final username = row['username']?.toString().trim();
   final name = row['name']?.toString() ?? (fn ?? '');
   final surname = row['surname']?.toString() ?? (ln ?? '');
 
@@ -28,9 +29,14 @@ Map<String, dynamic> profileRowToLegacyUserMap(Map<String, dynamic> row) {
   final totalVideos = (row['total_videos'] ?? 0) as num? ?? 0;
 
   final combined = _combinedFirstLast(fn, ln);
-  final resolvedDisplay = (displayName != null && displayName.trim().isNotEmpty)
-      ? displayName
+  var resolvedDisplay = (displayName != null && displayName.trim().isNotEmpty)
+      ? displayName.trim()
       : (combined.isNotEmpty ? combined : name);
+  if (resolvedDisplay.isEmpty &&
+      username != null &&
+      username.isNotEmpty) {
+    resolvedDisplay = username;
+  }
 
   return <String, dynamic>{
     'uid': id,

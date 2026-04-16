@@ -652,11 +652,12 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       if (!mounted) return;
       setState(() => _uploadProgress = 1.0);
 
+      String? newLibraryVideoId;
       if (_isChallengeMode) {
         if (!mounted) return;
         await _submitVideoToChallenge(uploaded.path, videoUrl, videoTitle);
       } else {
-        await videosRepo.createVideoRecord(
+        newLibraryVideoId = await videosRepo.createVideoRecord(
           userId: user.id,
           authorName: author,
           title: videoTitle,
@@ -677,6 +678,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         videoStoragePath: uploaded.path,
         videoUrl: videoUrl,
         userId: user.id,
+        libraryVideoId: newLibraryVideoId,
       );
 
       if (!mounted) return;
@@ -758,6 +760,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     required String videoStoragePath,
     required String videoUrl,
     required String userId,
+    String? libraryVideoId,
   }) {
     Future<void>.delayed(const Duration(seconds: 2), () async {
       try {
@@ -771,10 +774,12 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
             userId: userId,
           );
         } else {
+          final vid = libraryVideoId;
+          if (vid == null || vid.isEmpty) return;
           await thumbnailService.generateAndUploadThumbnail(
             videosRepository: videosRepo,
             videoUrl: videoUrl,
-            videoId: videoStoragePath,
+            videoId: vid,
             userId: userId,
           );
         }

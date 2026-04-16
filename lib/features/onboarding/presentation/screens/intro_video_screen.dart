@@ -4,6 +4,8 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flap_app/core/app_auth_context.dart';
+import 'package:flap_app/core/theme/app_colors.dart';
+import 'package:flap_app/core/theme/app_spacing.dart';
 import 'package:flap_app/core/router/app_router.dart';
 import 'package:flap_app/utils/i18n.dart';
 
@@ -69,7 +71,7 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.bgBase,
       body: KeyboardListener(
         focusNode: _focusNode,
         onKeyEvent: (_) => _navigateToWelcome(),
@@ -85,65 +87,64 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
                   fit: BoxFit.cover,
                 )
               else
-                const ColoredBox(
-                  color: Colors.black,
-                  child: Center(
-                    child: CircularProgressIndicator(color: Colors.white70),
+                  const ColoredBox(
+                    color: AppColors.bgBase,
+                    child: Center(
+                      child: CircularProgressIndicator(color: AppColors.textSecondary),
+                    ),
                   ),
-                ),
               DecoratedBox(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.black26, Colors.black87],
+                      colors: [Colors.transparent, Colors.black87],
                   ),
                 ),
               ),
               Positioned(
-                bottom: media.padding.bottom + 34,
-                left: 24,
-                right: 24,
+                  bottom: media.padding.bottom + AppSpacing.xl,
+                  left: AppSpacing.lg,
+                  right: AppSpacing.lg,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Feel Like A Pro',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 30,
-                        fontWeight: FontWeight.w700,
+                      Text(
+                        'Feel Like A Pro',
+                        style: Theme.of(context).textTheme.headlineLarge,
                       ),
-                    ),
-                    const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.sm),
                     Text(
                       I18n.inline(
                         'Натисніть будь-яку клавішу або торкніться екрана',
                         'Press any key or tap anywhere to continue',
                       ),
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 15,
-                      ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
                     ),
                   ],
                 ),
               ),
               Positioned(
-                top: media.padding.top + 16,
-                right: 16,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black45,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
+                  top: media.padding.top + AppSpacing.lg,
+                  right: AppSpacing.lg,
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      backgroundColor: AppColors.bgHover.withValues(alpha: 0.7),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.xs,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
                     ),
+                    onPressed: _navigateToWelcome,
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                    label: Text(I18n.inline('Далі', 'Continue')),
                   ),
-                  onPressed: _navigateToWelcome,
-                  child: Text(I18n.inline('Далі', 'Continue')),
-                ),
               ),
             ],
           ),

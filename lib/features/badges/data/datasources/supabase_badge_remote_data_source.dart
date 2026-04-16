@@ -46,13 +46,22 @@ class SupabaseBadgeRemoteDataSource implements BadgeRemoteDataSource {
 
   @override
   Future<List<String>> fetchUserBadgeIds(String userId) async {
-    final rows = await _client
-        .from('user_badges')
-        .select('badge_id')
-        .eq('user_id', userId);
-    return (rows as List)
-        .map((e) => (e as Map)['badge_id'] as String)
-        .toList();
+    try {
+      final rows = await _client
+          .from('user_badges')
+          .select('badge_id')
+          .eq('user_id', userId);
+      return (rows as List)
+          .map((e) => (e as Map)['badge_id'] as String)
+          .toList();
+    } on PostgrestException catch (e) {
+      // If the bridge table is not yet created in Supabase, treat as "no badges".
+      if (e.code == 'PGRST205' ||
+          e.message.toLowerCase().contains('user_badges')) {
+        return <String>[];
+      }
+      rethrow;
+    }
   }
 
   @override

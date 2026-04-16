@@ -11,34 +11,72 @@ import 'teams_remote_data_source.dart';
 class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
   SupabaseClient get _c => Supabase.instance.client;
 
+  Future<AppTeam> _hydrateTeam(Map<String, dynamic> teamRow) async {
+    final teamId = teamRow['id'].toString();
+    final memberRows = await _c
+        .from('team_members')
+        .select('user_id, role')
+        .eq('team_id', teamId);
+    final members = memberRows.cast<Map<String, dynamic>>();
+    final memberIds = members.map((e) => e['user_id'].toString()).toList();
+    final viceCaptains = members
+        .where((e) => (e['role']?.toString() ?? '') == 'ADMIN')
+        .map((e) => e['user_id'].toString())
+        .toList();
+    final enriched = Map<String, dynamic>.from(teamRow)
+      ..['member_ids'] = memberIds
+      ..['vice_captain_ids'] = viceCaptains
+      ..['captain_id'] = (teamRow['owner_id'] ?? '').toString();
+    return AppTeam.fromSupabaseRow(enriched);
+  }
+
+  Future<List<AppTeam>> _hydrateTeams(List<Map<String, dynamic>> rows) async {
+    final out = <AppTeam>[];
+    for (final row in rows) {
+      out.add(await _hydrateTeam(row));
+    }
+    return out;
+  }
+
   @override
   Stream<List<AppTeam>> watchUserTeams(String userId) {
-    return _c.from('teams').stream(primaryKey: const ['id']).map((raw) {
-      final rows = (raw as List).cast<Map>();
-      return rows
-          .map((e) => AppTeam.fromSupabaseRow(Map<String, dynamic>.from(e)))
-          .where((t) => t.memberIds.contains(userId))
+    return _c
+        .from('team_members')
+        .stream(primaryKey: const ['id'])
+        .eq('user_id', userId)
+        .asyncMap((raw) async {
+      final ids = (raw as List)
+          .cast<Map>()
+          .map((e) => e['team_id']?.toString() ?? '')
+          .where((e) => e.isNotEmpty)
           .toList();
+      if (ids.isEmpty) return const <AppTeam>[];
+      final teams = await _c.from('teams').select().inFilter('id', ids);
+      return _hydrateTeams(teams.cast<Map<String, dynamic>>());
     });
   }
 
   @override
   Future<List<AppTeam>> fetchUserTeams(String userId) async {
-    final rows = await _c
-        .from('teams')
-        .select()
-        .contains('member_ids', [userId]);
-    return (rows as List)
+    final memberRows = await _c
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', userId);
+    final ids = (memberRows as List)
         .cast<Map>()
-        .map((e) => AppTeam.fromSupabaseRow(Map<String, dynamic>.from(e)))
+        .map((e) => e['team_id']?.toString() ?? '')
+        .where((e) => e.isNotEmpty)
         .toList();
+    if (ids.isEmpty) return const [];
+    final teamRows = await _c.from('teams').select().inFilter('id', ids);
+    return _hydrateTeams(teamRows.cast<Map<String, dynamic>>());
   }
 
   @override
   Future<AppTeam?> fetchTeam(String teamId) async {
     final row = await _c.from('teams').select().eq('id', teamId).maybeSingle();
     if (row == null) return null;
-    return AppTeam.fromSupabaseRow(Map<String, dynamic>.from(row));
+    return _hydrateTeam(Map<String, dynamic>.from(row));
   }
 
   @override
@@ -47,20 +85,20 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
         .from('teams')
         .stream(primaryKey: const ['id'])
         .eq('id', teamId)
-        .map((raw) {
+        .asyncMap((raw) async {
       final rows = (raw as List).cast<Map>();
       if (rows.isEmpty) return null;
-      return AppTeam.fromSupabaseRow(Map<String, dynamic>.from(rows.first));
+      return _hydrateTeam(Map<String, dynamic>.from(rows.first));
     });
   }
 
   @override
   Stream<List<AppTeam>> watchTeamsLeaderboard() {
-    return _c.from('teams').stream(primaryKey: const ['id']).map((raw) {
+    return _c.from('teams').stream(primaryKey: const ['id']).asyncMap((raw) async {
       final rows = (raw as List).cast<Map>();
-      final teams = rows
-          .map((e) => AppTeam.fromSupabaseRow(Map<String, dynamic>.from(e)))
-          .toList();
+      final teams = await _hydrateTeams(
+        rows.map((e) => Map<String, dynamic>.from(e)).toList(),
+      );
       teams.sort((a, b) {
         final w = b.wins.compareTo(a.wins);
         if (w != 0) return w;
@@ -77,16 +115,20 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
     String? city,
     bool isPublic = true,
   }) async {
-    final res = await _c.rpc(
-      'team_create',
-      params: {
-        'p_name': name,
-        'p_description': description,
-        'p_city': city ?? '',
-        'p_is_public': isPublic,
-      },
-    );
-    return res as String;
+    final uid = _c.auth.currentUser?.id;
+    if (uid == null) throw Exception(I18n.inline('Потрібна авторизація', 'Sign-in required'));
+    final row = await _c
+        .from('teams')
+        .insert({
+          'name': name,
+          'description': description,
+          'owner_id': uid,
+          'city': city,
+          'is_public': isPublic,
+        })
+        .select('id')
+        .single();
+    return row['id'].toString();
   }
 
   @override
@@ -121,22 +163,47 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
   @override
   Future<void> insertTeamInvites(List<TeamInvite> invites) async {
     for (final inv in invites) {
-      await _c.from('team_invites').insert(inv.toSupabaseInsert());
+      await _c.from('team_memberships').upsert({
+        'team_id': inv.teamId,
+        'user_id': inv.userId,
+        'type': 'INVITE',
+        'status': 'PENDING',
+        'initiated_by': inv.invitedBy,
+        'message': null,
+      });
     }
   }
 
   @override
   Stream<List<TeamInvite>> watchPendingInvitesForUser(String userId) {
     return _c
-        .from('team_invites')
+        .from('team_memberships')
         .stream(primaryKey: const ['id'])
         .eq('user_id', userId)
-        .map((raw) {
+        .asyncMap((raw) async {
       final rows = (raw as List).cast<Map>();
-      return rows
-          .map((e) => TeamInvite.fromSupabaseRow(Map<String, dynamic>.from(e)))
-          .where((i) => i.status == TeamInviteStatus.pending)
-          .toList();
+      final filtered = rows.where((e) =>
+          (e['type']?.toString() ?? '') == 'INVITE' &&
+          (e['status']?.toString() ?? '') == 'PENDING');
+      final out = <TeamInvite>[];
+      for (final row in filtered) {
+        final teamId = row['team_id']?.toString() ?? '';
+        final team = teamId.isEmpty
+            ? null
+            : await _c.from('teams').select('name').eq('id', teamId).maybeSingle();
+        out.add(
+          TeamInvite(
+            id: row['id'].toString(),
+            teamId: teamId,
+            teamName: (team?['name'] ?? '').toString(),
+            userId: row['user_id']?.toString() ?? '',
+            invitedBy: row['initiated_by']?.toString() ?? '',
+            status: TeamInviteStatus.pending,
+            createdAt: DateTime.tryParse(row['created_at']?.toString() ?? '') ?? DateTime.now(),
+          ),
+        );
+      }
+      return out;
     });
   }
 
@@ -145,28 +212,53 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
     required String inviteId,
     required bool accept,
   }) async {
-    await _c.rpc(
-      'team_invite_respond',
-      params: {
-        'p_invite_id': inviteId,
-        'p_accept': accept,
-      },
-    );
+    await _c
+        .from('team_memberships')
+        .update({'status': accept ? 'ACCEPTED' : 'REJECTED'})
+        .eq('id', inviteId);
   }
 
   @override
   Stream<List<TeamJoinRequest>> watchPendingJoinRequestsForTeam(String teamId) {
     return _c
-        .from('team_join_requests')
+        .from('team_memberships')
         .stream(primaryKey: const ['id'])
         .eq('team_id', teamId)
-        .map((raw) {
+        .asyncMap((raw) async {
       final rows = (raw as List).cast<Map>();
-      return rows
-          .map((e) =>
-              TeamJoinRequest.fromSupabaseRow(Map<String, dynamic>.from(e)))
-          .where((r) => r.status == TeamJoinRequestStatus.pending)
-          .toList();
+      final team = await _c.from('teams').select('name').eq('id', teamId).maybeSingle();
+      final teamName = (team?['name'] ?? '').toString();
+      final filtered = rows.where((e) =>
+          (e['type']?.toString() ?? '') == 'REQUEST' &&
+          (e['status']?.toString() ?? '') == 'PENDING');
+      final out = <TeamJoinRequest>[];
+      for (final row in filtered) {
+        final userId = row['user_id']?.toString() ?? '';
+        final profile = userId.isEmpty
+            ? null
+            : await _c
+                .from('user_profiles')
+                .select('display_name, first_name, last_name')
+                .eq('id', userId)
+                .maybeSingle();
+        final displayName = (profile?['display_name'] ??
+                '${profile?['first_name'] ?? ''} ${profile?['last_name'] ?? ''}')
+            .toString()
+            .trim();
+        out.add(
+          TeamJoinRequest(
+            id: row['id'].toString(),
+            teamId: teamId,
+            teamName: teamName,
+            userId: userId,
+            userName: displayName.isEmpty ? 'Player' : displayName,
+            status: TeamJoinRequestStatus.pending,
+            createdAt:
+                DateTime.tryParse(row['created_at']?.toString() ?? '') ?? DateTime.now(),
+          ),
+        );
+      }
+      return out;
     });
   }
 
@@ -176,15 +268,31 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
     required String userId,
   }) {
     return _c
-        .from('team_join_requests')
+        .from('team_memberships')
         .stream(primaryKey: const ['id'])
         .eq('team_id', teamId)
-        .map((raw) {
+        .asyncMap((raw) async {
       final rows = (raw as List).cast<Map>();
+      final team = await _c.from('teams').select('name').eq('id', teamId).maybeSingle();
+      final teamName = (team?['name'] ?? '').toString();
       final mine = rows
-          .map((e) =>
-              TeamJoinRequest.fromSupabaseRow(Map<String, dynamic>.from(e)))
-          .where((r) => r.userId == userId)
+          .where((e) =>
+              (e['user_id']?.toString() ?? '') == userId &&
+              (e['type']?.toString() ?? '') == 'REQUEST')
+          .map((e) => TeamJoinRequest(
+                id: e['id'].toString(),
+                teamId: teamId,
+                teamName: teamName,
+                userId: userId,
+                userName: '',
+                status: (e['status']?.toString() ?? '') == 'ACCEPTED'
+                    ? TeamJoinRequestStatus.accepted
+                    : (e['status']?.toString() ?? '') == 'REJECTED'
+                        ? TeamJoinRequestStatus.declined
+                        : TeamJoinRequestStatus.pending,
+                createdAt:
+                    DateTime.tryParse(e['created_at']?.toString() ?? '') ?? DateTime.now(),
+              ))
           .toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       if (mine.isEmpty) return null;
@@ -195,8 +303,15 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
   @override
   Future<String> insertJoinRequest(TeamJoinRequest request) async {
     final res = await _c
-        .from('team_join_requests')
-        .insert(request.toSupabaseInsert())
+        .from('team_memberships')
+        .insert({
+          'team_id': request.teamId,
+          'user_id': request.userId,
+          'type': 'REQUEST',
+          'status': 'PENDING',
+          'initiated_by': request.userId,
+          'message': null,
+        })
         .select('id')
         .single();
     return res['id'] as String;
@@ -205,11 +320,12 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
   @override
   Future<bool> hasPendingJoinRequest(String teamId, String userId) async {
     final row = await _c
-        .from('team_join_requests')
+        .from('team_memberships')
         .select('id')
         .eq('team_id', teamId)
         .eq('user_id', userId)
-        .eq('status', 'pending')
+        .eq('type', 'REQUEST')
+        .eq('status', 'PENDING')
         .maybeSingle();
     return row != null;
   }
@@ -219,35 +335,23 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
     required String requestId,
     required bool accept,
   }) async {
-    await _c.rpc(
-      'team_join_respond',
-      params: {
-        'p_request_id': requestId,
-        'p_accept': accept,
-      },
-    );
+    await _c
+        .from('team_memberships')
+        .update({'status': accept ? 'ACCEPTED' : 'REJECTED'})
+        .eq('id', requestId);
   }
 
   @override
   Stream<List<TeamMatchRequest>> watchPendingMatchRequestsForTeam(
       String teamId) {
-    return _c
-        .from('team_match_requests')
-        .stream(primaryKey: const ['id'])
-        .eq('team_id', teamId)
-        .map((raw) {
-      final rows = (raw as List).cast<Map>();
-      return rows
-          .map((e) =>
-              TeamMatchRequest.fromSupabaseRow(Map<String, dynamic>.from(e)))
-          .where((r) => r.status == TeamMatchRequestStatus.pending)
-          .toList();
-    });
+    return const Stream<List<TeamMatchRequest>>.empty();
   }
 
   @override
   Future<void> insertMatchRequest(TeamMatchRequest request) async {
-    await _c.from('team_match_requests').insert(request.toSupabaseInsert());
+    throw UnimplementedError(
+      'Team match requests are not part of the current Supabase schema.',
+    );
   }
 
   @override
@@ -255,21 +359,24 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
     required String requestId,
     required bool accepted,
   }) async {
-    await _c.from('team_match_requests').update({
-      'status': accepted ? 'accepted' : 'declined',
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', requestId);
+    throw UnimplementedError(
+      'Team match requests are not part of the current Supabase schema.',
+    );
   }
 
   @override
   Future<List<AppTeam>> searchTeamsLocalFilter(String query, {int limit = 10}) async {
     final trimmed = query.trim().toLowerCase();
     if (trimmed.isEmpty) return [];
-    final rows =
-        await _c.from('teams').select().eq('is_public', true).limit(300);
+    final rows = await _c
+        .from('teams')
+        .select()
+        .eq('is_public', true)
+        .isFilter('deleted_at', null)
+        .limit(300);
     final matches = <AppTeam>[];
     for (final r in (rows as List).cast<Map>()) {
-      final team = AppTeam.fromSupabaseRow(Map<String, dynamic>.from(r));
+      final team = await _hydrateTeam(Map<String, dynamic>.from(r));
       final name = team.name.toLowerCase();
       final city = (team.city ?? '').toLowerCase();
       if (name.contains(trimmed) || city.contains(trimmed)) {
@@ -372,7 +479,52 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
 
   @override
   Future<void> leaveTeamRpc(String teamId) async {
-    await _c.rpc('team_leave', params: {'p_team_id': teamId});
+    final uid = _c.auth.currentUser?.id;
+    if (uid == null) throw Exception(I18n.inline('Потрібна авторизація', 'Sign-in required'));
+    final team = await _c.from('teams').select('owner_id').eq('id', teamId).maybeSingle();
+    if (team == null) {
+      throw Exception('team_not_found');
+    }
+    final ownerId = (team['owner_id'] ?? '').toString();
+    if (ownerId != uid) {
+      await _c
+          .from('team_members')
+          .delete()
+          .eq('team_id', teamId)
+          .eq('user_id', uid);
+      return;
+    }
+    final members = await _c
+        .from('team_members')
+        .select('id, user_id, role, joined_at')
+        .eq('team_id', teamId);
+    final rows = members.cast<Map<String, dynamic>>();
+    final others = rows.where((e) => (e['user_id'] ?? '').toString() != uid).toList();
+    if (others.isEmpty) {
+      throw Exception('last_member');
+    }
+    others.sort((a, b) {
+      final aRole = (a['role'] ?? '').toString();
+      final bRole = (b['role'] ?? '').toString();
+      final score = (String role) => role == 'ADMIN' ? 0 : 1;
+      final c = score(aRole).compareTo(score(bRole));
+      if (c != 0) return c;
+      final at = DateTime.tryParse(a['joined_at']?.toString() ?? '') ?? DateTime.now();
+      final bt = DateTime.tryParse(b['joined_at']?.toString() ?? '') ?? DateTime.now();
+      return at.compareTo(bt);
+    });
+    final successorId = others.first['user_id'].toString();
+    await _c.from('teams').update({'owner_id': successorId}).eq('id', teamId);
+    await _c
+        .from('team_members')
+        .update({'role': 'OWNER'})
+        .eq('team_id', teamId)
+        .eq('user_id', successorId);
+    await _c
+        .from('team_members')
+        .delete()
+        .eq('team_id', teamId)
+        .eq('user_id', uid);
   }
 
   @override
@@ -383,15 +535,7 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
     required String userId,
     required String userName,
   }) async {
-    try {
-      await _c.from('team_activity').insert({
-        'type': type,
-        'team_id': teamId,
-        'team_name': teamName,
-        'user_id': userId,
-        'user_name': userName,
-      });
-    } catch (_) {}
+    // Optional activity feed table is not part of the current schema.
   }
 
   @override
@@ -437,35 +581,21 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
 
   @override
   Future<void> addViceCaptain(String teamId, String userId) async {
-    final row = await _c
-        .from('teams')
-        .select('vice_captain_ids')
-        .eq('id', teamId)
-        .single();
-    final cur = List<String>.from(
-      (row['vice_captain_ids'] as List?)?.map((e) => e.toString()) ?? const [],
-    );
-    if (!cur.contains(userId)) cur.add(userId);
-    await _c.from('teams').update({
-      'vice_captain_ids': cur,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', teamId);
+    await _c
+        .from('team_members')
+        .update({'role': 'ADMIN'})
+        .eq('team_id', teamId)
+        .eq('user_id', userId);
   }
 
   @override
   Future<void> removeViceCaptain(String teamId, String userId) async {
-    final row = await _c
-        .from('teams')
-        .select('vice_captain_ids')
-        .eq('id', teamId)
-        .single();
-    final cur = List<String>.from(
-      (row['vice_captain_ids'] as List?)?.map((e) => e.toString()) ?? const [],
-    )..remove(userId);
-    await _c.from('teams').update({
-      'vice_captain_ids': cur,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', teamId);
+    await _c
+        .from('team_members')
+        .update({'role': 'PLAYER'})
+        .eq('team_id', teamId)
+        .eq('user_id', userId)
+        .neq('role', 'OWNER');
   }
 
   @override
@@ -476,90 +606,37 @@ class SupabaseTeamsRemoteDataSource implements TeamsRemoteDataSource {
     required Map<String, int> goalsByPlayer,
   }) async {
     if (match.teamAId == null || match.teamBId == null) return;
-    final aRow =
-        await _c.from('teams').select().eq('id', match.teamAId!).maybeSingle();
-    final bRow =
-        await _c.from('teams').select().eq('id', match.teamBId!).maybeSingle();
+    final aRow = await _c
+        .from('teams')
+        .select('id, wins, losses, draws, matches_played')
+        .eq('id', match.teamAId!)
+        .maybeSingle();
+    final bRow = await _c
+        .from('teams')
+        .select('id, wins, losses, draws, matches_played')
+        .eq('id', match.teamBId!)
+        .maybeSingle();
     if (aRow == null || bRow == null) return;
-    final teamA = AppTeam.fromSupabaseRow(Map<String, dynamic>.from(aRow));
-    final teamB = AppTeam.fromSupabaseRow(Map<String, dynamic>.from(bRow));
-    final rosterA =
-        match.teamRosters['teamA'] ?? match.teamA?.playerIds ?? const [];
-    final rosterB =
-        match.teamRosters['teamB'] ?? match.teamB?.playerIds ?? const [];
     final resultA = teamAScore.compareTo(teamBScore);
-    final playedAt = DateTime.now().toUtc().toIso8601String();
-    final summaryA = <String, dynamic>{
-      'matchId': match.id,
-      'opponentTeamId': match.teamBId,
-      'opponentName': teamB.name,
-      'score': '$teamAScore:$teamBScore',
-      'result': resultA > 0
-          ? 'win'
-          : resultA < 0
-              ? 'loss'
-              : 'draw',
-      'playedAt': playedAt,
-    };
-    final summaryB = <String, dynamic>{
-      'matchId': match.id,
-      'opponentTeamId': match.teamAId,
-      'opponentName': teamA.name,
-      'score': '$teamBScore:$teamAScore',
-      'result': resultA < 0
-          ? 'win'
-          : resultA > 0
-              ? 'loss'
-              : 'draw',
-      'playedAt': playedAt,
-    };
-    final recentA = [summaryA, ...teamA.recentMatches];
-    final recentB = [summaryB, ...teamB.recentMatches];
-    final aPlayerGoals = Map<String, int>.from(teamA.playerGoals);
-    final bPlayerGoals = Map<String, int>.from(teamB.playerGoals);
-    for (final uid in rosterA) {
-      final goals = goalsByPlayer[uid] ?? 0;
-      if (goals > 0) {
-        aPlayerGoals[uid] = (aPlayerGoals[uid] ?? 0) + goals;
-      }
-    }
-    for (final uid in rosterB) {
-      final goals = goalsByPlayer[uid] ?? 0;
-      if (goals > 0) {
-        bPlayerGoals[uid] = (bPlayerGoals[uid] ?? 0) + goals;
-      }
-    }
-    final naWins = teamA.wins + (resultA > 0 ? 1 : 0);
-    final naLosses = teamA.losses + (resultA < 0 ? 1 : 0);
-    final naDraws = teamA.draws + (resultA == 0 ? 1 : 0);
-    final nbWins = teamB.wins + (resultA < 0 ? 1 : 0);
-    final nbLosses = teamB.losses + (resultA > 0 ? 1 : 0);
-    final nbDraws = teamB.draws + (resultA == 0 ? 1 : 0);
-    try {
-      await _c.rpc(
-        'teams_set_standings_after_match',
-        params: {
-          'p_team_a_id': match.teamAId,
-          'p_team_a_wins': naWins,
-          'p_team_a_losses': naLosses,
-          'p_team_a_draws': naDraws,
-          'p_team_a_goals_for': teamA.goalsFor + teamAScore,
-          'p_team_a_goals_against': teamA.goalsAgainst + teamBScore,
-          'p_team_a_player_goals': aPlayerGoals,
-          'p_team_a_recent': recentA.take(5).toList(),
-          'p_team_b_id': match.teamBId,
-          'p_team_b_wins': nbWins,
-          'p_team_b_losses': nbLosses,
-          'p_team_b_draws': nbDraws,
-          'p_team_b_goals_for': teamB.goalsFor + teamBScore,
-          'p_team_b_goals_against': teamB.goalsAgainst + teamAScore,
-          'p_team_b_player_goals': bPlayerGoals,
-          'p_team_b_recent': recentB.take(5).toList(),
-        },
-      );
-    } catch (e) {
-      // ignore: avoid_print
-      print('Warning updating teams standings: $e');
-    }
+    final aWins = (aRow['wins'] as num?)?.toInt() ?? 0;
+    final aLosses = (aRow['losses'] as num?)?.toInt() ?? 0;
+    final aDraws = (aRow['draws'] as num?)?.toInt() ?? 0;
+    final aPlayed = (aRow['matches_played'] as num?)?.toInt() ?? 0;
+    final bWins = (bRow['wins'] as num?)?.toInt() ?? 0;
+    final bLosses = (bRow['losses'] as num?)?.toInt() ?? 0;
+    final bDraws = (bRow['draws'] as num?)?.toInt() ?? 0;
+    final bPlayed = (bRow['matches_played'] as num?)?.toInt() ?? 0;
+    await _c.from('teams').update({
+      'wins': aWins + (resultA > 0 ? 1 : 0),
+      'losses': aLosses + (resultA < 0 ? 1 : 0),
+      'draws': aDraws + (resultA == 0 ? 1 : 0),
+      'matches_played': aPlayed + 1,
+    }).eq('id', match.teamAId!);
+    await _c.from('teams').update({
+      'wins': bWins + (resultA < 0 ? 1 : 0),
+      'losses': bLosses + (resultA > 0 ? 1 : 0),
+      'draws': bDraws + (resultA == 0 ? 1 : 0),
+      'matches_played': bPlayed + 1,
+    }).eq('id', match.teamBId!);
   }
 }

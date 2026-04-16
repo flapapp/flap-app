@@ -25,15 +25,14 @@ class TeamCreationRepositoryImpl implements TeamCreationRepository {
     Uint8List? logoBytes,
   }) async {
     try {
-      final bound = squad
-          .map((p) => p.copyWith(userId: currentUserId))
-          .toList(growable: false);
-
+      // [squad] is a local draft (names / jerseys) for the wizard only. The DB stores
+      // `team_members` rows per real `user_profiles.id`; the owner row is created by
+      // `trg_create_team_owner_membership`. Invited users go through `team_memberships`.
       final id = await _remote.teamCreateWithSquadRpc(
         team: team,
         description: description,
         isPublic: isPublic,
-        squad: bound,
+        squad: squad,
       );
 
       if (logoBytes != null) {

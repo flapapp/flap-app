@@ -76,7 +76,7 @@ class RatingService {
     'quality': 0.1,
   };
 
-  // DB trigger on `video_votes` maintains `public.videos.rating` / `vote_count`.
+  // `public.videos` has no aggregate rating column; use `video_rating_aggregates` / `video_ratings`.
   Future<void> updateVideoAggregate(String videoId) async {}
 
   // Отримати поточний рейтинг користувача
@@ -505,12 +505,14 @@ class RatingService {
       final vrows = await _sb.from('videos').select('id').eq('user_id', userId);
       final ids = (vrows as List).map((e) => (e as Map)['id'].toString()).toList();
       if (ids.isEmpty) return [];
-      final voteRows2 =
-          await _sb.from('video_votes').select('rating').inFilter('video_id', ids);
+      final voteRows2 = await _sb
+          .from('video_ratings')
+          .select('overall_rating')
+          .inFilter('video_id', ids);
       final ratings = <double>[];
       for (final r in (voteRows2 as List)) {
         final m = r as Map;
-        ratings.add(((m['rating'] ?? 0.0) as num).toDouble());
+        ratings.add(((m['overall_rating'] ?? 0.0) as num).toDouble());
       }
       return ratings;
     } catch (e) {

@@ -74,11 +74,16 @@ class AppTeam {
   factory AppTeam.fromSupabaseRow(Map<String, dynamic> row) {
     final logo = row['logo_url'];
     final city = row['city'];
+    final ownerId = (row['owner_id'] ?? row['captain_id'] ?? '').toString();
+    final memberIds = _uuidList(row['member_ids']);
+    final captainId = ownerId.isNotEmpty
+        ? ownerId
+        : (memberIds.isNotEmpty ? memberIds.first : '');
     return AppTeam(
       id: row['id'].toString(),
       name: (row['name'] ?? '').toString(),
       description: (row['description'] ?? '').toString(),
-      captainId: (row['captain_id'] ?? '').toString(),
+      captainId: captainId,
       viceCaptainIds: _uuidList(row['vice_captain_ids']),
       memberIds: _uuidList(row['member_ids']),
       isPublic: row['is_public'] is bool ? row['is_public'] as bool : true,

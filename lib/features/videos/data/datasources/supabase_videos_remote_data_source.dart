@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -16,14 +17,62 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
   static const _challengeVideoBucket = 'challenge_videos';
   static const _thumbBucket = 'thumbnails';
 
+  static int _starIntFromDouble(double v) => v.round().clamp(1, 5);
+
+  static const _videoAuthorProfileSelect =
+      'user_profiles(display_name, username, first_name, last_name)';
+
+  /// Realtime `videos` rows omit joins; merge `user_profiles` so [LibraryVideo.authorName] resolves.
+  Future<List<Map<String, dynamic>>> _mergeUserProfilesForVideoRows(
+    List<Map<String, dynamic>> maps,
+  ) async {
+    if (maps.isEmpty) return maps;
+
+    var work = List<Map<String, dynamic>>.from(maps);
+    final needsFetch = work.any(
+      (m) =>
+          m['user_profiles'] == null &&
+          (m['user_id']?.toString().isNotEmpty ?? false),
+    );
+    if (!needsFetch) return work;
+
+    final ids = work
+        .map((m) => m['user_id']?.toString())
+        .whereType<String>()
+        .toSet()
+        .toList();
+    if (ids.isEmpty) return work;
+
+    final profs = await _c
+        .from('user_profiles')
+        .select('id, display_name, username, first_name, last_name')
+        .inFilter('id', ids);
+    final byId = <String, Map<String, dynamic>>{};
+    for (final p in (profs as List)) {
+      final m = Map<String, dynamic>.from(p as Map);
+      byId[m['id']!.toString()] = m;
+    }
+    work = work.map((row) {
+      final uid = row['user_id']?.toString();
+      if (uid == null) return row;
+      final p = byId[uid];
+      if (p == null) return row;
+      return <String, dynamic>{...row, 'user_profiles': p};
+    }).toList();
+    return work;
+  }
+
   @override
   Stream<List<LibraryVideo>> watchLibraryVideos({
     String? forUserId,
     int limit = 400,
   }) {
-    List<LibraryVideo> mapAndTrim(dynamic raw) {
-      final list = (raw as List)
-          .map((e) => LibraryVideoModel.fromRow(Map<String, dynamic>.from(e as Map)))
+    Future<List<LibraryVideo>> mapTrimAndEnrich(dynamic raw) async {
+      final maps =
+          (raw as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final merged = await _mergeUserProfilesForVideoRows(maps);
+      final list = merged
+          .map(LibraryVideoModel.fromRow)
           .toList()
         ..sort((a, b) {
           final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
@@ -36,14 +85,10 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
       return list;
     }
 
-    if (forUserId != null && forUserId.isNotEmpty) {
-      return _c
-          .from('videos')
-          .stream(primaryKey: ['id'])
-          .eq('user_id', forUserId)
-          .map(mapAndTrim);
-    }
-    return _c.from('videos').stream(primaryKey: ['id']).map(mapAndTrim);
+    final stream = forUserId != null && forUserId.isNotEmpty
+        ? _c.from('videos').stream(primaryKey: ['id']).eq('user_id', forUserId)
+        : _c.from('videos').stream(primaryKey: ['id']);
+    return stream.asyncMap(mapTrimAndEnrich);
   }
 
   @override
@@ -55,12 +100,13 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
         .from('videos')
         .stream(primaryKey: ['id'])
         .eq('id', videoId)
-        .map((raw) {
-          final list = (raw as List);
+        .asyncMap((raw) async {
+          final list = raw as List;
           if (list.isEmpty) return null;
-          return LibraryVideoModel.fromRow(
-            Map<String, dynamic>.from(list.first as Map),
-          );
+          final maps = [Map<String, dynamic>.from(list.first as Map)];
+          final merged = await _mergeUserProfilesForVideoRows(maps);
+          if (merged.isEmpty) return null;
+          return LibraryVideoModel.fromRow(merged.first);
         });
   }
 
@@ -69,7 +115,7 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
     if (videoId.isEmpty) return null;
     final row = await _c
         .from('videos')
-        .select('*, user_profiles(display_name, username)')
+        .select('*, $_videoAuthorProfileSelect')
         .eq('id', videoId)
         .maybeSingle();
     if (row == null) return null;
@@ -126,15 +172,15 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
   @override
   Stream<double> watchLiveAverageVoteRating(String videoId) {
     return _c
-        .from('video_votes')
-        .stream(primaryKey: ['video_id', 'rated_by'])
+        .from('video_ratings')
+        .stream(primaryKey: ['id'])
         .eq('video_id', videoId)
         .map((raw) {
           final rows = (raw as List).cast<Map>();
           if (rows.isEmpty) return 0.0;
           double sum = 0;
           for (final m in rows) {
-            sum += ((m['rating'] ?? 0.0) as num).toDouble();
+            sum += ((m['overall_rating'] ?? 0) as num).toDouble();
           }
           final n = rows.length;
           return double.parse((sum / n).toStringAsFixed(2));
@@ -144,23 +190,23 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
   @override
   Future<double> fetchAverageVoteRating(String videoId) async {
     final row = await _c
-        .from('videos')
-        .select('rating')
-        .eq('id', videoId)
+        .from('video_rating_aggregates')
+        .select('avg_overall_rating')
+        .eq('video_id', videoId)
         .maybeSingle();
     if (row == null) return 0.0;
-    return ((row['rating'] ?? 0.0) as num).toDouble();
+    return ((row['avg_overall_rating'] ?? 0.0) as num).toDouble();
   }
 
   @override
   Future<int> fetchCommentCount(String videoId) async {
     final row = await _c
         .from('videos')
-        .select('comments_count')
+        .select('comment_count')
         .eq('id', videoId)
         .maybeSingle();
     if (row == null) return 0;
-    return (row['comments_count'] as num?)?.toInt() ?? 0;
+    return (row['comment_count'] as num?)?.toInt() ?? 0;
   }
 
   @override
@@ -169,10 +215,10 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
     required String userId,
   }) async {
     final row = await _c
-        .from('video_votes')
-        .select('rated_by')
+        .from('video_ratings')
+        .select('user_id')
         .eq('video_id', videoId)
-        .eq('rated_by', userId)
+        .eq('user_id', userId)
         .maybeSingle();
     return row != null;
   }
@@ -183,32 +229,96 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
     required String userId,
   }) async {
     final row = await _c
-        .from('video_votes')
-        .select('criteria')
+        .from('video_ratings')
+        .select(
+          'technical_rating, creativity_rating, difficulty_rating, video_quality_rating',
+        )
         .eq('video_id', videoId)
-        .eq('rated_by', userId)
+        .eq('user_id', userId)
         .maybeSingle();
     if (row == null) return null;
-    final c = row['criteria'];
-    if (c is! Map) return null;
-    final out = <String, double>{};
-    for (final e in c.entries) {
-      final v = e.value;
-      if (v is num) out[e.key.toString()] = v.toDouble();
+    double? n(String k) {
+      final v = row[k];
+      if (v is num) return v.toDouble();
+      return null;
     }
-    return out;
+
+    final technical = n('technical_rating');
+    final creativity = n('creativity_rating');
+    final difficulty = n('difficulty_rating');
+    final quality = n('video_quality_rating');
+    if (technical == null &&
+        creativity == null &&
+        difficulty == null &&
+        quality == null) {
+      return null;
+    }
+    return <String, double>{
+      if (technical != null) 'technical': technical,
+      if (creativity != null) 'creativity': creativity,
+      if (difficulty != null) 'difficulty': difficulty,
+      if (quality != null) 'quality': quality,
+    };
+  }
+
+  static const _commentProfileSelect =
+      'user_profiles(display_name, username, avatar_url, first_name, last_name)';
+
+  Future<List<VideoComment>> _commentMapsToModels(
+    List<Map<String, dynamic>> maps,
+  ) async {
+    if (maps.isEmpty) return [];
+
+    var work = List<Map<String, dynamic>>.from(maps);
+
+    final needsFetch = work.any(
+      (m) =>
+          m['user_profiles'] == null &&
+          (m['user_id']?.toString().isNotEmpty ?? false),
+    );
+    if (needsFetch) {
+      final ids = work
+          .map((m) => m['user_id']?.toString())
+          .whereType<String>()
+          .toSet()
+          .toList();
+      if (ids.isNotEmpty) {
+        final profs = await _c
+            .from('user_profiles')
+            .select(
+              'id, display_name, username, avatar_url, first_name, last_name',
+            )
+            .inFilter('id', ids);
+        final byId = <String, Map<String, dynamic>>{};
+        for (final p in (profs as List)) {
+          final m = Map<String, dynamic>.from(p as Map);
+          byId[m['id']!.toString()] = m;
+        }
+        work = work.map((row) {
+          final uid = row['user_id']?.toString();
+          if (uid == null) return row;
+          final p = byId[uid];
+          if (p == null) return row;
+          return <String, dynamic>{...row, 'user_profiles': p};
+        }).toList();
+      }
+    }
+
+    return work.map(VideoCommentModel.fromRow).toList();
   }
 
   @override
   Future<List<VideoComment>> fetchComments(String videoId) async {
     final rows = await _c
         .from('video_comments')
-        .select()
+        .select(
+          'id, video_id, user_id, comment_text, created_at, updated_at, deleted_at, $_commentProfileSelect',
+        )
         .eq('video_id', videoId)
         .order('created_at', ascending: false);
-    return (rows as List)
-        .map((e) => VideoCommentModel.fromRow(Map<String, dynamic>.from(e as Map)))
-        .toList();
+    final maps =
+        (rows as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    return _commentMapsToModels(maps);
   }
 
   @override
@@ -217,16 +327,17 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
         .from('video_comments')
         .stream(primaryKey: ['id'])
         .eq('video_id', videoId)
-        .map((raw) {
-          final rows = (raw as List)
-              .map((e) => VideoCommentModel.fromRow(Map<String, dynamic>.from(e as Map)))
-              .toList()
-            ..sort((a, b) {
-              final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
-              final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
-              return bt.compareTo(at);
-            });
-          return rows;
+        .asyncMap((raw) async {
+          var maps = (raw as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+          final list = await _commentMapsToModels(maps);
+          list.sort((a, b) {
+            final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
+            final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
+            return bt.compareTo(at);
+          });
+          return list;
         });
   }
 
@@ -237,11 +348,11 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
     required String authorName,
     required String body,
   }) async {
+    final t = body.trim().isEmpty ? '-' : body.trim();
     await _c.from('video_comments').insert(<String, dynamic>{
       'video_id': videoId,
       'user_id': userId,
-      'author_name': authorName,
-      'body': body,
+      'comment_text': t,
     });
   }
 
@@ -263,7 +374,6 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
       'thumbnail_url': thumbnailUrl,
       if (thumbnailStoragePath != null) 'thumbnail_storage_path': thumbnailStoragePath,
       'thumbnail_generated': thumbnailGenerated,
-      if (thumbnailType != null) 'thumbnail_type': thumbnailType,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     }).eq('id', videoId);
   }
@@ -369,6 +479,9 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
       try {
         await _c.storage.from(_videoBucket).remove([vPath]);
       } catch (_) {}
+      try {
+        await _c.storage.from(_challengeVideoBucket).remove([vPath]);
+      } catch (_) {}
     }
     if (tPath != null && tPath.isNotEmpty) {
       try {
@@ -402,9 +515,9 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
   }) async {
     final rows = await _c
         .from('videos')
-        .select()
+        .select('*, $_videoAuthorProfileSelect')
         .eq('user_id', userId)
-        .order('views', ascending: false)
+        .order('view_count', ascending: false)
         .limit(limit);
     final list = (rows as List)
         .map((e) => LibraryVideoModel.fromRow(Map<String, dynamic>.from(e as Map)))
@@ -419,12 +532,29 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
     required double rating,
     required Map<String, dynamic> criteria,
   }) async {
-    await _c.from('video_votes').insert(<String, dynamic>{
+    num? crit(String k) {
+      final v = criteria[k];
+      if (v is num) return v;
+      return null;
+    }
+
+    final row = <String, dynamic>{
       'video_id': videoId,
-      'rated_by': ratedBy,
-      'rating': rating,
-      'criteria': criteria,
-      'rated_at': DateTime.now().toUtc().toIso8601String(),
-    });
+      'user_id': ratedBy,
+      'overall_rating': _starIntFromDouble(rating),
+      if (crit('technical') != null)
+        'technical_rating': _starIntFromDouble(crit('technical')!.toDouble()),
+      if (crit('creativity') != null)
+        'creativity_rating': _starIntFromDouble(crit('creativity')!.toDouble()),
+      if (crit('difficulty') != null)
+        'difficulty_rating': _starIntFromDouble(crit('difficulty')!.toDouble()),
+      if (crit('quality') != null)
+        'video_quality_rating': _starIntFromDouble(crit('quality')!.toDouble()),
+    };
+
+    await _c.from('video_ratings').upsert(
+          row,
+          onConflict: 'video_id,user_id',
+        );
   }
 }

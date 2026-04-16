@@ -7,12 +7,13 @@ import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/router/app_router.dart';
 import 'package:flap_app/core/theme/flap_theme.dart';
 import 'package:flap_app/features/shell/presentation/shell_create_expandable_fab.dart';
-import 'package:flap_app/features/team_creation/domain/repositories/team_creation_repository.dart';
-import 'package:flap_app/features/team_creation/domain/usecases/add_player_usecase.dart';
-import 'package:flap_app/features/team_creation/domain/usecases/create_team_usecase.dart';
-import 'package:flap_app/features/team_creation/domain/usecases/generate_squad_usecase.dart';
-import 'package:flap_app/features/team_creation/presentation/bloc/team_creation_bloc.dart';
-import 'package:flap_app/features/team_creation/presentation/screens/team_creation_wizard_screen.dart';
+import 'package:flap_app/features/tournaments/presentation/screens/tournaments_screen.dart';
+import 'package:flap_app/features/teams/team_creation/domain/repositories/team_creation_repository.dart';
+import 'package:flap_app/features/teams/team_creation/domain/usecases/add_player_usecase.dart';
+import 'package:flap_app/features/teams/team_creation/domain/usecases/create_team_usecase.dart';
+import 'package:flap_app/features/teams/team_creation/domain/usecases/generate_squad_usecase.dart';
+import 'package:flap_app/features/teams/team_creation/presentation/bloc/team_creation_bloc.dart';
+import 'package:flap_app/features/teams/team_creation/presentation/screens/team_creation_wizard_screen.dart';
 import 'package:flap_app/features/teams/domain/repositories/teams_repository.dart';
 import 'package:flap_app/utils/i18n.dart';
 
@@ -263,7 +264,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
                         await context.pushRoute(const ChallengeCreateRoute());
                       }),
                       onMatch: () => _closeCreateThen(() async {
-                        await context.pushRoute(const CreateMatchRoute());
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const TournamentsScreen(),
+                          ),
+                        );
                       }),
                       onTeam: () => _closeCreateThen(_openTeamCreate),
                     ),

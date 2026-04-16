@@ -16,7 +16,11 @@ import 'dart:typed_data';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flap_app/core/router/app_router.dart';
-import 'package:flap_app/core/theme/flap_theme.dart';
+import 'package:flap_app/core/theme/app_spacing.dart';
+import 'package:flap_app/shared/ui/app_card.dart';
+import 'package:flap_app/shared/ui/app_input.dart';
+import 'package:flap_app/shared/ui/app_scaffold.dart';
+import 'package:flap_app/shared/ui/app_top_bar.dart';
 import 'package:flap_app/core/world_location_service.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/searchable_choice_sheet.dart';
@@ -311,17 +315,23 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
             await SystemNavigator.pop();
             return false;
           },
-          child: Scaffold(
-        backgroundColor: FlapTheme.pitch,
-        resizeToAvoidBottomInset: true,
-        body: SafeArea(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => FocusScope.of(context).unfocus(),
-            child: ListView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: const EdgeInsets.all(20),
-              children: [
+          child: AppScaffold(
+            appBar: AppTopBar(
+              title: widget.isEditing
+                  ? I18n.inline('Редагувати профіль', 'Edit profile')
+                  : I18n.inline('Завершіть профіль', 'Complete profile'),
+            ),
+            body: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: ListView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.lg,
+                ),
+                children: [
                 Form(
                   key: _formKey,
                   child: Column(
@@ -443,110 +453,53 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                                     ),
                         ),
                       ),
-                      const SizedBox(height: 30),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 2,
-                          ),
-                        ),
-                        child: TextFormField(
-                          controller: _nameController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            labelText: I18n.inline('Ім\'я', 'First name'),
-                            labelStyle: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.all(15),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return I18n.inline('Введіть ім\'я', 'Enter first name');
-                            }
-                            return null;
-                          },
-                        ),
+                      const SizedBox(height: AppSpacing.xl),
+                      AppInput(
+                        controller: _nameController,
+                        label: I18n.inline('Ім\'я', 'First name'),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return I18n.inline(
+                              'Введіть ім\'я',
+                              'Enter first name',
+                            );
+                          }
+                          return null;
+                        },
                       ),
-                      const SizedBox(height: 20),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 2,
-                          ),
-                        ),
-                        child: TextFormField(
-                          controller: _surnameController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            labelText: I18n.inline('Прізвище', 'Last name'),
-                            labelStyle: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.all(15),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return I18n.inline('Введіть прізвище', 'Enter last name');
-                            }
-                            return null;
-                          },
-                        ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppInput(
+                        controller: _surnameController,
+                        label: I18n.inline('Прізвище', 'Last name'),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return I18n.inline(
+                              'Введіть прізвище',
+                              'Enter last name',
+                            );
+                          }
+                          return null;
+                        },
                       ),
-                      const SizedBox(height: 20),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 2,
-                          ),
-                        ),
-                        child: TextFormField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            labelText: I18n.inline('Телефон', 'Phone'),
-                            labelStyle: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.all(15),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return I18n.inline(
-                                'Введіть телефон',
-                                'Enter phone number',
-                              );
-                            }
-                            return null;
-                          },
-                        ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppInput(
+                        controller: _phoneController,
+                        label: I18n.inline('Телефон', 'Phone'),
+                        keyboardType: TextInputType.phone,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return I18n.inline(
+                              'Введіть телефон',
+                              'Enter phone number',
+                            );
+                          }
+                          return null;
+                        },
                       ),
-                      const SizedBox(height: 20),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 2,
-                          ),
-                        ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppCard(
                         child: InkWell(
                           onTap: _submitting ? null : _pickCountry,
-                          borderRadius: BorderRadius.circular(15),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 15,
@@ -559,12 +512,14 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                                     _selectedCountry == null
                                         ? I18n.inline('Країна', 'Country')
                                         : _selectedCountry!,
-                                    style: TextStyle(
-                                      color: _selectedCountry == null
-                                          ? Colors.white.withOpacity(0.7)
-                                          : Colors.white,
-                                      fontSize: 16,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.copyWith(
+                                          color: _selectedCountry == null
+                                              ? Colors.white.withOpacity(0.7)
+                                              : Colors.white,
+                                        ),
                                   ),
                                 ),
                                 Icon(
@@ -577,21 +532,12 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 2,
-                          ),
-                        ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppCard(
                         child: InkWell(
                           onTap: (_submitting || _selectedCountry == null)
                               ? null
                               : _pickCity,
-                          borderRadius: BorderRadius.circular(15),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 15,
@@ -604,14 +550,16 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                                     _cityController.text.trim().isEmpty
                                         ? I18n.inline('Місто', 'City')
                                         : _cityController.text.trim(),
-                                    style: TextStyle(
-                                      color: _cityController.text
-                                              .trim()
-                                              .isEmpty
-                                          ? Colors.white.withOpacity(0.7)
-                                          : Colors.white,
-                                      fontSize: 16,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.copyWith(
+                                          color: _cityController.text
+                                                  .trim()
+                                                  .isEmpty
+                                              ? Colors.white.withOpacity(0.7)
+                                              : Colors.white,
+                                        ),
                                   ),
                                 ),
                                 Icon(
@@ -624,19 +572,10 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 2,
-                          ),
-                        ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppCard(
                         child: InkWell(
                           onTap: _submitting ? null : _selectDateOfBirth,
-                          borderRadius: BorderRadius.circular(15),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 15,
@@ -652,12 +591,14 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                                             'Date of birth',
                                           )
                                         : _formatDateOfBirth(_dateOfBirth!),
-                                    style: TextStyle(
-                                      color: _dateOfBirth == null
-                                          ? Colors.white.withOpacity(0.7)
-                                          : Colors.white,
-                                      fontSize: 16,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.copyWith(
+                                          color: _dateOfBirth == null
+                                              ? Colors.white.withOpacity(0.7)
+                                              : Colors.white,
+                                        ),
                                   ),
                                 ),
                                 Icon(
@@ -671,15 +612,7 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 2,
-                          ),
-                        ),
+                      AppCard(
                         child: DropdownButtonFormField<String>(
                           value: _selectedPosition,
                           style: const TextStyle(color: Colors.white),
@@ -720,16 +653,8 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 2,
-                          ),
-                        ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppCard(
                         child: DropdownButtonFormField<String>(
                           value: _selectedExperience,
                           style: const TextStyle(color: Colors.white),
@@ -940,10 +865,9 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
                     ],
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ),
           ),
         ),
       ),

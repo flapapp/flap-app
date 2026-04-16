@@ -8,6 +8,7 @@ class VideoComment extends Equatable {
     required this.authorName,
     required this.body,
     required this.createdAt,
+    this.authorAvatarUrl,
   });
 
   final String id;
@@ -17,6 +18,9 @@ class VideoComment extends Equatable {
   final String body;
   final DateTime? createdAt;
 
+  /// From `user_profiles.avatar_url` when comments are loaded with a profile join.
+  final String? authorAvatarUrl;
+
   Map<String, dynamic> toLegacyMap() {
     return <String, dynamic>{
       'id': id,
@@ -24,10 +28,11 @@ class VideoComment extends Equatable {
       'text': body,
       'comment': body,
       'authorName': authorName,
+      'authorAvatarUrl': authorAvatarUrl,
       'createdAt': createdAt,
     };
   }
 
   @override
-  List<Object?> get props => [id];
+  List<Object?> get props => [id, authorName, authorAvatarUrl, body, createdAt];
 }

@@ -16,8 +16,8 @@ import 'package:flap_app/models/team_join_request.dart';
 import 'package:flap_app/utils/i18n.dart';
 import 'package:flap_app/widgets/team_logo_button.dart';
 import 'package:flap_app/widgets/player_avatar_button.dart';
-import 'package:flap_app/features/matches/presentation/screens/create_match_screen.dart';
 import 'package:flap_app/features/matches/presentation/screens/match_details_screen.dart';
+import 'package:flap_app/features/tournaments/presentation/screens/tournaments_screen.dart';
 import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/media/flap_cached_image.dart';
 
@@ -580,7 +580,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const CreateMatchScreen()),
+                      MaterialPageRoute(builder: (_) => const TournamentsScreen()),
                     );
                   },
                   style: ElevatedButton.styleFrom(

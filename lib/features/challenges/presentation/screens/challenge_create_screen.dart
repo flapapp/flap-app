@@ -1697,10 +1697,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           isChallengeVideo: true,
         );
 
+        // `rpcUpsertSubmission` maps `videoId` → `challenge_submissions.video_storage_path`
+        // (object key under `challenge_videos`), not `public.videos.id`.
         await challengeRepo.upsertSubmission(
               challengeId: challengeId,
               userId: userId,
-              videoId: createdVideoDocId,
+              videoId: storagePath,
               videoUrl: videoUrl,
               title: titleText,
               authorName: authorName,

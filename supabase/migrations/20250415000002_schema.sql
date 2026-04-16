@@ -863,10 +863,28 @@ as $$
   );
 $$;
 
+-- SECURITY DEFINER: membership checks must not re-enter RLS on team_members (avoids infinite recursion).
+create or replace function public.is_team_member(_team_id uuid, _user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.team_members tm
+    where tm.team_id = _team_id
+      and tm.user_id = _user_id
+  );
+$$;
+
 create or replace function public.is_team_admin_or_owner(_team_id uuid, _user_id uuid)
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select exists (
     select 1
@@ -1937,9 +1955,7 @@ using (
   deleted_at is null and (
     is_public = true
     or owner_id = auth.uid()
-    or exists (
-      select 1 from public.team_members tm where tm.team_id = id and tm.user_id = auth.uid()
-    )
+    or public.is_team_member(id, auth.uid())
   )
 );
 
@@ -1972,9 +1988,7 @@ using (
       and (
         t.is_public = true
         or t.owner_id = auth.uid()
-        or exists (
-          select 1 from public.team_members tm2 where tm2.team_id = team_id and tm2.user_id = auth.uid()
-        )
+        or public.is_team_member(team_id, auth.uid())
       )
   )
 );

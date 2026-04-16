@@ -3998,102 +3998,80 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
                     itemBuilder: (context, index) {
                       final vc = comments[index];
                       final userId = vc.userId;
-                      final commentText = vc.body;
+                      final authorName = vc.authorName;
+                      final avatarUrl = vc.authorAvatarUrl;
 
-                      return FutureBuilder<Map<String, dynamic>?>(
-                        future: userId.isEmpty
-                            ? null
-                            : context
-                                .read<ProfileRepository>()
-                                .fetchLegacyUserMap(userId),
-                        builder: (context, userSnapshot) {
-                          final userData =
-                              userSnapshot.data ?? const <String, dynamic>{};
-                          final authorName = vc.authorName.isNotEmpty
-                              ? vc.authorName
-                              : (userData['displayName'] ??
-                                      userData['name'] ??
-                                      userData['authorName'] ??
-                                      'Користувач')
-                                  .toString();
-                          final avatarUrl = (userData['avatarUrl'] ??
-                                  userData['photoUrl'] ??
-                                  '')
-                              .toString();
-
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.12),
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            PlayerAvatarButton(
+                              userId: userId,
+                              displayName: authorName,
+                              avatarUrl: avatarUrl,
+                              size: 38,
+                              backgroundColor: const Color(0xFF4caf50),
+                              borderColor:
+                                  Colors.white.withValues(alpha: 0.25),
+                              borderWidth: 1,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  GestureDetector(
+                                    onTap: () {
+                                      if (userId.isEmpty) return;
+                                      context.pushRoute(
+                                        PlayerProfileRoute(
+                                          playerId: userId,
+                                          playerName: authorName,
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      authorName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    vc.body,
+                                    style: TextStyle(
+                                      color: Colors.white
+                                          .withValues(alpha: 0.9),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatRelativeMoment(vc.createdAt),
+                                    style: TextStyle(
+                                      color: Colors.white
+                                          .withValues(alpha: 0.5),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                PlayerAvatarButton(
-                                  userId: userId,
-                                  displayName: authorName,
-                                  avatarUrl: avatarUrl,
-                                  size: 38,
-                                  backgroundColor: const Color(0xFF4caf50),
-                                  borderColor:
-                                      Colors.white.withValues(alpha: 0.25),
-                                  borderWidth: 1,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      GestureDetector(
-                                        onTap: () {
-                                          if (userId.isEmpty) return;
-                                          context.pushRoute(
-                                            PlayerProfileRoute(
-                                              playerId: userId,
-                                              playerName: authorName,
-                                            ),
-                                          );
-                                        },
-                                        child: Text(
-                                          authorName,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        commentText,
-                                        style: TextStyle(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.9),
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _formatRelativeMoment(vc.createdAt),
-                                        style: TextStyle(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.5),
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                          ],
+                        ),
                       );
                     },
                   );

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:flap_app/core/media/flap_cached_image.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flap_app/features/videos/domain/entities/library_video.dart';
@@ -657,6 +659,9 @@ class _VideosScreenState extends State<VideosScreen> {
   Widget _buildCommentItem(Map<String, dynamic> commentData) {
     final authorName = commentData['authorName'] ?? 'Користувач';
     final text = commentData['text'] ?? '';
+    final avatarUrl = (commentData['authorAvatarUrl'] ?? '').toString().trim();
+    final hasAvatar = avatarUrl.startsWith('http://') ||
+        avatarUrl.startsWith('https://');
     final createdRaw = commentData['createdAt'];
     DateTime? createdAt;
     if (createdRaw is DateTime) {
@@ -681,10 +686,17 @@ class _VideosScreenState extends State<VideosScreen> {
               CircleAvatar(
                 radius: 16,
                 backgroundColor: const Color(0xFF4caf50),
-                child: Text(
-                  authorName.isNotEmpty ? authorName[0].toUpperCase() : 'U',
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                ),
+                backgroundImage:
+                    hasAvatar ? flapCachedImageProvider(avatarUrl) : null,
+                child: !hasAvatar
+                    ? Text(
+                        authorName.isNotEmpty
+                            ? authorName[0].toUpperCase()
+                            : 'U',
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 12),
+                      )
+                    : null,
               ),
               const SizedBox(width: 8),
               Expanded(
