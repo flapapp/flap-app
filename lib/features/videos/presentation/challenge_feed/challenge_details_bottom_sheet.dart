@@ -1,8 +1,11 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/core/router/app_router.dart';
 import 'package:flap_app/core/theme/flap_theme.dart';
+import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/features/videos/presentation/challenge_feed/challenge_join_flow.dart';
 import 'package:flap_app/models/challenge.dart';
 import 'package:flap_app/utils/i18n.dart';
@@ -261,7 +264,28 @@ Future<void> showChallengeDetailsBottomSheet(
                       OutlinedButton.icon(
                         onPressed: isCompleted
                             ? null
-                            : () {
+                            : () async {
+                                final currentUser = AppAuthContext.currentUser;
+                                if (currentUser == null) return;
+                                final existingSubmission =
+                                    await ctx.read<ChallengeRepository>().getSubmission(
+                                          challengeId: challenge.id,
+                                          submissionUserId: currentUser.id,
+                                        );
+                                if (!ctx.mounted) return;
+                                if (existingSubmission != null) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        I18n.inline(
+                                          'Ви вже подали відео для цього челенджу.',
+                                          'You already joined this challenge and submitted a video.',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
                                 Navigator.pop(context);
                                 showChallengeJoinDialog(ctx, challenge);
                               },

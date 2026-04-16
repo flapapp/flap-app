@@ -67,7 +67,11 @@ class SupabaseVideosRemoteDataSource implements VideosRemoteDataSource {
   @override
   Future<LibraryVideo?> fetchVideo(String videoId) async {
     if (videoId.isEmpty) return null;
-    final row = await _c.from('videos').select().eq('id', videoId).maybeSingle();
+    final row = await _c
+        .from('videos')
+        .select('*, user_profiles(display_name, username)')
+        .eq('id', videoId)
+        .maybeSingle();
     if (row == null) return null;
     return LibraryVideoModel.fromRow(Map<String, dynamic>.from(row));
   }

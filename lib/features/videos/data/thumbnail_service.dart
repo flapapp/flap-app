@@ -160,14 +160,12 @@ class ThumbnailService {
         fileName: fileName,
       );
 
-      await _client.rpc<void>(
-        'challenge_submission_set_thumbnail',
-        params: <String, dynamic>{
-          'p_challenge_id': challengeId,
-          'p_user_id': userId,
-          'p_thumbnail_url': uploaded.publicUrl,
-        },
-      );
+      await _client.from('challenge_submissions').update(<String, dynamic>{
+        'thumbnail_url': uploaded.publicUrl,
+        'thumbnail_storage_path': uploaded.path,
+        'thumbnail_generated': true,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('challenge_id', challengeId).eq('user_id', userId);
 
       print('✅ Submission thumbnail generated: ${uploaded.publicUrl}');
       return uploaded.publicUrl;

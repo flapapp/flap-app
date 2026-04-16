@@ -18,7 +18,7 @@ class LibraryVideoModel {
     return LibraryVideo(
       id: id,
       userId: userId,
-      authorName: (row['author_name'] ?? '').toString(),
+      authorName: _authorFromRow(row),
       title: (row['title'] ?? '').toString(),
       description: (row['description'] ?? '').toString(),
       category: (row['category'] ?? '').toString(),
@@ -40,5 +40,20 @@ class LibraryVideoModel {
       isChallengeVideo: isChallenge,
       createdAt: _parseTs(row['created_at']),
     );
+  }
+
+  /// Prefer embedded `user_profiles` from PostgREST; no `videos.author_name` column.
+  static String _authorFromRow(Map<String, dynamic> row) {
+    dynamic up = row['user_profiles'];
+    if (up is List && up.isNotEmpty) {
+      up = up.first;
+    }
+    if (up is Map) {
+      final v = up['display_name'] ?? up['username'];
+      if (v != null && v.toString().trim().isNotEmpty) {
+        return v.toString();
+      }
+    }
+    return '';
   }
 }

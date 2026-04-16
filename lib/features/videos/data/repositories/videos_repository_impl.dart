@@ -117,9 +117,9 @@ class VideosRepositoryImpl implements VideosRepository {
     String? challengeTitle,
     required bool isChallengeVideo,
   }) async {
+    // authorName is not written to DB; display name is resolved via user_id → user_profiles.
     final row = <String, dynamic>{
       'user_id': userId,
-      'author_name': authorName,
       'title': title,
       'description': description,
       'category': category,

@@ -45,23 +45,42 @@ class PlayerAvatarButton extends StatelessWidget {
                 ? userId[0]
                 : 'U')
         .toUpperCase();
+    final normalizedAvatarUrl = avatarUrl?.trim() ?? '';
+    final hasAvatar =
+        normalizedAvatarUrl.isNotEmpty &&
+        (normalizedAvatarUrl.startsWith('http://') ||
+            normalizedAvatarUrl.startsWith('https://'));
 
     Widget avatar = CircleAvatar(
       radius: size / 2,
       backgroundColor: backgroundColor,
-      backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
-          ? flapCachedImageProvider(avatarUrl!)
-          : null,
-      child: (avatarUrl == null || avatarUrl!.isEmpty)
-          ? Text(
-              fallback,
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: size * 0.45,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Text(
+            fallback,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: size * 0.45,
+            ),
+          ),
+          if (hasAvatar)
+            ClipOval(
+              child: SizedBox(
+                width: size,
+                height: size,
+                child: FlapCachedImage(
+                  imageUrl: normalizedAvatarUrl,
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                ),
               ),
-            )
-          : null,
+            ),
+        ],
+      ),
     );
 
     if (borderColor != null && borderWidth > 0) {

@@ -165,11 +165,6 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
         .where((id) => id.isNotEmpty)
         .toSet()
         .toList();
-    final videoIds = rows
-        .map((e) => e['video_storage_path']?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toSet()
-        .toList();
     final submissionIds = rows
         .map((e) => e['id']?.toString() ?? '')
         .where((id) => id.isNotEmpty)
@@ -188,21 +183,6 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
         final name = (profile['display_name'] ?? profile['username'] ?? '').toString();
         if (name.isNotEmpty) {
           displayNameByUserId[userId] = name;
-        }
-      }
-    }
-
-    final videoById = <String, Map<String, dynamic>>{};
-    if (videoIds.isNotEmpty) {
-      final videoRows = await _client
-          .from('videos')
-          .select('id, title, thumbnail_url')
-          .inFilter('id', videoIds);
-      for (final rawVideo in (videoRows as List)) {
-        final video = Map<String, dynamic>.from(rawVideo as Map);
-        final id = video['id']?.toString() ?? '';
-        if (id.isNotEmpty) {
-          videoById[id] = video;
         }
       }
     }
@@ -234,14 +214,12 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
 
     return rows.map((row) {
       final userId = row['user_id']?.toString() ?? '';
-      final videoId = row['video_storage_path']?.toString() ?? '';
-      final video = videoById[videoId];
       final id = row['id']?.toString() ?? '';
       return <String, dynamic>{
         ...row,
-        'title': (video?['title'] ?? row['title'] ?? '').toString(),
+        'title': (row['title'] ?? '').toString(),
         'author_name': (displayNameByUserId[userId] ?? row['author_name'] ?? '').toString(),
-        'thumbnail_url': (row['thumbnail_url'] ?? video?['thumbnail_url'] ?? '').toString(),
+        'thumbnail_url': (row['thumbnail_url'] ?? '').toString(),
         'is_creator_video': creatorId.isNotEmpty && creatorId == userId,
         ...?voteStats[id],
       };
@@ -359,7 +337,14 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
 
   @override
   Future<void> rpcJoinChallenge(String challengeId) async {
-    return;
+    try {
+      await _client.rpc<void>(
+        'join_challenge',
+        params: <String, dynamic>{'_challenge_id': challengeId},
+      );
+    } on PostgrestException catch (e) {
+      throw _mapPostgrest(e);
+    }
   }
 
   @override
@@ -416,6 +401,9 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
     String? thumbnailUrl,
   }) async {
     try {
+      if (!isCreatorVideo) {
+        await rpcJoinChallenge(challengeId);
+      }
       await _client.from('challenge_submissions').upsert(
         <String, dynamic>{
           'challenge_id': challengeId,
@@ -649,6 +637,18 @@ class SupabaseChallengeRemoteDataSource implements ChallengeRemoteDataSource {
     }
     if (msg.contains('already_joined')) {
       return const ChallengeFailure(code: 'already-joined', message: 'Already joined.');
+    }
+    if (msg.contains('challenge entry fee not paid')) {
+      return const ChallengeFailure(
+        code: 'entry-not-paid',
+        message: 'Entry fee not paid.',
+      );
+    }
+    if (msg.contains('challenge owner cannot join')) {
+      return const ChallengeFailure(
+        code: 'owner-cannot-join',
+        message: 'Organizers use the creator flow.',
+      );
     }
     if (msg.contains('cannot_vote_self')) {
       return const ChallengeFailure(code: 'cannot-vote-self', message: 'Cannot vote for yourself.');

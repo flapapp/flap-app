@@ -521,11 +521,13 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
               width: 5,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -538,10 +540,10 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                 ),
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-                child: Column(
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(19, 14, 14, 14),
+            child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
@@ -750,10 +752,8 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     ),
                   ],
                 ),
-              ),
-            ),
-          ],
-        ),
+      ),
+        ],
       ),
     );
   }
@@ -1539,7 +1539,29 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  void _uploadVideo() {
+  Future<void> _uploadVideo() async {
+    final currentUser = AppAuthContext.currentUser;
+    if (currentUser == null) return;
+
+    final existingSubmission = await context.read<ChallengeRepository>().getSubmission(
+          challengeId: widget.challenge.id,
+          submissionUserId: currentUser.id,
+        );
+    if (!mounted) return;
+    if (existingSubmission != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline(
+              'Ви вже подали відео для цього челенджу.',
+              'You already joined this challenge and submitted a video.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(

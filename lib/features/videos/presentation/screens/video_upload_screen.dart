@@ -2,49 +2,101 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+
 import 'package:flap_app/constants/video_categories.dart';
+import 'package:flap_app/core/app_auth_context.dart';
 import 'package:flap_app/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:flap_app/features/videos/data/thumbnail_service.dart';
 import 'package:flap_app/features/videos/domain/repositories/videos_repository.dart';
+import 'package:flap_app/features/videos/presentation/screens/challenge_video_upload/challenge_video_upload_view.dart';
+import 'package:flap_app/features/videos/presentation/screens/challenge_video_upload/cvu_tokens.dart';
+import 'package:flap_app/models/challenge.dart';
 import 'package:flap_app/utils/i18n.dart';
-import 'package:flap_app/core/app_auth_context.dart';
 
 @RoutePage()
 class VideoUploadScreen extends StatefulWidget {
+  const VideoUploadScreen({
+    super.key,
+    this.challengeId,
+    this.challengeTitle,
+  });
+
   final String? challengeId;
   final String? challengeTitle;
-  
-  const VideoUploadScreen({
-    Key? key, 
-    this.challengeId, 
-    this.challengeTitle,
-  }) : super(key: key);
 
   @override
-  _VideoUploadScreenState createState() => _VideoUploadScreenState();
+  State<VideoUploadScreen> createState() => _VideoUploadScreenState();
 }
 
 class _VideoUploadScreenState extends State<VideoUploadScreen> {
   static const int _maxVideoBytes = 25 * 1024 * 1024;
   static const Duration _maxVideoDuration = Duration(seconds: 10);
+
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  
+
   String? _selectedCategoryId;
   String? _selectedDifficulty;
   XFile? _pickedVideo;
   bool _isUploading = false;
   double _uploadProgress = 0.0;
 
+  Challenge? _challengeMeta;
+  bool _challengeMetaLoading = false;
+  String? _challengeMetaError;
+
+  CvuFlowPhase _cvuPhase = CvuFlowPhase.draft;
+  String? _cvuInlineError;
+
   List<String> get _difficulties => [
-    I18n.inline('Легкий', 'Easy'),
-    I18n.inline('Середній', 'Medium'),
-    I18n.inline('Складний', 'Hard'),
-    I18n.inline('Експерт', 'Expert'),
-  ];
+        I18n.inline('Легкий', 'Easy'),
+        I18n.inline('Середній', 'Medium'),
+        I18n.inline('Складний', 'Hard'),
+        I18n.inline('Експерт', 'Expert'),
+      ];
+
+  bool get _isChallengeMode => widget.challengeId != null && widget.challengeId!.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isChallengeMode) {
+      _challengeMetaLoading = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadChallengeMeta());
+    }
+  }
+
+  Future<void> _loadChallengeMeta() async {
+    final id = widget.challengeId;
+    if (id == null || id.isEmpty) return;
+    setState(() {
+      _challengeMetaLoading = true;
+      _challengeMetaError = null;
+    });
+    try {
+      final c = await context.read<ChallengeRepository>().getChallenge(id);
+      if (!mounted) return;
+      setState(() {
+        _challengeMeta = c;
+        _challengeMetaLoading = false;
+        if (c == null) {
+          _challengeMetaError = I18n.inline('Челендж не знайдено', 'Challenge not found');
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _challengeMetaLoading = false;
+        _challengeMetaError = e.toString();
+      });
+    }
+  }
 
   Future<void> _pickVideo({bool fromCamera = false}) async {
+    if (_isChallengeMode && (_cvuPhase == CvuFlowPhase.uploading || _cvuPhase == CvuFlowPhase.success)) {
+      return;
+    }
     final picker = ImagePicker();
     final XFile? picked = await picker.pickVideo(
       source: fromCamera ? ImageSource.camera : ImageSource.gallery,
@@ -52,7 +104,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     );
 
     if (picked == null) {
-      if (mounted) {
+      if (mounted && !_isChallengeMode) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(I18n.inline('Вибір відео скасовано', 'Video selection cancelled'))),
         );
@@ -63,26 +115,30 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     final fileSize = await picked.length();
     if (fileSize > _maxVideoBytes) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.redAccent,
-            content: Text(
-              I18n.inline(
-                'Файл занадто великий. Максимум 25 МБ.',
-                'File is too large. Maximum size is 25 MB.',
-              ),
-            ),
-          ),
+        final msg = I18n.inline(
+          'Файл занадто великий. Максимум 25 МБ.',
+          'File is too large. Maximum size is 25 MB.',
         );
+        if (_isChallengeMode) {
+          setState(() => _cvuInlineError = msg);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(backgroundColor: Colors.redAccent, content: Text(msg)),
+          );
+        }
       }
       return;
     }
 
     setState(() {
       _pickedVideo = picked;
+      _cvuInlineError = null;
+      if (_isChallengeMode) {
+        _cvuPhase = CvuFlowPhase.draft;
+      }
     });
 
-    if (mounted) {
+    if (mounted && !_isChallengeMode) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(I18n.inline('Відео додано!', 'Video added!'))),
       );
@@ -90,20 +146,126 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   }
 
   @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isChallengeMode) {
+      if (_challengeMetaLoading) {
+        return Scaffold(
+          backgroundColor: CvuTokens.bg0,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: CircularProgressIndicator(
+                    color: CvuTokens.accent,
+                    strokeWidth: 3,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  I18n.inline('Завантаження челенджу…', 'Loading challenge…'),
+                  style: const TextStyle(color: CvuTokens.muted, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      if (_challengeMetaError != null && _challengeMeta == null) {
+        return Scaffold(
+          backgroundColor: CvuTokens.bg0,
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  IconButton(
+                    alignment: Alignment.centerLeft,
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: CvuTokens.text),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.search_off_rounded, size: 48, color: CvuTokens.muted),
+                  const SizedBox(height: 16),
+                  Text(
+                    I18n.inline('Не вдалося відкрити челендж', 'Couldn’t open challenge'),
+                    style: const TextStyle(
+                      color: CvuTokens.text,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _challengeMetaError!,
+                    style: const TextStyle(color: CvuTokens.muted, height: 1.4),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: _loadChallengeMeta,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: CvuTokens.accent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(I18n.inline('Повторити', 'Retry')),
+                  ),
+                  const Spacer(),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+
+      return ChallengeVideoUploadView(
+        challenge: _challengeMeta,
+        flowPhase: _cvuPhase,
+        uploadProgress: _uploadProgress,
+        pickedFileLabel: _pickedVideo?.name,
+        hasVideo: _pickedVideo != null,
+        clipTitleController: _titleController,
+        errorMessage: _cvuInlineError,
+        onBack: () => Navigator.pop(context),
+        onPickGallery: _isUploading ? () {} : () => _pickVideo(fromCamera: false),
+        onPickCamera: _isUploading ? () {} : () => _pickVideo(fromCamera: true),
+        onSubmit: _isUploading ? () {} : _uploadVideo,
+        onRetryAfterFailure: () {
+          setState(() {
+            _cvuPhase = CvuFlowPhase.draft;
+            _cvuInlineError = null;
+          });
+        },
+        onClearError: () => setState(() => _cvuInlineError = null),
+      );
+    }
+
+    return _buildGenericUploadScaffold(context);
+  }
+
+  Widget _buildGenericUploadScaffold(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1e7d32),
+      backgroundColor: CvuTokens.bg0,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        foregroundColor: CvuTokens.text,
         title: Text(
-          widget.challengeId != null 
-            ? I18n.inline('Відео для челенджу: ${widget.challengeTitle}', 'Video for challenge: ${widget.challengeTitle}')
-            : I18n.t('upload_video'),
-          style: const TextStyle(color: Colors.white),
+          I18n.t('upload_video'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -115,57 +277,40 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Заголовок
                 Text(
-                  widget.challengeId != null 
-                    ? I18n.inline('Подай відео для челенджу!', 'Submit video for challenge!')
-                    : I18n.t('show_skills'),
+                  I18n.t('show_skills'),
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: CvuTokens.text,
                   ),
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  widget.challengeId != null
-                    ? I18n.inline('Завантаж відео та брати участь у челенджі', 'Upload video and participate in challenge')
-                    : I18n.t('upload_get_ratings'),
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white.withOpacity(0.8),
-                  ),
+                  I18n.t('upload_get_ratings'),
+                  style: const TextStyle(fontSize: 16, color: CvuTokens.muted),
                 ),
                 const SizedBox(height: 30),
-
-                // Вибір відео
                 GestureDetector(
                   onTap: _isUploading ? null : () => _pickVideo(fromCamera: false),
                   child: Container(
                     width: double.infinity,
                     height: 200,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: CvuTokens.surface,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
-                        width: 2,
-                      ),
+                      border: Border.all(color: CvuTokens.stroke),
                     ),
                     child: _pickedVideo != null
                         ? Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(
-                                Icons.videocam,
-                                color: Colors.white,
-                                size: 50,
-                              ),
+                              const Icon(Icons.videocam, color: CvuTokens.accent, size: 50),
                               const SizedBox(height: 10),
                               Text(
                                 I18n.inline('Відео вибрано!', 'Video selected!'),
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: CvuTokens.text,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -173,26 +318,19 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                               const SizedBox(height: 5),
                               Text(
                                 I18n.inline('Натисніть ще раз, щоб змінити', 'Tap again to change'),
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.7),
-                                  fontSize: 14,
-                                ),
+                                style: TextStyle(color: CvuTokens.muted.withValues(alpha: 0.85), fontSize: 14),
                               ),
                             ],
                           )
                         : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(
-                                Icons.add_circle_outline,
-                                color: Colors.white,
-                                size: 50,
-                              ),
+                              const Icon(Icons.add_circle_outline, color: CvuTokens.accent, size: 50),
                               const SizedBox(height: 15),
                               Text(
                                 I18n.inline('Натисніть, щоб вибрати відео', 'Tap to select video'),
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: CvuTokens.text,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -203,17 +341,13 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                                   'MP4, до 10 секунд і 25 МБ',
                                   'MP4, up to 10 seconds and 25 MB',
                                 ),
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.7),
-                                  fontSize: 14,
-                                ),
+                                style: TextStyle(color: CvuTokens.muted.withValues(alpha: 0.85), fontSize: 14),
                               ),
                             ],
                           ),
                   ),
                 ),
                 const SizedBox(height: 30),
-                // Швидкий вибір джерела: Галерея / Камера
                 Row(
                   children: [
                     Expanded(
@@ -222,8 +356,8 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                         icon: const Icon(Icons.video_library),
                         label: Text(I18n.inline('Галерея', 'Gallery')),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white24,
-                          foregroundColor: Colors.white,
+                          backgroundColor: CvuTokens.surfaceLift,
+                          foregroundColor: CvuTokens.text,
                         ),
                       ),
                     ),
@@ -234,7 +368,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                         icon: const Icon(Icons.videocam),
                         label: Text(I18n.inline('Камера', 'Camera')),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4caf50),
+                          backgroundColor: CvuTokens.accent,
                           foregroundColor: Colors.white,
                         ),
                       ),
@@ -242,21 +376,18 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                // Поля тільки для звичайних відео (не для челенджів)
-                if (widget.challengeId == null) ...[
-                  // Назва відео
-                  Container(
+                Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: CvuTokens.surface,
                     borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: CvuTokens.stroke),
                   ),
                   child: TextFormField(
                     controller: _titleController,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: CvuTokens.text),
                     decoration: InputDecoration(
                       labelText: I18n.inline('Назва відео', 'Video title'),
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      labelStyle: const TextStyle(color: CvuTokens.muted),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
@@ -265,27 +396,29 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                         return I18n.inline('Введіть назву відео', 'Enter video title');
                       }
                       if (value.length < 3) {
-                        return I18n.inline('Назва має бути не менше 3 символів', 'Title must be at least 3 characters');
+                        return I18n.inline(
+                          'Назва має бути не менше 3 символів',
+                          'Title must be at least 3 characters',
+                        );
                       }
                       return null;
                     },
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Опис
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: CvuTokens.surface,
                     borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: CvuTokens.stroke),
                   ),
                   child: TextFormField(
                     controller: _descriptionController,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: CvuTokens.text),
                     maxLines: 3,
                     decoration: InputDecoration(
                       labelText: I18n.inline('Опис', 'Description'),
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      labelStyle: const TextStyle(color: CvuTokens.muted),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
@@ -298,102 +431,71 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Категорія
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: CvuTokens.surface,
                     borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: CvuTokens.stroke),
                   ),
                   child: DropdownButtonFormField<String>(
                     value: _selectedCategoryId ?? '',
-                    style: const TextStyle(color: Colors.white),
-                    dropdownColor: const Color(0xFF1e7d32),
+                    style: const TextStyle(color: CvuTokens.text),
+                    dropdownColor: CvuTokens.surfaceLift,
                     decoration: InputDecoration(
                       labelText: I18n.inline('Категорія', 'Category'),
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      labelStyle: const TextStyle(color: CvuTokens.muted),
                       border: InputBorder.none,
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
                     ),
                     items: [
                       DropdownMenuItem<String>(
                         value: '',
                         child: Text(
                           I18n.inline('Оберіть категорію', 'Select a category'),
-                          style: const TextStyle(color: Colors.white70),
+                          style: TextStyle(color: CvuTokens.muted.withValues(alpha: 0.8)),
                         ),
                       ),
                       ...kVideoCategories.map(
                         (category) => DropdownMenuItem<String>(
                           value: category.id,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                category.label(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              if (category.description().isNotEmpty) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  category.description(),
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                          child: Text(category.label(), style: const TextStyle(color: CvuTokens.text)),
                         ),
                       ),
                     ],
                     onChanged: (String? newValue) {
                       setState(() {
-                        _selectedCategoryId =
-                            (newValue == null || newValue.isEmpty)
-                                ? null
-                                : newValue;
+                        _selectedCategoryId = (newValue == null || newValue.isEmpty) ? null : newValue;
                       });
                     },
                     validator: (value) {
                       if ((_selectedCategoryId ?? '').isEmpty) {
-                        return I18n.inline(
-                            'Виберіть категорію', 'Select category');
+                        return I18n.inline('Виберіть категорію', 'Select category');
                       }
                       return null;
                     },
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Складність
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: CvuTokens.surface,
                     borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: CvuTokens.stroke),
                   ),
                   child: DropdownButtonFormField<String>(
                     value: _selectedDifficulty,
-                    style: const TextStyle(color: Colors.white),
-                    dropdownColor: const Color(0xFF1e7d32),
+                    style: const TextStyle(color: CvuTokens.text),
+                    dropdownColor: CvuTokens.surfaceLift,
                     decoration: InputDecoration(
                       labelText: I18n.inline('Складність', 'Difficulty'),
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      labelStyle: const TextStyle(color: CvuTokens.muted),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
                     ),
                     items: _difficulties.map((String difficulty) {
                       return DropdownMenuItem<String>(
                         value: difficulty,
-                        child: Text(
-                          difficulty,
-                          style: const TextStyle(color: Colors.white),
-                        ),
+                        child: Text(difficulty, style: const TextStyle(color: CvuTokens.text)),
                       );
                     }).toList(),
                     onChanged: (String? newValue) {
@@ -410,63 +512,37 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                   ),
                 ),
                 const SizedBox(height: 30),
-                ], // Закриваємо блок полів для звичайних відео
-
-                // Прогрес завантаження
                 if (_isUploading) ...[
-                  Column(
-                    children: [
-                      LinearProgressIndicator(
-                        value: _uploadProgress,
-                        backgroundColor: Colors.white.withOpacity(0.3),
-                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        I18n.inline(
-                          'Завантаження: ${(_uploadProgress * 100).toInt()}%',
-                          'Uploading: ${(_uploadProgress * 100).toInt()}%',
-                        ),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
+                  LinearProgressIndicator(
+                    value: _uploadProgress,
+                    backgroundColor: CvuTokens.stroke,
+                    color: CvuTokens.accent,
                   ),
-                ],
-
-                // Кнопка завантаження
-                Container(
-                  width: double.infinity,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+                  const SizedBox(height: 10),
+                  Text(
+                    I18n.inline(
+                      'Завантаження: ${(_uploadProgress * 100).toInt()}%',
+                      'Uploading: ${(_uploadProgress * 100).toInt()}%',
                     ),
-                    borderRadius: BorderRadius.circular(25),
+                    style: const TextStyle(color: CvuTokens.text, fontSize: 16),
                   ),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
+                  const SizedBox(height: 20),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: CvuTokens.accent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                     ),
                     onPressed: _isUploading || _pickedVideo == null ? null : _uploadVideo,
                     child: Text(
-                      _isUploading 
-                        ? I18n.inline('ЗАВАНТАЖЕННЯ...', 'UPLOADING...') 
-                        : widget.challengeId != null 
-                          ? I18n.inline('ПОДАТИ ВІДЕО ДЛЯ ЧЕЛЕНДЖУ', 'SUBMIT VIDEO FOR CHALLENGE')
+                      _isUploading
+                          ? I18n.inline('ЗАВАНТАЖЕННЯ...', 'UPLOADING...')
                           : I18n.inline('ЗАВАНТАЖИТИ ВІДЕО', 'UPLOAD VIDEO'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -479,40 +555,65 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   }
 
   Future<void> _uploadVideo() async {
-    if (!_formKey.currentState!.validate() || _pickedVideo == null) {
+    if (_pickedVideo == null) return;
+
+    if (!_isChallengeMode) {
+      if (!(_formKey.currentState?.validate() ?? false)) return;
+    }
+
+    final challengeRepo = context.read<ChallengeRepository>();
+    final videosRepo = context.read<VideosRepository>();
+    final user = AppAuthContext.currentUser;
+    if (user == null) {
+      if (_isChallengeMode) {
+        setState(() {
+          _cvuPhase = CvuFlowPhase.failed;
+          _cvuInlineError =
+              I18n.inline('Користувач не авторизований', 'User not authorized');
+        });
+      }
       return;
+    }
+
+    if (_isChallengeMode) {
+      final existingSubmission = await challengeRepo.getSubmission(
+            challengeId: widget.challengeId!,
+            submissionUserId: user.id,
+          );
+      if (existingSubmission != null) {
+        if (!mounted) return;
+        setState(() {
+          _cvuPhase = CvuFlowPhase.failed;
+          _cvuInlineError = I18n.inline(
+            'Ви вже подали відео для цього челенджу.',
+            'You already joined this challenge and submitted a video.',
+          );
+        });
+        return;
+      }
     }
 
     setState(() {
       _isUploading = true;
       _uploadProgress = 0.0;
+      if (_isChallengeMode) {
+        _cvuPhase = CvuFlowPhase.uploading;
+        _cvuInlineError = null;
+      }
     });
 
     try {
-      final user = AppAuthContext.currentUser;
-      if (user == null) {
-        throw Exception(I18n.inline('Користувач не авторизований', 'User not authorized'));
-      }
-
       final fileSize = await _pickedVideo!.length();
       if (fileSize > _maxVideoBytes) {
-        throw Exception(
-          I18n.inline(
-            'Розмір відео перевищує 25 МБ.',
-            'Video size exceeds 25 MB.',
-          ),
-        );
+        throw Exception(I18n.inline('Розмір відео перевищує 25 МБ.', 'Video size exceeds 25 MB.'));
       }
 
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'video_${user.id}_$timestamp.mp4';
 
-      print('🎬 Starting video upload: $fileName');
-
       final bytes = await _pickedVideo!.readAsBytes();
-      final videosRepo = context.read<VideosRepository>();
-      final total = bytes.length;
-      if (total == 0) {
+      if (!mounted) return;
+      if (bytes.isEmpty) {
         throw Exception(I18n.inline('Порожній файл відео', 'Empty video file'));
       }
 
@@ -522,145 +623,162 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         userId: user.id,
         bytes: bytes,
         fileName: fileName,
-        isChallengeVideo: widget.challengeId != null,
+        isChallengeVideo: _isChallengeMode,
       );
 
       if (!mounted) return;
       setState(() => _uploadProgress = 0.92);
 
       final videoUrl = uploaded.publicUrl;
-      print('✅ Video uploaded successfully: $videoUrl');
 
       final author =
           user.displayName ?? user.email?.split('@').first ?? I18n.inline('Користувач', 'User');
 
-      final videoId = await videosRepo.createVideoRecord(
-        userId: user.id,
-        authorName: author,
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
-        category: normalizeVideoCategoryValue(_selectedCategoryId ?? 'other'),
-        difficulty: _selectedDifficulty,
-        videoUrl: videoUrl,
-        videoStoragePath: uploaded.path,
-        challengeId: widget.challengeId,
-        challengeTitle: widget.challengeTitle,
-        isChallengeVideo: widget.challengeId != null,
-      );
-
-      print('✅ Video document created: $videoId');
+      final String videoTitle;
+      final String videoDescription;
+      if (_isChallengeMode) {
+        final raw = _titleController.text.trim();
+        videoTitle = raw.isNotEmpty
+            ? raw
+            : (widget.challengeTitle?.trim().isNotEmpty == true
+                ? widget.challengeTitle!.trim()
+                : I18n.inline('Відео для челенджу', 'Challenge clip'));
+        videoDescription = _descriptionController.text.trim();
+      } else {
+        videoTitle = _titleController.text.trim();
+        videoDescription = _descriptionController.text.trim();
+      }
 
       if (!mounted) return;
       setState(() => _uploadProgress = 1.0);
 
-      if (widget.challengeId != null) {
-        await _submitVideoToChallenge(videoId, videoUrl);
+      if (_isChallengeMode) {
+        if (!mounted) return;
+        await _submitVideoToChallenge(uploaded.path, videoUrl, videoTitle);
+      } else {
+        await videosRepo.createVideoRecord(
+          userId: user.id,
+          authorName: author,
+          title: videoTitle,
+          description: videoDescription,
+          category: normalizeVideoCategoryValue(_selectedCategoryId ?? 'other'),
+          difficulty: _selectedDifficulty,
+          videoUrl: videoUrl,
+          videoStoragePath: uploaded.path,
+          challengeId: widget.challengeId,
+          challengeTitle: widget.challengeTitle,
+          isChallengeVideo: false,
+        );
       }
 
-      _generateThumbnailInBackground(videosRepo, videoId, videoUrl, user.id);
+      if (!mounted) return;
+      _generateThumbnailInBackground(
+        videosRepo,
+        videoStoragePath: uploaded.path,
+        videoUrl: videoUrl,
+        userId: user.id,
+      );
 
-      // Показуємо успішне повідомлення
-      if (mounted) {
+      if (!mounted) return;
+
+      if (_isChallengeMode) {
+        setState(() {
+          _cvuPhase = CvuFlowPhase.success;
+          _isUploading = false;
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
+        if (mounted) Navigator.pop(context);
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('✅ Відео успішно завантажено!', '✅ Video uploaded successfully!')),
-            backgroundColor: const Color(0xFF4caf50),
+            content: Text(I18n.inline('Відео успішно завантажено!', 'Video uploaded successfully!')),
+            backgroundColor: CvuTokens.accent,
           ),
         );
-
-        // Повертаємося на попередній екран
         Navigator.pop(context);
       }
-
     } catch (e) {
-      print('❌ Error uploading video: $e');
-      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(I18n.inline('❌ Помилка завантаження: ${e.toString()}', '❌ Upload error: ${e.toString()}')),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (_isChallengeMode) {
+          setState(() {
+            _cvuPhase = CvuFlowPhase.failed;
+            _cvuInlineError = e.toString();
+            _isUploading = false;
+            _uploadProgress = 0.0;
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                I18n.inline('Помилка завантаження: $e', 'Upload error: $e'),
+              ),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isUploading = false;
-          _uploadProgress = 0.0;
-        });
+        if (_isChallengeMode && _cvuPhase == CvuFlowPhase.success) {
+          // Keep success overlay + progress until delayed pop.
+        } else {
+          setState(() {
+            _isUploading = false;
+            _uploadProgress = 0.0;
+            if (_isChallengeMode && _cvuPhase == CvuFlowPhase.uploading) {
+              _cvuPhase = CvuFlowPhase.draft;
+            }
+          });
+        }
       }
     }
   }
 
-  Future<void> _submitVideoToChallenge(String videoId, String videoUrl) async {
-    try {
-      final user = AppAuthContext.currentUser!;
-      final author =
-          user.displayName ?? user.email?.split('@')[0] ?? I18n.inline('Користувач', 'User');
-      await context.read<ChallengeRepository>().upsertSubmission(
-            challengeId: widget.challengeId!,
-            userId: user.id,
-            videoId: videoId,
-            videoUrl: videoUrl,
-            title: _titleController.text.trim(),
-            authorName: author,
-            isCreatorVideo: false,
-          );
-
-      print('✅ Video submitted to challenge: ${widget.challengeId}');
-      
-    } catch (e) {
-      print('❌ Error submitting to challenge: $e');
-      throw e;
-    }
+  Future<void> _submitVideoToChallenge(
+    String videoId,
+    String videoUrl,
+    String videoTitle,
+  ) async {
+    final user = AppAuthContext.currentUser!;
+    final author =
+        user.displayName ?? user.email?.split('@').first ?? I18n.inline('Користувач', 'User');
+    await context.read<ChallengeRepository>().upsertSubmission(
+          challengeId: widget.challengeId!,
+          userId: user.id,
+          videoId: videoId,
+          videoUrl: videoUrl,
+          title: videoTitle,
+          authorName: author,
+          isCreatorVideo: false,
+        );
   }
 
   void _generateThumbnailInBackground(
-    VideosRepository videosRepo,
-    String videoId,
-    String videoUrl,
-    String userId,
-  ) {
-    Future.delayed(const Duration(seconds: 2), () async {
+    VideosRepository videosRepo, {
+    required String videoStoragePath,
+    required String videoUrl,
+    required String userId,
+  }) {
+    Future<void>.delayed(const Duration(seconds: 2), () async {
       try {
-        print('🎬 Starting background thumbnail generation for: $videoId');
-
         final thumbnailService = ThumbnailService();
-        final thumbnailUrl = await thumbnailService.generateAndUploadThumbnail(
-          videosRepository: videosRepo,
-          videoUrl: videoUrl,
-          videoId: videoId,
-          userId: userId,
-        );
-
-        if (thumbnailUrl != null) {
-          print('✅ Thumbnail generated successfully: $thumbnailUrl');
-          
-          // Якщо це відео для челенджу, оновлюємо submission з thumbnailUrl
-          if (widget.challengeId != null) {
-            try {
-              // ignore: use_build_context_synchronously
-              final ctx = context;
-              if (ctx.mounted) {
-                await ctx.read<ChallengeRepository>().setSubmissionThumbnail(
-                      challengeId: widget.challengeId!,
-                      userId: userId,
-                      thumbnailUrl: thumbnailUrl,
-                    );
-              }
-              print('✅ Submission thumbnail updated for challenge: ${widget.challengeId}');
-            } catch (e) {
-              print('⚠️ Failed to update submission thumbnail: $e');
-            }
-          }
+        if (widget.challengeId != null) {
+          await thumbnailService.generateSubmissionThumbnail(
+            videosRepository: videosRepo,
+            videoUrl: videoUrl,
+            challengeId: widget.challengeId!,
+            submissionId: '${widget.challengeId}_$userId',
+            userId: userId,
+          );
         } else {
-          print('⚠️ Thumbnail generation failed, but video upload was successful');
+          await thumbnailService.generateAndUploadThumbnail(
+            videosRepository: videosRepo,
+            videoUrl: videoUrl,
+            videoId: videoStoragePath,
+            userId: userId,
+          );
         }
-      } catch (e) {
-        print('❌ Background thumbnail generation error: $e');
-        // Не показуємо помилку користувачу, оскільки відео вже завантажено
-      }
+      } catch (_) {}
     });
   }
 }
