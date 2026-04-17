@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 
 import '../models/challenge.dart';
 import '../models/match.dart';
+import '../core/di/injection.dart';
 import 'guards/auth_guard.dart';
 import 'guards/guest_guard.dart';
 import '../screens/admin_screen.dart';
-import '../screens/auth_bootstrap_screen.dart';
+import '../features/auth/presentation/pages/auth_bootstrap_page.dart';
 import '../screens/badges_store_screen.dart';
 import '../screens/challenge_completion_screen.dart';
 import '../screens/challenge_create_screen.dart';
@@ -15,8 +16,8 @@ import '../screens/challenge_list_screen.dart';
 import '../screens/challenge_video_player_screen.dart';
 import '../screens/create_match_screen.dart';
 import '../screens/friends_screen.dart';
-import '../screens/intro_video_screen.dart';
-import '../screens/login_screen.dart';
+import '../features/auth/presentation/pages/intro_video_page.dart';
+import '../features/auth/presentation/pages/login_page.dart';
 import '../screens/match_details_screen.dart';
 import '../screens/match_management_screen.dart';
 import '../screens/match_rating_screen.dart';
@@ -28,7 +29,7 @@ import '../screens/profile_creation_screen.dart';
 import '../screens/profile_screen_new.dart';
 import '../screens/profile_settings_screen.dart';
 import '../screens/ratings_screen.dart';
-import '../screens/register_screen.dart';
+import '../features/auth/presentation/pages/register_page.dart';
 import '../screens/stats_screen.dart';
 import '../screens/subscription_screen.dart';
 import '../screens/team_create_screen.dart';
@@ -42,9 +43,9 @@ import '../screens/welcome_screen.dart';
 
 part 'app_router.gr.dart';
 
-/// Shared guard instances (routes must not construct new guards on each lookup).
-final AuthGuard appAuthGuard = AuthGuard();
-final GuestGuard appGuestGuard = GuestGuard();
+/// Lazy guards so [sl] is resolved after [configureDependencies] (not at import time).
+AuthGuard get appAuthGuard => AuthGuard(sl());
+GuestGuard get appGuestGuard => GuestGuard(sl());
 
 /// Global router instance for imperative navigation (e.g. push from services).
 final AppRouter appRouter = AppRouter();

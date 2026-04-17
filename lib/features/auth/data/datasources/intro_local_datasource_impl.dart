@@ -1,10 +1,12 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Persists whether the one-time intro ([IntroVideoRoute]) has been completed.
-class IntroSeenStorage {
+import 'intro_local_datasource.dart';
+
+class IntroLocalDataSourceImpl implements IntroLocalDataSource {
   static const _key = 'intro_video_completed_v1';
 
-  static Future<bool> hasCompletedIntro() async {
+  @override
+  Future<bool> getIntroCompleted() async {
     try {
       final p = await SharedPreferences.getInstance();
       return p.getBool(_key) ?? false;
@@ -13,10 +15,11 @@ class IntroSeenStorage {
     }
   }
 
-  static Future<void> markIntroCompleted() async {
+  @override
+  Future<void> setIntroCompleted(bool value) async {
     try {
       final p = await SharedPreferences.getInstance();
-      await p.setBool(_key, true);
+      await p.setBool(_key, value);
     } catch (_) {}
   }
 }

@@ -345,7 +345,7 @@ class LoginRoute extends PageRouteInfo<void> {
   static PageInfo page = PageInfo(
     name,
     builder: (data) {
-      return LoginScreen();
+      return const LoginScreen();
     },
   );
 }
@@ -749,7 +749,7 @@ class RegisterRoute extends PageRouteInfo<void> {
   static PageInfo page = PageInfo(
     name,
     builder: (data) {
-      return RegisterScreen();
+      return const RegisterScreen();
     },
   );
 }

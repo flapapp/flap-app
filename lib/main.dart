@@ -5,9 +5,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'core/di/injection.dart';
+import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'firebase_options.dart';
 import 'router/app_router.dart';
 import 'services/badge_service.dart';
@@ -27,6 +30,7 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await configureDependencies();
   runApp(const MyApp());
   unawaited(_bootstrapAppServices());
 }
@@ -134,24 +138,34 @@ class _MyAppState extends State<MyApp> {
 
     return ValueListenableBuilder<String>(
       valueListenable: I18n.language,
-      builder: (context, lang, _) => MaterialApp.router(
-        debugShowCheckedModeBanner: false,
-        title: 'FLAP',
-        theme: baseTheme.copyWith(
-          textTheme: GoogleFonts.robotoTextTheme(baseTheme.textTheme),
-          appBarTheme: baseTheme.appBarTheme.copyWith(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            iconTheme: const IconThemeData(color: Colors.white),
-            titleTextStyle: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-            foregroundColor: Colors.white,
-          ),
+      builder: (context, lang, _) => BlocProvider<AuthBloc>(
+        create: (_) => AuthBloc(
+          resolveStartup: sl(),
+          signIn: sl(),
+          registerNewUser: sl(),
+          checkIntroCompleted: sl(),
+          markIntroCompleted: sl(),
+          postLoginActions: sl(),
         ),
-        routerConfig: appRouter.config(),
+        child: MaterialApp.router(
+          debugShowCheckedModeBanner: false,
+          title: 'FLAP',
+          theme: baseTheme.copyWith(
+            textTheme: GoogleFonts.robotoTextTheme(baseTheme.textTheme),
+            appBarTheme: baseTheme.appBarTheme.copyWith(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              iconTheme: const IconThemeData(color: Colors.white),
+              titleTextStyle: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+              foregroundColor: Colors.white,
+            ),
+          ),
+          routerConfig: appRouter.config(),
+        ),
       ),
     );
   }
