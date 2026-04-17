@@ -1,14 +1,13 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/badge.dart' as app_badge;
 import '../services/badge_service.dart';
 import '../services/friends_service.dart';
-import 'badges_store_screen.dart';
-import 'friends_screen.dart';
 import 'profile_screen_sparkline.dart';
-import 'subscription_screen.dart';
-import 'video_player_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/i18n.dart';
 
@@ -678,15 +677,12 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                         final videoUrl = (v['videoUrl'] ?? '') as String;
                         if (videoUrl.isEmpty) return;
                         final authorNameArg = (v['authorName'] ?? 'Невідомий') as String;
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => VideoPlayerScreen(
-                              videoUrl: videoUrl,
-                              title: title,
-                              authorName: authorNameArg,
-                              videoId: v['id'] as String,
-                            ),
+                        context.router.push(
+                          VideoPlayerRoute(
+                            videoUrl: videoUrl,
+                            title: title,
+                            authorName: authorNameArg,
+                            videoId: v['id'] as String,
                           ),
                         );
                       },
@@ -794,7 +790,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
             '⚽ Мої матчі',
             'Перейти до моїх матчів',
             Icons.sports_soccer,
-            () => Navigator.pushNamed(context, '/matches', arguments: {'initialTabIndex': 1}),
+            () => context.router.push(MatchesRoute(initialTabIndex: 1)),
           ),
           _buildActionItem(
             '🏆 Мої відео',
@@ -937,48 +933,27 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   }
 
   void _openFriends() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => FriendsScreen()),
-    );
+    context.router.push(const FriendsRoute());
   }
 
   void _openMyVideos() {
-    Navigator.pushNamed(
-      context,
-      '/video-main',
-      arguments: {'myContent': 'videos'},
-    );
+    context.router.push(VideoMainRoute(myContent: 'videos'));
   }
 
   void _openMyChallenges() {
-    Navigator.pushNamed(
-      context,
-      '/video-main',
-      arguments: {'myContent': 'challenges'},
-    );
+    context.router.push(VideoMainRoute(myContent: 'challenges'));
   }
 
   void _openStats() {
-    Navigator.pushNamed(context, '/stats');
+    context.router.push(const StatsRoute());
   }
 
   void _openSubscriptions() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => SubscriptionScreen(),
-      ),
-    );
+    context.router.push(const SubscriptionRoute());
   }
 
   void _openBadgesStore() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => BadgesStoreScreen(),
-      ),
-    ).then((_) async {
+    context.router.push(const BadgesStoreRoute()).then((_) async {
       await _loadUserBadges();
     });
   }
@@ -1010,7 +985,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
           TextButton(
             onPressed: () async {
               await _auth.signOut();
-              Navigator.of(context).pushReplacementNamed('/login');
+              context.router.replace(const LoginRoute());
             },
             child: const Text('Вийти', style: TextStyle(color: Colors.red)),
           ),

@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -23,7 +26,12 @@ import '../widgets/city_autocomplete_field.dart';
 
 
 
+@RoutePage()
 class MatchesScreen extends StatefulWidget {
+  final int? initialTabIndex;
+
+  const MatchesScreen({super.key, this.initialTabIndex});
+
   @override
   _MatchesScreenState createState() => _MatchesScreenState();
 }
@@ -120,6 +128,16 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
 
     // Завантажуємо топ гравців один раз
     _ratingsTopPlayersFuture = _ratingService.getTopPlayers(limit: 300);
+
+    final idx = widget.initialTabIndex;
+    if (idx != null && idx >= 0 && idx < _tabKeys.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (idx < _tabController.length) {
+          _tabController.index = idx;
+        }
+      });
+    }
   }
   @override
   void dispose() {
@@ -140,18 +158,6 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
         _currentUserCity = city;
       });
     } catch (_) {}
-  }
-
-@override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map && args['initialTabIndex'] is int) {
-      final idx = args['initialTabIndex'] as int;
-      if (idx >= 0 && idx < _tabController.length && _tabController.index != idx) {
-        _tabController.index = idx;
-      }
-    }
   }
 
 void _resetFindFilters() {
@@ -442,7 +448,7 @@ void _resetFindFilters() {
           ),
         ),
         title: InkWell(
-          onTap: () => Navigator.pushNamed(context, '/mode'),
+          onTap: () => context.router.push(const ModeSelectionRoute()),
           borderRadius: BorderRadius.circular(10),
           child: Row(
             children: [
@@ -484,7 +490,7 @@ void _resetFindFilters() {
           children: [
             IconButton(
               icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 20),
-              onPressed: () => Navigator.pushNamed(context, '/notifications'),
+              onPressed: () => context.router.push(const NotificationsRoute()),
               padding: EdgeInsets.zero,
               tooltip: I18n.t('notifications'),
             ),
@@ -517,7 +523,7 @@ void _resetFindFilters() {
         }
         return IconButton(
           padding: EdgeInsets.zero,
-          onPressed: () => Navigator.pushNamed(context, '/profile'),
+          onPressed: () => context.router.push(const ProfileRoute()),
           icon: CircleAvatar(
             radius: 14,
             backgroundColor: const Color(0xFF4caf50),
@@ -589,15 +595,15 @@ void _resetFindFilters() {
           ModeDialAction(
             icon: Icons.groups_outlined,
             tooltip: I18n.t('teams'),
-            onTap: () => Navigator.pushNamed(context, '/teams'),
+            onTap: () => context.router.push(const TeamHubRoute()),
           ),
           ModeDialAction(
             icon: Icons.play_circle_outline,
             tooltip: I18n.t('videos'),
-            onTap: () => Navigator.pushNamed(context, '/video-main'),
+            onTap: () => context.router.push(VideoMainRoute()),
           ),
         ],
-        onCreate: () => Navigator.pushNamed(context, '/create-match'),
+        onCreate: () => context.router.push(const CreateMatchRoute()),
         createTooltip: I18n.inline('Створити', 'Create'),
       ),
     );
@@ -2143,7 +2149,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
         const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: () =>
-              Navigator.pushNamed(context, '/match-details', arguments: match),
+              context.router.push(MatchDetailsRoute(match: match)),
           icon: const Icon(Icons.info_outline, size: 16),
           label: Text(I18n.t('details'),
               style:
@@ -2199,7 +2205,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
     );
 
     final detailsBtn = OutlinedButton.icon(
-      onPressed: () => Navigator.pushNamed(context, '/match-details', arguments: match),
+      onPressed: () => context.router.push(MatchDetailsRoute(match: match)),
       icon: const Icon(Icons.info_outline, size: 16),
       label: Text(I18n.t('details'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
       style: OutlinedButton.styleFrom(
@@ -2264,7 +2270,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
           ),
           child: TextButton(
             onPressed: () {
-              Navigator.pushNamed(context, '/match-details', arguments: match);
+              context.router.push(MatchDetailsRoute(match: match));
             },
             child: Text(
               I18n.t('details'),
@@ -2634,7 +2640,7 @@ IconData _getStatusIcon(MatchStatus status) {
             ),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pushNamed(context, '/create-match'),
+            onPressed: () => context.router.push(const CreateMatchRoute()),
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFF4caf50),
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -2789,11 +2795,7 @@ Column(
     !match.isUnplayedByTimeout)
               ElevatedButton(
                 onPressed: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/match_management',
-                    arguments: match,
-                  );
+                  context.router.push(MatchManagementRoute(match: match));
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Color(0xFF4caf50),
@@ -2814,11 +2816,7 @@ Column(
     if (isOrganizer && match.status != MatchStatus.finished) SizedBox(width: 8),
     ElevatedButton(
       onPressed: () {
-        Navigator.pushNamed(
-          context,
-          '/match-details',
-          arguments: match,
-        );
+        context.router.push(MatchDetailsRoute(match: match));
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white.withValues(alpha: 0.1),
@@ -3490,7 +3488,7 @@ Future<void> _onLeaveMatch(Match match) async {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: () => Navigator.pushNamed(context, '/match-details', arguments: match),
+                  onPressed: () => context.router.push(MatchDetailsRoute(match: match)),
                   child: Text(
                     I18n.t('match_details'),
                     style: TextStyle(
@@ -3505,11 +3503,7 @@ Future<void> _onLeaveMatch(Match match) async {
                     match.participants.contains(currentUserId))
                   TextButton(
                     onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/match_rating',
-                        arguments: match,
-                      );
+                      context.router.push(MatchRatingRoute(match: match));
                     },
                     child: Text(
                       I18n.t('rate_players'),
@@ -3579,11 +3573,11 @@ Future<void> _onLeaveMatch(Match match) async {
   }
 
   void _navigateToMatchDetails(Match match) {
-    Navigator.pushNamed(context, '/match-details', arguments: match);
+    context.router.push(MatchDetailsRoute(match: match));
   }
 
   void _navigateToMatchManagement(Match match) {
-    Navigator.pushNamed(context, '/match-management', arguments: match);
+    context.router.push(MatchManagementRoute(match: match));
   }
   // Додати цей метод після рядка 1812 (після _getLevelText)
 
@@ -3628,10 +3622,11 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
   final cityLabel = _localizedCity(city);
 
   return InkWell(
-    onTap: () => Navigator.pushNamed(
-      context,
-      '/player-profile',
-      arguments: {'playerId': p['id'], 'playerName': name},
+    onTap: () => context.router.push(
+      PlayerProfileRoute(
+        playerId: p['id'].toString(),
+        playerName: name,
+      ),
     ),
     child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),

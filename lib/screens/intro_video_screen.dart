@@ -1,8 +1,12 @@
 import 'dart:math';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import '../utils/i18n.dart';
 
+@RoutePage()
 class IntroVideoScreen extends StatefulWidget {
   const IntroVideoScreen({super.key});
 
@@ -31,15 +35,14 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
     super.initState();
     _focusNode = FocusNode();
     _startupImage = _startupImages[Random().nextInt(_startupImages.length)];
-    precacheImage(AssetImage(_startupImage), context).whenComplete(() {
-      if (mounted) {
-        setState(() => _imageReady = true);
-      }
-    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _focusNode.requestFocus();
-      }
+      if (!mounted) return;
+      precacheImage(AssetImage(_startupImage), context).whenComplete(() {
+        if (mounted) {
+          setState(() => _imageReady = true);
+        }
+      });
+      _focusNode.requestFocus();
     });
   }
 
@@ -52,7 +55,7 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
   void _navigateToWelcome() {
     if (_navigated || !mounted) return;
     _navigated = true;
-    Navigator.of(context).pushReplacementNamed('/welcome');
+    context.router.replace(const WelcomeRoute());
   }
 
   @override

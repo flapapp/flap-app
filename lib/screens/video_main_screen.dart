@@ -1,8 +1,10 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'video_player_screen.dart';
 import '../constants/video_categories.dart';
 import '../models/challenge.dart';
 import '../widgets/rating_display.dart';
@@ -15,7 +17,13 @@ import '../widgets/mode_speed_dial.dart';
 import '../widgets/city_autocomplete_field.dart';
 import '../utils/city_catalog.dart';
 
+@RoutePage()
 class VideoMainScreen extends StatefulWidget {
+  /// When set, mirrors legacy `arguments: {'myContent': 'videos'|'challenges'}`.
+  final String? myContent;
+
+  const VideoMainScreen({super.key, this.myContent});
+
   @override
   _VideoMainScreenState createState() => _VideoMainScreenState();
 }
@@ -287,11 +295,16 @@ void dispose() {
     if (_didInitFromRouteArgs) return;
     _didInitFromRouteArgs = true;
 
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map &&
-        (args['myContent'] == 'videos' || args['myContent'] == 'challenges')) {
-      _showOnlyMyVideos = args['myContent'] == 'videos';
-      _showOnlyMyChallenges = args['myContent'] == 'challenges';
+    String? myContent = widget.myContent;
+    if (myContent == null) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map && args['myContent'] is String) {
+        myContent = args['myContent'] as String;
+      }
+    }
+    if (myContent == 'videos' || myContent == 'challenges') {
+      _showOnlyMyVideos = myContent == 'videos';
+      _showOnlyMyChallenges = myContent == 'challenges';
       _selectedTab = _showOnlyMyChallenges ? 'challenges' : 'all';
       _videosStream = _createVideosStream();
     }
@@ -305,7 +318,7 @@ Widget build(BuildContext context) {
       backgroundColor: const Color(0xFF0f0f23).withValues(alpha: 0.95),
       elevation: 0,
       title: InkWell(
-        onTap: () => Navigator.pushNamed(context, '/mode'),
+        onTap: () => context.router.push(const ModeSelectionRoute()),
         borderRadius: BorderRadius.circular(10),
         child: Row(
           children: [
@@ -348,7 +361,7 @@ Widget build(BuildContext context) {
                 IconButton(
                   tooltip: I18n.t('notifications'),
                   icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                  onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                  onPressed: () => context.router.push(const NotificationsRoute()),
                 ),
                 if (unreadCount > 0)
                   Positioned(
@@ -592,12 +605,12 @@ Widget build(BuildContext context) {
         ModeDialAction(
           icon: Icons.sports_soccer,
           tooltip: I18n.t('matches'),
-          onTap: () => Navigator.pushNamed(context, '/matches'),
+          onTap: () => context.router.push(MatchesRoute()),
         ),
         ModeDialAction(
           icon: Icons.groups_outlined,
           tooltip: I18n.t('teams'),
-          onTap: () => Navigator.pushNamed(context, '/teams'),
+          onTap: () => context.router.push(const TeamHubRoute()),
         ),
       ],
       onCreate: _showVideoCreateSheet,
@@ -625,7 +638,7 @@ Widget build(BuildContext context) {
                   style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(ctx);
-                Navigator.pushNamed(context, '/video-upload');
+                context.router.push(VideoUploadRoute());
               },
             ),
             ListTile(
@@ -635,7 +648,7 @@ Widget build(BuildContext context) {
                   style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(ctx);
-                Navigator.pushNamed(context, '/challenge-create');
+                context.router.push(const ChallengeCreateRoute());
               },
             ),
             const SizedBox(height: 8),
@@ -1570,7 +1583,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/video-upload'),
+                  onPressed: () => context.router.push(VideoUploadRoute()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4caf50),
                     shape: RoundedRectangleBorder(
@@ -1859,13 +1872,11 @@ Widget build(BuildContext context) {
                         behavior: HitTestBehavior.opaque,
                         onTap: () {
                           if (authorId != null) {
-                            Navigator.pushNamed(
-                              context,
-                              '/player-profile',
-                              arguments: {
-                                'playerId': authorId,
-                                'playerName': authorDisplayName,
-                              },
+                            context.router.push(
+                              PlayerProfileRoute(
+                                playerId: authorId!,
+                                playerName: authorDisplayName,
+                              ),
                             );
                           }
                         },
@@ -2047,16 +2058,13 @@ Widget build(BuildContext context) {
           .update({'views': FieldValue.increment(1)});
     } catch (_) {}
     if (!mounted) return;
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VideoPlayerScreen(
-          videoUrl: videoUrl,
-          title: title,
-          authorName: authorName,
-          videoId: videoId,
-          autoOpenRating: autoRate,
-        ),
+    final result = await context.router.push(
+      VideoPlayerRoute(
+        videoUrl: videoUrl,
+        title: title,
+        authorName: authorName,
+        videoId: videoId,
+        autoOpenRating: autoRate,
       ),
     );
     if (result is Map && result['ratingUpdated'] == true) {
@@ -2078,11 +2086,7 @@ Widget build(BuildContext context) {
       }
       final challenge = Challenge.fromFirestore(doc);
       if (!mounted) return;
-      Navigator.pushNamed(
-        context,
-        '/challenge-details',
-        arguments: challenge,
-      );
+      context.router.push(ChallengeDetailsRoute(challenge: challenge));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2133,7 +2137,7 @@ Widget build(BuildContext context) {
   }
 
   void _showProfile(BuildContext context) {
-    Navigator.pushNamed(context, '/profile');
+    context.router.push(const ProfileRoute());
   }
 
   Widget _buildProfileSheet() {
@@ -2241,7 +2245,7 @@ Widget build(BuildContext context) {
                        title: 'Редагувати профіль',
                        onTap: () {
                          Navigator.pop(context);
-                         Navigator.pushNamed(context, '/profile');
+                         context.router.push(const ProfileRoute());
                        },
                      ),
                     _buildProfileOption(
@@ -2275,7 +2279,7 @@ Widget build(BuildContext context) {
                       onTap: () async {
                         await FirebaseAuth.instance.signOut();
                         Navigator.pop(context);
-                        Navigator.pushReplacementNamed(context, '/login');
+                        context.router.replace(const LoginRoute());
                       },
                     ),
                   ],
@@ -2371,7 +2375,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/challenge-create'),
+                  onPressed: () => context.router.push(const ChallengeCreateRoute()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4caf50),
                     shape: RoundedRectangleBorder(
@@ -2610,16 +2614,13 @@ Widget build(BuildContext context) {
                 onTap: creatorVideoUrl.isEmpty
                     ? null
                     : () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => VideoPlayerScreen(
-                              videoUrl: creatorVideoUrl,
-                              title: challenge['title'] ??
-                                  I18n.inline('Відео челенджу', 'Challenge video'),
-                              authorName: creatorName,
-                              videoId: challengeId,
-                            ),
+                        context.router.push(
+                          VideoPlayerRoute(
+                            videoUrl: creatorVideoUrl,
+                            title: challenge['title'] ??
+                                I18n.inline('Відео челенджу', 'Challenge video'),
+                            authorName: creatorName,
+                            videoId: challengeId,
                           ),
                         );
                       },
@@ -3093,7 +3094,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/video-upload'),
+                  onPressed: () => context.router.push(VideoUploadRoute()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4caf50),
                     shape: RoundedRectangleBorder(
@@ -3335,14 +3336,11 @@ Widget build(BuildContext context) {
                 });
                 
                 // Тепер переходимо до завантаження відео
-    Navigator.pushNamed(
-      context,
-      '/video-upload',
-      arguments: {
-        'challengeId': challengeId,
-        'challengeTitle': challenge['title'],
-        'isChallengeVideo': true,
-      },
+    context.router.push(
+      VideoUploadRoute(
+        challengeId: challengeId,
+        challengeTitle: challenge['title']?.toString(),
+      ),
                 );
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -3401,11 +3399,7 @@ Widget build(BuildContext context) {
     );
     
     // Переходимо на екран деталей челенджу
-    Navigator.pushNamed(
-      context,
-      '/challenge-details',
-      arguments: challenge,
-    );
+    context.router.push(ChallengeDetailsRoute(challenge: challenge));
   }
 
   // Interactive methods
@@ -3596,13 +3590,11 @@ Widget build(BuildContext context) {
                                       GestureDetector(
                                         onTap: () {
                                           if (userId.isEmpty) return;
-                                          Navigator.pushNamed(
-                                            context,
-                                            '/player-profile',
-                                            arguments: {
-                                              'playerId': userId,
-                                              'playerName': authorName,
-                                            },
+                                          context.router.push(
+                                            PlayerProfileRoute(
+                                              playerId: userId,
+                                              playerName: authorName,
+                                            ),
                                           );
                                         },
                                         child: Text(

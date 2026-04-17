@@ -1,9 +1,13 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/subscription.dart';
 import '../services/subscription_service.dart';
 import '../utils/i18n.dart';
 
+@RoutePage()
 class SubscriptionScreen extends StatefulWidget {
   @override
   _SubscriptionScreenState createState() => _SubscriptionScreenState();

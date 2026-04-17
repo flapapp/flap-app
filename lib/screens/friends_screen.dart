@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/friend_request.dart';
@@ -6,6 +9,7 @@ import '../services/friends_service.dart';
 import 'dart:async';
 import '../utils/i18n.dart';
 
+@RoutePage()
 class FriendsScreen extends StatefulWidget {
   @override
   _FriendsScreenState createState() => _FriendsScreenState();
@@ -708,13 +712,11 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                         return ListTile(
                           leading: GestureDetector(
                             onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                '/player-profile',
-                                arguments: {
-                                  'playerId': user['id'],
-                                  'playerName': userName,
-                                },
+                              context.router.push(
+                                PlayerProfileRoute(
+                                  playerId: user['id'].toString(),
+                                  playerName: userName,
+                                ),
                               );
                             },
                             child: Container(
@@ -740,13 +742,11 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                           ),
                           title: GestureDetector(
                             onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                '/player-profile',
-                                arguments: {
-                                  'playerId': user['id'],
-                                  'playerName': userName,
-                                },
+                              context.router.push(
+                                PlayerProfileRoute(
+                                  playerId: user['id'].toString(),
+                                  playerName: userName,
+                                ),
                               );
                             },
                             child: Text(user['name'] ?? 'Невідомий'.i18n('Unknown'), style: const TextStyle(color: Colors.white)),
@@ -877,10 +877,11 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   }
 
   void _viewFriendProfile(Friend friend) {
-    Navigator.pushNamed(
-      context,
-      '/player-profile',
-      arguments: {'playerId': friend.userId, 'playerName': friend.name},
+    context.router.push(
+      PlayerProfileRoute(
+        playerId: friend.userId,
+        playerName: friend.name,
+      ),
     );
   }
 

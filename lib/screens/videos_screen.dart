@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:video_player/video_player.dart';
@@ -12,6 +15,7 @@ import '../models/friend_request.dart' show Friend;
 import '../utils/i18n.dart';
 import '../widgets/video_preview_box.dart';
 
+@RoutePage()
 class VideosScreen extends StatefulWidget {
   final bool showOnlyMyVideos;
   const VideosScreen({Key? key, this.showOnlyMyVideos = false}) : super(key: key);

@@ -1,12 +1,16 @@
 import 'dart:typed_data';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/team_service.dart';
 import '../utils/i18n.dart';
 import '../widgets/city_autocomplete_field.dart';
 
+@RoutePage()
 class TeamCreateScreen extends StatefulWidget {
   final int existingTeams;
 

@@ -4,7 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/notification.dart';
 import 'package:flutter/foundation.dart';
 import '../models/match.dart' as app_models;
-import '../utils/app_navigator.dart';
+import '../router/app_router.dart';
 import '../utils/i18n.dart';
 import 'user_settings_service.dart';
 
@@ -164,40 +164,37 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     }
   }
 
-  final nav = AppNavigator.navigatorKey.currentState;
-  if (nav == null) return;
-
   switch (type) {
     case 'match_invite':
     case 'match_application_accepted':
     case 'match_application_rejected':
       if (match != null) {
-        nav.pushNamed('/match-details', arguments: match);
+        appRouter.push(MatchDetailsRoute(match: match));
       }
       break;
     case 'match_finished':
     case 'match_application_submitted':
       if (match != null) {
-        nav.pushNamed('/match_management', arguments: match);
+        appRouter.push(MatchManagementRoute(match: match));
       }
       break;
     case 'team_match_request':
       if (match != null) {
-        nav.pushNamed('/match-details', arguments: match);
+        appRouter.push(MatchDetailsRoute(match: match));
       }
       break;
     case 'team_roster_invite':
       if (match != null) {
-        nav.pushNamed('/match-details', arguments: match);
+        appRouter.push(MatchDetailsRoute(match: match));
       }
       break;
     case 'team_match_ready':
       if (match != null) {
-        nav.pushNamed('/match_management', arguments: match);
+        appRouter.push(MatchManagementRoute(match: match));
       }
       break;
     case 'team_invite':
-      nav.pushNamed('/profile');
+      appRouter.push(const ProfileRoute());
       break;
   }
 }

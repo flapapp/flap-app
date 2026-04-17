@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
@@ -8,6 +11,7 @@ import '../widgets/team_logo_button.dart';
 import '../widgets/player_avatar_button.dart';
 import 'dart:math';
 
+@RoutePage()
 class MatchManagementScreen extends StatefulWidget {
   final Match match;
   final int initialTabIndex;
@@ -981,18 +985,18 @@ Future<void> _saveResults(Match m) async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(I18n.inline('Підсумки збережено', 'Results saved'))),
     );
-    await Navigator.pushNamed(
-  context,
-  '/match_rating',
-  arguments: m.copyWith(
-    status: MatchStatus.finished,
-    result: MatchResult.draw,
-    teamAScore: m.teamAScore ?? 0,
-    teamBScore: m.teamBScore ?? 0,
-    multiTeamStats: stats,
-    teams: m.allTeams,
-  ),
-);
+    await context.router.push(
+      MatchRatingRoute(
+        match: m.copyWith(
+          status: MatchStatus.finished,
+          result: MatchResult.draw,
+          teamAScore: m.teamAScore ?? 0,
+          teamBScore: m.teamBScore ?? 0,
+          multiTeamStats: stats,
+          teams: m.allTeams,
+        ),
+      ),
+    );
   } finally {
     if (mounted) {
       setState(() => _savingResults = false);
@@ -1700,13 +1704,11 @@ final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) ?? '').toStrin
 
             return InkWell(
               onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/player-profile',
-                  arguments: {
-                    'playerId': userId,
-                    'playerName': displayName,
-                  },
+                context.router.push(
+                  PlayerProfileRoute(
+                    playerId: userId,
+                    playerName: displayName,
+                  ),
                 );
               },
               child: Row(
@@ -2466,10 +2468,8 @@ setState(() {
         
         // Перезавантажуємо дані
         await _loadMatchData();
-        await Navigator.pushNamed(
-          context,
-          '/match_rating',
-          arguments: _latestMatch ?? widget.match,
+        await context.router.push(
+          MatchRatingRoute(match: _latestMatch ?? widget.match),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

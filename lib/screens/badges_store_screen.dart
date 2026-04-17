@@ -1,10 +1,14 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/badge.dart' as app_badge;
 import '../services/badge_service.dart';
 import '../utils/i18n.dart';
 
+@RoutePage()
 class BadgesStoreScreen extends StatefulWidget {
   @override
   _BadgesStoreScreenState createState() => _BadgesStoreScreenState();

@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,6 +15,7 @@ import '../services/thumbnail_service.dart';
 import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
 
+@RoutePage()
 class ChallengeCreateScreen extends StatefulWidget {
   @override
   _ChallengeCreateScreenState createState() => _ChallengeCreateScreenState();

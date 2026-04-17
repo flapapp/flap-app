@@ -1,5 +1,8 @@
 // lib/screens/register_screen.dart
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -9,6 +12,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/i18n.dart';
 import '../widgets/city_autocomplete_field.dart';
 
+@RoutePage()
 class RegisterScreen extends StatefulWidget {
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
@@ -511,7 +515,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               backgroundColor: const Color(0xFF4caf50),
                             ),
                           );
-                          Navigator.pushReplacementNamed(context, '/mode');
+                          context.router.replace(const ModeSelectionRoute());
                         } on FirebaseAuthException catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text(e.message ?? I18n.inline('Помилка реєстрації', 'Registration error'))),

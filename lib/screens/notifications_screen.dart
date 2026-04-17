@@ -1,12 +1,15 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import '../models/notification.dart';
 import '../services/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/challenge.dart';
-import 'video_player_screen.dart';
 import '../models/match.dart';
 import '../utils/i18n.dart';
 
+@RoutePage()
 class NotificationsScreen extends StatefulWidget {
   @override
   _NotificationsScreenState createState() => _NotificationsScreenState();
@@ -488,7 +491,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
       final challenge = Challenge.fromFirestore(doc);
       if (!mounted) return;
-      Navigator.pushNamed(context, '/challenge-details', arguments: challenge);
+      context.router.push(ChallengeDetailsRoute(challenge: challenge));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -509,7 +512,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
       final match = Match.fromFirestore(doc);
       if (!mounted) return;
-      Navigator.pushNamed(context, '/match_rating', arguments: match);
+      context.router.push(MatchRatingRoute(match: match));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -535,7 +538,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       print('🔍 NOTIFICATION: Match loaded: ${match.title}');
       if (!mounted) return;
       print('🔍 NOTIFICATION: Navigating to match-details...');
-      Navigator.pushNamed(context, '/match-details', arguments: match);
+      context.router.push(MatchDetailsRoute(match: match));
       print('✅ NOTIFICATION: Navigation complete');
     } catch (e) {
       print('❌ NOTIFICATION: Error opening match: $e');
@@ -548,17 +551,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     void _navigateToAction(String actionUrl) {
     if (actionUrl.startsWith('/')) {
       if (actionUrl == '/friends') {
-        Navigator.pushNamed(context, '/friends');
+        context.router.push(const FriendsRoute());
       } else if (actionUrl == '/profile') {
-        Navigator.pushNamed(context, '/profile');
+        context.router.push(const ProfileRoute());
       } else if (actionUrl == '/video-main') {
-        Navigator.pushNamed(context, '/video-main');
+        context.router.push(VideoMainRoute());
       } else if (actionUrl.startsWith('/video/')) {
         final videoId = actionUrl.split('/').last;
         _openVideoById(videoId);
       } else if (actionUrl.startsWith('/challenge-details/')) {
         final challengeId = actionUrl.split('/').last;
-        Navigator.pushNamed(context, '/challenge-details', arguments: challengeId);
+        _openChallengeById(challengeId);
       } else if (actionUrl.startsWith('/match/') && actionUrl.endsWith('/rate')) {
         final segments = actionUrl.split('/');
         if (segments.length >= 3) {
@@ -593,15 +596,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return;
       }
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => VideoPlayerScreen(
-            videoUrl: videoUrl,
-            title: title,
-            authorName: '',
-            videoId: videoId,
-          ),
+      context.router.push(
+        VideoPlayerRoute(
+          videoUrl: videoUrl,
+          title: title,
+          authorName: '',
+          videoId: videoId,
         ),
       );
     } catch (e) {

@@ -1,13 +1,11 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:video_player/video_player.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/challenge.dart';
 import '../services/challenge_service.dart';
-import 'challenge_create_screen.dart';
-import 'challenge_details_screen.dart';
-import 'video_player_screen.dart';
-import 'challenge_video_player_screen.dart';
 import '../widgets/user_chip.dart';
 import '../utils/i18n.dart';
 import '../widgets/video_preview_box.dart';
@@ -313,10 +311,11 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               ),
               const SizedBox(height: 8),
               GestureDetector(
-                onTap: () => Navigator.pushNamed(
-                  context,
-                  '/player-profile',
-                  arguments: {'playerId': creatorId, 'playerName': creatorName},
+                onTap: () => context.router.push(
+                  PlayerProfileRoute(
+                    playerId: creatorId,
+                    playerName: creatorName,
+                  ),
                 ),
                 child: UserChip(userId: creatorId, name: creatorName, showName: true, size: 20),
               ),
@@ -468,14 +467,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                           // Avatar clickable to profile
                                           GestureDetector(
                                             onTap: () {
-                                              Navigator.pushNamed(
-                                                context,
-                                                '/player-profile',
-                                                arguments: {
-                                                  'playerId': submissionUserId,
-                                                  'playerName': authorName,
-                      },
-                    );
+                                              context.router.push(
+                                                PlayerProfileRoute(
+                                                  playerId: submissionUserId,
+                                                  playerName: authorName,
+                                                ),
+                                              );
                   },
                                             child: Container(
                                               width: 32,
@@ -647,17 +644,14 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     print('Playing creator video: $videoUrl');
     if (videoUrl.isNotEmpty) {
       // Відкриваємо відео творця з голосуванням (як учасника челенджу)
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChallengeVideoPlayerScreen(
-            videoUrl: videoUrl,
-            title: I18n.inline('Відео творця: $title', 'Creator video: $title'),
-            authorName: creatorName,
-            challengeId: challengeId,
-            submissionId: 'creator', // Спеціальний ID для відео творця
-            thumbnailUrl: thumbnailUrl,
-          ),
+      context.router.push(
+        ChallengeVideoPlayerRoute(
+          videoUrl: videoUrl,
+          title: I18n.inline('Відео творця: $title', 'Creator video: $title'),
+          authorName: creatorName,
+          challengeId: challengeId,
+          submissionId: 'creator',
+          thumbnailUrl: thumbnailUrl,
         ),
       );
     } else {
@@ -777,13 +771,11 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         );
         
         // Потім переходимо на завантаження відео
-    Navigator.pushNamed(
-      context,
-      '/video-upload',
-      arguments: {
-        'challengeId': challengeId,
-            'challengeTitle': challengeTitle,
-          },
+    context.router.push(
+      VideoUploadRoute(
+        challengeId: challengeId,
+        challengeTitle: challengeTitle,
+      ),
         );
       }
     } catch (e) {
@@ -845,12 +837,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         tags: List<String>.from(challengeData['tags'] ?? []),
       );
       
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChallengeDetailsScreen(challenge: challenge),
-        ),
-      );
+      context.router.push(ChallengeDetailsRoute(challenge: challenge));
     } catch (e) {
       print('Error creating Challenge object: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -960,13 +947,11 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                 child: ListTile(
                                   onTap: () {
                                     Navigator.pop(context);
-                                    Navigator.pushNamed(
-                                      context,
-                                      '/player-profile',
-                                      arguments: {
-                                        'playerId': participantId,
-                                        'playerName': userName,
-                                      },
+                                    context.router.push(
+                                      PlayerProfileRoute(
+                                        playerId: participantId,
+                                        playerName: userName,
+                                      ),
                                     );
                                   },
                                   leading: PlayerAvatarButton(
@@ -1050,17 +1035,14 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
   }) {
     if (videoUrl.isNotEmpty) {
       // Відкриваємо відео учасника з голосуванням (1 повзунок)
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChallengeVideoPlayerScreen(
-            videoUrl: videoUrl,
-            title: title,
-            authorName: authorName,
-            challengeId: challengeId,
-            submissionId: submissionId,
-            thumbnailUrl: thumbnailUrl,
-          ),
+      context.router.push(
+        ChallengeVideoPlayerRoute(
+          videoUrl: videoUrl,
+          title: title,
+          authorName: authorName,
+          challengeId: challengeId,
+          submissionId: submissionId,
+          thumbnailUrl: thumbnailUrl,
         ),
       );
     } else {
@@ -1210,7 +1192,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         final avatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
         final medal = place == 1 ? '🥇' : place == 2 ? '🥈' : '🥉';
         return ListTile(
-          onTap: () => Navigator.pushNamed(context, '/player-profile', arguments: {'playerId': userId, 'playerName': name}),
+          onTap: () => context.router.push(
+            PlayerProfileRoute(
+              playerId: userId,
+              playerName: name.toString(),
+            ),
+          ),
           leading: PlayerAvatarButton(
             userId: userId,
             displayName: name,

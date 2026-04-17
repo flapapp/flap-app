@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -14,6 +17,7 @@ import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
 import '../widgets/user_chip.dart';
 
+@RoutePage()
 class MatchDetailsScreen extends StatefulWidget {
   final Match match;
   
@@ -1672,10 +1676,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
   void _openPlayerProfile(String playerId, String displayName) {
-    Navigator.pushNamed(
-      context,
-      '/player-profile',
-      arguments: {'playerId': playerId, 'playerName': displayName},
+    context.router.push(
+      PlayerProfileRoute(
+        playerId: playerId,
+        playerName: displayName,
+      ),
     );
   }
 
@@ -2046,10 +2051,8 @@ String _localizedCity(String? raw) {
                 height: 50,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/match_rating',
-                      arguments: widget.match,
+                    context.router.push(
+                      MatchRatingRoute(match: widget.match),
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -2278,10 +2281,8 @@ return Row(
       height: 50,
       child: ElevatedButton.icon(
         onPressed: () {
-          Navigator.pushNamed(
-            context,
-            '/match_management',
-            arguments: widget.match,
+          context.router.push(
+            MatchManagementRoute(match: widget.match),
           );
         },
         icon: const Icon(Icons.tune),
@@ -2933,10 +2934,11 @@ String _getStatusText(MatchStatus status, {Match? match}) {
             ),
             child: GestureDetector(
               onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/player-profile',
-                  arguments: {'playerId': id, 'playerName': displayName},
+                context.router.push(
+                  PlayerProfileRoute(
+                    playerId: id,
+                    playerName: displayName,
+                  ),
                 );
               },
               child: Row(

@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,6 +13,7 @@ import '../widgets/rating_display.dart';
 import '../widgets/user_chip.dart';
 import '../utils/i18n.dart';
 
+@RoutePage()
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
   final String title;
@@ -782,13 +786,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                   avatarUrl: _videoAuthorAvatar,
                                   showName: true,
                                   onTap: () {
-                                    Navigator.pushNamed(
-                                      context,
-                                      '/player-profile',
-                                      arguments: {
-                                        'playerId': _videoAuthorId!,
-                                        'playerName': _videoAuthorName ?? widget.authorName,
-                                      },
+                                    context.router.push(
+                                      PlayerProfileRoute(
+                                        playerId: _videoAuthorId!,
+                                        playerName: _videoAuthorName ?? widget.authorName,
+                                      ),
                                     );
                                   },
                                 ),

@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
@@ -9,6 +12,7 @@ import '../utils/i18n.dart';
 import '../widgets/city_autocomplete_field.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+@RoutePage()
 class ProfileCreationScreen extends StatefulWidget {
   final bool isEditing;
   
@@ -549,7 +553,7 @@ Widget build(BuildContext context) {
                             if (widget.isEditing) {
                               Navigator.pop(context);
                             } else {
-                              Navigator.pushReplacementNamed(context, '/mode');
+                              context.router.replace(const ModeSelectionRoute());
                             }
                           }
                         },

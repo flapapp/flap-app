@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/i18n.dart';
 
@@ -44,10 +47,11 @@ class UserChip extends StatelessWidget {
   Widget _buildContent(BuildContext context, {required String displayName, required String resolvedAvatarUrl}) {
     final navigate = onTap ?? () {
       if (userId.isEmpty) return;
-      Navigator.pushNamed(
-        context,
-        '/player-profile',
-        arguments: {'playerId': userId, 'playerName': displayName},
+      context.router.push(
+        PlayerProfileRoute(
+          playerId: userId,
+          playerName: displayName,
+        ),
       );
     };
 

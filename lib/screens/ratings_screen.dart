@@ -1,10 +1,14 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/rating_service.dart';
 import 'player_profile_screen.dart';
 import '../utils/i18n.dart';
 
+@RoutePage()
 class RatingsScreen extends StatefulWidget {
   @override
   _RatingsScreenState createState() => _RatingsScreenState();

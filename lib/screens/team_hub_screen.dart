@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 
 import '../models/app_team.dart';
 import '../models/team_stats.dart';
@@ -9,9 +12,7 @@ import '../utils/i18n.dart';
 import '../widgets/mode_speed_dial.dart';
 import '../widgets/player_avatar_button.dart';
 import '../widgets/team_logo_button.dart';
-import 'team_create_screen.dart';
-import 'team_details_screen.dart';
-
+@RoutePage()
 class TeamHubScreen extends StatefulWidget {
   const TeamHubScreen({super.key});
 
@@ -50,7 +51,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: InkWell(
-          onTap: () => Navigator.pushNamed(context, '/mode'),
+          onTap: () => context.router.push(const ModeSelectionRoute()),
           borderRadius: BorderRadius.circular(10),
           child: Row(
             children: [
@@ -141,12 +142,12 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
           ModeDialAction(
             icon: Icons.sports_soccer,
             tooltip: I18n.t('matches'),
-            onTap: () => Navigator.pushNamed(context, '/matches'),
+            onTap: () => context.router.push(MatchesRoute()),
           ),
           ModeDialAction(
             icon: Icons.play_circle_outline,
             tooltip: I18n.t('videos'),
-            onTap: () => Navigator.pushNamed(context, '/video-main'),
+            onTap: () => context.router.push(VideoMainRoute()),
           ),
         ],
         onCreate: _onCreateTeamPressed,
@@ -175,11 +176,8 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         .get();
     final teamIds = (userDoc.data()?['teamIds'] as List<dynamic>?) ?? [];
     if (!mounted) return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TeamCreateScreen(existingTeams: teamIds.length),
-      ),
+    await context.router.push(
+      TeamCreateRoute(existingTeams: teamIds.length),
     );
   }
 
@@ -293,12 +291,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => TeamDetailsScreen(teamId: team.id),
-                ),
-              );
+              context.router.push(TeamDetailsRoute(teamId: team.id));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
@@ -366,12 +359,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
                   final team = myTeams[index];
                   return GestureDetector(
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TeamDetailsScreen(teamId: team.id),
-                        ),
-                      );
+                      context.router.push(TeamDetailsRoute(teamId: team.id));
                     },
                     child: Container(
                       width: 200,
@@ -648,12 +636,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             : Colors.white70;
     return InkWell(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => TeamDetailsScreen(teamId: team.id),
-          ),
-        );
+        context.router.push(TeamDetailsRoute(teamId: team.id));
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

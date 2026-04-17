@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/challenge.dart';
@@ -13,6 +16,7 @@ import '../utils/i18n.dart';
 import '../widgets/video_preview_box.dart';
 import '../widgets/player_avatar_button.dart';
 
+@RoutePage()
 class ChallengeDetailsScreen extends StatefulWidget {
   final Challenge challenge;
   
@@ -870,13 +874,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                                 child: ListTile(
                                   onTap: () {
                                     Navigator.pop(context);
-                                    Navigator.pushNamed(
-                                      context,
-                                      '/player-profile',
-                                      arguments: {
-                                        'playerId': participantId,
-                                        'playerName': userName,
-                                      },
+                                    context.router.push(
+                                      PlayerProfileRoute(
+                                        playerId: participantId,
+                                        playerName: userName,
+                                      ),
                                     );
                                   },
                                   leading: PlayerAvatarButton(

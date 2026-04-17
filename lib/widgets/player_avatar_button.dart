@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 
 /// Reusable avatar button that routes to the player profile by default.
 class PlayerAvatarButton extends StatelessWidget {
@@ -25,13 +28,11 @@ class PlayerAvatarButton extends StatelessWidget {
 
   void _defaultNavigate(BuildContext context) {
     if (userId.isEmpty) return;
-    Navigator.pushNamed(
-      context,
-      '/player-profile',
-      arguments: {
-        'playerId': userId,
-        'playerName': displayName,
-      },
+    context.router.push(
+      PlayerProfileRoute(
+        playerId: userId,
+        playerName: displayName,
+      ),
     );
   }
 

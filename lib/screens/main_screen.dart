@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/notification_service.dart';
@@ -101,7 +104,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   IconButton(
                     tooltip: I18n.t('notifications'),
                     icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                    onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                    onPressed: () => context.router.push(const NotificationsRoute()),
                   ),
                   if (unreadCount > 0)
                     Positioned(
@@ -136,7 +139,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           IconButton(
             tooltip: I18n.inline('Матчі', 'Matches'),
             icon: const Icon(Icons.sports_soccer, color: Colors.white),
-            onPressed: () => Navigator.pushNamed(context, '/matches'),
+            onPressed: () => context.router.push(MatchesRoute()),
           ),
           // Profile button with avatar
           StreamBuilder<DocumentSnapshot>(
@@ -1079,7 +1082,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   }
 
   void _showProfile(BuildContext context) {
-    Navigator.pushNamed(context, '/profile');
+    context.router.push(const ProfileRoute());
   }
 }
 

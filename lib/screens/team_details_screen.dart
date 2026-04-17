@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
@@ -20,6 +23,7 @@ import 'create_match_screen.dart';
 import 'match_details_screen.dart';
 import 'match_details_screen.dart';
 
+@RoutePage()
 class TeamDetailsScreen extends StatefulWidget {
   final String teamId;
 
@@ -1157,13 +1161,11 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
               final avatarUrl = (data?['avatarUrl'] ?? data?['avatar']) as String?;
               return InkWell(
                 onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/player-profile',
-                    arguments: {
-                      'playerId': memberId,
-                      'playerName': name,
-                    },
+                  context.router.push(
+                    PlayerProfileRoute(
+                      playerId: memberId,
+                      playerName: name,
+                    ),
                   );
                 },
                 child: Container(

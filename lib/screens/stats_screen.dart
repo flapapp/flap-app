@@ -1,8 +1,12 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_screen_sparkline.dart';
 
+@RoutePage()
 class StatsScreen extends StatefulWidget {
   const StatsScreen({Key? key}) : super(key: key);
   @override

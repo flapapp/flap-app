@@ -1,9 +1,13 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/i18n.dart';
 import '../services/notification_service.dart';
 
+@RoutePage()
 class LoginScreen extends StatefulWidget {
   @override
   _LoginScreenState createState() => _LoginScreenState();
@@ -34,7 +38,7 @@ Widget build(BuildContext context) {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.router.maybePop(),
         ),
       ),
       body: SafeArea(
@@ -213,7 +217,7 @@ Widget build(BuildContext context) {
                                         await NotificationService().syncCurrentUserToken();
                                       } catch (_) {}
                                       if (!mounted) return;
-                                      Navigator.pushReplacementNamed(context, '/mode');
+                                      context.router.replace(const ModeSelectionRoute());
                                     } on FirebaseAuthException catch (e) {
                                       final code = e.code;
                                       String message;
@@ -263,7 +267,7 @@ Widget build(BuildContext context) {
                       ),
                       const SizedBox(height: 15),
                       TextButton(
-                        onPressed: () => Navigator.pushNamed(context, '/register'),
+                        onPressed: () => context.router.push(const RegisterRoute()),
                         child: Text(
                           I18n.t('no_account_register'),
                           style: TextStyle(

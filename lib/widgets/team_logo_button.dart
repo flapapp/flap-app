@@ -1,4 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+
+import '../router/app_router.dart';
 
 /// Reusable tappable badge for any place we show a team crest/logo.
 class TeamLogoButton extends StatelessWidget {
@@ -28,14 +31,7 @@ class TeamLogoButton extends StatelessWidget {
     }
     final id = teamId;
     if (id == null || id.isEmpty) return;
-    Navigator.pushNamed(
-      context,
-      '/team-details',
-      arguments: {
-        'teamId': id,
-        'teamName': teamName,
-      },
-    );
+    context.router.push(TeamDetailsRoute(teamId: id));
   }
 
   @override
