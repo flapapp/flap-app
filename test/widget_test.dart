@@ -13,7 +13,8 @@ void main() {
         routerConfig: router.config(),
       ),
     );
-    router.push(const WelcomeRoute());
+    // Skip auth bootstrap / Firebase-dependent initial routing.
+    await router.replaceAll([const WelcomeRoute()]);
     await tester.pumpAndSettle();
 
     // Бачимо бренд

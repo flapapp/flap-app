@@ -29,6 +29,25 @@ class AdminRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [AuthBootstrapScreen]
+class AuthBootstrapRoute extends PageRouteInfo<void> {
+  const AuthBootstrapRoute({List<PageRouteInfo>? children})
+      : super(
+          AuthBootstrapRoute.name,
+          initialChildren: children,
+        );
+
+  static const String name = 'AuthBootstrapRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const AuthBootstrapScreen();
+    },
+  );
+}
+
+/// generated route for
 /// [BadgesStoreScreen]
 class BadgesStoreRoute extends PageRouteInfo<void> {
   const BadgesStoreRoute({List<PageRouteInfo>? children})

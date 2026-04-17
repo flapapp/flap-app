@@ -93,8 +93,37 @@ Future<void> _initMessaging() async {
   });
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  StreamSubscription<User?>? _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initial route is handled by [AuthBootstrapScreen]; skip the first emission
+    // so we only react to sign-out (or session loss) after startup.
+    try {
+      _authSubscription =
+          FirebaseAuth.instance.authStateChanges().skip(1).listen((user) {
+        if (user != null) return;
+        appRouter.replaceAll([const WelcomeRoute()]);
+      });
+    } catch (_) {
+      // Tests or environments without Firebase — routing still works via guards.
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_authSubscription?.cancel());
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

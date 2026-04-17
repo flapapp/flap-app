@@ -4,6 +4,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
 import '../router/app_router.dart';
+import '../services/intro_seen_storage.dart';
 import '../utils/i18n.dart';
 
 @RoutePage()
@@ -35,8 +36,13 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
     super.initState();
     _focusNode = FocusNode();
     _startupImage = _startupImages[Random().nextInt(_startupImages.length)];
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      if (await IntroSeenStorage.hasCompletedIntro()) {
+        if (!mounted) return;
+        context.router.replace(const WelcomeRoute());
+        return;
+      }
       precacheImage(AssetImage(_startupImage), context).whenComplete(() {
         if (mounted) {
           setState(() => _imageReady = true);
@@ -52,9 +58,11 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
     super.dispose();
   }
 
-  void _navigateToWelcome() {
+  Future<void> _navigateToWelcome() async {
     if (_navigated || !mounted) return;
     _navigated = true;
+    await IntroSeenStorage.markIntroCompleted();
+    if (!mounted) return;
     context.router.replace(const WelcomeRoute());
   }
 
