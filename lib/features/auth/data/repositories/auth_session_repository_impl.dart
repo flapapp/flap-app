@@ -20,4 +20,7 @@ class AuthSessionRepositoryImpl implements AuthSessionRepository {
     if (uid == null) return null;
     return AuthUser(uid: uid);
   }
+
+  @override
+  Future<void> signOut() => _remote.signOut();
 }

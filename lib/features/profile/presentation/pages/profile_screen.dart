@@ -1,44 +1,50 @@
+import 'dart:math';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
-
-import '../router/app_router.dart';
-import 'dart:math';
-import 'dart:typed_data';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../models/badge.dart' as app_badge;
-import '../services/badge_service.dart';
-import 'badges_store_screen.dart';
-import '../services/friends_service.dart';
-import 'friends_screen.dart';
-import 'subscription_screen.dart';
-import '../utils/i18n.dart';
-import '../models/app_team.dart';
-import '../models/team_stats.dart';
-import '../models/team_invite.dart';
-import '../services/team_service.dart';
-import 'team_details_screen.dart';
-import 'team_create_screen.dart';
+
+import '../../../../core/di/injection.dart';
+import '../../../../core/progress/progress_status.dart';
+import '../../../../router/app_router.dart';
+import '../../../auth/domain/repositories/auth_session_repository.dart';
+import '../../../../models/badge.dart' as app_badge;
+import '../../../../models/app_team.dart';
+import '../../../../models/team_stats.dart';
+import '../../../../models/team_invite.dart';
+import '../../../../utils/i18n.dart';
+import '../../domain/repositories/match_participation_stats_repository.dart';
+import '../../domain/repositories/player_badge_endorsement_repository.dart';
+import '../../domain/repositories/player_social_repository.dart';
+import '../../domain/repositories/profile_team_membership_repository.dart';
+import '../../domain/repositories/team_stats_repository.dart';
+import '../../domain/repositories/user_badges_repository.dart';
+import '../../../../screens/team_details_screen.dart';
+import '../../../../screens/team_create_screen.dart';
+import '../bloc/profile_bloc.dart';
 
 @RoutePage()
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends StatelessWidget {
+  const ProfileScreen({super.key});
+
   @override
-  _ProfileScreenState createState() => _ProfileScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => sl<ProfileBloc>()..add(const ProfileEvent.started()),
+      child: const _ProfileScreenBody(),
+    );
+  }
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
-  final BadgeService _badgeService = BadgeService();
-  final FriendsService _friendsService = FriendsService();
-  final TeamService _teamService = TeamService();
-  final ImagePicker _picker = ImagePicker();
-  
-  Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
+class _ProfileScreenBody extends StatefulWidget {
+  const _ProfileScreenBody();
+
+  @override
+  State<_ProfileScreenBody> createState() => _ProfileScreenBodyState();
+}
+
+class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   List<app_badge.Badge> _userBadges = [];
   int _friendsCount = 0;
   Stream<List<AppTeam>>? _teamsStream;
@@ -52,36 +58,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final uid = _auth.currentUser?.uid;
+    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     if (uid != null) {
       _userId = uid;
-      _userStream = FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
       _loadUserBadges();
       _loadFriendsCount();
-      _teamsStream = _teamService.watchUserTeams(uid);
-      _teamInvitesStream = _teamService.watchInvites(uid);
-      _checkAndShowDonationPrompt(uid);
-    }
-  }
-
-  Future<void> _checkAndShowDonationPrompt(String uid) async {
-    if (_donationPromptCheckStarted) return;
-    _donationPromptCheckStarted = true;
-    try {
-      final userDoc =
-          await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final data = userDoc.data() ?? const <String, dynamic>{};
-      final settings =
-          Map<String, dynamic>.from(data['settings'] ?? const <String, dynamic>{});
-      final isDismissed = settings['hideDonationPrompt'] == true;
-      if (isDismissed || !mounted) return;
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _donationDialogVisible) return;
-        _showDonationDialog();
-      });
-    } catch (_) {
-      // If settings cannot be loaded, do not block profile rendering.
+      final teams = sl<ProfileTeamMembershipRepository>();
+      _teamsStream = teams.watchUserTeams(uid);
+      _teamInvitesStream = teams.watchInvites(uid);
     }
   }
 
@@ -100,14 +84,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _setDonationPromptDismissed() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    await FirebaseFirestore.instance.collection('users').doc(uid).set(
-      {
-        'settings': {'hideDonationPrompt': true}
-      },
-      SetOptions(merge: true),
-    );
+    if (!mounted) return;
+    context.read<ProfileBloc>().add(
+          const ProfileEvent.donationPromptDismissRequested(),
+        );
   }
 
   Future<void> _openDonationLink(String link) async {
@@ -210,9 +190,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _loadUserBadges() async {
-    final uid = _auth.currentUser?.uid;
+    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     if (uid != null) {
-      final badges = await _badgeService.getUserBadgeObjects(uid);
+      final badges = await sl<UserBadgesRepository>().getUserBadges(uid);
       setState(() {
         _userBadges = badges;
       });
@@ -220,11 +200,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _loadFriendsCount() async {
-    final uid = _auth.currentUser?.uid;
+    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     if (uid != null) {
-      final friends = await _friendsService.getUserFriends(uid);
+      final count = await sl<PlayerSocialRepository>().countFriends(uid);
       setState(() {
-        _friendsCount = friends.length;
+        _friendsCount = count;
       });
     }
   }
@@ -338,6 +318,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     final team = teams[index];
                     return _TeamCard(
                       team: team,
+                      teamStatsStream:
+                          sl<TeamStatsRepository>().watchTeamStats(team.id),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -388,17 +370,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildInviteCard(TeamInvite invite) {
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future:
-          FirebaseFirestore.instance.collection('teams').doc(invite.teamId).get(),
+    return FutureBuilder<AppTeam?>(
+      future: sl<ProfileTeamMembershipRepository>().getTeam(invite.teamId),
       builder: (context, snapshot) {
-        final teamData = snapshot.data?.data();
-        final logoUrl = (teamData?['logoUrl'] ?? '').toString();
-        final city = (teamData?['city'] ?? '').toString();
-        final motto = (teamData?['description'] ??
-                I18n.inline(
-                    'Команда кличе вас у склад', 'Club wants you on the roster'))
-            .toString();
+        final team = snapshot.data;
+        final logoUrl = (team?.logoUrl ?? '').toString();
+        final city = (team?.city ?? '').toString();
+        final motto = (team?.description.isNotEmpty == true
+                ? team!.description
+                : null) ??
+            I18n.inline(
+                'Команда кличе вас у склад', 'Club wants you on the roster');
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
@@ -486,7 +468,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   final isTight = constraints.maxWidth < 320;
                   final cancelButton = TextButton(
                     onPressed: () async {
-                      await _teamService.respondToInvite(
+                      await sl<ProfileTeamMembershipRepository>().respondToInvite(
                         invite: invite,
                         accept: false,
                       );
@@ -505,7 +487,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   final joinButton = ElevatedButton(
                     onPressed: () async {
                       try {
-                        await _teamService.respondToInvite(
+                        await sl<ProfileTeamMembershipRepository>().respondToInvite(
                           invite: invite,
                           accept: true,
                         );
@@ -562,38 +544,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0f0f23),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _userStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF4caf50)),
-            );
-          }
-
-          if (!snapshot.hasData || !snapshot.data!.exists) {
-            return Center(
-              child: Text(
-                'Профіль не знайдено'.i18n('Profile not found'),
-                style: const TextStyle(color: Colors.white),
-              ),
-            );
-          }
-
-          final userData = snapshot.data!.data()!;
-          return _buildProfileContent(userData);
-        },
-      ),
+    return BlocConsumer<ProfileBloc, ProfileState>(
+      listenWhen: (prev, curr) =>
+          curr.streamProgress == ProgressStatus.success &&
+          curr.profile != null &&
+          !curr.profile!.settings.hideDonationPrompt &&
+          prev.streamProgress != ProgressStatus.success,
+      listener: (context, state) {
+        if (_donationPromptCheckStarted) return;
+        _donationPromptCheckStarted = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _donationDialogVisible) return;
+          _showDonationDialog();
+        });
+      },
+      builder: (context, state) {
+        return Scaffold(
+          backgroundColor: const Color(0xFF0f0f23),
+          body: _buildProfileBody(state),
+        );
+      },
     );
+  }
+
+  Widget _buildProfileBody(ProfileState state) {
+    if (state.streamProgress == ProgressStatus.loading && state.profile == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+      );
+    }
+    if (state.streamFailure != null && state.profile == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            state.streamFailure.toString(),
+            style: const TextStyle(color: Colors.white70),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+    if (state.profile == null) {
+      return Center(
+        child: Text(
+          'Профіль не знайдено'.i18n('Profile not found'),
+          style: const TextStyle(color: Colors.white),
+        ),
+      );
+    }
+    return _buildProfileContent(state.profile!.legacyUserData);
   }
 
   void _ensureMatchStatsFuture(String userId) {
     if (userId.isEmpty) return;
     if (_matchStatsUserId == userId && _matchStatsFuture != null) return;
     _matchStatsUserId = userId;
-    _matchStatsFuture = _loadMatchStats(userId);
+    _matchStatsFuture =
+        sl<MatchParticipationStatsRepository>().loadFinishedMatchStats(userId);
   }
 
   Widget _buildProfileContent(Map<String, dynamic> userData) {
@@ -601,7 +609,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final avatarUrl = userData['avatar'] ?? userData['avatarUrl'];
     final rating = (userData['rating'] ?? 0.0).toDouble();
     final coins = userData['coins'] ?? 0;
-    final profileUserId = userData['uid'] ?? _auth.currentUser?.uid ?? '';
+    final profileUserId =
+        userData['uid'] ?? sl<AuthSessionRepository>().peekCurrentUser?.uid ?? '';
     if (profileUserId.isNotEmpty) {
       _ensureMatchStatsFuture(profileUserId);
     }
@@ -671,9 +680,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       double rating,
       int coins,
       Future<Map<String, dynamic>>? statsFuture) {
-    final userId = userData['uid'] ?? _auth.currentUser?.uid ?? '';
+    final userId =
+        userData['uid'] ?? sl<AuthSessionRepository>().peekCurrentUser?.uid ?? '';
     return FutureBuilder<Map<String, dynamic>>(
-      future: statsFuture ?? _loadMatchStats(userId),
+      future: statsFuture ??
+          sl<MatchParticipationStatsRepository>().loadFinishedMatchStats(userId),
       builder: (context, snapshot) {
         final stats = snapshot.data ??
             {
@@ -1044,7 +1055,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildBadgesSection(Map<String, dynamic> userData) {
-  final String userId = userData['uid'] ?? _auth.currentUser?.uid ?? '';
+  final String userId =
+      userData['uid'] ?? sl<AuthSessionRepository>().peekCurrentUser?.uid ?? '';
   return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -1110,10 +1122,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   final badge = _userBadges[index];
-                  return FutureBuilder<int>(
-                    future: _getBadgeEndorsementCount(userId, badge.id),
+                  return FutureBuilder<BadgeEndorsementInfo>(
+                    future: sl<PlayerBadgeEndorsementRepository>().getEndorsementInfo(
+                      ownerUserId: userId,
+                      badgeId: badge.id,
+                      currentUserId:
+                          sl<AuthSessionRepository>().peekCurrentUser?.uid,
+                    ),
                     builder: (context, endorsementSnapshot) {
-                      final endorsementCount = endorsementSnapshot.data ?? 0;
+                      final endorsementCount =
+                          endorsementSnapshot.data?.count ?? 0;
 
                       return SizedBox(
                         width: 220,
@@ -1382,254 +1400,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<Map<String, dynamic>> _loadMatchStats(String userId) async {
-  try {
-    // Базовий запит + безпечні fallback-и (щоб не впиратись у композитний індекс)
-    final base = FirebaseFirestore.instance
-        .collection('matches')
-        .where('participants', arrayContains: userId);
-
-    QuerySnapshot<Map<String, dynamic>> matchesSnapshot;
-
-    try {
-      matchesSnapshot = await base
-          .where('status', isEqualTo: 'finished')
-          .orderBy('updatedAt', descending: true)
-          .limit(20)
-          .get();
-    } catch (_) {
-      try {
-        matchesSnapshot = await base
-            .where('status', isEqualTo: 'finished')
-            .limit(20)
-            .get();
-      } catch (_) {
-        matchesSnapshot = await base
-            .limit(20)
-            .get();
-      }
-    }
-
-    int wins = 0;
-    int draws = 0;
-    int losses = 0;
-    final List<String> recentResults = [];
-
-    final orderedDocs = [...matchesSnapshot.docs]
-      ..sort((a, b) {
-        final dataA = a.data();
-        final dataB = b.data();
-        final tsA = (dataA['finishedAt'] as Timestamp?) ??
-            (dataA['updatedAt'] as Timestamp?) ??
-            Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
-        final tsB = (dataB['finishedAt'] as Timestamp?) ??
-            (dataB['updatedAt'] as Timestamp?) ??
-            Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
-        return tsB.compareTo(tsA);
-      });
-
-    for (final doc in orderedDocs) {
-      final data = doc.data();
-
-      // 1) Зчитуємо рахунок із числових полів, інакше з текстового result
-      final int? score1Opt = data['teamAScore'] as int?;
-      final int? score2Opt = data['teamBScore'] as int?;
-      int score1 = score1Opt ?? 0;
-      int score2 = score2Opt ?? 0;
-
-      if (score1Opt == null || score2Opt == null) {
-        final String resultStr = (data['result'] as String?) ?? '';
-        if (resultStr == 'teamAWins') {
-          score1 = 1; score2 = 0;
-        } else if (resultStr == 'teamBWins') {
-          score1 = 0; score2 = 1;
-        } else if (resultStr == 'draw') {
-          score1 = 0; score2 = 0;
-        } else {
-          // немає жодної інформації про результат — пропускаємо
-          continue;
-        }
-      }
-
-      // 2) Визначаємо, у якій команді був користувач
-      final List<String> teamAPlayers =
-          List<String>.from((data['teamA']?['playerIds'] ?? const []));
-      final List<String> teamBPlayers =
-          List<String>.from((data['teamB']?['playerIds'] ?? const []));
-      bool isTeamA = teamAPlayers.contains(userId);
-
-      // Fallback: якщо команд немає, але є учасники — вважаємо, що перша половина = А
-      if (!isTeamA && teamBPlayers.isEmpty && teamAPlayers.isEmpty) {
-        final List<String> participants =
-            List<String>.from(data['participants'] ?? const []);
-        if (participants.isNotEmpty) {
-          final half = (participants.length / 2).ceil();
-          final a = participants.take(half).toList();
-          isTeamA = a.contains(userId);
-        }
-      }
-
-      // 3) Рахуємо W/D/L
-      String playedResult;
-      if (score1 == score2) {
-        draws++;
-        playedResult = 'D';
-      } else if ((isTeamA && score1 > score2) || (!isTeamA && score2 > score1)) {
-        wins++;
-        playedResult = 'W';
-      } else {
-        losses++;
-        playedResult = 'L';
-      }
-
-      if (recentResults.length < 5) {
-        recentResults.add(playedResult);
-      }
-    }
-
-    final total = wins + draws + losses;
-    final winRate = total > 0 ? (wins / total) * 100 : 0.0;
-
-    // Доповнюємо до 5 елементів плейсхолдерами
-    while (recentResults.length < 5) {
-      recentResults.add('-');
-    }
-
-    return {
-      'winRate': winRate,
-      'recentResults': recentResults,
-      'wins': wins,
-      'draws': draws,
-      'losses': losses,
-    };
-  } catch (e) {
-    print('Error loading match stats: $e');
-    return {
-      'winRate': 0.0,
-      'recentResults': ['-', '-', '-', '-', '-'],
-      'wins': 0,
-      'draws': 0,
-      'losses': 0,
-    };
-  }
-}
-
-  Future<String?> _uploadAvatar(String uid, XFile picked) async {
-    try {
-      final Uint8List bytes = await picked.readAsBytes();
-      final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = _storage.ref('avatars/$uid/$fileName');
-      final task = await ref.putData(
-        bytes,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-      return await task.ref.getDownloadURL();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            I18n.inline('Не вдалося завантажити фото: $e',
-                'Failed to upload avatar: $e'),
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return null;
-    }
-  }
-
-  Future<int> _getBadgeEndorsementCount(String userId, String badgeId) async {
-    try {
-      final endorsementsSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('badge_endorsements')
-          .doc(badgeId)
-          .get();
-      
-      if (endorsementsSnapshot.exists) {
-        final data = endorsementsSnapshot.data() as Map<String, dynamic>;
-        final endorsers = List<String>.from(data['endorsers'] ?? []);
-        return endorsers.length;
-      }
-      return 0;
-    } catch (e) {
-      print('Error getting badge endorsement count: $e');
-      return 0;
-    }
-  }
-
   Future<void> _endorseBadge(String userId, app_badge.Badge badge) async {
-    final currentUserId = _auth.currentUser?.uid;
+    final currentUserId = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     if (currentUserId == null) return;
-    
+
     if (currentUserId == userId) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Не можна підтверджувати свої бейджі'.i18n('You cannot endorse your own badges'))),
       );
       return;
     }
-    
-    try {
-      final endorsementRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('badge_endorsements')
-          .doc(badge.id);
-      
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final endorsementDoc = await transaction.get(endorsementRef);
-        
-        List<String> endorsers = [];
-        if (endorsementDoc.exists) {
-          endorsers = List<String>.from(endorsementDoc.data()?['endorsers'] ?? []);
-        }
-        
-        if (endorsers.contains(currentUserId)) {
-          throw Exception('Ви вже підтвердили цей бейдж'.i18n('You already endorsed this badge'));
-        }
-        
-        endorsers.add(currentUserId);
-        
-        transaction.set(endorsementRef, {
-          'endorsers': endorsers,
-          'lastEndorsedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      });
-      
-      // Відправляємо нотифікацію власнику бейджу
-      final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserId).get();
-      final currentUserName = currentUserDoc.data()?['displayName'] ?? currentUserDoc.data()?['name'] ?? 'Користувач'.i18n('User');
-      
-      await FirebaseFirestore.instance.collection('notifications').add({
-        'userId': userId,
-        'type': 'badgeEndorsed',
-        'title': 'Підтвердження бейджу'.i18n('Badge endorsement'),
-        'message': I18n.inline('$currentUserName підтвердив ваш бейдж "${badge.localizedName}"', '$currentUserName confirmed your badge "${badge.localizedName}"'),
-        'data': {'badgeId': badge.id},
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(I18n.inline('✅ Бейдж "${badge.localizedName}" підтверджено!', '✅ Badge "${badge.localizedName}" verified!')),
-          backgroundColor: Colors.green,
-        ),
-      );
-      
-      // Оновлюємо UI
-      setState(() {});
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().contains('вже підтвердили') 
-              ? 'Ви вже підтвердили цей бейдж'.i18n('You already endorsed this badge')
-              : 'Помилка підтвердження'.i18n('Endorsement error')),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
+
+    final result = await sl<PlayerBadgeEndorsementRepository>().endorseBadge(
+      ownerUserId: userId,
+      badgeId: badge.id,
+      badgeLocalizedName: badge.localizedName,
+      endorserUserId: currentUserId,
+    );
+
+    result.when(
+      success: (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(I18n.inline('✅ Бейдж "${badge.localizedName}" підтверджено!', '✅ Badge "${badge.localizedName}" verified!')),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() {});
+      },
+      failure: (f) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              f.when(
+                cache: () => 'Помилка підтвердження'.i18n('Endorsement error'),
+                network: (m) => m ?? 'Помилка мережі'.i18n('Network error'),
+                unexpected: (m) =>
+                    m ?? 'Помилка підтвердження'.i18n('Endorsement error'),
+                auth: (_, m) => m ?? 'Помилка авторизації'.i18n('Auth error'),
+              ),
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      },
+    );
   }
 
   void _openFriends() {
@@ -1649,8 +1466,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _openStats(Map<String, dynamic> userData) {
+    final uid =
+        userData['uid'] ?? sl<AuthSessionRepository>().peekCurrentUser?.uid ?? '';
     final statsFuture = _matchStatsFuture ??
-        _loadMatchStats(userData['uid'] ?? _auth.currentUser?.uid ?? '');
+        sl<MatchParticipationStatsRepository>().loadFinishedMatchStats(uid);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1697,7 +1516,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () async {
-              await _auth.signOut();
+              await sl<AuthSessionRepository>().signOut();
               context.router.replace(const LoginRoute());
             },
             child: Text(I18n.t('logout'), style: const TextStyle(color: Colors.red)),
@@ -1747,21 +1566,25 @@ class _ProfileField extends StatelessWidget {
 
 class _TeamCard extends StatelessWidget {
   final AppTeam team;
+  final Stream<Map<String, dynamic>?> teamStatsStream;
   final VoidCallback? onTap;
 
-  const _TeamCard({required this.team, this.onTap});
+  const _TeamCard({
+    required this.team,
+    required this.teamStatsStream,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('teamStats')
-          .doc(team.id)
-          .snapshots(),
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: teamStatsStream,
       builder: (context, snapshot) {
-        final stats = snapshot.hasData && snapshot.data!.exists
-            ? TeamStats.fromDoc(snapshot.data!)
-            : TeamStats.empty(team.id, name: team.name);
+        final stats = TeamStats.fromFirestoreMap(
+          team.id,
+          snapshot.data,
+          fallbackName: team.name,
+        );
         return _TeamCardBody(
           team: team,
           stats: stats,

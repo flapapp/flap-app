@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../features/auth/data/datasources/auth_session_remote_datasource.dart';
@@ -17,6 +19,53 @@ import '../../features/auth/domain/usecases/mark_intro_completed_usecase.dart';
 import '../../features/auth/domain/usecases/register_new_user_usecase.dart';
 import '../../features/auth/domain/usecases/resolve_startup_navigation_usecase.dart';
 import '../../features/auth/domain/usecases/sign_in_with_email_usecase.dart';
+import '../../features/profile/data/datasources/match_participation_stats_remote_datasource.dart';
+import '../../features/profile/data/datasources/match_participation_stats_remote_datasource_impl.dart';
+import '../../features/profile/data/datasources/player_videos_remote_datasource.dart';
+import '../../features/profile/data/datasources/player_videos_remote_datasource_impl.dart';
+import '../../features/profile/data/datasources/profile_remote_datasource.dart';
+import '../../features/profile/data/datasources/profile_remote_datasource_impl.dart';
+import '../../features/profile/data/datasources/profile_storage_datasource.dart';
+import '../../features/profile/data/datasources/profile_storage_datasource_impl.dart';
+import '../../features/profile/data/datasources/team_stats_remote_datasource.dart';
+import '../../features/profile/data/datasources/team_stats_remote_datasource_impl.dart';
+import '../../features/profile/data/repositories/current_user_profile_avatar_repository_impl.dart';
+import '../../features/profile/data/repositories/match_participation_stats_repository_impl.dart';
+import '../../features/profile/data/repositories/player_badge_endorsement_repository_impl.dart';
+import '../../features/profile/data/repositories/player_challenge_invite_repository_impl.dart';
+import '../../features/profile/data/repositories/player_notification_actions_repository_impl.dart';
+import '../../features/profile/data/repositories/player_profile_dashboard_repository_impl.dart';
+import '../../features/profile/data/repositories/player_social_repository_impl.dart';
+import '../../features/profile/data/repositories/player_videos_repository_impl.dart';
+import '../../features/profile/data/repositories/profile_repository_impl.dart';
+import '../../features/profile/data/repositories/profile_team_membership_repository_impl.dart';
+import '../../features/profile/data/repositories/team_stats_repository_impl.dart';
+import '../../features/profile/data/repositories/user_badges_repository_impl.dart';
+import '../../features/profile/domain/repositories/current_user_profile_avatar_repository.dart';
+import '../../features/profile/domain/repositories/match_participation_stats_repository.dart';
+import '../../features/profile/domain/repositories/player_badge_endorsement_repository.dart';
+import '../../features/profile/domain/repositories/player_challenge_invite_repository.dart';
+import '../../features/profile/domain/repositories/player_notification_actions_repository.dart';
+import '../../features/profile/domain/repositories/player_profile_dashboard_repository.dart';
+import '../../features/profile/domain/repositories/player_social_repository.dart';
+import '../../features/profile/domain/repositories/player_videos_repository.dart';
+import '../../features/profile/domain/repositories/profile_repository.dart';
+import '../../features/profile/domain/repositories/profile_team_membership_repository.dart';
+import '../../features/profile/domain/repositories/team_stats_repository.dart';
+import '../../features/profile/domain/repositories/user_badges_repository.dart';
+import '../../features/profile/domain/usecases/commit_profile_avatar_urls_usecase.dart';
+import '../../features/profile/domain/usecases/dismiss_donation_prompt_usecase.dart';
+import '../../features/profile/domain/usecases/load_current_profile_usecase.dart';
+import '../../features/profile/domain/usecases/load_player_profile_dashboard_usecase.dart';
+import '../../features/profile/domain/usecases/save_app_settings_usecase.dart';
+import '../../features/profile/domain/usecases/submit_editable_profile_usecase.dart';
+import '../../services/badge_service.dart';
+import '../../services/friends_service.dart';
+import '../../services/notification_service.dart';
+import '../../services/team_service.dart';
+import '../../features/profile/presentation/bloc/profile_bloc.dart';
+import '../../features/profile/presentation/cubit/profile_creation_cubit.dart';
+import '../../features/profile/presentation/cubit/profile_settings_cubit.dart';
 
 final sl = GetIt.instance;
 
@@ -54,5 +103,93 @@ Future<void> configureDependencies() async {
     )
     ..registerLazySingleton(
       () => CheckIntroCompletedUseCase(sl()),
+    )
+    ..registerLazySingleton<ProfileRemoteDataSource>(
+      () => ProfileRemoteDataSourceImpl(FirebaseFirestore.instance),
+    )
+    ..registerLazySingleton<ProfileStorageDataSource>(
+      () => ProfileStorageDataSourceImpl(FirebaseStorage.instance),
+    )
+    ..registerLazySingleton<ProfileRepository>(
+      () => ProfileRepositoryImpl(sl(), sl()),
+    )
+    ..registerLazySingleton(
+      () => DismissDonationPromptUseCase(sl()),
+    )
+    ..registerLazySingleton(
+      () => LoadCurrentProfileUseCase(sl(), sl()),
+    )
+    ..registerLazySingleton(
+      () => SaveAppSettingsUseCase(sl(), sl()),
+    )
+    ..registerLazySingleton(
+      () => CommitProfileAvatarUrlsUseCase(sl(), sl()),
+    )
+    ..registerLazySingleton(
+      () => SubmitEditableProfileUseCase(sl()),
+    )
+    ..registerFactory(
+      () => ProfileBloc(sl(), sl(), sl(), sl()),
+    )
+    ..registerFactory(
+      () => ProfileSettingsCubit(sl(), sl()),
+    )
+    ..registerFactory(
+      () => ProfileCreationCubit(sl()),
+    )
+    ..registerLazySingleton<MatchParticipationStatsRemoteDataSource>(
+      () => MatchParticipationStatsRemoteDataSourceImpl(FirebaseFirestore.instance),
+    )
+    ..registerLazySingleton<PlayerVideosRemoteDataSource>(
+      () => PlayerVideosRemoteDataSourceImpl(FirebaseFirestore.instance),
+    )
+    ..registerLazySingleton<TeamStatsRemoteDataSource>(
+      () => TeamStatsRemoteDataSourceImpl(FirebaseFirestore.instance),
+    )
+    ..registerLazySingleton<PlayerVideosRepository>(
+      () => PlayerVideosRepositoryImpl(sl(), sl()),
+    )
+    ..registerLazySingleton<TeamStatsRepository>(
+      () => TeamStatsRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<BadgeService>(BadgeService.new)
+    ..registerLazySingleton<TeamService>(() => TeamService())
+    ..registerLazySingleton<MatchParticipationStatsRepository>(
+      () => MatchParticipationStatsRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<UserBadgesRepository>(
+      () => UserBadgesRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<ProfileTeamMembershipRepository>(
+      () => ProfileTeamMembershipRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<PlayerProfileDashboardRepository>(
+      () => PlayerProfileDashboardRepositoryImpl(
+        sl(),
+        sl(),
+        sl(),
+        sl(),
+        sl(),
+      ),
+    )
+    ..registerLazySingleton<FriendsService>(FriendsService.new)
+    ..registerLazySingleton<PlayerSocialRepository>(
+      () => PlayerSocialRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<PlayerBadgeEndorsementRepository>(
+      () => PlayerBadgeEndorsementRepositoryImpl(FirebaseFirestore.instance),
+    )
+    ..registerLazySingleton<NotificationService>(NotificationService.new)
+    ..registerLazySingleton<PlayerNotificationActionsRepository>(
+      () => PlayerNotificationActionsRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<PlayerChallengeInviteRepository>(
+      () => PlayerChallengeInviteRepositoryImpl(FirebaseFirestore.instance),
+    )
+    ..registerLazySingleton<CurrentUserProfileAvatarRepository>(
+      () => CurrentUserProfileAvatarRepositoryImpl(sl(), sl()),
+    )
+    ..registerLazySingleton(
+      () => LoadPlayerProfileDashboardUseCase(sl()),
     );
 }

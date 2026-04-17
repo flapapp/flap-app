@@ -7,4 +7,6 @@ abstract class AuthSessionRepository {
 
   /// Synchronous read of the current session if the provider already has it (routing guards).
   AuthUser? get peekCurrentUser;
+
+  Future<void> signOut();
 }

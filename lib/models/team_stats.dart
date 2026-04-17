@@ -26,24 +26,36 @@ class TeamStats {
   });
 
   factory TeamStats.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? const <String, dynamic>{};
+    return TeamStats.fromFirestoreMap(doc.id, doc.data(), fallbackName: '');
+  }
+
+  /// Snapshot data from `teamStats/{teamId}` (same shape as [fromDoc]).
+  factory TeamStats.fromFirestoreMap(
+    String teamId,
+    Map<String, dynamic>? data, {
+    String fallbackName = '',
+  }) {
+    final d = data ?? const <String, dynamic>{};
+    if (d.isEmpty) {
+      return TeamStats.empty(teamId, name: fallbackName);
+    }
     return TeamStats(
-      teamId: doc.id,
-      teamName: (data['teamName'] ?? '').toString(),
-      wins: (data['wins'] ?? 0) as int,
-      draws: (data['draws'] ?? 0) as int,
-      losses: (data['losses'] ?? 0) as int,
-      goalsFor: (data['goalsFor'] ?? 0) as int,
-      goalsAgainst: (data['goalsAgainst'] ?? 0) as int,
+      teamId: teamId,
+      teamName: (d['teamName'] ?? fallbackName).toString(),
+      wins: ((d['wins'] ?? 0) as num).toInt(),
+      draws: ((d['draws'] ?? 0) as num).toInt(),
+      losses: ((d['losses'] ?? 0) as num).toInt(),
+      goalsFor: ((d['goalsFor'] ?? 0) as num).toInt(),
+      goalsAgainst: ((d['goalsAgainst'] ?? 0) as num).toInt(),
       playerGoals: Map<String, int>.from(
-        (data['playerGoals'] ?? const <String, dynamic>{}).map(
+        (d['playerGoals'] ?? const <String, dynamic>{}).map(
           (key, value) => MapEntry(key.toString(), (value as num).toInt()),
         ),
       ),
-      recentMatches: ((data['recentMatches'] as List?) ?? const [])
+      recentMatches: ((d['recentMatches'] as List?) ?? const [])
           .whereType<Map<String, dynamic>>()
           .toList(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
 

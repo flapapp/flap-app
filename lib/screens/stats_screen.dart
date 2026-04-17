@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'profile_screen_sparkline.dart';
+import '../features/profile/presentation/widgets/sparkline_painter.dart';
 
 @RoutePage()
 class StatsScreen extends StatefulWidget {

@@ -1,28 +1,47 @@
-import 'package:auto_route/auto_route.dart';
-import 'package:flutter/material.dart';
-
-import '../router/app_router.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import '../utils/i18n.dart';
-import '../widgets/city_autocomplete_field.dart';
+
+import 'package:auto_route/auto_route.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../../../../core/di/injection.dart';
+import '../../../../core/usecases/no_params.dart';
+import '../../../auth/domain/repositories/auth_session_repository.dart';
+import '../../../../router/app_router.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/city_autocomplete_field.dart';
+import '../../domain/entities/editable_profile_submission.dart';
+import '../../domain/usecases/load_current_profile_usecase.dart';
+import '../cubit/profile_creation_cubit.dart';
 
 @RoutePage()
-class ProfileCreationScreen extends StatefulWidget {
+class ProfileCreationScreen extends StatelessWidget {
+  const ProfileCreationScreen({super.key, this.isEditing = false});
+
   final bool isEditing;
-  
-  const ProfileCreationScreen({Key? key, this.isEditing = false}) : super(key: key);
-  
+
   @override
-  _ProfileCreationScreenState createState() => _ProfileCreationScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => sl<ProfileCreationCubit>(),
+      child: _ProfileCreationForm(isEditing: isEditing),
+    );
+  }
 }
 
-class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
+class _ProfileCreationForm extends StatefulWidget {
+  const _ProfileCreationForm({required this.isEditing});
+
+  final bool isEditing;
+
+  @override
+  State<_ProfileCreationForm> createState() => _ProfileCreationFormState();
+}
+
+class _ProfileCreationFormState extends State<_ProfileCreationForm> {
   @override
   void initState() {
     super.initState();
@@ -33,32 +52,44 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser != null) {
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUser.uid)
-            .get();
-        
-        if (userDoc.exists) {
-          final userData = userDoc.data()!;
+      final result = await sl<LoadCurrentProfileUseCase>()(const NoParams());
+      result.when(
+        success: (profile) {
+          final userData = profile.document;
+          if (!mounted) return;
           setState(() {
-            _nameController.text = userData['authorName'] ?? userData['displayName'] ?? '';
-            _surnameController.text = userData['surname'] ?? '';
-            _cityController.text = userData['city'] ?? '';
+            _nameController.text =
+                userData['authorName']?.toString() ??
+                    userData['displayName']?.toString() ??
+                    '';
+            _surnameController.text = userData['surname']?.toString() ?? '';
+            _cityController.text = userData['city']?.toString() ?? '';
             _ageController.text = userData['age']?.toString() ?? '';
-            // Перевіряємо чи значення є в списках (using Ukrainian values for matching)
             final userPosition = userData['position'];
-            final ukPositions = ['Воротар', 'Захисник', 'Півзахисник', 'Нападник'];
-            _selectedPosition = ukPositions.contains(userPosition) ? userPosition : null;
+            const ukPositions = [
+              'Воротар',
+              'Захисник',
+              'Півзахисник',
+              'Нападник',
+            ];
+            _selectedPosition =
+                ukPositions.contains(userPosition) ? userPosition as String? : null;
             final userExperience = userData['experience'];
-            final ukExperiences = ['Початківець', 'Любитель', 'Напівпрофесіонал', 'Професіонал'];
-            _selectedExperience = ukExperiences.contains(userExperience) ? userExperience : null;
+            const ukExperiences = [
+              'Початківець',
+              'Любитель',
+              'Напівпрофесіонал',
+              'Професіонал',
+            ];
+            _selectedExperience = ukExperiences.contains(userExperience)
+                ? userExperience as String?
+                : null;
           });
-        }
-      }
+        },
+        failure: (_) {},
+      );
     } catch (e) {
-      print('Error loading user data: $e');
+      debugPrint('Error loading user data: $e');
     }
   }
   final _formKey = GlobalKey<FormState>();
@@ -456,106 +487,72 @@ Widget build(BuildContext context) {
                           backgroundColor: const Color(0xFF4caf50),
                         ),
                         onPressed: () async {
-                          if (_formKey.currentState!.validate()) {
-                            final uid = FirebaseAuth.instance.currentUser?.uid;
-                            if (uid == null) {
+                          if (!_formKey.currentState!.validate()) return;
+                          final uid =
+                              sl<AuthSessionRepository>().peekCurrentUser?.uid;
+                          if (uid == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  I18n.inline(
+                                    'Потрібно увійти в акаунт',
+                                    'You need to sign in',
+                                  ),
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          Uint8List? avatarBytes;
+                          if (_pickedImage != null) {
+                            try {
+                              avatarBytes = await _pickedImage!.readAsBytes();
+                            } catch (e) {
+                              if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    I18n.inline('Потрібно увійти в акаунт', 'You need to sign in'),
+                                    I18n.inline(
+                                      'Не вдалося прочитати фото: $e',
+                                      'Failed to read photo: $e',
+                                    ),
                                   ),
                                 ),
                               );
                               return;
                             }
-
-                            String? avatarUrl;
-                            if (_pickedImage != null) {
-                              try {
-                                final storageRef = FirebaseStorage.instance
-                                    .ref()
-                                    .child('avatars/$uid/avatar.jpg');
-                                if (kIsWeb) {
-                                  final bytes = await _pickedImage!.readAsBytes();
-                                  final snap = await storageRef.putData(
-                                    bytes,
-                                    SettableMetadata(contentType: 'image/jpeg'),
-                                  );
-                                  avatarUrl = await snap.ref.getDownloadURL();
-                                } else {
-                                  final bytes = await _pickedImage!.readAsBytes();
-                                  final snap = await storageRef.putData(
-                                    bytes,
-                                    SettableMetadata(contentType: 'image/jpeg'),
-                                  );
-                                  avatarUrl = await snap.ref.getDownloadURL();
-                                }
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      I18n.inline(
-                                        'Не вдалося завантажити фото: $e',
-                                        'Failed to upload photo: $e',
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }
-                            }
-
-                            final fullName =
-                                '${_nameController.text.trim()} ${_surnameController.text.trim()}'
-                                    .trim();
-                            final updateData = {
-                              'firstName': _nameController.text.trim(),
-                              'lastName': _surnameController.text.trim(),
-                              'authorName': fullName,
-                              'displayName': fullName,
-                              'city': _cityController.text.trim(),
-                              'age': int.tryParse(_ageController.text.trim()),
-                              'position': _selectedPosition,
-                              'experience': _selectedExperience,
-                              'updatedAt': FieldValue.serverTimestamp(),
-                            };
-
-                            if (avatarUrl != null && avatarUrl.isNotEmpty) {
-                              updateData['avatarUrl'] = avatarUrl;
-                            }
-
-                            await FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(uid)
-                                .set(updateData, SetOptions(merge: true));
-
-                            try {
-                              final existing = await FirebaseFirestore.instance
-                                  .collection('users')
-                                  .where(FieldPath.documentId, isNotEqualTo: uid)
-                                  .limit(4)
-                                  .get();
-                              final friendIds = existing.docs.map((d) => d.id).toList();
-                              if (friendIds.isNotEmpty) {
-                                final userRef =
-                                    FirebaseFirestore.instance.collection('users').doc(uid);
-                                await userRef.set({
-                                  'friends': FieldValue.arrayUnion(friendIds),
-                                }, SetOptions(merge: true));
-                                for (final fid in friendIds) {
-                                  final fRef = FirebaseFirestore.instance.collection('users').doc(fid);
-                                  await fRef.set({
-                                    'friends': FieldValue.arrayUnion([uid]),
-                                  }, SetOptions(merge: true));
-                                }
-                              }
-                            } catch (_) {}
-
-                            if (widget.isEditing) {
-                              Navigator.pop(context);
-                            } else {
-                              context.router.replace(const ModeSelectionRoute());
-                            }
                           }
+                          final submission = EditableProfileSubmission(
+                            userId: uid,
+                            firstName: _nameController.text.trim(),
+                            lastName: _surnameController.text.trim(),
+                            city: _cityController.text.trim(),
+                            age: int.tryParse(_ageController.text.trim()),
+                            position: _selectedPosition,
+                            experience: _selectedExperience,
+                            avatarJpegBytes: avatarBytes,
+                            isEditing: widget.isEditing,
+                          );
+                          final result = await context
+                              .read<ProfileCreationCubit>()
+                              .submit(submission);
+                          if (!mounted) return;
+                          result.when(
+                            success: (_) {
+                              if (widget.isEditing) {
+                                Navigator.pop(context);
+                              } else {
+                                context.router.replace(const ModeSelectionRoute());
+                              }
+                            },
+                            failure: (f) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(f.toString()),
+                                ),
+                              );
+                            },
+                          );
                         },
                         child: Text(
                           widget.isEditing

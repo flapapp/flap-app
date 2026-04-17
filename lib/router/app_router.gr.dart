@@ -692,7 +692,7 @@ class ProfileRoute extends PageRouteInfo<void> {
   static PageInfo page = PageInfo(
     name,
     builder: (data) {
-      return ProfileScreen();
+      return const ProfileScreen();
     },
   );
 }

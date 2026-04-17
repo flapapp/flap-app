@@ -5,4 +5,6 @@ abstract class AuthSessionRemoteDataSource {
 
   /// Current user id if already available (no await).
   String? get currentUserIdOrNull;
+
+  Future<void> signOut();
 }

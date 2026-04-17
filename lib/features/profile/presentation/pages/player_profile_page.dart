@@ -1,24 +1,28 @@
+import 'dart:typed_data';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
-
-import '../router/app_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:video_player/video_player.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'dart:typed_data';
-import '../models/app_team.dart';
-import '../models/badge.dart' as app_badge;
-import '../services/badge_service.dart';
-import '../services/friends_service.dart';
-import '../services/notification_service.dart';
-import '../services/team_service.dart';
-import '../utils/i18n.dart';
-import 'team_details_screen.dart';
-import '../widgets/video_preview_box.dart';
-import 'video_player_screen.dart';
+import 'package:video_player/video_player.dart';
+
+import '../../../../core/di/injection.dart';
+import '../../../../models/app_team.dart';
+import '../../../../models/badge.dart' as app_badge;
+import '../../../../utils/i18n.dart';
+import '../../../auth/domain/repositories/auth_session_repository.dart';
+import '../../domain/repositories/current_user_profile_avatar_repository.dart';
+import '../../domain/repositories/player_badge_endorsement_repository.dart';
+import '../../domain/repositories/player_challenge_invite_repository.dart';
+import '../../domain/repositories/player_notification_actions_repository.dart';
+import '../../domain/repositories/player_social_repository.dart';
+import '../../domain/repositories/player_videos_repository.dart';
+import '../../domain/repositories/profile_repository.dart';
+import '../../domain/repositories/team_stats_repository.dart';
+import '../../domain/usecases/commit_profile_avatar_urls_usecase.dart';
+import '../../domain/usecases/load_player_profile_dashboard_usecase.dart';
+import '../../../../screens/team_details_screen.dart';
+import '../../../../screens/video_player_screen.dart';
+import '../../../../widgets/video_preview_box.dart';
 
 @RoutePage()
 class PlayerProfileScreen extends StatefulWidget {
@@ -36,32 +40,25 @@ class PlayerProfileScreen extends StatefulWidget {
 }
 
 class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final TeamService _teamService = TeamService();
   Map<String, dynamic>? playerData;
   List<Map<String, dynamic>> playerVideos = [];
   bool isLoading = true;
-  final FriendsService _friendsService = FriendsService();
   bool _isSendingRequest = false;
   // Пікер та локальний буфер аватару
   final ImagePicker _picker = ImagePicker();
   XFile? _pickedAvatar; // web-safe файл
   bool _uploadingAvatar = false;
-  final NotificationService _notificationService = NotificationService();
   List<String> _myVideoIds = [];
   bool _loadingMyVideos = false;
-  final BadgeService _badgeService = BadgeService();
   double _winRate = 0.0;
   int _wins = 0;
   int _draws = 0;
   int _losses = 0;
   int _matchesPlayed = 0;
   List<String> _recentResults = const ['-', '-', '-', '-', '-'];
-  List<String> _userBadgeIds = [];
   List<app_badge.Badge> _userBadges = [];
   int _badgeEndorseVersion = 0;
   List<AppTeam> _playerTeams = [];
-  bool _loadingTeams = false;
   // Опції як у реєстрації
   List<String> get _positions => [
         'Воротар'.i18n('Goalkeeper'),
@@ -85,61 +82,38 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 
   Future<void> _loadPlayerData() async {
     try {
-      // Завантажити дані гравця
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.playerId)
-          .get();
-
-      if (userDoc.exists) {
-        playerData = userDoc.data();
-      }
-      // Win Rate + останні 5 результатів
-      final stats = await _loadMatchStats(widget.playerId);
-      _winRate = (stats['winRate'] as num?)?.toDouble() ?? 0.0;
-      _wins = (stats['wins'] as num?)?.toInt() ?? 0;
-      _draws = (stats['draws'] as num?)?.toInt() ?? 0;
-      _losses = (stats['losses'] as num?)?.toInt() ?? 0;
-      _matchesPlayed = (stats['matches'] as num?)?.toInt() ?? 0;
-      _recentResults = List<String>.from(
-        stats['recentResults'] ?? const ['-', '-', '-', '-', '-'],
+      final result = await sl<LoadPlayerProfileDashboardUseCase>()(
+        LoadPlayerProfileDashboardParams(playerId: widget.playerId),
       );
-
-            // Бейджі гравця
-      try {
-        final badgeObjects = await _badgeService.getUserBadgeObjects(widget.playerId);
-        _userBadges = badgeObjects;
-        _userBadgeIds = badgeObjects.map((b) => b.id).toList();
-      } catch (_) {}
-
-      // Завантажити відео гравця (simplified query to avoid index issues)
-      final videosQuery = await FirebaseFirestore.instance
-          .collection('videos')
-          .where('userId', isEqualTo: widget.playerId)
-          .limit(10)
-          .get();
-
-      playerVideos = videosQuery.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return data;
-      }).toList();
-
-      // Sort on client side to avoid index requirement
-      playerVideos.sort((a, b) {
-        final aTime = a['createdAt'] as Timestamp?;
-        final bTime = b['createdAt'] as Timestamp?;
-        if (aTime == null || bTime == null) return 0;
-        return bTime.compareTo(aTime);
-      });
-
-      await _loadPlayerTeams();
-
+      result.when(
+        success: (data) {
+          final profile = data.profile;
+          playerData = profile?.legacyUserData;
+          final stats = data.matchStats;
+          _winRate = (stats['winRate'] as num?)?.toDouble() ?? 0.0;
+          _wins = (stats['wins'] as num?)?.toInt() ?? 0;
+          _draws = (stats['draws'] as num?)?.toInt() ?? 0;
+          _losses = (stats['losses'] as num?)?.toInt() ?? 0;
+          _matchesPlayed = (stats['matches'] as num?)?.toInt() ?? 0;
+          _recentResults = List<String>.from(
+            stats['recentResults'] ?? const ['-', '-', '-', '-', '-'],
+          );
+          _userBadges = data.badges;
+          playerVideos = data.videos;
+          _playerTeams = data.teams;
+        },
+        failure: (f) {
+          // ignore: avoid_print
+          print('Error loading player data: $f');
+          playerData = null;
+        },
+      );
       if (!mounted) return;
       setState(() {
         isLoading = false;
       });
     } catch (e) {
+      // ignore: avoid_print
       print('Error loading player data: $e');
       if (!mounted) return;
       setState(() {
@@ -148,136 +122,15 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     }
   }
 
-  Future<void> _loadPlayerTeams() async {
-    if (!mounted) return;
-    setState(() => _loadingTeams = true);
-    try {
-      final teams = await _teamService.fetchUserTeams(widget.playerId);
-      if (mounted) {
-        setState(() => _playerTeams = teams);
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _playerTeams = []);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _loadingTeams = false);
-      }
-    }
-  }
-
-  Future<Map<String, dynamic>> _loadMatchStats(String userId) async {
-  try {
-    final base = FirebaseFirestore.instance
-        .collection('matches')
-        .where('participants', arrayContains: userId);
-
-    QuerySnapshot<Map<String, dynamic>> snap;
-    try {
-      snap = await base
-          .where('status', isEqualTo: 'finished')
-          .orderBy('updatedAt', descending: true)
-          .limit(20)
-          .get();
-    } catch (_) {
-      try {
-        snap = await base
-            .where('status', isEqualTo: 'finished')
-            .limit(20)
-            .get();
-      } catch (_) {
-        snap = await base.limit(20).get();
-      }
-    }
-
-    int wins = 0, draws = 0, losses = 0;
-    final List<String> recent = [];
-
-    final docs = [...snap.docs]
-      ..sort((a, b) {
-        final dataA = a.data();
-        final dataB = b.data();
-        final tsA = (dataA['finishedAt'] as Timestamp?) ??
-            (dataA['updatedAt'] as Timestamp?) ??
-            Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
-        final tsB = (dataB['finishedAt'] as Timestamp?) ??
-            (dataB['updatedAt'] as Timestamp?) ??
-            Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
-        return tsB.compareTo(tsA);
-      });
-
-    for (final d in docs) {
-      final data = d.data();
-
-      int? aOpt = data['teamAScore'] as int?;
-      int? bOpt = data['teamBScore'] as int?;
-      int a = aOpt ?? 0, b = bOpt ?? 0;
-
-      if (aOpt == null || bOpt == null) {
-        final r = (data['result'] ?? '').toString();
-        if (r == 'teamAWins') { a = 1; b = 0; }
-        else if (r == 'teamBWins') { a = 0; b = 1; }
-        else if (r == 'draw') { a = 0; b = 0; }
-        else { continue; }
-      }
-
-      final teamA = List<String>.from((data['teamA']?['playerIds'] ?? const []));
-      final teamB = List<String>.from((data['teamB']?['playerIds'] ?? const []));
-      bool isA = teamA.contains(userId);
-      if (!isA && teamA.isEmpty && teamB.isEmpty) {
-        final parts = List<String>.from(data['participants'] ?? const []);
-        if (parts.isNotEmpty) {
-          final half = (parts.length / 2).ceil();
-          isA = parts.take(half).contains(userId);
-        }
-      }
-
-      String res;
-      if (a == b) { draws++; res = 'D'; }
-      else if ((isA && a > b) || (!isA && b > a)) { wins++; res = 'W'; }
-      else { losses++; res = 'L'; }
-
-      if (recent.length < 5) recent.add(res);
-    }
-
-    final total = wins + draws + losses;
-    final rate = total > 0 ? (wins / total) * 100 : 0.0;
-    while (recent.length < 5) recent.add('-');
-    return {
-      'winRate': rate,
-      'wins': wins,
-      'draws': draws,
-      'losses': losses,
-      'matches': total,
-      'recentResults': recent,
-    };
-  } catch (_) {
-    return {
-      'winRate': 0.0,
-      'wins': 0,
-      'draws': 0,
-      'losses': 0,
-      'matches': 0,
-      'recentResults': const ['-', '-', '-', '-', '-'],
-    };
-  }
-}
-
-    Future<void> _loadMyVideosForRequest() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
+  Future<void> _loadMyVideosForRequest() async {
+    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
+    if (uid == null) return;
     if (!mounted) return;
     setState(() {
       _loadingMyVideos = true;
     });
     try {
-      final qs = await FirebaseFirestore.instance
-          .collection('videos')
-          .where('userId', isEqualTo: currentUser.uid)
-          .limit(50)
-          .get();
-      _myVideoIds = qs.docs.map((d) => d.id).toList();
+      _myVideoIds = await sl<PlayerVideosRepository>().listMyVideoIds(50);
     } catch (_) {}
     if (!mounted) return;
     if (mounted) {
@@ -302,43 +155,85 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   }
 }
 
-Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
-  if (!mounted) return null; // guard перед setState
-  if (_uploadingAvatar && !mounted) return null;
-
-  try {
-    setState(() => _uploadingAvatar = true);
-
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('avatars')
-        .child(userId)
-        .child('avatar.jpg');
-
-    final Uint8List bytes = await file.readAsBytes();
-    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-    final url = await ref.getDownloadURL();
-    return url;
-  } catch (e) {
+  Future<String?> _uploadAvatarToStorage(XFile file) async {
     if (!mounted) return null;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(I18n.inline('Помилка завантаження: $e', 'Upload error: $e'))),
-    );
-    return null;
-  } finally {
-    if (mounted) {
-      setState(() => _uploadingAvatar = false);
+    if (_uploadingAvatar) return null;
+
+    try {
+      setState(() => _uploadingAvatar = true);
+
+      final Uint8List bytes = await file.readAsBytes();
+      final uploadResult =
+          await sl<CurrentUserProfileAvatarRepository>().uploadAvatarJpeg(bytes);
+      final url = uploadResult.when(
+        success: (u) => u,
+        failure: (f) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  f.when(
+                    cache: () => '',
+                    network: (m) => m ?? '',
+                    unexpected: (m) => m ?? '',
+                    auth: (_, m) => m ?? '',
+                  ),
+                ),
+              ),
+            );
+          }
+          return null;
+        },
+      );
+      if (url == null) return null;
+
+      final commitResult = await sl<CommitProfileAvatarUrlsUseCase>()(
+        CommitProfileAvatarUrlsParams(downloadUrl: url),
+      );
+      return commitResult.when(
+        success: (_) => url,
+        failure: (f) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  f.when(
+                    cache: () => '',
+                    network: (m) => m ?? '',
+                    unexpected: (m) => m ?? '',
+                    auth: (_, m) => m ?? '',
+                  ),
+                ),
+              ),
+            );
+          }
+          return null;
+        },
+      );
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            I18n.inline('Помилка завантаження: $e', 'Upload error: $e'),
+          ),
+        ),
+      );
+      return null;
+    } finally {
+      if (mounted) {
+        setState(() => _uploadingAvatar = false);
+      }
     }
   }
-}
 
-    Future<void> _showRateMeDialog() async {
+  Future<void> _showRateMeDialog() async {
     if (!mounted) return;
     final parentContext = context;
     bool dialogClosed = false;
 
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
+    final currentUid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
+    if (currentUid == null) return;
 
     await _loadMyVideosForRequest();
     if (_myVideoIds.isEmpty) {
@@ -349,12 +244,8 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
       return;
     }
 
-    final qs = await FirebaseFirestore.instance
-        .collection('videos')
-        .where('userId', isEqualTo: currentUser.uid)
-        .limit(50)
-        .get();
-    final videos = qs.docs.map((d) => {'id': d.id, ...(d.data() as Map<String, dynamic>)}).toList();
+    final videos =
+        await sl<PlayerVideosRepository>().listMyVideos(50);
     final selected = <String>{};
 
     await showDialog<bool>(
@@ -407,10 +298,14 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                 onPressed: selected.isEmpty
                     ? null
                     : () async {
-                        final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+                        final meProfile =
+                            await sl<ProfileRepository>().fetchUserProfile(currentUid);
                         if (dialogClosed) return;
-                        final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач'.i18n('User')).toString();
-                        await _notificationService.sendRatingRequest(
+                        final myName = (meProfile?.displayName.isNotEmpty == true
+                                ? meProfile!.displayName
+                                : null) ??
+                            'Користувач'.i18n('User');
+                        await sl<PlayerNotificationActionsRepository>().sendRatingRequest(
                           toUserIds: [widget.playerId],
                           fromUserName: myName,
                           videoIds: selected.toList(),
@@ -435,24 +330,24 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
   }
 
   Future<bool> _areFriends() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return false;
+    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
+    if (uid == null) return false;
 
     try {
-      return await _friendsService.areUsersFriends(currentUser.uid, widget.playerId);
+      return await sl<PlayerSocialRepository>()
+          .areUsersFriends(uid, widget.playerId);
     } catch (e) {
       return false;
     }
   }
 
   Future<bool> _hasPendingRequest() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return false;
+    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
+    if (uid == null) return false;
 
     try {
-      // Check outgoing requests
-      final outgoingRequests = await _friendsService.getOutgoingFriendRequests().first;
-      return outgoingRequests.any((request) => request.toUserId == widget.playerId);
+      return await sl<PlayerSocialRepository>()
+          .hasOutgoingPendingRequestTo(widget.playerId);
     } catch (e) {
       return false;
     }
@@ -465,7 +360,7 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
         _isSendingRequest = true;
       });
 
-      await _friendsService.sendFriendRequest(widget.playerId);
+      await sl<PlayerSocialRepository>().sendFriendRequest(widget.playerId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -586,7 +481,6 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
                          playerData!['email']?.toString().split('@').first ?? 
                          I18n.t('player')).toString();
     final position = _localizedPosition(playerData!['position']?.toString());
-    final experience = playerData!['experience'] ?? '';
     final city = playerData!['city'] ?? '';
     final rating = (playerData!['rating'] ?? 0.0).toDouble();
     final matchesFromProfile = ((playerData!['totalMatches'] ?? playerData!['matches'] ?? playerData!['matchesPlayed'] ?? 0) as num).toInt();
@@ -601,9 +495,6 @@ Future<String?> _uploadAvatarToStorage(String userId, XFile file) async {
     final draws = _draws > 0 ? _draws : drawsFromProfile;
     final losses = _losses > 0 ? _losses : lossesFromProfile;
     final matches = _matchesPlayed > 0 ? _matchesPlayed : matchesFromProfile;
-
-    final me = FirebaseAuth.instance.currentUser?.uid;
-    final isOwnProfile = me != null && widget.playerId == me;
 
       return Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
@@ -738,12 +629,7 @@ Container(
 ),
 const SizedBox(height: 12),
 
-            if (_loadingTeams)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: LinearProgressIndicator(),
-              )
-            else if (_playerTeams.isNotEmpty) ...[
+            if (_playerTeams.isNotEmpty) ...[
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -764,6 +650,8 @@ const SizedBox(height: 12),
                     final team = _playerTeams[index];
                     return _MiniTeamCard(
                       team: team,
+                      teamStatsStream:
+                          sl<TeamStatsRepository>().watchTeamStats(team.id),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -782,7 +670,7 @@ const SizedBox(height: 12),
             // Кнопки (приховані на власному профілі)
             Builder(
               builder: (context) {
-                final me = FirebaseAuth.instance.currentUser?.uid;
+                final me = sl<AuthSessionRepository>().peekCurrentUser?.uid;
                 final isOwnProfile = me != null && widget.playerId == me;
                 if (isOwnProfile) return const SizedBox.shrink();
 
@@ -920,12 +808,16 @@ const SizedBox(height: 12),
                                           ),
                                         ),
                                         const SizedBox(height: 4),
-                                        FutureBuilder<Map<String, dynamic>>(
+                                        FutureBuilder<BadgeEndorsementInfo>(
                                           key: ValueKey('endorse-${badge.id}-$_badgeEndorseVersion'),
-                                          future: _getBadgeEndorsementInfo(widget.playerId, badge.id),
+                                          future: sl<PlayerBadgeEndorsementRepository>().getEndorsementInfo(
+                                            ownerUserId: widget.playerId,
+                                            badgeId: badge.id,
+                                            currentUserId: sl<AuthSessionRepository>().peekCurrentUser?.uid,
+                                          ),
                                           builder: (context, snapshot) {
-                                            final count = snapshot.data?['count'] as int? ?? 0;
-                                            final endorsed = snapshot.data?['endorsed'] as bool? ?? false;
+                                            final count = snapshot.data?.count ?? 0;
+                                            final endorsed = snapshot.data?.endorsedByCurrentUser ?? false;
                                             return Row(
                                               children: [
                                                 Container(
@@ -1150,29 +1042,15 @@ const SizedBox(height: 12),
     final parentContext = context;
     bool dialogClosed = false;
 
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
+    final currentUid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
+    if (currentUid == null) return;
 
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('challenges')
-          .where('creatorId', isEqualTo: currentUser.uid)
-          .limit(50)
-          .get();
-
-      if (dialogClosed) return;
-
-      final all = snap.docs
-          .map((d) {
-            final data = d.data() as Map<String, dynamic>;
-            data['id'] = d.id;
-            return data;
-          })
-          .where((c) {
-            final participants = List<String>.from(c['participants'] ?? []);
-            return !participants.contains(widget.playerId);
-          })
-          .toList();
+      final all = await sl<PlayerChallengeInviteRepository>()
+          .listInvitableChallenges(
+        creatorUserId: currentUid,
+        targetPlayerId: widget.playerId,
+      );
 
       if (all.isEmpty) {
         if (!mounted) return;
@@ -1227,10 +1105,11 @@ const SizedBox(height: 12),
                   onPressed: selectedIndex < 0
                       ? null
                       : () async {
-                          final me = FirebaseAuth.instance.currentUser?.uid;
+                          final me = sl<AuthSessionRepository>().peekCurrentUser?.uid;
                           if (me == null || widget.playerId == me) return;
                           final selected = all[selectedIndex];
-                          final ok = await _notificationService.sendChallengeInvitation(
+                          final ok = await sl<PlayerNotificationActionsRepository>()
+                              .sendChallengeInvitation(
                             toUserId: widget.playerId,
                             challengeId: (selected['id'] ?? '').toString(),
                             challengeTitle: (selected['title'] ?? 'Челендж'.i18n('Challenge')).toString(),
@@ -1289,29 +1168,8 @@ const SizedBox(height: 12),
     );
   }
 
-  Future<Map<String, dynamic>> _getBadgeEndorsementInfo(String userId, String badgeId) async {
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('badge_endorsements')
-          .doc(badgeId)
-          .get();
-      final currentUid = _auth.currentUser?.uid;
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        final endorsers = List<String>.from(data['endorsers'] ?? []);
-        final endorsed = currentUid != null && endorsers.contains(currentUid);
-        return {'count': endorsers.length, 'endorsed': endorsed};
-      }
-      return {'count': 0, 'endorsed': false};
-    } catch (_) {
-      return {'count': 0, 'endorsed': false};
-    }
-  }
-
   Future<void> _endorseBadge(String ownerId, app_badge.Badge badge) async {
-    final currentUserId = _auth.currentUser?.uid;
+    final currentUserId = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     if (currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Увійдіть, щоб підтверджувати бейджі'.i18n('Sign in to endorse badges'))),
@@ -1325,80 +1183,57 @@ const SizedBox(height: 12),
       return;
     }
 
-    final ref = FirebaseFirestore.instance
-        .collection('users')
-        .doc(ownerId)
-        .collection('badge_endorsements')
-        .doc(badge.id);
+    final result = await sl<PlayerBadgeEndorsementRepository>().endorseBadge(
+      ownerUserId: ownerId,
+      badgeId: badge.id,
+      badgeLocalizedName: badge.localizedName,
+      endorserUserId: currentUserId,
+    );
 
-    try {
-      await FirebaseFirestore.instance.runTransaction((tx) async {
-        final snap = await tx.get(ref);
-        List<String> endorsers = [];
-        if (snap.exists) {
-          endorsers = List<String>.from(snap.data()?['endorsers'] ?? []);
-        }
-        if (endorsers.contains(currentUserId)) {
-          throw Exception('already-endorsed');
-        }
-        endorsers.add(currentUserId);
-        tx.set(
-          ref,
-          {
-            'endorsers': endorsers,
-            'lastEndorsedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
+    result.when(
+      success: (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(I18n.inline('✅ Ви підтвердили бейдж "${badge.localizedName}"', '✅ You endorsed the badge "${badge.localizedName}"'))),
         );
-      });
-
-      final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserId).get();
-      final currentName = currentUserDoc.data()?['displayName'] ?? currentUserDoc.data()?['name'] ?? 'Користувач'.i18n('User');
-
-      await FirebaseFirestore.instance.collection('notifications').add({
-        'userId': ownerId,
-        'type': 'badgeEndorsed',
-        'title': 'Підтвердження бейджу'.i18n('Badge endorsement'),
-        'message': I18n.inline('$currentName підтвердив ваш бейдж "${badge.localizedName}"', '$currentName confirmed your badge "${badge.localizedName}"'),
-        'data': {'badgeId': badge.id},
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('✅ Ви підтвердили бейдж "${badge.localizedName}"', '✅ You endorsed the badge "${badge.localizedName}"'))),
-      );
-      setState(() {
-        _badgeEndorseVersion++;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      final message = e.toString().contains('already-endorsed')
-          ? 'Ви вже підтвердили цей бейдж'.i18n('You already endorsed this badge')
-          : 'Помилка підтвердження'.i18n('Endorsement error');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    }
+        setState(() {
+          _badgeEndorseVersion++;
+        });
+      },
+      failure: (f) {
+        if (!mounted) return;
+        final message = f.when(
+          cache: () => 'Помилка підтвердження'.i18n('Endorsement error'),
+          network: (m) => m ?? 'Помилка мережі'.i18n('Network error'),
+          unexpected: (m) =>
+              m ?? 'Помилка підтвердження'.i18n('Endorsement error'),
+          auth: (_, m) => m ?? 'Помилка авторизації'.i18n('Auth error'),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      },
+    );
   }
 }
 
 class _MiniTeamCard extends StatelessWidget {
   final AppTeam team;
+  final Stream<Map<String, dynamic>?> teamStatsStream;
   final VoidCallback? onTap;
 
-  const _MiniTeamCard({required this.team, this.onTap});
+  const _MiniTeamCard({
+    required this.team,
+    required this.teamStatsStream,
+    this.onTap,
+  });
 
  @override
 Widget build(BuildContext context) {
-  return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-    stream: FirebaseFirestore.instance
-        .collection('teamStats')
-        .doc(team.id)
-        .snapshots(),
+  return StreamBuilder<Map<String, dynamic>?>(
+    stream: teamStatsStream,
     builder: (context, snapshot) {
-      final stats = snapshot.data?.data() ?? const <String, dynamic>{};
+      final stats = snapshot.data ?? const <String, dynamic>{};
 
       final wins = (stats['wins'] as num?)?.toInt() ?? team.wins;
       final losses = (stats['losses'] as num?)?.toInt() ?? team.losses;
