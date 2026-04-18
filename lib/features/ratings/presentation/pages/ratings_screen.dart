@@ -1,12 +1,13 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/ratings_repository.dart';
+import '../../../../router/app_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/rating_service.dart';
-import '../features/profile/presentation/pages/player_profile_page.dart';
-import '../utils/i18n.dart';
+import '../../../profile/presentation/pages/player_profile_page.dart';
+import '../../../../utils/i18n.dart';
 
 @RoutePage()
 class RatingsScreen extends StatefulWidget {
@@ -16,8 +17,8 @@ class RatingsScreen extends StatefulWidget {
 
 class _RatingsScreenState extends State<RatingsScreen>
     with TickerProviderStateMixin {
-  final RatingService _ratingService = RatingService();
-  
+  RatingsRepository get _ratingRepo => sl<RatingsRepository>();
+
   late TabController _tabController;
   int _currentTabIndex = 0;
   
@@ -94,12 +95,12 @@ class _RatingsScreenState extends State<RatingsScreen>
     
     try {
       // Завантажуємо топ гравців
-_topPlayers = await _ratingService.getTopPlayers(limit: 50);
+_topPlayers = await _ratingRepo.getTopPlayers(limit: 50);
 _topPlayers = _dedupeById(_topPlayers);
 
 // Завантажуємо гравців за містом
 if (_selectedCity != I18n.t('all_cities')) {
-  _cityPlayers = await _ratingService.getTopPlayers(
+  _cityPlayers = await _ratingRepo.getTopPlayers(
     limit: 50,
     city: _selectedCity,
   );
@@ -108,7 +109,7 @@ if (_selectedCity != I18n.t('all_cities')) {
       
       // Завантажуємо гравців за позицією
 if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) {
-  _positionPlayers = await _ratingService.getTopPlayers(
+  _positionPlayers = await _ratingRepo.getTopPlayers(
     limit: 50,
     position: _selectedPosition,
   );
@@ -137,7 +138,7 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
     return;
   }
   try {
-    final stats = await _ratingService.getUserRatingStats(currentUser.uid);
+    final stats = await _ratingRepo.getUserRatingStats(currentUser.uid);
     setState(() => _myStats = stats);
   } catch (e) {
     if (!mounted) return;
@@ -272,8 +273,8 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
       itemBuilder: (context, index) {
         final player = _topPlayers[index];
         final rating = player['rating'] as double;
-        final level = _ratingService.getPlayerLevel(rating);
-        final levelColor = Color(_ratingService.getPlayerLevelColor(rating));
+        final level = _ratingRepo.getPlayerLevel(rating);
+        final levelColor = Color(_ratingRepo.getPlayerLevelColor(rating));
         
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -621,8 +622,8 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
     final totalMatches = (_myStats['totalMatches'] ?? 0) as int;
     final totalVideos = (_myStats['totalVideos'] ?? 0) as int;
     
-    final level = _ratingService.getPlayerLevel(currentRating);
-    final levelColor = Color(_ratingService.getPlayerLevelColor(currentRating));
+    final level = _ratingRepo.getPlayerLevel(currentRating);
+    final levelColor = Color(_ratingRepo.getPlayerLevelColor(currentRating));
     
     return SingleChildScrollView(
       padding: const EdgeInsets.all(15),
@@ -869,8 +870,8 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
       itemBuilder: (context, index) {
         final player = players[index];
         final rating = player['rating'] as double;
-        final level = _ratingService.getPlayerLevel(rating);
-        final levelColor = Color(_ratingService.getPlayerLevelColor(rating));
+        final level = _ratingRepo.getPlayerLevel(rating);
+        final levelColor = Color(_ratingRepo.getPlayerLevelColor(rating));
         
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -995,7 +996,7 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
     
     try {
       print('🔍 Loading players for city: $city');
-      final players = await _ratingService.getTopPlayers(
+      final players = await _ratingRepo.getTopPlayers(
         limit: 50,
         city: city,
       );
@@ -1030,7 +1031,7 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
     
     try {
       print('🔍 Loading players for position: $position');
-      final players = await _ratingService.getTopPlayers(
+      final players = await _ratingRepo.getTopPlayers(
         limit: 50,
         position: position,
       );

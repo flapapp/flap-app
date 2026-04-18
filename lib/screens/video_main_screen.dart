@@ -1,6 +1,8 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
+import '../core/di/injection.dart';
+import '../features/ratings/domain/repositories/ratings_repository.dart';
 import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,7 +12,6 @@ import '../models/challenge.dart';
 import '../widgets/rating_display.dart';
 import '../widgets/video_preview_box.dart';
 import '../services/notification_service.dart';
-import '../services/rating_service.dart';
 import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
 import '../widgets/mode_speed_dial.dart';
@@ -30,7 +31,8 @@ class VideoMainScreen extends StatefulWidget {
 
 class _VideoMainScreenState extends State<VideoMainScreen> {
   final NotificationService _notificationService = NotificationService();
-  final RatingService _ratingService = RatingService();
+
+  RatingsRepository get _ratingRepo => sl<RatingsRepository>();
   String _selectedCity = '';
   final TextEditingController _cityFilterController = TextEditingController();
   String _selectedCategory = '';
@@ -1067,7 +1069,7 @@ Widget build(BuildContext context) {
                     'quality': overall,
                   };
             try {
-              final success = await _ratingService.rateVideo(
+              final success = await _ratingRepo.rateVideo(
                 videoId: videoId,
                 ratedBy: currentUser.uid,
                 criteria: criteria,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/rating_service.dart';
+
+import '../core/di/injection.dart';
+import '../features/ratings/domain/repositories/ratings_repository.dart';
 import '../utils/i18n.dart';
 
 class RatingDisplay extends StatelessWidget {
@@ -25,7 +27,7 @@ class RatingDisplay extends StatelessWidget {
     return FutureBuilder<double>(
       future: rating != null 
           ? Future.value(rating!) 
-          : RatingService().getUserRating(userId),
+          : sl<RatingsRepository>().getUserRating(userId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildLoadingRating();
@@ -36,8 +38,8 @@ class RatingDisplay extends StatelessWidget {
         }
 
         final currentRating = snapshot.data!;
-        final level = RatingService().getPlayerLevel(currentRating);
-        final levelColor = Color(RatingService().getPlayerLevelColor(currentRating));
+        final level = sl<RatingsRepository>().getPlayerLevel(currentRating);
+        final levelColor = Color(sl<RatingsRepository>().getPlayerLevelColor(currentRating));
 
         return GestureDetector(
           onTap: onTap,
@@ -179,7 +181,7 @@ class CompactRatingDisplay extends StatelessWidget {
     return FutureBuilder<double>(
       future: rating != null 
           ? Future.value(rating!) 
-          : RatingService().getUserRating(userId),
+          : sl<RatingsRepository>().getUserRating(userId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildLoadingRating();
@@ -190,7 +192,7 @@ class CompactRatingDisplay extends StatelessWidget {
         }
 
         final currentRating = snapshot.data!;
-        final levelColor = Color(RatingService().getPlayerLevelColor(currentRating));
+        final levelColor = Color(sl<RatingsRepository>().getPlayerLevelColor(currentRating));
 
         return GestureDetector(
           onTap: onTap,

@@ -13,7 +13,6 @@ import '../../domain/repositories/matches_repository.dart';
 import '../../../../models/app_team.dart';
 import '../../../../models/match.dart';
 import '../../../../services/notification_service.dart';
-import '../../../../services/rating_service.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/user_chip.dart';
@@ -31,7 +30,6 @@ class MatchDetailsScreen extends StatefulWidget {
 class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   MatchesRepository get _matchRepo => sl<MatchesRepository>();
 
-  final RatingService _ratingService = RatingService();
   final NotificationService _notificationService = NotificationService();
   bool _isJoining = false;
   bool _isUploadingCover = false;

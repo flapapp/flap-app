@@ -1,6 +1,8 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/di/injection.dart';
+import '../../../ratings/domain/repositories/ratings_repository.dart';
 import '../../../../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,7 +10,6 @@ import '../../../../models/challenge.dart';
 import '../../../../screens/video_upload_screen.dart';
 import '../../../../screens/video_player_screen.dart';
 import 'challenge_video_player_screen.dart';
-import '../../../../services/rating_service.dart';
 import '../../../../services/thumbnail_service.dart';
 import 'challenge_completion_screen.dart';
 import '../../../../utils/i18n.dart';
@@ -1192,7 +1193,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         if (submission.exists) {
           final userId = (submission.data() as Map<String, dynamic>)['userId'] as String?;
           if (userId != null && userId.isNotEmpty && userId != currentUser.uid) {
-            await RatingService().recomputeOverallRating(
+            await sl<RatingsRepository>().recomputeOverallRating(
               userId,
               reason: 'challenge_vote',
               source: currentUser.displayName ?? '',

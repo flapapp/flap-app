@@ -11,9 +11,9 @@ import '../../../../models/match.dart';
 import 'create_match_screen.dart';
 import 'match_details_screen.dart';
 import '../../../../screens/video_main_screen.dart';
-import '../../../../screens/ratings_screen.dart';
+import '../../../ratings/presentation/pages/ratings_screen.dart';
 import '../../../../widgets/rating_display.dart';
-import '../../../../services/rating_service.dart';
+import '../../../ratings/domain/repositories/ratings_repository.dart';
 import 'match_management_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:async';
@@ -106,7 +106,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
 
   MatchesRepository get _matchRepo => sl<MatchesRepository>();
 
-  final RatingService _ratingService = RatingService();
+  RatingsRepository get _ratingsRepo => sl<RatingsRepository>();
   final NotificationService _notificationService = NotificationService();
   // Стан фільтрів рейтингів (замість ValueNotifier використовуємо звичайний state)
   String _ratingsSelectedCity = I18n.t('all_cities');
@@ -129,7 +129,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
     _loadCurrentUserCity();
 
     // Завантажуємо топ гравців один раз
-    _ratingsTopPlayersFuture = _ratingService.getTopPlayers(limit: 300);
+    _ratingsTopPlayersFuture = _ratingsRepo.getTopPlayers(limit: 300);
 
     final idx = widget.initialTabIndex;
     if (idx != null && idx >= 0 && idx < _tabKeys.length) {
@@ -1707,7 +1707,7 @@ Widget _buildRatingsTab() {
                         );
                       }
                       return FutureBuilder<Map<String, dynamic>>(
-                        future: _ratingService.getUserRatingStats(uid),
+                        future: _ratingsRepo.getUserRatingStats(uid),
                         builder: (context, snap) {
                           if (snap.connectionState == ConnectionState.waiting) {
                             return const Center(
@@ -1767,7 +1767,7 @@ void _shareMatch(Match match) {
       int ratedParticipants = 0;
 
       for (final participantId in participantIds) {
-        final rating = await RatingService().getUserRating(participantId);
+        final rating = await _ratingsRepo.getUserRating(participantId);
         totalRating += rating;
         ratedParticipants++;
       }
@@ -3462,7 +3462,7 @@ Future<void> _onLeaveMatch(Match match) async {
             
             // Рейтинг користувача після матчу
             FutureBuilder<double>(
-              future: _ratingService.getUserRating(currentUserId),
+              future: _ratingsRepo.getUserRating(currentUserId),
               builder: (context, snapshot) {
                 final rating = snapshot.hasData ? snapshot.data! : 0.0;
                 return Row(

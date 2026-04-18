@@ -23,6 +23,8 @@ import '../../features/challenges/data/repositories/challenges_repository_impl.d
 import '../../features/challenges/domain/repositories/challenges_repository.dart';
 import '../../features/friends/data/repositories/friends_repository_impl.dart';
 import '../../features/friends/domain/repositories/friends_repository.dart';
+import '../../features/ratings/data/repositories/ratings_repository_impl.dart';
+import '../../features/ratings/domain/repositories/ratings_repository.dart';
 import '../../features/matches/data/datasources/matches_read_remote_datasource.dart';
 import '../../features/matches/data/datasources/matches_read_remote_datasource_impl.dart';
 import '../../features/matches/data/repositories/matches_repository_impl.dart';
@@ -72,6 +74,7 @@ import '../../features/profile/domain/usecases/submit_editable_profile_usecase.d
 import '../../services/badge_service.dart';
 import '../../services/friends_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/rating_service.dart';
 import '../../services/team_service.dart';
 import '../../features/profile/presentation/bloc/profile_bloc.dart';
 import '../../features/profile/presentation/cubit/profile_creation_cubit.dart';
@@ -183,6 +186,10 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<ChallengeService>(() => ChallengeService())
     ..registerLazySingleton<ChallengesRepository>(
       () => ChallengesRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<RatingService>(() => RatingService())
+    ..registerLazySingleton<RatingsRepository>(
+      () => RatingsRepositoryImpl(sl()),
     )
     ..registerLazySingleton<BadgeService>(BadgeService.new)
     ..registerLazySingleton<MatchParticipationStatsRepository>(

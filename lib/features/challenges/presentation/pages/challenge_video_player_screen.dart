@@ -1,13 +1,14 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/di/injection.dart';
+import '../../../ratings/domain/repositories/ratings_repository.dart';
 import '../../../../router/app_router.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../services/rating_tracking_service.dart';
-import '../../../../services/rating_service.dart';
 import '../../../../services/user_settings_service.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../../utils/i18n.dart';
@@ -675,7 +676,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       // Записуємо голос у «відео» стандартним шляхом, щоб перерахунок рейтингу автора був ідентичним
       if (submissionVideoId != null && submissionVideoId.isNotEmpty) {
         try {
-          await RatingService().rateVideo(
+          await sl<RatingsRepository>().rateVideo(
             videoId: submissionVideoId,
             ratedBy: currentUser.uid,
             criteria: {

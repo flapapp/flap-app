@@ -1,12 +1,13 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
+import '../core/di/injection.dart';
+import '../features/ratings/domain/repositories/ratings_repository.dart';
 import '../router/app_router.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/rating_service.dart';
 import '../services/notification_service.dart';
 import '../services/user_settings_service.dart';
 import '../widgets/rating_display.dart';
@@ -212,7 +213,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     });
 
     try {
-      // Використовуємо RatingService для голосування
+      // Голосування через RatingsRepository
       final criteria = {
         'technical': _technical,
         'creativity': _creativity,
@@ -220,7 +221,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         'quality': _quality,
       };
 
-      final success = await RatingService().rateVideo(
+      final success = await sl<RatingsRepository>().rateVideo(
         videoId: widget.videoId,
         ratedBy: currentUser.uid,
         criteria: criteria,

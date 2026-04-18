@@ -1,13 +1,14 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/ratings_repository.dart';
+import '../../../../router/app_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/rating_service.dart';
-import '../models/match.dart';
+import '../../../../models/match.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/i18n.dart';
+import '../../../../utils/i18n.dart';
 
 enum RatingMode { simple, advanced }
 
@@ -25,7 +26,7 @@ class MatchRatingScreen extends StatefulWidget {
 }
 
 class _MatchRatingScreenState extends State<MatchRatingScreen> {
-  final RatingService _ratingService = RatingService();
+  RatingsRepository get _ratingRepo => sl<RatingsRepository>();
   
   // Оцінки для кожного гравця
   Map<String, Map<String, double>> _playerRatings = {};
@@ -591,7 +592,7 @@ final alreadyRatedIds = existingSnap.docs
                 ? ratings
                 : {'technical': simple, 'physical': simple, 'tactical': simple, 'teamwork': simple};
         try {
-          await _ratingService.ratePlayerAfterMatch(
+          await _ratingRepo.ratePlayerAfterMatch(
             matchId: widget.match.id,
             playerId: playerId,
             ratedBy: FirebaseAuth.instance.currentUser!.uid,
