@@ -3,12 +3,12 @@ import 'dart:typed_data';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../services/team_service.dart';
-import '../utils/i18n.dart';
-import '../widgets/city_autocomplete_field.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/teams_repository.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/city_autocomplete_field.dart';
 
 @RoutePage()
 class TeamCreateScreen extends StatefulWidget {
@@ -28,8 +28,6 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
   bool _isPublic = true;
   bool _isSaving = false;
   Uint8List? _logoBytes;
-  final _teamService = TeamService();
-
   @override
   void dispose() {
     _nameCtrl.dispose();
@@ -55,7 +53,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
     try {
-      await _teamService.createTeam(
+      await sl<TeamsRepository>().createTeam(
         name: _nameCtrl.text.trim(),
         description: _descCtrl.text.trim(),
         city: _cityCtrl.text.trim().isEmpty ? null : _cityCtrl.text.trim(),

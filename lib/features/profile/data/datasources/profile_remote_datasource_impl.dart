@@ -79,4 +79,24 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
       }
     } catch (_) {}
   }
+
+  @override
+  Future<Map<String, Map<String, dynamic>>> getUserDocumentsByIds(
+    List<String> userIds,
+  ) async {
+    if (userIds.isEmpty) return {};
+    const chunkSize = 10;
+    final out = <String, Map<String, dynamic>>{};
+    for (var i = 0; i < userIds.length; i += chunkSize) {
+      final chunk = userIds.skip(i).take(chunkSize).toList();
+      final snap = await _firestore
+          .collection('users')
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get();
+      for (final doc in snap.docs) {
+        out[doc.id] = doc.data();
+      }
+    }
+    return out;
+  }
 }

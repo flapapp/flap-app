@@ -82,4 +82,11 @@ class ProfileRepositoryImpl implements ProfileRepository {
       return Result.failure(Failure.unexpected(e.toString()));
     }
   }
+
+  @override
+  Future<Map<String, Map<String, dynamic>>> getUserDocumentsByIds(
+    List<String> userIds,
+  ) {
+    return _remote.getUserDocumentsByIds(userIds);
+  }
 }

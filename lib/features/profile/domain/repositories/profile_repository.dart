@@ -24,4 +24,9 @@ abstract class ProfileRepository {
 
   /// Create / update profile fields from the onboarding / edit form.
   Future<Result<Unit>> submitEditableProfile(EditableProfileSubmission data);
+
+  /// Batch-read raw user maps (e.g. leaderboards, roster hints).
+  Future<Map<String, Map<String, dynamic>>> getUserDocumentsByIds(
+    List<String> userIds,
+  );
 }

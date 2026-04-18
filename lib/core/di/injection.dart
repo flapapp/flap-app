@@ -19,6 +19,10 @@ import '../../features/auth/domain/usecases/mark_intro_completed_usecase.dart';
 import '../../features/auth/domain/usecases/register_new_user_usecase.dart';
 import '../../features/auth/domain/usecases/resolve_startup_navigation_usecase.dart';
 import '../../features/auth/domain/usecases/sign_in_with_email_usecase.dart';
+import '../../features/matches/data/datasources/matches_read_remote_datasource.dart';
+import '../../features/matches/data/datasources/matches_read_remote_datasource_impl.dart';
+import '../../features/matches/data/repositories/matches_read_repository_impl.dart';
+import '../../features/matches/domain/repositories/matches_read_repository.dart';
 import '../../features/profile/data/datasources/match_participation_stats_remote_datasource.dart';
 import '../../features/profile/data/datasources/match_participation_stats_remote_datasource_impl.dart';
 import '../../features/profile/data/datasources/player_videos_remote_datasource.dart';
@@ -66,6 +70,10 @@ import '../../services/team_service.dart';
 import '../../features/profile/presentation/bloc/profile_bloc.dart';
 import '../../features/profile/presentation/cubit/profile_creation_cubit.dart';
 import '../../features/profile/presentation/cubit/profile_settings_cubit.dart';
+import '../../features/teams/data/datasources/teams_remote_datasource.dart';
+import '../../features/teams/data/datasources/teams_remote_datasource_impl.dart';
+import '../../features/teams/data/repositories/teams_repository_impl.dart';
+import '../../features/teams/domain/repositories/teams_repository.dart';
 
 final sl = GetIt.instance;
 
@@ -152,8 +160,20 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<TeamStatsRepository>(
       () => TeamStatsRepositoryImpl(sl()),
     )
-    ..registerLazySingleton<BadgeService>(BadgeService.new)
+    ..registerLazySingleton<TeamsRemoteDataSource>(
+      () => TeamsRemoteDataSourceImpl(FirebaseFirestore.instance),
+    )
     ..registerLazySingleton<TeamService>(() => TeamService())
+    ..registerLazySingleton<TeamsRepository>(
+      () => TeamsRepositoryImpl(sl(), sl()),
+    )
+    ..registerLazySingleton<MatchesReadRemoteDataSource>(
+      () => MatchesReadRemoteDataSourceImpl(FirebaseFirestore.instance),
+    )
+    ..registerLazySingleton<MatchesReadRepository>(
+      () => MatchesReadRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<BadgeService>(BadgeService.new)
     ..registerLazySingleton<MatchParticipationStatsRepository>(
       () => MatchParticipationStatsRepositoryImpl(sl()),
     )
@@ -161,7 +181,7 @@ Future<void> configureDependencies() async {
       () => UserBadgesRepositoryImpl(sl()),
     )
     ..registerLazySingleton<ProfileTeamMembershipRepository>(
-      () => ProfileTeamMembershipRepositoryImpl(sl()),
+      () => ProfileTeamMembershipRepositoryImpl(sl<TeamsRepository>()),
     )
     ..registerLazySingleton<PlayerProfileDashboardRepository>(
       () => PlayerProfileDashboardRepositoryImpl(

@@ -20,8 +20,8 @@ import '../../domain/repositories/player_social_repository.dart';
 import '../../domain/repositories/profile_team_membership_repository.dart';
 import '../../domain/repositories/team_stats_repository.dart';
 import '../../domain/repositories/user_badges_repository.dart';
-import '../../../../screens/team_details_screen.dart';
-import '../../../../screens/team_create_screen.dart';
+import '../../../teams/presentation/pages/team_details_screen.dart';
+import '../../../teams/presentation/pages/team_create_screen.dart';
 import '../bloc/profile_bloc.dart';
 
 @RoutePage()

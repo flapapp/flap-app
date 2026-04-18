@@ -1,0 +1,90 @@
+import 'dart:typed_data';
+
+import '../../../../models/app_team.dart';
+import '../../../../models/team_invite.dart';
+import '../../../../models/team_join_request.dart';
+import '../../../../models/team_match_request.dart';
+import '../../../../models/team_stats.dart';
+
+/// Teams: reads (leaderboard, stats), lifecycle (create), and operations (join, invites, match requests).
+abstract class TeamsRepository {
+  /// Emits [null] while loading or if the document is missing.
+  Stream<AppTeam?> watchTeam(String teamId);
+
+  Stream<List<AppTeam>> watchTeamsOrderedByWins();
+
+  /// Latest `teamStats/{id}` documents keyed by team id.
+  Stream<Map<String, TeamStats>> watchAllTeamStatsById();
+
+  Future<List<AppTeam>> fetchUserTeams(String userId);
+
+  Stream<List<AppTeam>> watchUserTeams(String userId);
+
+  Future<AppTeam?> getTeam(String teamId);
+
+  Stream<List<TeamInvite>> watchInvites(String userId);
+
+  Future<void> respondToInvite({
+    required TeamInvite invite,
+    required bool accept,
+  });
+
+  Future<String> createTeam({
+    required String name,
+    required String description,
+    String? city,
+    bool isPublic = true,
+    Uint8List? logoBytes,
+  });
+
+  Future<void> setViceCaptainMembership({
+    required String teamId,
+    required String memberId,
+    required bool addAsVice,
+  });
+
+  Stream<List<TeamMatchRequest>> watchMatchRequests(String teamId);
+
+  Stream<TeamJoinRequest?> watchMyJoinRequest(String teamId, String userId);
+
+  Stream<List<TeamJoinRequest>> watchJoinRequests(String teamId);
+
+  Future<void> requestToJoinTeam({
+    required String teamId,
+    required String teamName,
+  });
+
+  Future<void> respondToJoinRequest({
+    required TeamJoinRequest request,
+    required bool accept,
+  });
+
+  Future<void> respondToMatchRequest({
+    required TeamMatchRequest request,
+    required bool accept,
+    List<String> confirmedRoster = const [],
+  });
+
+  Future<void> sendMatchRequest({
+    required String teamId,
+    required String opponentTeamId,
+    required String opponentName,
+    required String matchId,
+    List<String> proposedRoster = const [],
+  });
+
+  Future<void> leaveTeam({
+    required String teamId,
+    required String userId,
+  });
+
+  Future<List<AppTeam>> searchTeams(String query, {int limit = 10});
+
+  Future<List<Map<String, dynamic>>> searchPlayers(String query, {int limit = 10});
+
+  Future<void> invitePlayers({
+    required String teamId,
+    required String teamName,
+    required List<String> userIds,
+  });
+}

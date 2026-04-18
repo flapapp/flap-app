@@ -1,13 +1,13 @@
 import '../../../../models/app_team.dart';
 import '../../../../models/team_invite.dart';
-import '../../../../services/team_service.dart';
+import '../../../teams/domain/repositories/teams_repository.dart';
 import '../../domain/repositories/profile_team_membership_repository.dart';
 
 class ProfileTeamMembershipRepositoryImpl
     implements ProfileTeamMembershipRepository {
   ProfileTeamMembershipRepositoryImpl(this._teams);
 
-  final TeamService _teams;
+  final TeamsRepository _teams;
 
   @override
   Future<List<AppTeam>> fetchUserTeams(String userId) {

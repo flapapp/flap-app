@@ -1,14 +1,14 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/match.dart';
 import '../models/app_team.dart';
+import '../core/di/injection.dart';
+import '../features/teams/domain/repositories/teams_repository.dart';
 import '../services/match_service.dart';
 import '../services/notification_service.dart';
-import '../services/team_service.dart';
 import '../models/notification.dart';
 import '../utils/i18n.dart';
 import '../widgets/player_avatar_button.dart';
@@ -45,7 +45,9 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   List<String> get _levels => [I18n.t('beginner'), I18n.inline('Середній', 'Intermediate'), I18n.inline('Високий', 'Advanced'), I18n.t('professional')];
   final List<int> _playerOptions = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
   final ScrollController _friendsScrollController = ScrollController();
-  final TeamService _teamService = TeamService();
+
+  TeamsRepository get _teamsRepo => sl<TeamsRepository>();
+
   bool _isCreating = false;
   bool _teamMode = false;
   bool _loadingTeams = true;
@@ -835,7 +837,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       
       if (_teamMode) {
         if (_selectedTeam != null && !hostIsMyTeam) {
-          await _teamService.sendMatchRequest(
+          await _teamsRepo.sendMatchRequest(
             teamId: _selectedTeam!.id,
             opponentTeamId: _opponentTeam?.id ?? '',
             opponentName:
@@ -845,7 +847,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
           );
         }
         if (_opponentTeam != null) {
-          await _teamService.sendMatchRequest(
+          await _teamsRepo.sendMatchRequest(
             teamId: _opponentTeam!.id,
             opponentTeamId: _selectedTeam!.id,
             opponentName: _selectedTeam!.name,
@@ -986,7 +988,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
           if (query.isEmpty) return;
           setSheetState(() => loading = true);
           try {
-            final found = await _teamService.searchTeams(query, limit: 15);
+            final found = await _teamsRepo.searchTeams(query, limit: 15);
             setSheetState(() => results = found);
           } finally {
             setSheetState(() => loading = false);
@@ -1398,7 +1400,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
     try {
-      final teams = await _teamService.fetchUserTeams(currentUser.uid);
+      final teams = await _teamsRepo.fetchUserTeams(currentUser.uid);
       AppTeam? team = teams.isNotEmpty ? teams.first : null;
       Map<String, String> names = {};
       if (team != null) {
@@ -1747,7 +1749,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
     final query = _opponentSearchCtrl.text.trim();
     if (query.isEmpty) return;
     setState(() => _opponentSearching = true);
-    final results = await _teamService.searchTeams(query, limit: 5);
+    final results = await _teamsRepo.searchTeams(query, limit: 5);
     if (!mounted) return;
     setState(() {
       _opponentResults =

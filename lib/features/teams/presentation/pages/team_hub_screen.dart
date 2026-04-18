@@ -1,17 +1,19 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../features/auth/domain/repositories/auth_session_repository.dart';
+import '../../../../features/profile/domain/repositories/profile_repository.dart';
+import '../../../../features/profile/domain/repositories/profile_team_membership_repository.dart';
+import '../../domain/repositories/teams_repository.dart';
+import '../../../../router/app_router.dart';
 
-import '../models/app_team.dart';
-import '../models/team_stats.dart';
-import '../services/team_service.dart';
-import '../utils/i18n.dart';
-import '../widgets/mode_speed_dial.dart';
-import '../widgets/player_avatar_button.dart';
-import '../widgets/team_logo_button.dart';
+import '../../../../models/app_team.dart';
+import '../../../../models/team_stats.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/mode_speed_dial.dart';
+import '../../../../widgets/player_avatar_button.dart';
+import '../../../../widgets/team_logo_button.dart';
 @RoutePage()
 class TeamHubScreen extends StatefulWidget {
   const TeamHubScreen({super.key});
@@ -21,25 +23,19 @@ class TeamHubScreen extends StatefulWidget {
 }
 
 class _TeamHubScreenState extends State<TeamHubScreen> {
-  final TeamService _teamService = TeamService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _teamsStream;
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _teamStatsStream;
+  late final Stream<List<AppTeam>> _teamsLeaderboardStream;
+  late final Stream<Map<String, TeamStats>> _teamStatsIndexStream;
   late final Stream<List<AppTeam>> _myTeamsStream;
 
   @override
   void initState() {
     super.initState();
-    _teamsStream = FirebaseFirestore.instance
-        .collection('teams')
-        .orderBy('wins', descending: true)
-        .snapshots();
-    _teamStatsStream =
-        FirebaseFirestore.instance.collection('teamStats').snapshots();
-    final uid = _auth.currentUser?.uid;
+    final teamsRepo = sl<TeamsRepository>();
+    _teamsLeaderboardStream = teamsRepo.watchTeamsOrderedByWins();
+    _teamStatsIndexStream = teamsRepo.watchAllTeamStatsById();
+    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     _myTeamsStream = uid != null
-        ? _teamService.watchUserTeams(uid)
+        ? sl<ProfileTeamMembershipRepository>().watchUserTeams(uid)
         : Stream<List<AppTeam>>.value(const []);
   }
 
@@ -85,22 +81,14 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
           ),
         ),
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _teamsStream,
+      body: StreamBuilder<List<AppTeam>>(
+        stream: _teamsLeaderboardStream,
         builder: (context, teamSnapshot) {
-          final teams = teamSnapshot.data?.docs
-                  .map(AppTeam.fromDoc)
-                  .toList(growable: false) ??
-              const [];
-          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _teamStatsStream,
+          final teams = teamSnapshot.data ?? const [];
+          return StreamBuilder<Map<String, TeamStats>>(
+            stream: _teamStatsIndexStream,
             builder: (context, statsSnapshot) {
-              final statsMap = <String, TeamStats>{};
-              if (statsSnapshot.hasData) {
-                for (final doc in statsSnapshot.data!.docs) {
-                  statsMap[doc.id] = TeamStats.fromDoc(doc);
-                }
-              }
+              final statsMap = statsSnapshot.data ?? const {};
               final teamNameMap = {
                 for (final team in teams) team.id: team.name,
               };
@@ -157,8 +145,8 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
   }
 
   Future<void> _onCreateTeamPressed() async {
-    final user = _auth.currentUser;
-    if (user == null) {
+    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
+    if (uid == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -170,11 +158,9 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
       );
       return;
     }
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-    final teamIds = (userDoc.data()?['teamIds'] as List<dynamic>?) ?? [];
+    final profile = await sl<ProfileRepository>().fetchUserProfile(uid);
+    final teamIds =
+        List<dynamic>.from(profile?.document['teamIds'] ?? const []);
     if (!mounted) return;
     await context.router.push(
       TeamCreateRoute(existingTeams: teamIds.length),
@@ -730,13 +716,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
   Future<Map<String, Map<String, dynamic>>> _fetchUsers(
       List<String> ids) async {
     if (ids.isEmpty) return {};
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .where(FieldPath.documentId, whereIn: ids)
-        .get();
-    return {
-      for (final doc in snap.docs) doc.id: doc.data(),
-    };
+    return sl<ProfileRepository>().getUserDocumentsByIds(ids);
   }
 
   int _compareTeams(_TeamWithStats a, _TeamWithStats b) {

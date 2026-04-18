@@ -19,4 +19,9 @@ abstract class ProfileRemoteDataSource {
 
   /// Best-effort demo friend links (legacy onboarding behaviour).
   Future<void> trySeedDemoCrossFriends(String userId);
+
+  /// Batch-read user docs (chunked `whereIn` for Firestore limits).
+  Future<Map<String, Map<String, dynamic>>> getUserDocumentsByIds(
+    List<String> userIds,
+  );
 }

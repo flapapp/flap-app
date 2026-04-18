@@ -121,6 +121,19 @@ class TeamService {
     return task.ref.getDownloadURL();
   }
 
+  Future<void> setViceCaptainMembership({
+    required String teamId,
+    required String memberId,
+    required bool addAsVice,
+  }) async {
+    await _teamsCollection.doc(teamId).update({
+      'viceCaptainIds': addAsVice
+          ? FieldValue.arrayUnion([memberId])
+          : FieldValue.arrayRemove([memberId]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> updateTeamInfo({
     required String teamId,
     String? name,

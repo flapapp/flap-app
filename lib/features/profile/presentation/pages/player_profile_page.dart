@@ -20,7 +20,7 @@ import '../../domain/repositories/profile_repository.dart';
 import '../../domain/repositories/team_stats_repository.dart';
 import '../../domain/usecases/commit_profile_avatar_urls_usecase.dart';
 import '../../domain/usecases/load_player_profile_dashboard_usecase.dart';
-import '../../../../screens/team_details_screen.dart';
+import '../../../teams/presentation/pages/team_details_screen.dart';
 import '../../../../screens/video_player_screen.dart';
 import '../../../../widgets/video_preview_box.dart';
 
