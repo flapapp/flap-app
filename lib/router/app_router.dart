@@ -30,7 +30,7 @@ import '../features/profile/presentation/pages/profile_screen.dart';
 import '../features/profile/presentation/pages/profile_settings_page.dart';
 import '../features/ratings/presentation/pages/ratings_screen.dart';
 import '../features/auth/presentation/pages/register_page.dart';
-import '../screens/stats_screen.dart';
+import '../features/stats/presentation/pages/stats_screen.dart';
 import '../features/subscriptions/presentation/pages/subscription_screen.dart';
 import '../features/teams/presentation/pages/team_create_screen.dart';
 import '../features/teams/presentation/pages/team_details_screen.dart';

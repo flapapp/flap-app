@@ -1,20 +1,22 @@
 import 'package:auto_route/auto_route.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../features/profile/presentation/widgets/sparkline_painter.dart';
+import '../../../../core/di/injection.dart';
+import '../../../profile/presentation/widgets/sparkline_painter.dart';
+import '../../domain/repositories/stats_repository.dart';
 
 @RoutePage()
 class StatsScreen extends StatefulWidget {
-  const StatsScreen({Key? key}) : super(key: key);
+  const StatsScreen({super.key});
+
   @override
-  _StatsScreenState createState() => _StatsScreenState();
+  State<StatsScreen> createState() => _StatsScreenState();
 }
 
 class _StatsScreenState extends State<StatsScreen> {
-  final String? _uid = FirebaseAuth.instance.currentUser?.uid;
+  StatsRepository get _statsRepo => sl<StatsRepository>();
+
   List<Map<String, dynamic>> _history7 = [];
   List<Map<String, dynamic>> _history30 = [];
   List<Map<String, dynamic>> _topVideos = [];
@@ -32,56 +34,22 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Future<void> _loadAll() async {
-    if (_uid == null) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
-      // user
-      final doc = await FirebaseFirestore.instance.collection('users').doc(_uid!).get();
-      final data = doc.data() as Map<String, dynamic>? ?? {};
-      final history = List<Map<String, dynamic>>.from(data['ratingHistory'] ?? []);
-      final now = DateTime.now();
-      _history7 = history.where((h) {
-        final ts = h['timestamp'];
-        final dt = ts is Timestamp ? ts.toDate() : null;
-        return dt != null && dt.isAfter(now.subtract(const Duration(days: 7)));
-      }).toList()
-        ..sort((a, b) {
-          final at = a['timestamp'];
-          final bt = b['timestamp'];
-          if (at is Timestamp && bt is Timestamp) return at.compareTo(bt);
-          return 0;
-        });
-      _history30 = history.where((h) {
-        final ts = h['timestamp'];
-        final dt = ts is Timestamp ? ts.toDate() : null;
-        return dt != null && dt.isAfter(now.subtract(const Duration(days: 30)));
-      }).toList()
-        ..sort((a, b) {
-          final at = a['timestamp'];
-          final bt = b['timestamp'];
-          if (at is Timestamp && bt is Timestamp) return at.compareTo(bt);
-          return 0;
-        });
-
-      _counters = {
-        'matchesPlayed': (data['matchesPlayed'] ?? 0) as num,
-        'matchesWon': (data['wins'] ?? 0) as num,
-        'videosUploaded': (data['videosUploaded'] ?? 0) as num,
-      };
-
-      // videos
-      final vidsSnap = await FirebaseFirestore.instance
-          .collection('videos')
-          .where('userId', isEqualTo: _uid)
-          .limit(50)
-          .get();
-      final vids = vidsSnap.docs.map((d) {
-        final m = d.data() as Map<String, dynamic>;
-        m['id'] = d.id;
-        return m;
-      }).toList();
-      vids.sort((a, b) => ((b['views'] ?? 0) as int).compareTo((a['views'] ?? 0) as int));
-      _topVideos = vids.take(5).toList();
-    } finally {
+      final snapshot = await _statsRepo.loadDashboard(uid);
+      if (!mounted) return;
+      setState(() {
+        _history7 = snapshot.ratingHistory7d;
+        _history30 = snapshot.ratingHistory30d;
+        _topVideos = snapshot.topVideos;
+        _counters = snapshot.counters;
+        _loading = false;
+      });
+    } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -152,7 +120,7 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Widget _ratingBlock(String title, List<Map<String, dynamic>> history) {
-    final points = history.map<double>((h) => (h['overallRating'] ?? 0.0 as double).toDouble()).toList();
+    final points = history.map<double>((h) => (h['overallRating'] as num?)?.toDouble() ?? 0.0).toList();
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -266,8 +234,3 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 }
-
-
-
-
-

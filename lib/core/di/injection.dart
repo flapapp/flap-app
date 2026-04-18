@@ -82,6 +82,8 @@ import '../../services/team_service.dart';
 import '../../features/profile/presentation/bloc/profile_bloc.dart';
 import '../../features/profile/presentation/cubit/profile_creation_cubit.dart';
 import '../../features/profile/presentation/cubit/profile_settings_cubit.dart';
+import '../../features/stats/data/repositories/stats_repository_impl.dart';
+import '../../features/stats/domain/repositories/stats_repository.dart';
 import '../../features/subscriptions/data/repositories/subscriptions_repository_impl.dart';
 import '../../features/subscriptions/domain/repositories/subscriptions_repository.dart';
 import '../../features/teams/data/datasources/teams_remote_datasource.dart';
@@ -203,6 +205,9 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<SubscriptionService>(() => SubscriptionService())
     ..registerLazySingleton<SubscriptionsRepository>(
       () => SubscriptionsRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<StatsRepository>(
+      () => StatsRepositoryImpl(FirebaseFirestore.instance),
     )
     ..registerLazySingleton<MatchParticipationStatsRepository>(
       () => MatchParticipationStatsRepositoryImpl(sl()),
