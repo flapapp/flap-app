@@ -13,7 +13,7 @@ import 'core/di/injection.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'firebase_options.dart';
 import 'router/app_router.dart';
-import 'services/badge_service.dart';
+import 'features/badges/domain/repositories/badges_repository.dart';
 import 'services/notification_service.dart';
 import 'services/subscription_service.dart';
 import 'services/user_settings_service.dart';
@@ -52,7 +52,7 @@ Future<void> _bootstrapAppServices() async {
 
   // Initialize default badges
   try {
-    await BadgeService().initializeDefaultBadges();
+    await sl<BadgesRepository>().initializeDefaultBadges();
   } catch (e) {
     print('Failed to initialize badges: $e');
   }

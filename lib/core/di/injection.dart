@@ -18,6 +18,8 @@ import '../../features/auth/domain/usecases/check_intro_completed_usecase.dart';
 import '../../features/auth/domain/usecases/mark_intro_completed_usecase.dart';
 import '../../features/auth/domain/usecases/register_new_user_usecase.dart';
 import '../../features/auth/domain/usecases/resolve_startup_navigation_usecase.dart';
+import '../../features/badges/data/repositories/badges_repository_impl.dart';
+import '../../features/badges/domain/repositories/badges_repository.dart';
 import '../../features/auth/domain/usecases/sign_in_with_email_usecase.dart';
 import '../../features/challenges/data/repositories/challenges_repository_impl.dart';
 import '../../features/challenges/domain/repositories/challenges_repository.dart';
@@ -192,11 +194,14 @@ Future<void> configureDependencies() async {
       () => RatingsRepositoryImpl(sl()),
     )
     ..registerLazySingleton<BadgeService>(BadgeService.new)
+    ..registerLazySingleton<BadgesRepository>(
+      () => BadgesRepositoryImpl(sl()),
+    )
     ..registerLazySingleton<MatchParticipationStatsRepository>(
       () => MatchParticipationStatsRepositoryImpl(sl()),
     )
     ..registerLazySingleton<UserBadgesRepository>(
-      () => UserBadgesRepositoryImpl(sl()),
+      () => UserBadgesRepositoryImpl(sl<BadgesRepository>()),
     )
     ..registerLazySingleton<ProfileTeamMembershipRepository>(
       () => ProfileTeamMembershipRepositoryImpl(sl<TeamsRepository>()),

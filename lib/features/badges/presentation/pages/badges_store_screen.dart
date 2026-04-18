@@ -1,12 +1,13 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/badges_repository.dart';
+import '../../../../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/badge.dart' as app_badge;
-import '../services/badge_service.dart';
-import '../utils/i18n.dart';
+import '../../../../models/badge.dart' as app_badge;
+import '../../../../utils/i18n.dart';
 
 @RoutePage()
 class BadgesStoreScreen extends StatefulWidget {
@@ -16,7 +17,8 @@ class BadgesStoreScreen extends StatefulWidget {
 
 class _BadgesStoreScreenState extends State<BadgesStoreScreen>
     with SingleTickerProviderStateMixin {
-  final BadgeService _badgeService = BadgeService();
+  BadgesRepository get _badgesRepo => sl<BadgesRepository>();
+
   late TabController _tabController;
   List<app_badge.Badge> _allBadges = [];
   List<String> _userBadges = [];
@@ -42,11 +44,11 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
       
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser != null) {
-        await _badgeService.initializeDefaultBadges();
+        await _badgesRepo.initializeDefaultBadges();
 
         final results = await Future.wait([
-          _badgeService.getAvailableBadges().first,
-          _badgeService.getUserBadges(currentUser.uid),
+          _badgesRepo.getAvailableBadges().first,
+          _badgesRepo.getUserBadgeIds(currentUser.uid),
           FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get(),
         ]);
 
@@ -586,7 +588,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
       );
       
       // Купуємо бейдж
-      await _badgeService.purchaseBadge(badge.id);
+      await _badgesRepo.purchaseBadge(badge.id);
       
       Navigator.pop(context); // Закриваємо індикатор
       
