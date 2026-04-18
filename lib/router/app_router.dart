@@ -23,7 +23,7 @@ import '../features/matches/presentation/pages/match_management_screen.dart';
 import '../features/ratings/presentation/pages/match_rating_screen.dart';
 import '../features/matches/presentation/pages/matches_screen.dart';
 import '../screens/mode_selection_screen.dart';
-import '../screens/notifications_screen.dart';
+import '../features/notifications/presentation/pages/notifications_screen.dart';
 import '../features/profile/presentation/pages/player_profile_page.dart';
 import '../features/profile/presentation/pages/profile_creation_page.dart';
 import '../features/profile/presentation/pages/profile_screen.dart';

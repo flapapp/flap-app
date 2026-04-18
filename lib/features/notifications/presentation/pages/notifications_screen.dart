@@ -1,22 +1,25 @@
 import 'package:auto_route/auto_route.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
-import '../models/notification.dart';
-import '../services/notification_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/challenge.dart';
-import '../models/match.dart';
-import '../utils/i18n.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../models/challenge.dart';
+import '../../../../models/match.dart';
+import '../../../../models/notification.dart';
+import '../../../../router/app_router.dart';
+import '../../../../utils/i18n.dart';
+import '../../domain/repositories/notifications_repository.dart';
 
 @RoutePage()
 class NotificationsScreen extends StatefulWidget {
+  const NotificationsScreen({super.key});
+
   @override
-  _NotificationsScreenState createState() => _NotificationsScreenState();
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final NotificationService _notificationService = NotificationService();
+  NotificationsRepository get _notificationsRepo => sl<NotificationsRepository>();
   
   @override
   Widget build(BuildContext context) {
@@ -42,7 +45,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
       ),
       body: StreamBuilder<List<AppNotification>>(
-        stream: _notificationService.getUserNotifications(),
+        stream: _notificationsRepo.getUserNotifications(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -194,7 +197,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: const Icon(Icons.delete_outline, color: Colors.white),
       ),
       onDismissed: (_) async {
-        await _notificationService.deleteNotification(notification.id);
+        await _notificationsRepo.deleteNotification(notification.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -418,7 +421,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   void _handleNotificationTap(AppNotification notification) async {
     if (!notification.isRead) {
-      await _notificationService.markAsRead(notification.id);
+      await _notificationsRepo.markAsRead(notification.id);
     }
 
     if (notification.actionUrl != null && notification.actionUrl!.isNotEmpty) {
@@ -433,7 +436,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     // Fallback by type if actionUrl відсутній у старих записах
-        // Fallback by type if actionUrl відсутній у старих записах
     switch (notification.type) {
       case NotificationType.challengeInvitation:
       case NotificationType.challengeUpdate:
@@ -613,7 +615,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _markAsRead(AppNotification notification) async {
-    await _notificationService.markAsRead(notification.id);
+    await _notificationsRepo.markAsRead(notification.id);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(I18n.inline('Позначено як прочитане', 'Marked as read')),
@@ -623,7 +625,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _markAllAsRead() async {
-    final success = await _notificationService.markAllAsRead();
+    final success = await _notificationsRepo.markAllAsRead();
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -635,7 +637,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _deleteNotification(AppNotification notification) async {
-    final success = await _notificationService.deleteNotification(notification.id);
+    final success = await _notificationsRepo.deleteNotification(notification.id);
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

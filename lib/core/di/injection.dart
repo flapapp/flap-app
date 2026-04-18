@@ -33,6 +33,8 @@ import '../../features/matches/data/datasources/matches_read_remote_datasource.d
 import '../../features/matches/data/datasources/matches_read_remote_datasource_impl.dart';
 import '../../features/matches/data/repositories/matches_repository_impl.dart';
 import '../../features/matches/domain/repositories/matches_repository.dart';
+import '../../features/notifications/data/repositories/notifications_repository_impl.dart';
+import '../../features/notifications/domain/repositories/notifications_repository.dart';
 import '../../services/challenge_service.dart';
 import '../../services/match_service.dart';
 import '../../features/profile/data/datasources/match_participation_stats_remote_datasource.dart';
@@ -243,6 +245,9 @@ Future<void> configureDependencies() async {
       () => PlayerBadgeEndorsementRepositoryImpl(FirebaseFirestore.instance),
     )
     ..registerLazySingleton<NotificationService>(NotificationService.new)
+    ..registerLazySingleton<NotificationsRepository>(
+      () => NotificationsRepositoryImpl(sl()),
+    )
     ..registerLazySingleton<PlayerNotificationActionsRepository>(
       () => PlayerNotificationActionsRepositoryImpl(sl()),
     )
