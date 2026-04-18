@@ -21,6 +21,8 @@ import '../../features/auth/domain/usecases/resolve_startup_navigation_usecase.d
 import '../../features/auth/domain/usecases/sign_in_with_email_usecase.dart';
 import '../../features/challenges/data/repositories/challenges_repository_impl.dart';
 import '../../features/challenges/domain/repositories/challenges_repository.dart';
+import '../../features/friends/data/repositories/friends_repository_impl.dart';
+import '../../features/friends/domain/repositories/friends_repository.dart';
 import '../../features/matches/data/datasources/matches_read_remote_datasource.dart';
 import '../../features/matches/data/datasources/matches_read_remote_datasource_impl.dart';
 import '../../features/matches/data/repositories/matches_repository_impl.dart';
@@ -202,8 +204,11 @@ Future<void> configureDependencies() async {
       ),
     )
     ..registerLazySingleton<FriendsService>(FriendsService.new)
+    ..registerLazySingleton<FriendsRepository>(
+      () => FriendsRepositoryImpl(sl()),
+    )
     ..registerLazySingleton<PlayerSocialRepository>(
-      () => PlayerSocialRepositoryImpl(sl()),
+      () => PlayerSocialRepositoryImpl(sl<FriendsRepository>()),
     )
     ..registerLazySingleton<PlayerBadgeEndorsementRepository>(
       () => PlayerBadgeEndorsementRepositoryImpl(FirebaseFirestore.instance),

@@ -1,13 +1,14 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/friends_repository.dart';
+import '../../../../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/friend_request.dart';
-import '../services/friends_service.dart';
+import '../../../../models/friend_request.dart';
 import 'dart:async';
-import '../utils/i18n.dart';
+import '../../../../utils/i18n.dart';
 
 @RoutePage()
 class FriendsScreen extends StatefulWidget {
@@ -16,7 +17,8 @@ class FriendsScreen extends StatefulWidget {
 }
 
 class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateMixin {
-  final FriendsService _friendsService = FriendsService();
+  FriendsRepository get _friendsRepo => sl<FriendsRepository>();
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   late TabController _tabController;
   
@@ -43,7 +45,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   void _loadFriends() async {
     final currentUser = _auth.currentUser;
     if (currentUser != null) {
-      final friends = await _friendsService.getUserFriends(currentUser.uid);
+      final friends = await _friendsRepo.getUserFriends(currentUser.uid);
       if (!mounted) return;
       setState(() {
         _friends = friends;
@@ -53,14 +55,14 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   }
 
   void _listenToRequests() {
-    _incomingSub = _friendsService.getIncomingFriendRequests().listen((requests) {
+    _incomingSub = _friendsRepo.getIncomingFriendRequests().listen((requests) {
       if (!mounted) return;
       setState(() {
         _incomingRequests = requests;
       });
     });
 
-    _outgoingSub = _friendsService.getOutgoingFriendRequests().listen((requests) {
+    _outgoingSub = _friendsRepo.getOutgoingFriendRequests().listen((requests) {
       if (!mounted) return;
       setState(() {
         _outgoingRequests = requests;
@@ -663,7 +665,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                   onChanged: (value) async {
                     if (value.length >= 2) {
                       setState(() { _isSearching = true; });
-                      final results = await _friendsService.searchUsers(value);
+                      final results = await _friendsRepo.searchUsers(value);
                       setState(() {
                         _searchResults = results;
                         _isSearching = false;
@@ -683,7 +685,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                   onSubmitted: (value) async {
                     if (value.length >= 2) {
                       setState(() { _isSearching = true; });
-                      final results = await _friendsService.searchUsers(value);
+                      final results = await _friendsRepo.searchUsers(value);
                       setState(() {
                         _searchResults = results;
                         _isSearching = false;
@@ -805,7 +807,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
         print('👤 User sample: ${doc.id} -> name: "${data['name']}", displayName: "${data['displayName']}", email: "${data['email']}"');
       }
       
-      final results = await _friendsService.searchUsers(query.trim());
+      final results = await _friendsRepo.searchUsers(query.trim());
       print('✅ Search completed. Results: ${results.length}');
       
       if (results.isNotEmpty) {
@@ -822,7 +824,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
   void _sendFriendRequest(String userId) async {
     try {
-      await _friendsService.sendFriendRequest(userId);
+      await _friendsRepo.sendFriendRequest(userId);
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -839,7 +841,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
   void _respondToRequest(String requestId, bool accept) async {
     try {
-      await _friendsService.respondToFriendRequest(requestId, accept);
+      await _friendsRepo.respondToFriendRequest(requestId, accept);
       
       if (accept) {
         _loadFriends(); // Refresh friends list
@@ -862,7 +864,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
   void _cancelRequest(String requestId) async {
     try {
-      await _friendsService.cancelFriendRequest(requestId);
+      await _friendsRepo.cancelFriendRequest(requestId);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('✅ Запрошення скасовано'.i18n('✅ Invitation cancelled')),
@@ -929,7 +931,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
   void _removeFriend(Friend friend) async {
     try {
-      await _friendsService.removeFriend(friend.userId);
+      await _friendsRepo.removeFriend(friend.userId);
       _loadFriends(); // Refresh friends list
       
       ScaffoldMessenger.of(context).showSnackBar(

@@ -15,7 +15,7 @@ import '../features/challenges/presentation/pages/challenge_details_screen.dart'
 import '../features/challenges/presentation/pages/challenge_list_screen.dart';
 import '../features/challenges/presentation/pages/challenge_video_player_screen.dart';
 import '../features/matches/presentation/pages/create_match_screen.dart';
-import '../screens/friends_screen.dart';
+import '../features/friends/presentation/pages/friends_screen.dart';
 import '../features/auth/presentation/pages/intro_video_page.dart';
 import '../features/auth/presentation/pages/login_page.dart';
 import '../features/matches/presentation/pages/match_details_screen.dart';

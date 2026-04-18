@@ -1,6 +1,8 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
+import '../core/di/injection.dart';
+import '../features/friends/domain/repositories/friends_repository.dart';
 import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,7 +12,6 @@ import 'video_player_screen.dart';
 import '../widgets/rating_display.dart';
 import '../widgets/user_chip.dart';
 import '../services/notification_service.dart';
-import '../services/friends_service.dart';
 import '../models/friend_request.dart' show Friend;
 import '../utils/i18n.dart';
 import '../widgets/video_preview_box.dart';
@@ -467,8 +468,8 @@ class _VideosScreenState extends State<VideosScreen> {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
     try {
-      final friendsService = FriendsService();
-      final friends = await friendsService.getUserFriends(currentUser.uid);
+      final friends =
+          await sl<FriendsRepository>().getUserFriends(currentUser.uid);
       if (friends.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(I18n.inline('Немає друзів для запиту оцінки', 'No friends to request a rating'))),

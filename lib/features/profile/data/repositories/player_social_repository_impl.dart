@@ -1,11 +1,11 @@
 import '../../../../models/friend_request.dart';
-import '../../../../services/friends_service.dart';
+import '../../../friends/domain/repositories/friends_repository.dart';
 import '../../domain/repositories/player_social_repository.dart';
 
 class PlayerSocialRepositoryImpl implements PlayerSocialRepository {
   PlayerSocialRepositoryImpl(this._friends);
 
-  final FriendsService _friends;
+  final FriendsRepository _friends;
 
   @override
   Future<bool> areUsersFriends(String userIdA, String userIdB) {

@@ -7,11 +7,11 @@ abstract class PlayerSocialRepository {
   /// Pending outgoing request from the **current** signed-in user to [toUserId].
   Future<bool> hasOutgoingPendingRequestTo(String toUserId);
 
-  /// Delegates to [FriendsService.sendFriendRequest].
+  /// Delegates to [FriendsRepository.sendFriendRequest].
   Future<void> sendFriendRequest(String toUserId);
 
   Future<int> countFriends(String userId);
 
-  /// Friends linked to [userId] (delegates to [FriendsService.getUserFriends]).
+  /// Friends linked to [userId] (delegates to [FriendsRepository.getUserFriends]).
   Future<List<Friend>> listFriendsOfUser(String userId);
 }
