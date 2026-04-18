@@ -23,7 +23,7 @@ class AdminRoute extends PageRouteInfo<void> {
   static PageInfo page = PageInfo(
     name,
     builder: (data) {
-      return AdminScreen();
+      return const AdminScreen();
     },
   );
 }

@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../features/admin/data/repositories/admin_repository_impl.dart';
+import '../../features/admin/domain/repositories/admin_repository.dart';
 import '../../features/auth/data/datasources/auth_session_remote_datasource.dart';
 import '../../features/auth/data/datasources/auth_session_remote_datasource_impl.dart';
 import '../../features/auth/data/datasources/intro_local_datasource.dart';
@@ -208,6 +210,9 @@ Future<void> configureDependencies() async {
     )
     ..registerLazySingleton<StatsRepository>(
       () => StatsRepositoryImpl(FirebaseFirestore.instance),
+    )
+    ..registerLazySingleton<AdminRepository>(
+      () => AdminRepositoryImpl(FirebaseFirestore.instance),
     )
     ..registerLazySingleton<MatchParticipationStatsRepository>(
       () => MatchParticipationStatsRepositoryImpl(sl()),

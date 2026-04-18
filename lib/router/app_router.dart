@@ -6,7 +6,7 @@ import '../models/match.dart';
 import '../core/di/injection.dart';
 import 'guards/auth_guard.dart';
 import 'guards/guest_guard.dart';
-import '../screens/admin_screen.dart';
+import '../features/admin/presentation/pages/admin_screen.dart';
 import '../features/auth/presentation/pages/auth_bootstrap_page.dart';
 import '../features/badges/presentation/pages/badges_store_screen.dart';
 import '../features/challenges/presentation/pages/challenge_completion_screen.dart';
