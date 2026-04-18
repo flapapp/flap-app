@@ -3,13 +3,15 @@ import 'dart:math';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../utils/i18n.dart';
-import '../widgets/player_avatar_button.dart';
-import '../services/notification_service.dart';
+
+import '../../../../core/di/injection.dart';
+import '../../../../router/app_router.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/player_avatar_button.dart';
+import '../../../notifications/domain/repositories/notifications_repository.dart';
 
 void _pushLegacyPath(BuildContext context, String path) {
   switch (path) {
@@ -39,11 +41,10 @@ class ModeSelectionScreen extends StatefulWidget {
 class ModeSelectionScreenState extends State<ModeSelectionScreen> {
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
   final Random _random = Random();
-  final NotificationService _notificationService = NotificationService();
+  NotificationsRepository get _notificationsRepo => sl<NotificationsRepository>();
 
   String _currentGreeting = '';
   String _currentRatingText = '';
-  String _currentInstruction = '';
   List<_NewsEntry> _newsEntries = const [];
   bool _newsLoading = true;
   Future<_HeroStats>? _heroStatsFuture;
@@ -69,7 +70,6 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
       setState(() {
         _currentGreeting = I18n.inline(phrase.ua, phrase.en);
         _currentRatingText = I18n.inline('Гість у FLAP', 'Guest inside FLAP');
-        _currentInstruction = I18n.inline(phrase.ctaUa, phrase.ctaEn);
       });
       return;
     }
@@ -89,7 +89,6 @@ setState(() {
   _currentRatingText = I18n.inline(
       'Рейтинг ${rating.toStringAsFixed(2)} • $matches матчів',
       'Rating ${rating.toStringAsFixed(2)} • $matches matches');
-  _currentInstruction = I18n.inline(phrase.ctaUa, phrase.ctaEn);
 });
     });
   }
@@ -136,7 +135,6 @@ setState(() {
       final status = (data['status'] ?? 'open').toString();
       final teamAScore = data['teamAScore'];
       final teamBScore = data['teamBScore'];
-      final location = (data['location'] ?? 'FLAP Arena').toString();
       final time = (data['time'] ?? '').toString();
       final organizer = (data['organizerName'] ?? I18n.inline('Організатор', 'Organizer')).toString();
       final matchTitle = (data['title'] ?? '$teamAName vs $teamBName').toString();
@@ -463,7 +461,7 @@ Widget build(BuildContext context) {
                   onPressed: () => _pushLegacyPath(context, '/video-main'),
                 ),
                 StreamBuilder<int>(
-                  stream: _notificationService.getUnreadCount(),
+                  stream: _notificationsRepo.getUnreadCount(),
                   builder: (context, notifSnapshot) {
                     final unreadCount = notifSnapshot.data ?? 0;
                     return Stack(
