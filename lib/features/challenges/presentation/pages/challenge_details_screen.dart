@@ -1,20 +1,19 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/challenge.dart';
-import '../services/challenge_service.dart';
-import 'video_upload_screen.dart';
-import 'video_player_screen.dart';
+import '../../../../models/challenge.dart';
+import '../../../../screens/video_upload_screen.dart';
+import '../../../../screens/video_player_screen.dart';
 import 'challenge_video_player_screen.dart';
-import '../services/rating_service.dart';
-import '../services/thumbnail_service.dart';
+import '../../../../services/rating_service.dart';
+import '../../../../services/thumbnail_service.dart';
 import 'challenge_completion_screen.dart';
-import '../utils/i18n.dart';
-import '../widgets/video_preview_box.dart';
-import '../widgets/player_avatar_button.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/video_preview_box.dart';
+import '../../../../widgets/player_avatar_button.dart';
 
 @RoutePage()
 class ChallengeDetailsScreen extends StatefulWidget {
@@ -27,7 +26,6 @@ class ChallengeDetailsScreen extends StatefulWidget {
 }
 
 class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
-  final ChallengeService _challengeService = ChallengeService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   bool _isJoining = false;
   bool _isSubmitting = false;

@@ -1,19 +1,20 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../router/app_router.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 // Removed dart:io to support web build
-import '../models/challenge.dart';
-import '../services/challenge_service.dart';
-import '../services/notification_service.dart';
-import '../services/thumbnail_service.dart';
-import '../utils/i18n.dart';
-import '../widgets/player_avatar_button.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/challenges_repository.dart';
+import '../../../../models/challenge.dart';
+import '../../../../services/notification_service.dart';
+import '../../../../services/thumbnail_service.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/player_avatar_button.dart';
 
 @RoutePage()
 class ChallengeCreateScreen extends StatefulWidget {
@@ -40,7 +41,8 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   bool _isCreating = false;
   XFile? _selectedVideoFile;
   
-  final ChallengeService _challengeService = ChallengeService();
+  ChallengesRepository get _challengesRepo => sl<ChallengesRepository>();
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final Set<String> _selectedInviteFriendIds = <String>{};
 
@@ -1223,7 +1225,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         tags: _generateTags(),
       );
 
-      final challengeId = await _challengeService.createChallenge(challenge);
+      final challengeId = await _challengesRepo.createChallenge(challenge);
       
       if (challengeId != null) {
         // Додаємо створювача як учасника (статус вже правильний)

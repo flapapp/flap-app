@@ -7,7 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../constants/video_categories.dart';
-import '../services/challenge_service.dart';
+import '../core/di/injection.dart';
+import '../features/challenges/domain/repositories/challenges_repository.dart';
 import '../services/thumbnail_service.dart';
 import '../utils/i18n.dart';
 
@@ -611,10 +612,10 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   Future<void> _submitVideoToChallenge(String videoId, String videoUrl) async {
     try {
       final user = FirebaseAuth.instance.currentUser!;
-      final challengeService = ChallengeService();
-      
+
       // Додаємо відео до челенджу
-      await challengeService.addVideoToChallenge(widget.challengeId!, user.uid);
+      await sl<ChallengesRepository>()
+          .addVideoToChallenge(widget.challengeId!, user.uid);
       
       // Створюємо submission документ
       await FirebaseFirestore.instance

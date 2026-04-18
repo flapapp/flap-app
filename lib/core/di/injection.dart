@@ -19,10 +19,13 @@ import '../../features/auth/domain/usecases/mark_intro_completed_usecase.dart';
 import '../../features/auth/domain/usecases/register_new_user_usecase.dart';
 import '../../features/auth/domain/usecases/resolve_startup_navigation_usecase.dart';
 import '../../features/auth/domain/usecases/sign_in_with_email_usecase.dart';
+import '../../features/challenges/data/repositories/challenges_repository_impl.dart';
+import '../../features/challenges/domain/repositories/challenges_repository.dart';
 import '../../features/matches/data/datasources/matches_read_remote_datasource.dart';
 import '../../features/matches/data/datasources/matches_read_remote_datasource_impl.dart';
 import '../../features/matches/data/repositories/matches_repository_impl.dart';
 import '../../features/matches/domain/repositories/matches_repository.dart';
+import '../../services/challenge_service.dart';
 import '../../services/match_service.dart';
 import '../../features/profile/data/datasources/match_participation_stats_remote_datasource.dart';
 import '../../features/profile/data/datasources/match_participation_stats_remote_datasource_impl.dart';
@@ -174,6 +177,10 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<MatchService>(() => MatchService())
     ..registerLazySingleton<MatchesRepository>(
       () => MatchesRepositoryImpl(sl(), sl()),
+    )
+    ..registerLazySingleton<ChallengeService>(() => ChallengeService())
+    ..registerLazySingleton<ChallengesRepository>(
+      () => ChallengesRepositoryImpl(sl()),
     )
     ..registerLazySingleton<BadgeService>(BadgeService.new)
     ..registerLazySingleton<MatchParticipationStatsRepository>(

@@ -1,15 +1,16 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/challenge.dart';
-import '../services/challenge_service.dart';
-import '../widgets/user_chip.dart';
-import '../utils/i18n.dart';
-import '../widgets/video_preview_box.dart';
-import '../widgets/player_avatar_button.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/challenges_repository.dart';
+import '../../../../models/challenge.dart';
+import '../../../../widgets/user_chip.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/video_preview_box.dart';
+import '../../../../widgets/player_avatar_button.dart';
 
 class ChallengesScreen extends StatefulWidget {
   final bool showOnlyMyChallenges;
@@ -21,7 +22,8 @@ class ChallengesScreen extends StatefulWidget {
 }
 
 class _ChallengesScreenState extends State<ChallengesScreen> {
-  final ChallengeService _challengeService = ChallengeService();
+  ChallengesRepository get _challengesRepo => sl<ChallengesRepository>();
+
   String _selectedFilter = 'all'; // all, active, my, completed
   String _selectedSort = 'new'; // 'new', 'rating', 'views'
   
@@ -754,7 +756,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
 
       if (shouldJoin == true) {
         // Приєднуємося до челенджу (платимо вступну плату)
-        await _challengeService.joinChallenge(challengeId);
+        await _challengesRepo.joinChallenge(challengeId);
         
         // Показуємо повідомлення про успіх
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1139,7 +1141,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
 
   Future<void> _finishChallenge(String challengeId) async {
     try {
-      final ok = await ChallengeService().completeChallenge(challengeId);
+      final ok = await _challengesRepo.completeChallenge(challengeId);
       if (!ok) return;
 
       // Reload winners and show

@@ -1,16 +1,16 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../router/app_router.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/rating_tracking_service.dart';
-import '../services/rating_service.dart';
-import '../services/user_settings_service.dart';
-import '../widgets/user_chip.dart';
-import '../utils/i18n.dart';
+import '../../../../services/rating_tracking_service.dart';
+import '../../../../services/rating_service.dart';
+import '../../../../services/user_settings_service.dart';
+import '../../../../widgets/user_chip.dart';
+import '../../../../utils/i18n.dart';
 
 @RoutePage()
 class ChallengeVideoPlayerScreen extends StatefulWidget {

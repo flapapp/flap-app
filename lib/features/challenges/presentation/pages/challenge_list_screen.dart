@@ -1,14 +1,15 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/challenge.dart';
-import '../services/challenge_service.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/challenges_repository.dart';
+import '../../../../models/challenge.dart';
 import 'challenge_create_screen.dart';
 import 'challenge_details_screen.dart';
-import '../utils/i18n.dart';
-import '../widgets/player_avatar_button.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/player_avatar_button.dart';
 
 @RoutePage()
 class ChallengeListScreen extends StatefulWidget {
@@ -17,7 +18,8 @@ class ChallengeListScreen extends StatefulWidget {
 }
 
 class _ChallengeListScreenState extends State<ChallengeListScreen> {
-  final ChallengeService _challengeService = ChallengeService();
+  ChallengesRepository get _challengesRepo => sl<ChallengesRepository>();
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   
   String _selectedStatus = 'all';
@@ -630,7 +632,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   }
 
   Stream<List<Challenge>> _getFilteredChallengesStream() {
-    Stream<List<Challenge>> stream = _challengeService.getActiveChallenges();
+    Stream<List<Challenge>> stream = _challengesRepo.getActiveChallenges();
 
     // Фільтр по статусу
     if (_selectedStatus != 'all') {
@@ -638,18 +640,18 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         (s) => s.toString().split('.').last == _selectedStatus,
         orElse: () => ChallengeStatus.recruiting,
       );
-      stream = _challengeService.getChallengesByStatus(status);
+      stream = _challengesRepo.getChallengesByStatus(status);
     }
 
     // Фільтр по типу
     if (_selectedType != 'all') {
       final type = parseChallengeType(_selectedType);
-      stream = _challengeService.getChallengesByType(type);
+      stream = _challengesRepo.getChallengesByType(type);
     }
 
     // Фільтр по місту
     if (_selectedCity.isNotEmpty) {
-      stream = _challengeService.getChallengesByCity(_selectedCity);
+      stream = _challengesRepo.getChallengesByCity(_selectedCity);
     }
 
     return stream.map((challenges) {
