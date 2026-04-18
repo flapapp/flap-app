@@ -14,8 +14,8 @@ import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'firebase_options.dart';
 import 'router/app_router.dart';
 import 'features/badges/domain/repositories/badges_repository.dart';
+import 'features/subscriptions/domain/repositories/subscriptions_repository.dart';
 import 'services/notification_service.dart';
-import 'services/subscription_service.dart';
 import 'services/user_settings_service.dart';
 import 'utils/i18n.dart';
 
@@ -61,11 +61,11 @@ Future<void> _bootstrapAppServices() async {
   try {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      await SubscriptionService().grantChampionsTrialIfMissing();
+      await sl<SubscriptionsRepository>().grantChampionsTrialIfMissing();
     } else {
       FirebaseAuth.instance.authStateChanges().listen((u) async {
         if (u != null) {
-          await SubscriptionService().grantChampionsTrialIfMissing();
+          await sl<SubscriptionsRepository>().grantChampionsTrialIfMissing();
         }
       });
     }

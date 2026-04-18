@@ -1,11 +1,11 @@
 import 'package:auto_route/auto_route.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../models/subscription.dart';
-import '../services/subscription_service.dart';
-import '../utils/i18n.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../models/subscription.dart';
+import '../../../../utils/i18n.dart';
+import '../../domain/repositories/subscriptions_repository.dart';
 
 @RoutePage()
 class SubscriptionScreen extends StatefulWidget {
@@ -14,7 +14,7 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  final SubscriptionService _subscriptionService = SubscriptionService();
+  SubscriptionsRepository get _subscriptionsRepo => sl<SubscriptionsRepository>();
   Subscription? _currentSubscription;
   bool _isLoading = true;
 
@@ -29,11 +29,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       setState(() => _isLoading = true);
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId != null) {
-        final subscription = await _subscriptionService.getUserSubscription(userId);
+        final subscription = await _subscriptionsRepo.getUserSubscription(userId);
         setState(() {
           _currentSubscription = subscription;
           _isLoading = false;
         });
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (e) {
       print('Error loading subscription: $e');
@@ -74,7 +76,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     _buildCurrentSubscriptionCard(),
                     const SizedBox(height: 24),
                   ],
-                  
+
                   // Available plans
                   Text(
                     I18n.inline('Доступні плани', 'Available plans'),
@@ -85,20 +87,20 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Free plan
                   _buildSubscriptionPlan(SubscriptionType.free),
                   const SizedBox(height: 16),
-                  
+
                   // Europa League plan
                   _buildSubscriptionPlan(SubscriptionType.europa),
                   const SizedBox(height: 16),
-                  
+
                   // Champions League plan
                   _buildSubscriptionPlan(SubscriptionType.champions),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Disclaimer
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -155,12 +157,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final subscription = _currentSubscription!;
     final isActive = subscription.isActive;
     final isInTrial = subscription.isInTrial;
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: isActive 
+          colors: isActive
               ? [const Color(0xFF4caf50), const Color(0xFF66bb6a)]
               : [Colors.grey, Colors.grey.shade600],
         ),
@@ -226,9 +228,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           if (isActive) ...[
             Row(
               children: [
@@ -242,7 +244,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             ),
             const SizedBox(height: 8),
           ],
-          
+
           ValueListenableBuilder<String>(
             valueListenable: I18n.language,
             builder: (context, _, __) => Text(
@@ -253,7 +255,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
             ),
           ),
-          
+
           if (subscription.type != SubscriptionType.free) ...[
             const SizedBox(height: 16),
             Row(
@@ -290,7 +292,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
 
     final isCurrentPlan = _currentSubscription?.type == type;
-    final canUpgrade = _currentSubscription != null && 
+    final canUpgrade = _currentSubscription != null &&
                        _currentSubscription!.type.index < type.index;
 
     return Container(
@@ -299,8 +301,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isCurrentPlan 
-              ? const Color(0xFF4caf50) 
+          color: isCurrentPlan
+              ? const Color(0xFF4caf50)
               : Colors.white.withOpacity(0.1),
           width: isCurrentPlan ? 2 : 1,
         ),
@@ -395,9 +397,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ],
             ],
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Features list
           ...subscription.featuresList.map((feature) {
             return Padding(
@@ -426,9 +428,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
             );
           }),
-          
+
           const SizedBox(height: 20),
-          
+
           // Action buttons
           if (isCurrentPlan) ...[
             Container(
@@ -452,7 +454,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ] else if (type == SubscriptionType.free) ...[
             // Free plan - no action needed
             const SizedBox.shrink(),
-          ] else if (type == SubscriptionType.champions && 
+          ] else if (type == SubscriptionType.champions &&
                      subscription.isTrialAvailable &&
                      (_currentSubscription?.trialEndDate == null)) ...[
             Row(
@@ -549,12 +551,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
       );
 
-      await _subscriptionService.startChampionsTrialSubscription();
-      
+      await _subscriptionsRepo.startChampionsTrialSubscription();
+
       Navigator.pop(context); // Close loading dialog
-      
+
       await _loadCurrentSubscription();
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(I18n.inline('🎉 Пробний період Champions League активовано на 30 днів!', '🎉 Champions League trial activated for 30 days!')),
@@ -563,7 +565,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
     } catch (e) {
       Navigator.pop(context); // Close loading dialog
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(I18n.inline('Помилка: ${e.toString()}', 'Error: ${e.toString()}')),
@@ -583,17 +585,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
       );
 
-      await _subscriptionService.purchaseSubscription(type);
-      
+      await _subscriptionsRepo.purchaseSubscription(type);
+
       Navigator.pop(context); // Close loading dialog
-      
+
       await _loadCurrentSubscription();
-      
+
       final subscription = Subscription(
         id: '', userId: '', type: type, status: SubscriptionStatus.active,
         startDate: DateTime.now(), endDate: DateTime.now(), price: 0, features: {},
       );
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: ValueListenableBuilder<String>(
@@ -605,7 +607,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
     } catch (e) {
       Navigator.pop(context); // Close loading dialog
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(I18n.inline('Помилка: ${e.toString()}', 'Error: ${e.toString()}')),
@@ -652,12 +654,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ),
         );
 
-        await _subscriptionService.cancelSubscription();
-        
+        await _subscriptionsRepo.cancelSubscription();
+
         Navigator.pop(context); // Close loading dialog
-        
+
         await _loadCurrentSubscription();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(I18n.inline('Підписку успішно скасовано', 'Subscription cancelled successfully')),
@@ -666,7 +668,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         );
       } catch (e) {
         Navigator.pop(context); // Close loading dialog
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(I18n.inline('Помилка: ${e.toString()}', 'Error: ${e.toString()}')),
@@ -677,10 +679,3 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 }
-
-
-
-
-
-
-

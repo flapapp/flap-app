@@ -77,10 +77,13 @@ import '../../services/badge_service.dart';
 import '../../services/friends_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/rating_service.dart';
+import '../../services/subscription_service.dart';
 import '../../services/team_service.dart';
 import '../../features/profile/presentation/bloc/profile_bloc.dart';
 import '../../features/profile/presentation/cubit/profile_creation_cubit.dart';
 import '../../features/profile/presentation/cubit/profile_settings_cubit.dart';
+import '../../features/subscriptions/data/repositories/subscriptions_repository_impl.dart';
+import '../../features/subscriptions/domain/repositories/subscriptions_repository.dart';
 import '../../features/teams/data/datasources/teams_remote_datasource.dart';
 import '../../features/teams/data/datasources/teams_remote_datasource_impl.dart';
 import '../../features/teams/data/repositories/teams_repository_impl.dart';
@@ -196,6 +199,10 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<BadgeService>(BadgeService.new)
     ..registerLazySingleton<BadgesRepository>(
       () => BadgesRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<SubscriptionService>(() => SubscriptionService())
+    ..registerLazySingleton<SubscriptionsRepository>(
+      () => SubscriptionsRepositoryImpl(sl()),
     )
     ..registerLazySingleton<MatchParticipationStatsRepository>(
       () => MatchParticipationStatsRepositoryImpl(sl()),
