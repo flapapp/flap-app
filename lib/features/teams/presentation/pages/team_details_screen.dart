@@ -8,7 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../features/auth/domain/repositories/auth_session_repository.dart';
-import '../../../../features/matches/domain/repositories/matches_read_repository.dart';
+import '../../../../features/matches/domain/repositories/matches_repository.dart';
 import '../../../../features/profile/domain/entities/user_profile.dart';
 import '../../../../features/profile/domain/repositories/player_social_repository.dart';
 import '../../../../features/profile/domain/repositories/profile_repository.dart';
@@ -25,8 +25,8 @@ import '../../../../models/team_join_request.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/player_avatar_button.dart';
-import '../../../../screens/create_match_screen.dart';
-import '../../../../screens/match_details_screen.dart';
+import '../../../matches/presentation/pages/create_match_screen.dart';
+import '../../../matches/presentation/pages/match_details_screen.dart';
 
 @RoutePage()
 class TeamDetailsScreen extends StatefulWidget {
@@ -1105,7 +1105,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   Future<void> _openMatchDetails(String matchId) async {
     try {
-      final match = await sl<MatchesReadRepository>().fetchMatchById(matchId);
+      final match = await sl<MatchesRepository>().fetchMatchById(matchId);
       if (match == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1475,7 +1475,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   Future<List<String>> _pickRoster(
       List<String> members, String matchId) async {
     final matchModel =
-        await sl<MatchesReadRepository>().fetchMatchById(matchId);
+        await sl<MatchesRepository>().fetchMatchById(matchId);
     final maxPlayers = matchModel?.maxPlayers ?? 10;
     final limit = (maxPlayers / 2).ceil();
     final current = members.take(limit).toSet();

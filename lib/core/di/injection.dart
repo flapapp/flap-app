@@ -21,8 +21,9 @@ import '../../features/auth/domain/usecases/resolve_startup_navigation_usecase.d
 import '../../features/auth/domain/usecases/sign_in_with_email_usecase.dart';
 import '../../features/matches/data/datasources/matches_read_remote_datasource.dart';
 import '../../features/matches/data/datasources/matches_read_remote_datasource_impl.dart';
-import '../../features/matches/data/repositories/matches_read_repository_impl.dart';
-import '../../features/matches/domain/repositories/matches_read_repository.dart';
+import '../../features/matches/data/repositories/matches_repository_impl.dart';
+import '../../features/matches/domain/repositories/matches_repository.dart';
+import '../../services/match_service.dart';
 import '../../features/profile/data/datasources/match_participation_stats_remote_datasource.dart';
 import '../../features/profile/data/datasources/match_participation_stats_remote_datasource_impl.dart';
 import '../../features/profile/data/datasources/player_videos_remote_datasource.dart';
@@ -170,8 +171,9 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<MatchesReadRemoteDataSource>(
       () => MatchesReadRemoteDataSourceImpl(FirebaseFirestore.instance),
     )
-    ..registerLazySingleton<MatchesReadRepository>(
-      () => MatchesReadRepositoryImpl(sl()),
+    ..registerLazySingleton<MatchService>(() => MatchService())
+    ..registerLazySingleton<MatchesRepository>(
+      () => MatchesRepositoryImpl(sl(), sl()),
     )
     ..registerLazySingleton<BadgeService>(BadgeService.new)
     ..registerLazySingleton<MatchParticipationStatsRepository>(

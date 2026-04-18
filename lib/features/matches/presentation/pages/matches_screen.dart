@@ -1,27 +1,28 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../models/match.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/matches_repository.dart';
+import '../../../../models/match.dart';
 import 'create_match_screen.dart';
 import 'match_details_screen.dart';
-import 'video_main_screen.dart';
-import '../services/match_service.dart';
-import 'ratings_screen.dart';
-import '../widgets/rating_display.dart';
-import '../services/rating_service.dart';
+import '../../../../screens/video_main_screen.dart';
+import '../../../../screens/ratings_screen.dart';
+import '../../../../widgets/rating_display.dart';
+import '../../../../services/rating_service.dart';
 import 'match_management_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:async';
-import '../widgets/user_chip.dart';
-import '../widgets/player_avatar_button.dart';
-import '../widgets/mode_speed_dial.dart';
-import '../services/notification_service.dart';
-import '../utils/i18n.dart';
-import '../widgets/city_autocomplete_field.dart';
+import '../../../../widgets/user_chip.dart';
+import '../../../../widgets/player_avatar_button.dart';
+import '../../../../widgets/mode_speed_dial.dart';
+import '../../../../services/notification_service.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/city_autocomplete_field.dart';
 
 
 
@@ -103,7 +104,8 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
     );
   }
 
-  final MatchService _matchService = MatchService();
+  MatchesRepository get _matchRepo => sl<MatchesRepository>();
+
   final RatingService _ratingService = RatingService();
   final NotificationService _notificationService = NotificationService();
   // Стан фільтрів рейтингів (замість ValueNotifier використовуємо звичайний state)
@@ -2447,7 +2449,7 @@ Widget _buildActionButtons(Match match, String currentUserId) {
 
 
   Stream<List<Match>> _getFilteredMatches() {
-    return _matchService.getAvailableMatches().map((matches) {
+    return _matchRepo.getAvailableMatches().map((matches) {
     final selectedCity = _selectedCity.trim();
     final filtered = matches.where((match) {
         // Фільтр по місту
@@ -2516,14 +2518,14 @@ Widget _buildActionButtons(Match match, String currentUserId) {
   Stream<List<Match>> _getUserMatches() {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return Stream.value([]);
-    return _matchService.getUserMatches(currentUser.uid);
+    return _matchRepo.getUserMatches(currentUser.uid);
   }
 
   // ІСТОРІЯ: завершені матчі користувача (новіші зверху)
   Stream<List<Match>> _getHistoryMatches() {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return Stream.value([]);
-    return _matchService.getUserMatches(currentUser.uid).map((list) {
+    return _matchRepo.getUserMatches(currentUser.uid).map((list) {
       final finished = list.where((m) => m.status == MatchStatus.finished).toList();
       finished.sort((a, b) => b.date.compareTo(a.date));
       return finished;
@@ -2988,7 +2990,7 @@ Column(
   );
 }
   Future<void> _onStartMatchPrep(Match match) async {
-    final ok = await _matchService.startMatch(match.id);
+    final ok = await _matchRepo.startMatch(match.id);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? I18n.inline('Матч розпочато', 'Match started') : I18n.inline('Не вдалося розпочати матч', 'Failed to start match')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
@@ -3008,7 +3010,7 @@ Column(
         return;
       }
 
-      final success = await _matchService.applyForMatch(matchId, currentUser.uid);
+      final success = await _matchRepo.applyForMatch(matchId, currentUser.uid);
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3048,7 +3050,7 @@ Future<void> _onLeaveMatch(Match match) async {
       return;
     }
 
-    final ok = await _matchService.leaveMatch(match.id, currentUser.uid);
+    final ok = await _matchRepo.leaveMatch(match.id, currentUser.uid);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? I18n.t('left_match') : I18n.t('leave_failed')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
@@ -3062,7 +3064,7 @@ Future<void> _onLeaveMatch(Match match) async {
 }
     // Дії організатора
   Future<void> _onAutoBalance(Match match) async {
-    final ok = await _matchService.autoBalanceTeams(match.id);
+    final ok = await _matchRepo.autoBalanceTeams(match.id);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? I18n.t('teams_balanced') : I18n.t('teams_balance_failed')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
@@ -3071,7 +3073,7 @@ Future<void> _onLeaveMatch(Match match) async {
   }
 
   Future<void> _onStartMatch(Match match) async {
-    final ok = await _matchService.startMatch(match.id);
+    final ok = await _matchRepo.startMatch(match.id);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? I18n.t('match_started') : I18n.t('match_start_failed')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
@@ -3102,7 +3104,7 @@ Future<void> _onLeaveMatch(Match match) async {
       );
       return;
     }
-    final ok = await _matchService.finishMatch(match.id, result, a, b, goalsByPlayer: goals);
+    final ok = await _matchRepo.finishMatch(match.id, result, a, b, goalsByPlayer: goals);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? I18n.t('match_finished') : I18n.t('match_finish_failed')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,

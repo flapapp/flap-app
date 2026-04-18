@@ -4,18 +4,19 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../router/app_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../models/app_team.dart';
-import '../models/match.dart';
-import '../services/match_service.dart';
-import '../services/notification_service.dart';
-import '../services/rating_service.dart';
-import '../utils/i18n.dart';
-import '../widgets/player_avatar_button.dart';
-import '../widgets/user_chip.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/matches_repository.dart';
+import '../../../../models/app_team.dart';
+import '../../../../models/match.dart';
+import '../../../../services/notification_service.dart';
+import '../../../../services/rating_service.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/player_avatar_button.dart';
+import '../../../../widgets/user_chip.dart';
 
 @RoutePage()
 class MatchDetailsScreen extends StatefulWidget {
@@ -28,7 +29,8 @@ class MatchDetailsScreen extends StatefulWidget {
 }
 
 class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
-  final MatchService _matchService = MatchService();
+  MatchesRepository get _matchRepo => sl<MatchesRepository>();
+
   final RatingService _ratingService = RatingService();
   final NotificationService _notificationService = NotificationService();
   bool _isJoining = false;
@@ -368,7 +370,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       final snapshot = await uploadTask.whenComplete(() {});
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      await _matchService.updateCoverPhoto(
+      await _matchRepo.updateCoverPhoto(
         matchId: widget.match.id,
         photoUrl: downloadUrl,
       );
@@ -1446,7 +1448,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
     setState(() => _isProcessingRosterAction = true);
     try {
-      await _matchService.setTeamRoster(
+      await _matchRepo.setTeamRoster(
         matchId: widget.match.id,
         teamKey: teamKey,
         team: team,
@@ -2245,7 +2247,7 @@ return Row(
     if (_isProcessingRosterAction) return;
     setState(() => _isProcessingRosterAction = true);
     try {
-      await _matchService.respondToRosterInvite(
+      await _matchRepo.respondToRosterInvite(
         matchId: widget.match.id,
         teamKey: teamKey,
         accept: accept,
@@ -2323,7 +2325,7 @@ return Row(
 
   try {
     final success =
-        await _matchService.applyForMatch(widget.match.id, currentUser.uid);
+        await _matchRepo.applyForMatch(widget.match.id, currentUser.uid);
 
     if (!mounted) return;
 

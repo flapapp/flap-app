@@ -1,14 +1,15 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
+import '../../../../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/match.dart';
-import '../services/match_service.dart';
-import '../utils/i18n.dart';
-import '../widgets/team_logo_button.dart';
-import '../widgets/player_avatar_button.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/matches_repository.dart';
+import '../../../../models/match.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/team_logo_button.dart';
+import '../../../../widgets/player_avatar_button.dart';
 import 'dart:math';
 
 @RoutePage()
@@ -24,7 +25,8 @@ class MatchManagementScreen extends StatefulWidget {
 
 class _MatchManagementScreenState extends State<MatchManagementScreen> with TickerProviderStateMixin {
   late TabController _tabController;
-  final MatchService _matchService = MatchService();
+
+  MatchesRepository get _matchRepo => sl<MatchesRepository>();
 
   List<String> _pendingApplications = [];
   List<String> _participants = [];
@@ -958,7 +960,7 @@ Future<void> _saveResults(Match m) async {
 
   setState(() => _savingResults = true);
   try {
-    final saved = await _matchService.saveMultiTeamResults(m.id, stats);
+    final saved = await _matchRepo.saveMultiTeamResults(m.id, stats);
     if (!saved) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(I18n.inline('Не вдалося зберегти підсумки', 'Failed to save results'))),
@@ -966,7 +968,7 @@ Future<void> _saveResults(Match m) async {
       return;
     }
 
-    final finished = await _matchService.finishMatch(
+    final finished = await _matchRepo.finishMatch(
       m.id,
       MatchResult.draw,
       m.teamAScore ?? 0,
@@ -1408,7 +1410,7 @@ Widget _buildEditingSection(Match m) {
                       );
                       if (ok != true) return;
                       setState(() => _isSavingTeams = true);
-                      final success = await _matchService.updateTeamsFlexible(widget.match.id, editingSets);
+                      final success = await _matchRepo.updateTeamsFlexible(widget.match.id, editingSets);
                       setState(() => _isSavingTeams = false);
                       if (success) {
                         setState(() => _editMode = false);
@@ -1531,7 +1533,7 @@ Future<void> _shuffleTeams(Match match) async {
     final ratings = await _fetchRatings(ids);
     final balanced = _autoDistributePlayers(ids, ratings, _teamCount);
 
-    final ok = await _matchService.updateTeamsFlexible(match.id, balanced);
+    final ok = await _matchRepo.updateTeamsFlexible(match.id, balanced);
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(I18n.inline('Не вдалося зберегти склади', 'Failed to save rosters'))),
@@ -1539,7 +1541,7 @@ Future<void> _shuffleTeams(Match match) async {
       return;
     }
 
-    await MatchService().ensureFixtures(match.id);
+    await _matchRepo.ensureFixtures(match.id);
 
 setState(() {
   _ratingsCache = {};
@@ -1893,7 +1895,7 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
   // Прийняття заявки
   Future<void> _acceptApplication(String userId) async {
     try {
-      final success = await _matchService.acceptApplication(widget.match.id, userId);
+      final success = await _matchRepo.acceptApplication(widget.match.id, userId);
       
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1924,7 +1926,7 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
   // Відхилення заявки
   Future<void> _rejectApplication(String userId) async {
     try {
-      final success = await _matchService.rejectApplication(widget.match.id, userId);
+      final success = await _matchRepo.rejectApplication(widget.match.id, userId);
       
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2223,7 +2225,7 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
     setState(() => _isLoading = true);
     
     try {
-      final success = await _matchService.autoBalanceTeams(widget.match.id);
+      final success = await _matchRepo.autoBalanceTeams(widget.match.id);
       
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2264,7 +2266,7 @@ setState(() {
   setState(() => _isLoading = true);
   
   try {
-    final success = await _matchService.startMatch(widget.match.id);
+    final success = await _matchRepo.startMatch(widget.match.id);
     
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2450,7 +2452,7 @@ setState(() {
         return;
       }
       
-      final success = await _matchService.finishMatch(
+      final success = await _matchRepo.finishMatch(
         widget.match.id, 
         result, 
         _teamAScore, 
@@ -2725,7 +2727,7 @@ setState(() {
   Future<void> _cancelMatch() async {
   setState(() => _isLoading = true);
   try {
-    final success = await _matchService.cancelMatch(widget.match.id);
+    final success = await _matchRepo.cancelMatch(widget.match.id);
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(I18n.t('status_cancelled')), backgroundColor: Colors.redAccent),
@@ -2753,7 +2755,7 @@ setState(() {
     if (ok != true) return;
     setState(() => _isLoading = true);
     try {
-      final success = await _matchService.deleteMatch(widget.match.id);
+      final success = await _matchRepo.deleteMatch(widget.match.id);
       if (!mounted) return;
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(

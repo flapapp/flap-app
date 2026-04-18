@@ -3,17 +3,17 @@ import 'package:flutter/material.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/match.dart';
-import '../models/app_team.dart';
-import '../core/di/injection.dart';
-import '../features/teams/domain/repositories/teams_repository.dart';
-import '../services/match_service.dart';
-import '../services/notification_service.dart';
-import '../models/notification.dart';
-import '../utils/i18n.dart';
-import '../widgets/player_avatar_button.dart';
-import '../widgets/team_logo_button.dart';
-import '../widgets/city_autocomplete_field.dart';
+import '../../../../models/match.dart';
+import '../../../../models/app_team.dart';
+import '../../../../core/di/injection.dart';
+import '../../domain/repositories/matches_repository.dart';
+import '../../../../features/teams/domain/repositories/teams_repository.dart';
+import '../../../../services/notification_service.dart';
+import '../../../../models/notification.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/player_avatar_button.dart';
+import '../../../../widgets/team_logo_button.dart';
+import '../../../../widgets/city_autocomplete_field.dart';
 
 @RoutePage()
 class CreateMatchScreen extends StatefulWidget {
@@ -47,6 +47,8 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   final ScrollController _friendsScrollController = ScrollController();
 
   TeamsRepository get _teamsRepo => sl<TeamsRepository>();
+
+  MatchesRepository get _matchesRepo => sl<MatchesRepository>();
 
   bool _isCreating = false;
   bool _teamMode = false;
@@ -804,7 +806,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
         updatedAt: DateTime.now(),
       );
       
-            final matchId = await MatchService().createMatch(match);
+            final matchId = await _matchesRepo.createMatch(match);
 
       // Надіслати інвайти вибраним друзям (push + in-app)
       if (_selectedInviteFriendIds.isNotEmpty) {
