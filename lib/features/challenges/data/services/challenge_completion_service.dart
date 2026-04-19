@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../utils/i18n.dart';
+import '../../../../utils/i18n.dart';
 
 class ChallengeCompletionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

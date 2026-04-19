@@ -19,7 +19,7 @@ import 'dart:async';
 import '../../../../widgets/user_chip.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/mode_speed_dial.dart';
-import '../../../../services/notification_service.dart';
+import '../../../notifications/data/services/notification_service.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 

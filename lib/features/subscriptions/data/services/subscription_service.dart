@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../features/subscriptions/data/models/subscription.dart';
-import '../utils/i18n.dart';
+import '../../data/models/subscription.dart';
+import '../../../../utils/i18n.dart';
 
 class SubscriptionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

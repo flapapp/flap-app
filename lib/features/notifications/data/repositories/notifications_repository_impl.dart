@@ -1,5 +1,5 @@
 import '../models/notification.dart';
-import '../../../../services/notification_service.dart';
+import '../services/notification_service.dart';
 import '../../domain/repositories/notifications_repository.dart';
 
 class NotificationsRepositoryImpl implements NotificationsRepository {

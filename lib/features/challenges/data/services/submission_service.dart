@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../features/challenges/data/models/submission.dart';
-import '../services/notification_service.dart';
-import '../utils/i18n.dart';
+import '../../data/models/submission.dart';
+import '../../../notifications/data/services/notification_service.dart';
+import '../../../../utils/i18n.dart';
 
 class SubmissionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

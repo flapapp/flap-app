@@ -1,5 +1,5 @@
 import '../models/subscription.dart';
-import '../../../../services/subscription_service.dart';
+import '../services/subscription_service.dart';
 import '../../domain/repositories/subscriptions_repository.dart';
 
 class SubscriptionsRepositoryImpl implements SubscriptionsRepository {

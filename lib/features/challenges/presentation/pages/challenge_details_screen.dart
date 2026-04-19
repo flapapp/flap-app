@@ -9,7 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/models/challenge.dart';
 import '../../../video/presentation/pages/video_upload_screen.dart';
 import 'challenge_video_player_screen.dart';
-import '../../../../services/thumbnail_service.dart';
+import '../../../video/data/services/thumbnail_service.dart';
 import 'challenge_completion_screen.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/video_preview_box.dart';

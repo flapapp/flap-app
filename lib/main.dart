@@ -15,8 +15,8 @@ import 'firebase_options.dart';
 import 'router/app_router.dart';
 import 'features/badges/domain/repositories/badges_repository.dart';
 import 'features/subscriptions/domain/repositories/subscriptions_repository.dart';
-import 'services/notification_service.dart';
-import 'services/user_settings_service.dart';
+import 'features/notifications/data/services/notification_service.dart';
+import 'features/profile/data/services/user_settings_service.dart';
 import 'utils/i18n.dart';
 
 

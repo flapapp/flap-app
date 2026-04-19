@@ -8,7 +8,7 @@ import '../../../teams/data/models/app_team.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../../../../features/teams/domain/repositories/teams_repository.dart';
-import '../../../../services/notification_service.dart';
+import '../../../notifications/data/services/notification_service.dart';
 import '../../../notifications/data/models/notification.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';

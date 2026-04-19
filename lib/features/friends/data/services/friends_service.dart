@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../features/friends/data/models/friend_request.dart';
-import '../services/notification_service.dart';
-import '../utils/i18n.dart';
+import '../../data/models/friend_request.dart';
+import '../../../notifications/data/services/notification_service.dart';
+import '../../../../utils/i18n.dart';
 
 class FriendsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

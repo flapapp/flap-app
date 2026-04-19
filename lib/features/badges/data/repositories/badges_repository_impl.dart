@@ -1,5 +1,5 @@
 import '../models/badge.dart';
-import '../../../../services/badge_service.dart';
+import '../services/badge_service.dart';
 import '../../domain/repositories/badges_repository.dart';
 
 class BadgesRepositoryImpl implements BadgesRepository {

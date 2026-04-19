@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../features/badges/data/models/badge.dart';
-import '../utils/i18n.dart';
+import '../../data/models/badge.dart';
+import '../../../../utils/i18n.dart';
 
 class BadgeService {
   static Future<void>? _initializationFuture;

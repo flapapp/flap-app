@@ -1,6 +1,6 @@
 import '../../../teams/data/models/app_team.dart';
 import '../models/match.dart' as app_match;
-import '../../../../services/match_service.dart';
+import '../services/match_service.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../datasources/matches_read_remote_datasource.dart';
 

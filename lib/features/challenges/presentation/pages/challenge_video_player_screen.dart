@@ -8,8 +8,8 @@ import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../../services/rating_tracking_service.dart';
-import '../../../../services/user_settings_service.dart';
+import '../../../ratings/data/services/rating_tracking_service.dart';
+import '../../../profile/data/services/user_settings_service.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../../utils/i18n.dart';
 

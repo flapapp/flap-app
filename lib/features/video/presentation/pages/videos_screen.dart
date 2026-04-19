@@ -7,7 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'video_player_screen.dart';
 import '../../../../widgets/user_chip.dart';
-import '../../../../services/notification_service.dart';
+import '../../../notifications/data/services/notification_service.dart';
 import '../../../friends/data/models/friend_request.dart' show Friend;
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/video_preview_box.dart';

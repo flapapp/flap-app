@@ -1,4 +1,4 @@
-import '../../../../services/rating_service.dart';
+import '../services/rating_service.dart';
 import '../../domain/repositories/ratings_repository.dart';
 
 class RatingsRepositoryImpl implements RatingsRepository {

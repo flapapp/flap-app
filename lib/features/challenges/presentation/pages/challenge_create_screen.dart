@@ -11,8 +11,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
-import '../../../../services/notification_service.dart';
-import '../../../../services/thumbnail_service.dart';
+import '../../../notifications/data/services/notification_service.dart';
+import '../../../video/data/services/thumbnail_service.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';
 

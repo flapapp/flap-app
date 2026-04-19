@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'notification_service.dart';
+import '../../../notifications/data/services/notification_service.dart';
 import 'rating_tracking_service.dart';
-import '../utils/i18n.dart';
+import '../../../../utils/i18n.dart';
 
 class RatingService {
   static const double _matchWeight = 0.7; // 70% ваги для матчів

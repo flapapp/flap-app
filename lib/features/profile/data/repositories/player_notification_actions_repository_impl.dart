@@ -1,4 +1,4 @@
-import '../../../../services/notification_service.dart';
+import '../../../notifications/data/services/notification_service.dart';
 import '../../domain/repositories/player_notification_actions_repository.dart';
 
 class PlayerNotificationActionsRepositoryImpl

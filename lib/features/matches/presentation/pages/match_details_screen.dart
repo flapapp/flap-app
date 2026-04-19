@@ -12,7 +12,7 @@ import '../../../../core/di/injection.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../../data/models/match.dart';
-import '../../../../services/notification_service.dart';
+import '../../../notifications/data/services/notification_service.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/user_chip.dart';

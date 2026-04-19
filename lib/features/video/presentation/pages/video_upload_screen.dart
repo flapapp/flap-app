@@ -8,7 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../../../../constants/video_categories.dart';
 import '../../../../core/di/injection.dart';
 import '../../../challenges/domain/repositories/challenges_repository.dart';
-import '../../../../services/thumbnail_service.dart';
+import '../../data/services/thumbnail_service.dart';
 import '../../../../utils/i18n.dart';
 
 @RoutePage()
