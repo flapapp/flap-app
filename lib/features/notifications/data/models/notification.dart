@@ -1,7 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+
 import 'package:json_annotation/json_annotation.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
+import 'package:flap_app/core/supabase/supabase_date.dart';
 
 import '../../domain/entities/app_notification_entity.dart';
 
@@ -24,24 +26,60 @@ class AppNotification extends AppNotificationEntity {
     super.actionUrl,
   });
 
-  // Factory constructor from Firestore
-  factory AppNotification.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    
+  static NotificationType _typeFromCode(String? code) {
+    if (code == null || code.isEmpty) {
+      return NotificationType.friendRequest;
+    }
+    return NotificationType.values.firstWhere(
+      (e) => e.toString().split('.').last == code,
+      orElse: () => NotificationType.friendRequest,
+    );
+  }
+
+  static Map<String, dynamic> _unpackMessageField(String raw) {
+    try {
+      final j = jsonDecode(raw) as Map<String, dynamic>?;
+      if (j != null && j['v'] == 1) {
+        return <String, dynamic>{
+          'displayMessage': j['displayMessage'] as String? ?? '',
+          'data': Map<String, dynamic>.from(j['data'] as Map? ?? {}),
+          'imageUrl': j['imageUrl'] as String?,
+          'actionUrl': j['actionUrl'] as String?,
+        };
+      }
+    } catch (_) {}
+    return <String, dynamic>{
+      'displayMessage': raw,
+      'data': <String, dynamic>{},
+      'imageUrl': null,
+      'actionUrl': null,
+    };
+  }
+
+  static String packMessageField(AppNotification n) => jsonEncode(<String, dynamic>{
+        'v': 1,
+        'displayMessage': n.message,
+        'data': n.data,
+        'imageUrl': n.imageUrl,
+        'actionUrl': n.actionUrl,
+      });
+
+  factory AppNotification.fromSupabase(Map<String, dynamic> row) {
+    final nt = row['notification_types'];
+    final code =
+        nt is Map ? nt['code'] as String? : null;
+    final unpacked = _unpackMessageField(row['message'] as String? ?? '');
     return AppNotification(
-      id: doc.id,
-      userId: data['userId'] ?? '',
-      type: NotificationType.values.firstWhere(
-        (e) => e.toString().split('.').last == data['type'],
-        orElse: () => NotificationType.friendRequest,
-      ),
-      title: data['title'] ?? '',
-      message: data['message'] ?? '',
-      data: Map<String, dynamic>.from(data['data'] ?? {}),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      isRead: data['isRead'] ?? false,
-      imageUrl: data['imageUrl'],
-      actionUrl: data['actionUrl'],
+      id: row['id'] as String,
+      userId: row['user_id'] as String,
+      type: _typeFromCode(code),
+      title: row['title'] as String? ?? '',
+      message: unpacked['displayMessage'] as String,
+      data: Map<String, dynamic>.from(unpacked['data'] as Map),
+      createdAt: asDateTime(row['created_at']),
+      isRead: row['is_read'] as bool? ?? false,
+      imageUrl: unpacked['imageUrl'] as String?,
+      actionUrl: unpacked['actionUrl'] as String?,
     );
   }
 
@@ -49,21 +87,6 @@ class AppNotification extends AppNotificationEntity {
       _$AppNotificationFromJson(json);
 
   Map<String, dynamic> toJson() => _$AppNotificationToJson(this);
-
-  // Convert to Map for Firestore
-  Map<String, dynamic> toFirestore() {
-    return {
-      'userId': userId,
-      'type': type.toString().split('.').last,
-      'title': title,
-      'message': message,
-      'data': data,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'isRead': isRead,
-      'imageUrl': imageUrl,
-      'actionUrl': actionUrl,
-    };
-  }
 
   // Copy with changes
   AppNotification copyWith({

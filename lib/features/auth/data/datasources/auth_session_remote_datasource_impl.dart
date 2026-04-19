@@ -1,14 +1,16 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_session_remote_datasource.dart';
 
 class AuthSessionRemoteDataSourceImpl implements AuthSessionRemoteDataSource {
   AuthSessionRemoteDataSourceImpl();
 
+  SupabaseClient get _client => Supabase.instance.client;
+
   @override
   String? get currentUserIdOrNull {
     try {
-      return FirebaseAuth.instance.currentUser?.uid;
+      return _client.auth.currentUser?.id;
     } catch (_) {
       return null;
     }
@@ -17,23 +19,17 @@ class AuthSessionRemoteDataSourceImpl implements AuthSessionRemoteDataSource {
   @override
   Future<String?> resolveInitialUserId() async {
     try {
-      var user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        try {
-          user = await FirebaseAuth.instance
-              .authStateChanges()
-              .first
-              .timeout(const Duration(seconds: 2), onTimeout: () => null);
-        } catch (_) {
-          user = FirebaseAuth.instance.currentUser;
-        }
+      var user = _client.auth.currentUser;
+      if (user != null) {
+        return user.id;
       }
-      return user?.uid;
+      final session = _client.auth.currentSession;
+      return session?.user.id;
     } catch (_) {
       return null;
     }
   }
 
   @override
-  Future<void> signOut() => FirebaseAuth.instance.signOut();
+  Future<void> signOut() => _client.auth.signOut();
 }

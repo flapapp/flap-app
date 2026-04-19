@@ -45,3 +45,6 @@ app.*.map.json
 /android/app/release
 Cursor/
 Cursor/**
+
+# Supabase CLI local cache (link state, pooler URL, service versions)
+supabase/.temp/

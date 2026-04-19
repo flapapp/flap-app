@@ -2,7 +2,6 @@ import 'dart:collection';
 
 import 'dart:math';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 import '../../../../core/json/json_converters.dart';
@@ -22,6 +21,32 @@ export 'player_rating_model.dart';
 export 'team_model.dart';
 
 part 'match.g.dart';
+
+DateTime _matchReadDate(dynamic v, [DateTime? dflt]) {
+  if (v == null) {
+    return dflt ?? DateTime.now();
+  }
+  if (v is DateTime) {
+    return v;
+  }
+  if (v is String) {
+    return DateTime.tryParse(v) ?? dflt ?? DateTime.now();
+  }
+  return dflt ?? DateTime.now();
+}
+
+DateTime? _matchReadDateOrNull(dynamic v) {
+  if (v == null) {
+    return null;
+  }
+  if (v is DateTime) {
+    return v;
+  }
+  if (v is String) {
+    return DateTime.tryParse(v);
+  }
+  return null;
+}
 
 // Основний клас матчу
 @JsonSerializable(explicitToJson: true)
@@ -79,23 +104,27 @@ class Match extends MatchEntity {
 
   Map<String, dynamic> toJson() => _$MatchToJson(this);
 
-  // Створення з Firestore
-  factory Match.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final createdAtTs = data['createdAt'] as Timestamp?;
-    final updatedAtTs = data['updatedAt'] as Timestamp?;
-    
+  /// Backwards-compatible wrapper (e.g. Firestore snapshot or compatible stub).
+  factory Match.fromFirestore(dynamic doc) {
+    final id = doc.id as String;
+    final raw = doc.data();
+    final data = Map<String, dynamic>.from(raw as Map);
+    return Match.fromLegacyMap(id, data);
+  }
+
+  /// Legacy embedded document shape (Firestore or denormalized JSON).
+  factory Match.fromLegacyMap(String id, Map<String, dynamic> data) {
     return Match(
-      id: doc.id,
+      id: id,
       title: data['title'] ?? '',
       description: data['description'] ?? '',
       organizerId: data['organizerId'] ?? '',
       organizerName: data['organizerName'] ?? '',
-      date: (data['date'] as Timestamp).toDate(),
+      date: _matchReadDate(data['date']),
       time: data['time'] ?? '',
       location: data['location'] ?? '',
       city: data['city'] ?? '',
-      coordinates: data['coordinates'] as GeoPoint?,
+      coordinates: const LatLngConverter().fromJson(data['coordinates']),
       currentPlayers: data['currentPlayers'] ?? 0,
       maxPlayers: data['maxPlayers'] ?? 0,
       participants: List<String>.from(data['participants'] ?? []),
@@ -162,11 +191,9 @@ class Match extends MatchEntity {
             .map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
       ),
       teamsReadyNotified: data['teamsReadyNotified'] ?? false,
-      teamsReadyNotifiedAt:
-          (data['teamsReadyNotifiedAt'] as Timestamp?)?.toDate(),
+      teamsReadyNotifiedAt: _matchReadDateOrNull(data['teamsReadyNotifiedAt']),
       coverPhotoUrl: data['coverPhotoUrl'] as String?,
-      coverPhotoUpdatedAt:
-          (data['coverPhotoUpdatedAt'] as Timestamp?)?.toDate(),
+      coverPhotoUpdatedAt: _matchReadDateOrNull(data['coverPhotoUpdatedAt']),
       teams: ((data['teams'] as List?) ?? const [])
           .whereType<Map<String, dynamic>>()
           .map((t) => Team(
@@ -191,34 +218,35 @@ class Match extends MatchEntity {
                 playerId: item['playerId'] ?? '',
                 ratedBy: item['ratedBy'] ?? '',
                 rating: ((item['rating'] ?? 0.0) as num).toDouble(),
-                ratedAt: (item['ratedAt'] is Timestamp)
-                    ? (item['ratedAt'] as Timestamp).toDate()
-                    : DateTime.fromMillisecondsSinceEpoch(0),
+                ratedAt: _matchReadDate(
+                  item['ratedAt'],
+                  DateTime.fromMillisecondsSinceEpoch(0),
+                ),
                 criteria: Map<String, double>.from(
                   (item['criteria'] ?? const <String, num>{})
                       .map((k, v) => MapEntry(k, (v as num).toDouble())),
                 ),
               ))
           .toList(),
-      createdAt: (createdAtTs ?? Timestamp.now()).toDate(),
-      updatedAt: (updatedAtTs ?? Timestamp.now()).toDate(),
-      startedAt: (data['startedAt'] as Timestamp?)?.toDate(),
-      finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
+      createdAt: _matchReadDate(data['createdAt']),
+      updatedAt: _matchReadDate(data['updatedAt']),
+      startedAt: _matchReadDateOrNull(data['startedAt']),
+      finishedAt: _matchReadDateOrNull(data['finishedAt']),
     );
   }
 
-  // Конвертація в Map для Firestore
-  Map<String, dynamic> toFirestore() {
+  /// Serialized map for persistence (ISO-8601 dates, lat/lng objects).
+  Map<String, dynamic> toLegacyMap() {
     return {
       'title': title,
       'description': description,
       'organizerId': organizerId,
       'organizerName': organizerName,
-      'date': Timestamp.fromDate(date),
+      'date': date.toIso8601String(),
       'time': time,
       'location': location,
       'city': city,
-      'coordinates': coordinates,
+      'coordinates': const LatLngConverter().toJson(coordinates),
       'currentPlayers': currentPlayers,
       'maxPlayers': maxPlayers,
       'participants': participants,
@@ -230,8 +258,8 @@ class Match extends MatchEntity {
       'isPrivate': isPrivate,
       'invitedFriends': invitedFriends,
       'status': status.toString().split('.').last,
-      'teamA': (teamA as Team?)?.toFirestore(),
-      'teamB': (teamB as Team?)?.toFirestore(),
+      'teamA': teamA == null ? null : (teamA as Team).toFirestore(),
+      'teamB': teamB == null ? null : (teamB as Team).toFirestore(),
       'teams': teams.map((t) => (t as Team).toFirestore()).toList(),
       'teamCount': teamCount,
       'multiTeamStats': multiTeamStats,
@@ -244,25 +272,24 @@ class Match extends MatchEntity {
       'teamRosterStatus': teamRosterStatus,
       'goalsByPlayer': goalsByPlayer,
       'teamsReadyNotified': teamsReadyNotified,
-      'teamsReadyNotifiedAt': teamsReadyNotifiedAt != null
-          ? Timestamp.fromDate(teamsReadyNotifiedAt!)
-          : null,
+      'teamsReadyNotifiedAt': teamsReadyNotifiedAt?.toIso8601String(),
       'coverPhotoUrl': coverPhotoUrl,
-      'coverPhotoUpdatedAt': coverPhotoUpdatedAt != null
-          ? Timestamp.fromDate(coverPhotoUpdatedAt!)
-          : null,
+      'coverPhotoUpdatedAt': coverPhotoUpdatedAt?.toIso8601String(),
       'result': result?.toString().split('.').last,
       'teamAScore': teamAScore,
       'teamBScore': teamBScore,
       'playerRatings': playerRatings
           .map((rating) => (rating as PlayerRating).toFirestore())
           .toList(),
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
-      'startedAt': startedAt != null ? Timestamp.fromDate(startedAt!) : null,
-      'finishedAt': finishedAt != null ? Timestamp.fromDate(finishedAt!) : null,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'startedAt': startedAt?.toIso8601String(),
+      'finishedAt': finishedAt?.toIso8601String(),
     };
   }
+
+  /// Alias retained while migrating call sites.
+  Map<String, dynamic> toFirestore() => toLegacyMap();
 
   // Копіювання з змінами
   Match copyWith({
@@ -275,7 +302,7 @@ class Match extends MatchEntity {
     String? time,
     String? location,
     String? city,
-    GeoPoint? coordinates,
+    LatLng? coordinates,
     int? currentPlayers,
     int? maxPlayers,
     List<String>? participants,

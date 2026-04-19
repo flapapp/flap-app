@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -8,17 +8,18 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/auth/app_auth.dart';
+import 'core/config/supabase_env.dart';
+import 'core/supabase/supabase_bootstrap.dart';
 import 'core/di/injection.dart';
-import 'features/auth/presentation/bloc/auth_bloc.dart';
+import 'features/auth/presentation/bloc/auth_bloc.dart' hide AuthState;
 import 'firebase_options.dart';
 import 'router/app_router.dart';
 import 'features/badges/domain/repositories/badges_repository.dart';
 import 'features/subscriptions/domain/repositories/subscriptions_repository.dart';
 import 'features/notifications/data/services/notification_service.dart';
 import 'features/profile/data/services/user_settings_service.dart';
-
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -31,6 +32,7 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await initializeSupabase();
   await configureDependencies();
   runApp(
     EasyLocalization(
@@ -46,35 +48,25 @@ Future<void> main() async {
 }
 
 Future<void> _bootstrapAppServices() async {
-  // Keep user logged in between browser sessions.
-  if (kIsWeb) {
-    try {
-      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
-    } catch (_) {}
-  }
-
-  // Initialize NotificationService
   try {
     await NotificationService().initialize();
   } catch (e) {
     print('Failed to initialize NotificationService: $e');
   }
 
-  // Initialize default badges
   try {
     await sl<BadgesRepository>().initializeDefaultBadges();
   } catch (e) {
     print('Failed to initialize badges: $e');
   }
 
-  // Grant Champions trial silently (per user)
   try {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
+    final uid = AppAuth.currentUserId;
+    if (uid != null) {
       await sl<SubscriptionsRepository>().grantChampionsTrialIfMissing();
     } else {
-      FirebaseAuth.instance.authStateChanges().listen((u) async {
-        if (u != null) {
+      AppAuth.onAuthStateChange.listen((state) async {
+        if (state.session?.user.id != null) {
           await sl<SubscriptionsRepository>().grantChampionsTrialIfMissing();
         }
       });
@@ -94,17 +86,26 @@ Future<void> _initMessaging() async {
   final messaging = FirebaseMessaging.instance;
   await messaging.requestPermission(alert: true, badge: true, sound: true);
   final token = await messaging.getToken();
-  final user = FirebaseAuth.instance.currentUser;
-  if (user != null && token != null) {
-    final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-    await userRef.set({
-      'deviceTokens': FieldValue.arrayUnion([token])
-    }, SetOptions(merge: true));
+  final uid = AppAuth.currentUserId;
+  if (uid != null &&
+      token != null &&
+      SupabaseEnv.url.isNotEmpty &&
+      SupabaseEnv.anonKey.isNotEmpty) {
+    final platform = kIsWeb
+        ? 'web'
+        : (Platform.isIOS ? 'ios' : 'android');
+    await Supabase.instance.client.from('push_tokens').upsert(
+      <String, dynamic>{
+        'user_id': uid,
+        'token': token,
+        'platform': platform,
+        'last_seen_at': DateTime.now().toUtc().toIso8601String(),
+      },
+      onConflict: 'token',
+    );
   }
 
-  FirebaseMessaging.onMessage.listen((message) {
-    // Optionally show in-app notification UI
-  });
+  FirebaseMessaging.onMessage.listen((message) {});
 }
 
 class MyApp extends StatefulWidget {
@@ -115,22 +116,24 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  StreamSubscription<User?>? _authSubscription;
+  StreamSubscription<AuthState>? _authSubscription;
+  var _skipFirstAuthEvent = true;
 
   @override
   void initState() {
     super.initState();
-    // Initial route is handled by [AuthBootstrapScreen]; skip the first emission
-    // so we only react to sign-out (or session loss) after startup.
     try {
-      _authSubscription =
-          FirebaseAuth.instance.authStateChanges().skip(1).listen((user) {
-        if (user != null) return;
+      _authSubscription = AppAuth.onAuthStateChange.listen((state) {
+        if (_skipFirstAuthEvent) {
+          _skipFirstAuthEvent = false;
+          return;
+        }
+        if (state.session != null) {
+          return;
+        }
         appRouter.replaceAll([const WelcomeRoute()]);
       });
-    } catch (_) {
-      // Tests or environments without Firebase — routing still works via guards.
-    }
+    } catch (_) {}
   }
 
   @override

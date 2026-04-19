@@ -4,13 +4,15 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
 
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/supabase/supabase_app_storage.dart';
 import '../../../../constants/video_categories.dart';
 import '../../../../core/di/injection.dart';
 import '../../../challenges/domain/repositories/challenges_repository.dart';
 import '../../data/services/thumbnail_service.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class VideoUploadScreen extends StatefulWidget {
@@ -485,7 +487,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     });
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = AppAuth.currentUser;
       if (user == null) {
         throw Exception(tr('il_76144c407d'));
       }
@@ -499,37 +501,33 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
 
       // Генеруємо унікальні імена файлів
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'video_${user.uid}_$timestamp.mp4';
+      final fileName = 'video_${user.id}_$timestamp.mp4';
       
-      // Створюємо посилання на Storage
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('videos/${user.uid}/$fileName');
-
       print('🎬 Starting video upload: $fileName');
 
       // Завантажуємо відео (на всіх платформах через байти для веб-сумісності)
       final bytes = await _pickedVideo!.readAsBytes();
-      final uploadTask = storageRef.putData(bytes);
+      if (!mounted) return;
+      setState(() => _uploadProgress = 0.15);
 
-      // Відстежуємо прогрес
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        if (!mounted) return;
-        setState(() {
-          _uploadProgress = snapshot.totalBytes == 0 ? 0 : snapshot.bytesTransferred / snapshot.totalBytes;
-        });
-      });
+      final client = Supabase.instance.client;
+      final videoUrl = await SupabaseAppStorage.uploadPublicBytes(
+        client,
+        bucket: SupabaseAppStorage.videos,
+        path: '${user.id}/$fileName',
+        bytes: bytes,
+        contentType: 'video/mp4',
+      );
 
-      // Чекаємо завершення завантаження
-      final snapshot = await uploadTask;
-      final videoUrl = await snapshot.ref.getDownloadURL();
+      if (!mounted) return;
+      setState(() => _uploadProgress = 1.0);
       
       print('✅ Video uploaded successfully: $videoUrl');
 
       final videoData = <String, dynamic>{
-        'userId': user.uid,
-        'authorId': user.uid,
-        'authorName': user.displayName ?? user.email?.split('@')[0] ?? tr('il_b512d97e7c'),
+        'userId': user.id,
+        'authorId': user.id,
+        'authorName': user.email?.split('@').first ?? tr('il_b512d97e7c'),
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
         'category': normalizeVideoCategoryValue(_selectedCategoryId ?? 'other'),
@@ -563,7 +561,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       }
 
       // Генеруємо thumbnail в фоновому режимі
-      _generateThumbnailInBackground(videoDoc.id, videoUrl, user.uid);
+      _generateThumbnailInBackground(videoDoc.id, videoUrl, user.id);
 
       // Показуємо успішне повідомлення
       if (mounted) {
@@ -601,24 +599,24 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
 
   Future<void> _submitVideoToChallenge(String videoId, String videoUrl) async {
     try {
-      final user = FirebaseAuth.instance.currentUser!;
+      final user = AppAuth.currentUser!;
 
       // Додаємо відео до челенджу
       await sl<ChallengesRepository>()
-          .addVideoToChallenge(widget.challengeId!, user.uid);
+          .addVideoToChallenge(widget.challengeId!, user.id);
       
       // Створюємо submission документ
       await FirebaseFirestore.instance
           .collection('challenges')
           .doc(widget.challengeId!)
           .collection('submissions')
-          .doc(user.uid)
+          .doc(user.id)
           .set({
-        'userId': user.uid,
+        'userId': user.id,
         'videoId': videoId,
         'videoUrl': videoUrl,
         'title': _titleController.text.trim(),
-        'authorName': user.displayName ?? user.email?.split('@')[0] ?? tr('il_b512d97e7c'),
+        'authorName': user.email?.split('@').first ?? tr('il_b512d97e7c'),
         'createdAt': FieldValue.serverTimestamp(),
         'averageRating': 0.0,
         'voteCount': 0,

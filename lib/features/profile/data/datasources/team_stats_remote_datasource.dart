@@ -1,6 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Live `teamStats/{teamId}` document (data layer).
+/// Live team stats snapshot (derived / stored; Supabase-backed).
 abstract class TeamStatsRemoteDataSource {
-  Stream<DocumentSnapshot<Map<String, dynamic>>> watchTeamStats(String teamId);
+  Stream<Map<String, dynamic>?> watchTeamStats(String teamId);
 }

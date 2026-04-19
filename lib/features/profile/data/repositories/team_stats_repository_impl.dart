@@ -8,6 +8,6 @@ class TeamStatsRepositoryImpl implements TeamStatsRepository {
 
   @override
   Stream<Map<String, dynamic>?> watchTeamStats(String teamId) {
-    return _remote.watchTeamStats(teamId).map((s) => s.data());
+    return _remote.watchTeamStats(teamId);
   }
 }

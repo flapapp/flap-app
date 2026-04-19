@@ -1,17 +1,22 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/common/unit.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/error/result.dart';
+import '../../../../core/supabase/supabase_lookups.dart';
 import '../../domain/repositories/player_badge_endorsement_repository.dart';
 
 class PlayerBadgeEndorsementRepositoryImpl
     implements PlayerBadgeEndorsementRepository {
-  PlayerBadgeEndorsementRepositoryImpl(this._firestore);
+  PlayerBadgeEndorsementRepositoryImpl(this._client);
 
-  final FirebaseFirestore _firestore;
+  final SupabaseClient _client;
+
+  static const _titleKey = 'badge_endorsement_event';
 
   @override
   Future<BadgeEndorsementInfo> getEndorsementInfo({
@@ -20,23 +25,34 @@ class PlayerBadgeEndorsementRepositoryImpl
     String? currentUserId,
   }) async {
     try {
-      final doc = await _firestore
-          .collection('users')
-          .doc(ownerUserId)
-          .collection('badge_endorsements')
-          .doc(badgeId)
-          .get();
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        final endorsers = List<String>.from(data['endorsers'] ?? []);
-        final endorsed =
-            currentUserId != null && endorsers.contains(currentUserId);
-        return BadgeEndorsementInfo(
-          count: endorsers.length,
-          endorsedByCurrentUser: endorsed,
-        );
+      final tid = await SupabaseLookups.notificationTypeId(
+        _client,
+        'badge_endorsed',
+        'Badge endorsed',
+      );
+      final rows = await _client
+          .from('notifications')
+          .select()
+          .eq('user_id', ownerUserId)
+          .eq('notification_type_id', tid)
+          .eq('title', _titleKey);
+      final endorsers = <String>{};
+      for (final raw in rows as List<dynamic>) {
+        final m = raw as Map<String, dynamic>;
+        try {
+          final payload = jsonDecode(m['message'] as String) as Map<String, dynamic>;
+          if (payload['badgeId']?.toString() == badgeId) {
+            endorsers.add(payload['endorserUserId'] as String);
+          }
+        } catch (_) {}
       }
-      return const BadgeEndorsementInfo(count: 0, endorsedByCurrentUser: false);
+      final list = endorsers.toList();
+      final endorsed =
+          currentUserId != null && endorsers.contains(currentUserId);
+      return BadgeEndorsementInfo(
+        count: list.length,
+        endorsedByCurrentUser: endorsed,
+      );
     } catch (_) {
       return const BadgeEndorsementInfo(count: 0, endorsedByCurrentUser: false);
     }
@@ -57,62 +73,72 @@ class PlayerBadgeEndorsementRepositoryImpl
       );
     }
 
-    final ref = _firestore
-        .collection('users')
-        .doc(ownerUserId)
-        .collection('badge_endorsements')
-        .doc(badgeId);
-
     try {
-      await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(ref);
-        var endorsers = <String>[];
-        if (snap.exists) {
-          endorsers = List<String>.from(snap.data()?['endorsers'] ?? []);
-        }
-        if (endorsers.contains(endorserUserId)) {
-          throw StateError('already-endorsed');
-        }
-        endorsers.add(endorserUserId);
-        tx.set(
-          ref,
-          {
-            'endorsers': endorsers,
-            'lastEndorsedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-      });
-
-      final currentUserDoc =
-          await _firestore.collection('users').doc(endorserUserId).get();
-      final currentName = currentUserDoc.data()?['displayName'] ??
-          currentUserDoc.data()?['name'] ??
-          tr('il_b512d97e7c');
-
-      await _firestore.collection('notifications').add({
-        'userId': ownerUserId,
-        'type': 'badgeEndorsed',
-        'title': tr('il_cd519087d2'),
-        'message': bilingual(
-          '$currentName підтвердив ваш бейдж "$badgeLocalizedName"',
-          '$currentName confirmed your badge "$badgeLocalizedName"',
-        ),
-        'data': {'badgeId': badgeId},
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
-
-      return const Result.success(Unit.value);
-    } catch (e) {
-      if (e is StateError && e.message == 'already-endorsed') {
+      final info = await getEndorsementInfo(
+        ownerUserId: ownerUserId,
+        badgeId: badgeId,
+        currentUserId: endorserUserId,
+      );
+      if (info.endorsedByCurrentUser) {
         return Result.failure(
           Failure.unexpected(
             tr('il_f7964d75ff'),
           ),
         );
       }
+
+      final tid = await SupabaseLookups.notificationTypeId(
+        _client,
+        'badge_endorsed',
+        'Badge endorsed',
+      );
+
+      final endorser = await _client
+          .from('profiles')
+          .select('display_name,first_name,last_name')
+          .eq('id', endorserUserId)
+          .maybeSingle();
+      final currentName = _nameFromProfile(endorser);
+
+      await _client.from('notifications').insert(<String, dynamic>{
+        'user_id': ownerUserId,
+        'notification_type_id': tid,
+        'title': _titleKey,
+        'message': jsonEncode(<String, String>{
+          'badgeId': badgeId,
+          'endorserUserId': endorserUserId,
+        }),
+        'is_read': false,
+      });
+
+      await _client.from('notifications').insert(<String, dynamic>{
+        'user_id': ownerUserId,
+        'notification_type_id': tid,
+        'title': tr('il_cd519087d2'),
+        'message': bilingual(
+          '$currentName підтвердив ваш бейдж "$badgeLocalizedName"',
+          '$currentName confirmed your badge "$badgeLocalizedName"',
+        ),
+        'is_read': false,
+      });
+
+      return const Result.success(Unit.value);
+    } catch (e) {
       return Result.failure(Failure.unexpected(e.toString()));
     }
+  }
+
+  static String _nameFromProfile(Map<String, dynamic>? p) {
+    if (p == null) {
+      return tr('il_b512d97e7c');
+    }
+    final dn = p['display_name']?.toString() ?? '';
+    if (dn.isNotEmpty) {
+      return dn;
+    }
+    final fn = p['first_name']?.toString() ?? '';
+    final ln = p['last_name']?.toString() ?? '';
+    final s = '$fn $ln'.trim();
+    return s.isNotEmpty ? s : tr('il_b512d97e7c');
   }
 }

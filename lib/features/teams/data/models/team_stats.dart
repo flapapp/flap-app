@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
 
+import '../../../../core/supabase/supabase_date.dart';
 import '../../domain/entities/team_stats_entity.dart';
 
 export '../../domain/entities/team_stats_entity.dart';
@@ -22,8 +22,13 @@ class TeamStats extends TeamStatsEntity {
     super.updatedAt,
   });
 
-  factory TeamStats.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    return TeamStats.fromFirestoreMap(doc.id, doc.data(), fallbackName: '');
+  factory TeamStats.fromDoc(dynamic doc) {
+    final id = doc.id as String;
+    final data = doc.data();
+    final map = data is Map<String, dynamic>
+        ? data
+        : Map<String, dynamic>.from(data as Map);
+    return TeamStats.fromFirestoreMap(id, map, fallbackName: '');
   }
 
   /// Snapshot data from `teamStats/{teamId}` (same shape as [fromDoc]).
@@ -52,7 +57,7 @@ class TeamStats extends TeamStatsEntity {
       recentMatches: ((d['recentMatches'] as List?) ?? const [])
           .whereType<Map<String, dynamic>>()
           .toList(),
-      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate(),
+      updatedAt: asDateTimeOrNull(d['updatedAt'] ?? d['updated_at']),
     );
   }
 

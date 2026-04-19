@@ -5,6 +5,7 @@ import '../../data/models/match.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 class MatchService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -268,7 +269,7 @@ if (match.status == MatchStatus.full &&
           throw Exception('Match expired and marked as unplayed');
         }
 
-        final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        final currentUserId = AppAuth.currentUserId;
         if (currentUserId == null || currentUserId != match.organizerId) {
           throw Exception('Only organizer can perform this action');
         }
@@ -397,7 +398,7 @@ if (match.status == MatchStatus.full &&
 
         final match = Match.fromFirestore(snap);
 
-final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+final currentUserId = AppAuth.currentUserId;
 if (currentUserId == null || currentUserId != match.organizerId) {
   throw Exception('Only organizer can perform this action');
 }
@@ -479,7 +480,7 @@ if (currentUserId == null || currentUserId != match.organizerId) {
 
         final match = Match.fromFirestore(snap);
 
-final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+final currentUserId = AppAuth.currentUserId;
 if (currentUserId == null || currentUserId != match.organizerId) {
   throw Exception('Only organizer can perform this action');
 }
@@ -796,7 +797,7 @@ Future<void> ensureFixtures(String matchId) async {
           throw Exception('Match expired and marked as unplayed');
         }
 
-        final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        final currentUserId = AppAuth.currentUserId;
         if (currentUserId == null || currentUserId != match.organizerId) {
           throw Exception('Only organizer can perform this action');
         }
@@ -899,7 +900,7 @@ Future<void> ensureFixtures(String matchId) async {
       if (!snap.exists) throw Exception('Match not found');
 
       final match = Match.fromFirestore(snap);
-      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      final currentUserId = AppAuth.currentUserId;
       if (currentUserId == null || currentUserId != match.organizerId) {
         throw Exception('Only organizer can perform this action');
       }
@@ -1047,7 +1048,7 @@ for (final uid in a) {
 
         final match = Match.fromFirestore(snap);
 
-        final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        final currentUserId = AppAuth.currentUserId;
         if (currentUserId == null || currentUserId != match.organizerId) {
           throw Exception('Only organizer can perform this action');
         }
@@ -1076,7 +1077,7 @@ for (final uid in a) {
         final snap = await tx.get(docRef);
         if (!snap.exists) throw Exception('Match not found');
         final match = Match.fromFirestore(snap);
-        final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        final currentUserId = AppAuth.currentUserId;
         if (currentUserId == null || currentUserId != match.organizerId) {
           throw Exception('Only organizer can perform this action');
         }
@@ -1348,7 +1349,7 @@ for (final uid in a) {
     required String teamKey,
     required bool accept,
   }) async {
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final currentUserId = AppAuth.currentUserId;
     if (currentUserId == null) {
       throw Exception('Потрібна авторизація');
     }

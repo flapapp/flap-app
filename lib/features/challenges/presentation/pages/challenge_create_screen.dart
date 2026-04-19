@@ -7,7 +7,9 @@ import '../../../../router/app_router.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/supabase/supabase_app_storage.dart';
 import 'package:image_picker/image_picker.dart';
 // Removed dart:io to support web build
 import '../../../../core/di/injection.dart';
@@ -16,6 +18,7 @@ import '../../data/models/challenge.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../video/data/services/thumbnail_service.dart';
 import '../../../../widgets/player_avatar_button.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class ChallengeCreateScreen extends StatefulWidget {
@@ -751,9 +754,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
   Future<List<Map<String, dynamic>>> _loadMyFriends() async {
     try {
-      final me = _auth.currentUser;
+      final me = AppAuth.currentUser;
       if (me == null) return [];
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.uid).get();
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.id).get();
       final ids = List<String>.from(userDoc.data()?['friends'] ?? []);
       if (ids.isEmpty) return [];
       final result = <Map<String, dynamic>>[];
@@ -1162,7 +1165,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     });
 
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception(tr('il_76144c407d'));
       }
@@ -1170,7 +1173,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       // Отримати дані користувача
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(currentUser.uid)
+          .doc(currentUser.id)
           .get();
       
       if (!userDoc.exists) {
@@ -1198,7 +1201,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         description: _descriptionController.text.trim(),
         type: _selectedType,
         audience: _selectedAudience,
-        creatorId: currentUser.uid,
+        creatorId: currentUser.id,
         creatorName: userName,
         creatorVideoUrl: null, // Буде оновлено після завантаження відео
         city: userCity,
@@ -1231,7 +1234,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             .collection('challenges')
             .doc(challengeId)
             .update({
-          'participants': FieldValue.arrayUnion([currentUser.uid]),
+          'participants': FieldValue.arrayUnion([currentUser.id]),
           'currentParticipants': FieldValue.increment(1),
         });
 
@@ -1252,7 +1255,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         if (_selectedVideoFile != null) {
           print('Starting creator video upload for challenge: $challengeId');
           try {
-            final creatorVideoUrl = await _uploadCreatorVideo(challengeId, currentUser.uid, userName);
+            final creatorVideoUrl = await _uploadCreatorVideo(challengeId, currentUser.id, userName);
             if (creatorVideoUrl != null && creatorVideoUrl.isNotEmpty) {
               print('Creator video upload completed successfully with URL: $creatorVideoUrl');
               
@@ -1464,19 +1467,14 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       
       print('Picked file name: ${_selectedVideoFile!.name}');
       
-      // Завантажуємо відео в Storage
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'creator_video_$timestamp.mp4';
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('videos/$userId/$fileName');
-      
-      print('Storage path: videos/$userId/$fileName');
-      
-      // Завантажуємо відео
-      UploadTask uploadTask;
+      final objectPath = '$userId/$fileName';
+
+      print('Storage path: $objectPath');
+
+      String videoUrl;
       try {
-        // Універсальний підхід: читаємо байти і виконуємо putData (працює і на web, і на mobile)
         print('Reading video file as bytes...');
         final bytes = await _selectedVideoFile!.readAsBytes();
         if (bytes.length > _maxVideoBytes) {
@@ -1485,23 +1483,17 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           );
         }
         print('Video file size: ${bytes.length} bytes');
-        uploadTask = storageRef.putData(bytes);
-      } catch (e) {
-        print('ERROR reading video file: $e');
-        throw Exception(tr('il_44a8286fde'));
-      }
-      
-      print('Upload started...');
-      
-      String videoUrl;
-      try {
-        final snapshot = await uploadTask;
-        print('Upload completed. Bytes transferred: ${snapshot.bytesTransferred}');
-        
-        videoUrl = await snapshot.ref.getDownloadURL();
+
+        videoUrl = await SupabaseAppStorage.uploadPublicBytes(
+          Supabase.instance.client,
+          bucket: SupabaseAppStorage.videos,
+          path: objectPath,
+          bytes: bytes,
+          contentType: 'video/mp4',
+        );
         print('Video URL obtained: $videoUrl');
       } catch (e) {
-        print('ERROR during upload or getting URL: $e');
+        print('ERROR during upload: $e');
         throw Exception(tr('il_cc3ca4e740'));
       }
       

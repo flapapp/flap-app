@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/models/badge.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 class BadgeService {
   static Future<void>? _initializationFuture;
@@ -62,7 +63,7 @@ class BadgeService {
 
   Future<bool> purchaseBadge(String badgeId) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
@@ -80,12 +81,12 @@ class BadgeService {
         throw Exception('Цей бейдж недоступний для покупки');
       }
 
-      final alreadyOwned = await userOwnsBadge(currentUser.uid, badgeId);
+      final alreadyOwned = await userOwnsBadge(currentUser.id, badgeId);
       if (alreadyOwned) {
         throw Exception('Ви вже маєте цей бейдж');
       }
 
-      final userDoc = await _usersCollection.doc(currentUser.uid).get();
+      final userDoc = await _usersCollection.doc(currentUser.id).get();
       if (!userDoc.exists) {
         throw Exception('Дані користувача не знайдено');
       }
@@ -100,14 +101,14 @@ class BadgeService {
       }
 
       await _firestore.runTransaction((transaction) async {
-        transaction.update(_usersCollection.doc(currentUser.uid), {
+        transaction.update(_usersCollection.doc(currentUser.id), {
           'coins': FieldValue.increment(-effectivePrice),
           'badges': FieldValue.arrayUnion([badgeId]),
         });
 
         final localizedBadgeName = badge.localizedName;
         transaction.set(_firestore.collection('transactions').doc(), {
-          'userId': currentUser.uid,
+          'userId': currentUser.id,
           'type': 'badge_purchase',
           'amount': -effectivePrice,
           'badgeId': badgeId,

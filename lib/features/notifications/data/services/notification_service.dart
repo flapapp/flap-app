@@ -1,26 +1,48 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:io' show Platform;
+
 import 'package:firebase_messaging/firebase_messaging.dart';
-import '../../data/models/notification.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../data/models/notification.dart';
 import '../../../matches/data/models/match.dart' as app_models;
+import '../../../matches/data/supabase/match_legacy_remote_mapper.dart';
 import '../../../../router/app_router.dart';
 import '../../../profile/data/services/user_settings_service.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:flap_app/core/config/supabase_env.dart';
+import 'package:flap_app/core/supabase/supabase_lookups.dart';
 
 class NotificationService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   static const String _webVapidKey = String.fromEnvironment(
     'FIREBASE_WEB_PUSH_CERT_KEY',
     defaultValue: '',
   );
 
-  // Collection reference
-  CollectionReference get _notificationsCollection => 
-      _firestore.collection('notifications');
+  SupabaseClient get _sb => Supabase.instance.client;
+
+  bool get _hasSb =>
+      SupabaseEnv.url.isNotEmpty && SupabaseEnv.anonKey.isNotEmpty;
+
+  (String? table, String? id) _relatedMeta(AppNotification n) {
+    final d = n.data;
+    final mid = d['matchId'] as String?;
+    if (mid != null) return ('matches', mid);
+    final cid = d['challengeId'] as String?;
+    if (cid != null) return ('challenges', cid);
+    final vid = d['videoId'] as String?;
+    if (vid != null) return ('videos', vid);
+    final vids = d['videoIds'];
+    if (vids is List && vids.isNotEmpty) {
+      return ('videos', vids.first.toString());
+    }
+    final tid = d['teamId'] as String?;
+    if (tid != null) return ('teams', tid);
+    return (null, null);
+  }
 
   // Initialize notifications
   Future<void> initialize() async {
@@ -50,18 +72,19 @@ class NotificationService {
 
       // Listen for token refresh
       _messaging.onTokenRefresh.listen(_saveFCMToken);
-      FirebaseAuth.instance.authStateChanges().listen((user) async {
-  if (user != null) {
-    if (await UserSettingsService().isNotificationsEnabled()) {
-      final token = await _getCurrentMessagingToken();
-      if (token != null) {
-        await _saveFCMToken(token);
-      }
-    } else {
-      await _clearNotificationTokens(user.uid);
-    }
-  }
-});
+      AppAuth.onAuthStateChange.listen((state) async {
+        final u = state.session?.user;
+        if (u != null) {
+          if (await UserSettingsService().isNotificationsEnabled()) {
+            final token = await _getCurrentMessagingToken();
+            if (token != null) {
+              await _saveFCMToken(token);
+            }
+          } else {
+            await _clearNotificationTokens(u.id);
+          }
+        }
+      });
 
       // Handle foreground messages
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
@@ -100,30 +123,33 @@ if (initial != null) {
     }
   }
 
-  // Save FCM token to user document
   Future<void> _saveFCMToken(String token) async {
-    final currentUser = _auth.currentUser;
-    if (currentUser != null) {
-      if (!await UserSettingsService().isNotificationsEnabled()) {
-        await _clearNotificationTokens(currentUser.uid);
-        return;
-      }
-      await _firestore.collection('users').doc(currentUser.uid).update({
-        'fcmToken': token,
-        'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
-        'deviceTokens': FieldValue.arrayUnion([token]),
-      });
+    final currentUser = AppAuth.currentUser;
+    if (currentUser == null || !_hasSb) return;
+    if (!await UserSettingsService().isNotificationsEnabled()) {
+      await _clearNotificationTokens(currentUser.id);
+      return;
     }
+    final platform = kIsWeb
+        ? 'web'
+        : (Platform.isIOS ? 'ios' : 'android');
+    await _sb.from('push_tokens').upsert(
+      <String, dynamic>{
+        'user_id': currentUser.id,
+        'token': token,
+        'platform': platform,
+        'last_seen_at': DateTime.now().toUtc().toIso8601String(),
+      },
+      onConflict: 'token',
+    );
   }
 
   Future<void> _clearNotificationTokens([String? uid]) async {
-    final userId = uid ?? _auth.currentUser?.uid;
-    if (userId == null) return;
-    await _firestore.collection('users').doc(userId).set({
-      'fcmToken': FieldValue.delete(),
-      'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
-      'deviceTokens': <String>[],
-    }, SetOptions(merge: true));
+    final userId = uid ?? AppAuth.currentUserId;
+    if (userId == null || !_hasSb) return;
+    await _sb.from('push_tokens').update(<String, dynamic>{
+      'revoked_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('user_id', userId);
   }
 
   // Handle foreground messages
@@ -157,9 +183,10 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     final matchId = data['matchId'] as String?;
     if (matchId == null) return;
     try {
-      final doc = await _firestore.collection('matches').doc(matchId).get();
-      if (!doc.exists) return;
-      match = app_models.Match.fromFirestore(doc);
+      if (!_hasSb) return;
+      final legacy = await MatchLegacyRemoteMapper.load(_sb, matchId);
+      if (legacy == null) return;
+      match = app_models.Match.fromLegacyMap(matchId, legacy);
     } catch (_) {
       return;
     }
@@ -200,21 +227,36 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   }
 }
 
-  // Send notification to user
   Future<bool> sendNotification(AppNotification notification) async {
     try {
-      // Save notification to Firestore
-      final docRef = await _notificationsCollection.add(notification.toFirestore());
-      
-      // Send push notification via Cloud Function
-      await _firestore.collection('pushNotifications').add({
-        'userId': notification.userId,
+      if (!_hasSb) return false;
+      final typeCode = notification.type.toString().split('.').last;
+      final typeId = await SupabaseLookups.notificationTypeId(
+        _sb,
+        typeCode,
+        typeCode,
+      );
+      final rel = _relatedMeta(notification);
+      await _sb.from('notifications').insert(<String, dynamic>{
+        'user_id': notification.userId,
+        'notification_type_id': typeId,
         'title': notification.title,
-        'message': notification.message,
-        'data': notification.data,
-        'createdAt': FieldValue.serverTimestamp(),
+        'message': AppNotification.packMessageField(notification),
+        if (rel.$1 != null) 'related_table': rel.$1,
+        if (rel.$2 != null) 'related_record_id': rel.$2,
+        'is_read': notification.isRead,
       });
-
+      try {
+        await _sb.from('push_notification_queue').insert(<String, dynamic>{
+          'user_id': notification.userId,
+          'title': notification.title,
+          'message': notification.message,
+          'notification_type_id': typeId,
+          if (rel.$1 != null) 'related_table': rel.$1,
+          if (rel.$2 != null) 'related_record_id': rel.$2,
+          'status': 'pending',
+        });
+      } catch (_) {}
       return true;
     } catch (e) {
       print('Error sending notification: $e');
@@ -222,64 +264,73 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     }
   }
 
-  // Get user's notifications
   Stream<List<AppNotification>> getUserNotifications() {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) {
+    final currentUser = AppAuth.currentUser;
+    if (currentUser == null || !_hasSb) {
       return Stream.value([]);
     }
 
-    // Simplified query to avoid composite index requirement
-    return _notificationsCollection
-        .where('userId', isEqualTo: currentUser.uid)
-        .limit(50)
-        .snapshots()
-        .map((snapshot) {
-          print('Notifications loaded: ${snapshot.docs.length} documents');
-          final notifications = snapshot.docs
-              .map((doc) {
-                try {
-                  return AppNotification.fromFirestore(doc);
-                } catch (e) {
-                  print('Error parsing notification ${doc.id}: $e');
-                  return null;
-                }
-              })
-              .where((notification) => notification != null)
-              .cast<AppNotification>()
-              .toList();
-          
-          // Sort on client side to avoid index requirement
-          notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return notifications;
-        })
-        .handleError((error) {
+    Future<List<AppNotification>> load() async {
+      final rows = await _sb
+          .from('notifications')
+          .select('*, notification_types(code)')
+          .eq('user_id', currentUser.id)
+          .order('created_at', ascending: false)
+          .limit(50);
+      final notifications = <AppNotification>[];
+      for (final raw in rows as List<dynamic>) {
+        try {
+          notifications.add(
+            AppNotification.fromSupabase(
+              Map<String, dynamic>.from(raw as Map),
+            ),
+          );
+        } catch (e) {
+          print('Error parsing notification: $e');
+        }
+      }
+      return notifications;
+    }
+
+    return _sb
+        .from('notifications')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', currentUser.id)
+        .asyncMap((_) => load())
+        .handleError((Object error) {
           print('Error loading notifications: $error');
-          return [];
         });
   }
 
-  // Get unread notifications count
   Stream<int> getUnreadCount() {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) {
+    final currentUser = AppAuth.currentUser;
+    if (currentUser == null || !_hasSb) {
       return Stream.value(0);
     }
 
-    return _notificationsCollection
-        .where('userId', isEqualTo: currentUser.uid)
-        .where('isRead', isEqualTo: false)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.length);
+    Future<int> count() async {
+      final rows = await _sb
+          .from('notifications')
+          .select('id')
+          .eq('user_id', currentUser.id)
+          .eq('is_read', false);
+      return (rows as List).length;
+    }
+
+    return _sb
+        .from('notifications')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', currentUser.id)
+        .asyncMap((_) => count());
   }
 
-  // Mark notification as read
   Future<bool> markAsRead(String notificationId) async {
     try {
-      await _notificationsCollection.doc(notificationId).update({
-        'isRead': true,
-        'readAt': FieldValue.serverTimestamp(),
-      });
+      if (!_hasSb) return false;
+      await _sb.from('notifications').update(<String, dynamic>{
+        'is_read': true,
+        'read_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', notificationId);
       return true;
     } catch (e) {
       print('Error marking notification as read: $e');
@@ -287,26 +338,15 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     }
   }
 
-  // Mark all notifications as read
   Future<bool> markAllAsRead() async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) return false;
+      final currentUser = AppAuth.currentUser;
+      if (currentUser == null || !_hasSb) return false;
 
-      final batch = _firestore.batch();
-      final unreadNotifications = await _notificationsCollection
-          .where('userId', isEqualTo: currentUser.uid)
-        .where('isRead', isEqualTo: false)
-          .get();
-
-      for (final doc in unreadNotifications.docs) {
-        batch.update(doc.reference, {
-          'isRead': true,
-          'readAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      await batch.commit();
+      await _sb.from('notifications').update(<String, dynamic>{
+        'is_read': true,
+        'read_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('user_id', currentUser.id).eq('is_read', false);
       return true;
     } catch (e) {
       print('Error marking all notifications as read: $e');
@@ -314,10 +354,10 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     }
   }
 
-  // Delete notification
   Future<bool> deleteNotification(String notificationId) async {
     try {
-      await _notificationsCollection.doc(notificationId).delete();
+      if (!_hasSb) return false;
+      await _sb.from('notifications').delete().eq('id', notificationId);
       return true;
     } catch (e) {
       print('Error deleting notification: $e');
@@ -498,24 +538,10 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   // Send bulk notifications (for challenge results)
   Future<bool> sendBulkNotifications(List<AppNotification> notifications) async {
     try {
-      final batch = _firestore.batch();
-      
+      if (!_hasSb) return false;
       for (final notification in notifications) {
-        final docRef = _notificationsCollection.doc();
-        batch.set(docRef, notification.toFirestore());
-        
-        // Also queue for push notification
-        final pushRef = _firestore.collection('pushNotifications').doc();
-        batch.set(pushRef, {
-          'userId': notification.userId,
-          'title': notification.title,
-          'message': notification.message,
-          'data': notification.data,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+        await sendNotification(notification);
       }
-
-      await batch.commit();
       return true;
     } catch (e) {
       print('Error sending bulk notifications: $e');
@@ -523,22 +549,24 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     }
   }
 
-  // Get notification statistics
   Future<Map<String, int>> getNotificationStats() async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) return {};
+      final currentUser = AppAuth.currentUser;
+      if (currentUser == null || !_hasSb) return {};
 
-      final notifications = await _notificationsCollection
-          .where('userId', isEqualTo: currentUser.uid)
-          .get();
+      final rows = await _sb
+          .from('notifications')
+          .select('notification_types(code)')
+          .eq('user_id', currentUser.id);
 
       final stats = <String, int>{};
-      
-      for (final doc in notifications.docs) {
-        final notification = AppNotification.fromFirestore(doc);
-        final typeKey = notification.type.toString().split('.').last;
-        stats[typeKey] = (stats[typeKey] ?? 0) + 1;
+
+      for (final raw in rows as List<dynamic>) {
+        final m = raw as Map<String, dynamic>;
+        final nt = m['notification_types'];
+        final code = nt is Map ? nt['code'] as String? : null;
+        if (code == null) continue;
+        stats[code] = (stats[code] ?? 0) + 1;
       }
 
       return stats;
@@ -548,25 +576,19 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     }
   }
 
-  // Clear old notifications (older than 30 days)
   Future<bool> clearOldNotifications() async {
     try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) return false;
+      final currentUser = AppAuth.currentUser;
+      if (currentUser == null || !_hasSb) return false;
 
-      final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-      
-      final oldNotifications = await _notificationsCollection
-          .where('userId', isEqualTo: currentUser.uid)
-          .where('createdAt', isLessThan: Timestamp.fromDate(thirtyDaysAgo))
-          .get();
+      final thirtyDaysAgo =
+          DateTime.now().subtract(const Duration(days: 30)).toUtc().toIso8601String();
 
-      final batch = _firestore.batch();
-      for (final doc in oldNotifications.docs) {
-        batch.delete(doc.reference);
-      }
-      
-      await batch.commit();
+      await _sb
+          .from('notifications')
+          .delete()
+          .eq('user_id', currentUser.id)
+          .lt('created_at', thirtyDaysAgo);
       return true;
     } catch (e) {
       print('Error clearing old notifications: $e');

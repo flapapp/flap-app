@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
 
+import '../../../../core/supabase/supabase_date.dart';
 import '../../domain/entities/app_team_entity.dart';
 
 export '../../domain/entities/app_team_entity.dart';
@@ -30,10 +30,18 @@ class AppTeam extends AppTeamEntity {
     super.recentMatches = const [],
   });
 
-  factory AppTeam.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
+  factory AppTeam.fromDoc(dynamic doc) {
+    final id = doc.id as String;
+    final raw = doc.data();
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
+    return AppTeam.fromRemoteMap(id, data);
+  }
+
+  factory AppTeam.fromRemoteMap(String id, Map<String, dynamic> data) {
     return AppTeam(
-      id: doc.id,
+      id: id,
       name: (data['name'] ?? '').toString(),
       description: (data['description'] ?? '').toString(),
       captainId: (data['captainId'] ?? '').toString(),
@@ -46,8 +54,8 @@ class AppTeam extends AppTeamEntity {
       city: (data['city'] ?? '').toString().isEmpty
           ? null
           : (data['city'] as String),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: asDateTime(data['createdAt'] ?? data['created_at']),
+      updatedAt: asDateTime(data['updatedAt'] ?? data['updated_at']),
       wins: (data['wins'] ?? 0) as int,
       losses: (data['losses'] ?? 0) as int,
       draws: (data['draws'] ?? 0) as int,
@@ -85,8 +93,8 @@ class AppTeam extends AppTeamEntity {
       'goalsAgainst': goalsAgainst,
       'playerGoals': playerGoals,
       'recentMatches': recentMatches,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 

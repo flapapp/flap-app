@@ -12,6 +12,7 @@ import '../../data/models/match.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import 'dart:math';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class MatchManagementScreen extends StatefulWidget {
@@ -368,7 +369,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
         }
 
         final match = Match.fromFirestore(snap.data!);
-        final isOrganizer = FirebaseAuth.instance.currentUser?.uid == match.organizerId;
+        final isOrganizer = AppAuth.currentUserId == match.organizerId;
         return _buildTeamsContent(match, isOrganizer);
       },
     );
@@ -729,7 +730,7 @@ Widget _buildManagementButtons(Match m) {
   final totalTeams = m.teamCount ?? m.allTeams.length;
   final awaitingTeamConfirmations =
       m.isTeamMatch && !m.hasConfirmedPlayersForBothTeams;
-  final isOrganizer = FirebaseAuth.instance.currentUser?.uid == m.organizerId;
+  final isOrganizer = AppAuth.currentUserId == m.organizerId;
 
   VoidCallback? primaryAction;
   IconData primaryIcon = Icons.play_arrow;

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/supabase/supabase_app_storage.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -17,6 +18,7 @@ import '../../data/models/match.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/user_chip.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class MatchDetailsScreen extends StatefulWidget {
@@ -180,8 +182,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildCoverPhotoSection() {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    final bool isOrganizer = currentUser?.uid == widget.match.organizerId;
+    final currentUser = AppAuth.currentUser;
+    final bool isOrganizer =
+        AppAuth.currentUserId == widget.match.organizerId;
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('matches')
@@ -346,20 +349,21 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
       setState(() => _isUploadingCover = true);
 
+      final uid = AppAuth.currentUser?.id;
+      if (uid == null) {
+        throw Exception('Not signed in');
+      }
       final fileName =
           'cover_${DateTime.now().millisecondsSinceEpoch.toString()}.jpg';
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('matches')
-          .child(widget.match.id)
-          .child(fileName);
-
-      final metadata = SettableMetadata(contentType: 'image/jpeg');
+      final objectPath = '${uid}/${widget.match.id}/$fileName';
       final data = await pickedFile.readAsBytes();
-      final uploadTask = storageRef.putData(data, metadata);
-
-      final snapshot = await uploadTask.whenComplete(() {});
-      final downloadUrl = await snapshot.ref.getDownloadURL();
+      final downloadUrl = await SupabaseAppStorage.uploadPublicBytes(
+        Supabase.instance.client,
+        bucket: SupabaseAppStorage.matchCovers,
+        path: objectPath,
+        bytes: data,
+        contentType: 'image/jpeg',
+      );
 
       await _matchRepo.updateCoverPhoto(
         matchId: widget.match.id,
@@ -633,7 +637,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildCaptainControlCard() {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser == null || !widget.match.isTeamMatch) {
       return const SizedBox.shrink();
     }
@@ -651,11 +655,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         final sections = <Widget>[];
 
         final teamASection =
-            _buildCaptainSectionForTeam(liveMatch, 'teamA', currentUser.uid);
+            _buildCaptainSectionForTeam(liveMatch, 'teamA', currentUser.id);
         if (teamASection != null) sections.add(teamASection);
 
         final teamBSection =
-            _buildCaptainSectionForTeam(liveMatch, 'teamB', currentUser.uid);
+            _buildCaptainSectionForTeam(liveMatch, 'teamB', currentUser.id);
         if (teamBSection != null) sections.add(teamBSection);
 
         if (sections.isEmpty) return const SizedBox.shrink();
@@ -903,7 +907,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildRosterInviteBanner() {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser == null) {
       return const SizedBox.shrink();
     }
@@ -930,9 +934,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         String playerStatus = '';
         rawStatus.forEach((key, value) {
           if (teamKey != null) return;
-          if (value is Map && value.containsKey(currentUser.uid)) {
+          if (value is Map && value.containsKey(currentUser.id)) {
             teamKey = key.toString();
-            playerStatus = value[currentUser.uid]?.toString() ?? '';
+            playerStatus = value[currentUser.id]?.toString() ?? '';
           }
         });
 
@@ -1926,12 +1930,12 @@ String _localizedCity(String? raw) {
 
 
   Widget _buildActionButtons() {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser == null) return const SizedBox.shrink();
 
-    final isParticipant = widget.match.participants.contains(currentUser.uid);
+    final isParticipant = widget.match.participants.contains(currentUser.id);
     final isFull = widget.match.currentPlayers >= widget.match.maxPlayers;
-    final isOrganizer = widget.match.organizerId == currentUser.uid;
+    final isOrganizer = widget.match.organizerId == currentUser.id;
 
     if (widget.match.isTeamMatch && !isParticipant && !isOrganizer) {
       return _buildTeamOnlyMessage();
@@ -1979,7 +1983,7 @@ String _localizedCity(String? raw) {
     }
 
     if (isParticipant && widget.match.status == MatchStatus.finished) {
-      final userId = currentUser.uid;
+      final userId = currentUser.id;
       return FutureBuilder<double>(
         future: _getMyMatchAverageRating(widget.match.id, userId),
         builder: (context, snap) {
@@ -2262,7 +2266,7 @@ return Row(
   // Prevent double taps while request in flight.
   if (_isJoining) return;
 
-  final currentUser = FirebaseAuth.instance.currentUser;
+  final currentUser = AppAuth.currentUser;
   if (currentUser == null) return;
 
   if (widget.match.isUnplayedByTimeout ||
@@ -2281,7 +2285,7 @@ return Row(
 
   try {
     final success =
-        await _matchRepo.applyForMatch(widget.match.id, currentUser.uid);
+        await _matchRepo.applyForMatch(widget.match.id, currentUser.id);
 
     if (!mounted) return;
 

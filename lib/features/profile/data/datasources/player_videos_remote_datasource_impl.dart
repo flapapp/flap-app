@@ -1,42 +1,39 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'player_videos_remote_datasource.dart';
 
 class PlayerVideosRemoteDataSourceImpl implements PlayerVideosRemoteDataSource {
-  PlayerVideosRemoteDataSourceImpl(this._firestore);
+  PlayerVideosRemoteDataSourceImpl(this._client);
 
-  final FirebaseFirestore _firestore;
+  final SupabaseClient _client;
 
   @override
   Future<List<Map<String, dynamic>>> listByUserId(String userId, int limit) async {
-    final videosQuery = await _firestore
-        .collection('videos')
-        .where('userId', isEqualTo: userId)
-        .limit(limit)
-        .get();
-
-    final list = videosQuery.docs.map((doc) {
-      final data = doc.data();
-      data['id'] = doc.id;
-      return data;
+    final rows = await _client
+        .from('videos')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return (rows as List<dynamic>).map((r) {
+      final m = Map<String, dynamic>.from(r as Map<String, dynamic>);
+      m['id'] = m['id']?.toString();
+      m['userId'] = m['user_id'];
+      m['createdAt'] = m['created_at'];
+      return m;
     }).toList();
-
-    list.sort((a, b) {
-      final aTime = a['createdAt'] as Timestamp?;
-      final bTime = b['createdAt'] as Timestamp?;
-      if (aTime == null || bTime == null) return 0;
-      return bTime.compareTo(aTime);
-    });
-    return list;
   }
 
   @override
   Future<List<String>> listVideoIdsForUser(String userId, int limit) async {
-    final qs = await _firestore
-        .collection('videos')
-        .where('userId', isEqualTo: userId)
-        .limit(limit)
-        .get();
-    return qs.docs.map((d) => d.id).toList();
+    final rows = await _client
+        .from('videos')
+        .select('id')
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return (rows as List<dynamic>)
+        .map((r) => (r as Map<String, dynamic>)['id'].toString())
+        .toList();
   }
 }

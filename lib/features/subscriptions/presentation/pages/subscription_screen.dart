@@ -7,6 +7,7 @@ import 'package:flap_app/app_locale_access.dart';
 import '../../../../core/di/injection.dart';
 import '../../data/models/subscription.dart';
 import '../../domain/repositories/subscriptions_repository.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class SubscriptionScreen extends StatefulWidget {
@@ -28,7 +29,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Future<void> _loadCurrentSubscription() async {
     try {
       setState(() => _isLoading = true);
-      final userId = FirebaseAuth.instance.currentUser?.uid;
+      final userId = AppAuth.currentUserId;
       if (userId != null) {
         final subscription = await _subscriptionsRepo.getUserSubscription(userId);
         setState(() {

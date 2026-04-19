@@ -1,66 +1,88 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/supabase/supabase_date.dart';
 import '../../domain/repositories/stats_repository.dart';
 
 class StatsRepositoryImpl implements StatsRepository {
-  StatsRepositoryImpl(this._firestore);
+  StatsRepositoryImpl(this._client);
 
-  final FirebaseFirestore _firestore;
+  final SupabaseClient _client;
 
   @override
   Future<UserStatsSnapshot> loadDashboard(String userId) async {
-    final doc = await _firestore.collection('users').doc(userId).get();
-    final data = doc.data() ?? {};
-    final history = List<Map<String, dynamic>>.from(data['ratingHistory'] ?? []);
+    final snapRows = await _client
+        .from('user_rating_snapshots')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(200);
+
+    final history = <Map<String, dynamic>>[];
+    for (final raw in snapRows as List<dynamic>) {
+      final m = raw as Map<String, dynamic>;
+      history.add(<String, dynamic>{
+        'rating': m['rating_value'],
+        'timestamp': m['created_at'],
+        'scope': m['rating_scope'],
+      });
+    }
+
     final now = DateTime.now();
+    List<Map<String, dynamic>> filterDays(int days) {
+      return history.where((h) {
+        final dt = asDateTimeOrNull(h['timestamp']);
+        return dt != null && dt.isAfter(now.subtract(Duration(days: days)));
+      }).toList()
+        ..sort((a, b) {
+          final at = asDateTimeOrNull(a['timestamp']);
+          final bt = asDateTimeOrNull(b['timestamp']);
+          if (at == null || bt == null) {
+            return 0;
+          }
+          return at.compareTo(bt);
+        });
+    }
 
-    final history7 = history.where((h) {
-      final ts = h['timestamp'];
-      final dt = ts is Timestamp ? ts.toDate() : null;
-      return dt != null && dt.isAfter(now.subtract(const Duration(days: 7)));
-    }).toList()
-      ..sort((a, b) {
-        final at = a['timestamp'];
-        final bt = b['timestamp'];
-        if (at is Timestamp && bt is Timestamp) return at.compareTo(bt);
-        return 0;
-      });
+    final history7 = filterDays(7);
+    final history30 = filterDays(30);
 
-    final history30 = history.where((h) {
-      final ts = h['timestamp'];
-      final dt = ts is Timestamp ? ts.toDate() : null;
-      return dt != null && dt.isAfter(now.subtract(const Duration(days: 30)));
-    }).toList()
-      ..sort((a, b) {
-        final at = a['timestamp'];
-        final bt = b['timestamp'];
-        if (at is Timestamp && bt is Timestamp) return at.compareTo(bt);
-        return 0;
-      });
+    final matchRows = await _client
+        .from('match_participants')
+        .select('match_id')
+        .eq('user_id', userId)
+        .eq('status', 'accepted');
+    final matchesPlayed = (matchRows as List<dynamic>).length;
 
-    final counters = <String, num>{
-      'matchesPlayed': (data['matchesPlayed'] ?? 0) as num,
-      'matchesWon': (data['wins'] ?? 0) as num,
-      'videosUploaded': (data['videosUploaded'] ?? 0) as num,
-    };
+    final vidRows = await _client
+        .from('videos')
+        .select('id')
+        .eq('user_id', userId);
+    final videosUploaded = (vidRows as List<dynamic>).length;
 
-    final vidsSnap = await _firestore
-        .collection('videos')
-        .where('userId', isEqualTo: userId)
-        .limit(50)
-        .get();
-    final vids = vidsSnap.docs.map((d) {
-      final m = Map<String, dynamic>.from(d.data());
-      m['id'] = d.id;
+    final vidsDetailed = await _client
+        .from('videos')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(50);
+    final vids = (vidsDetailed as List<dynamic>).map((r) {
+      final m = Map<String, dynamic>.from(r as Map<String, dynamic>);
+      m['id'] = m['id']?.toString();
+      m['userId'] = m['user_id'];
+      m['views'] = 0;
       return m;
     }).toList();
-    vids.sort((a, b) => ((b['views'] ?? 0) as int).compareTo((a['views'] ?? 0) as int));
-    final topVideos = vids.take(5).toList();
+
+    final counters = <String, num>{
+      'matchesPlayed': matchesPlayed,
+      'matchesWon': 0,
+      'videosUploaded': videosUploaded,
+    };
 
     return UserStatsSnapshot(
       ratingHistory7d: history7,
       ratingHistory30d: history30,
-      topVideos: topVideos,
+      topVideos: vids.take(5).toList(),
       counters: counters,
     );
   }

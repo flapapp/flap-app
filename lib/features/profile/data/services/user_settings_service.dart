@@ -1,18 +1,32 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../auth/domain/repositories/auth_session_repository.dart';
+import '../../../../core/di/injection.dart';
 
 class UserSettingsService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  SupabaseClient get _client => Supabase.instance.client;
 
   Future<Map<String, dynamic>> getCurrentSettings() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return const {};
+    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
+    if (uid == null) {
+      return const {};
+    }
 
     try {
-      final doc = await _firestore.collection('users').doc(uid).get();
-      final data = doc.data() ?? const <String, dynamic>{};
-      return Map<String, dynamic>.from(data['settings'] ?? const <String, dynamic>{});
+      final row = await _client
+          .from('user_settings')
+          .select()
+          .eq('user_id', uid)
+          .maybeSingle();
+      if (row == null) {
+        return const {};
+      }
+      final loc = row['locale']?.toString() ?? 'en';
+      return <String, dynamic>{
+        'notificationsEnabled': row['notifications_enabled'] ?? true,
+        'autoplayVideos': row['autoplay_videos'] ?? true,
+        'locale': loc == 'ua' ? 'uk' : loc,
+      };
     } catch (_) {
       return const {};
     }

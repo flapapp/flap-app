@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import 'rating_tracking_service.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 class RatingService {
   static const double _matchWeight = 0.7; // 70% ваги для матчів
@@ -332,7 +333,7 @@ if (multiTeams.isNotEmpty) {
                 .get();
             if (voterDoc.exists) {
               final v = voterDoc.data() as Map<String, dynamic>;
-              final emailPrefix = FirebaseAuth.instance.currentUser?.email?.split('@')[0];
+              final emailPrefix = AppAuth.currentUserEmail?.split('@')[0];
               voterName = (v['displayName'] ?? v['authorName'] ?? v['name'] ??
                       (v['firstName'] != null || v['lastName'] != null
                           ? '${v['firstName'] ?? ''} ${v['lastName'] ?? ''}'.trim()

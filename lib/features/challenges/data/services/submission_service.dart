@@ -4,6 +4,7 @@ import '../../data/models/submission.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 class SubmissionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -67,13 +68,13 @@ class SubmissionService {
     String? description,
   }) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
 
       // Get user data
-      final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+      final userDoc = await _firestore.collection('users').doc(currentUser.id).get();
       if (!userDoc.exists) {
         throw Exception('Дані користувача не знайдено');
       }
@@ -85,7 +86,7 @@ class SubmissionService {
       // Check if user already submitted to this challenge
       final existingSubmission = await _submissionsCollection
           .where('challengeId', isEqualTo: challengeId)
-          .where('userId', isEqualTo: currentUser.uid)
+          .where('userId', isEqualTo: currentUser.id)
           .limit(1)
           .get();
 
@@ -97,7 +98,7 @@ class SubmissionService {
       final submission = Submission(
         id: '', // Will be set by Firestore
         challengeId: challengeId,
-        userId: currentUser.uid,
+        userId: currentUser.id,
         userName: userName,
         userAvatar: userAvatar,
         videoUrl: videoUrl,
@@ -119,13 +120,13 @@ class SubmissionService {
       });
 
       // Award coins for submission
-      await _firestore.collection('users').doc(currentUser.uid).update({
+      await _firestore.collection('users').doc(currentUser.id).update({
         'coins': FieldValue.increment(20), // +20 coins for challenge participation
       });
 
       // Record transaction
       await _firestore.collection('transactions').add({
-        'userId': currentUser.uid,
+        'userId': currentUser.id,
         'type': 'challenge_submission',
         'amount': 20,
         'challengeId': challengeId,
@@ -147,7 +148,7 @@ class SubmissionService {
   // Vote for submission
   Future<bool> voteForSubmission(String submissionId, double rating) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
@@ -166,17 +167,17 @@ class SubmissionService {
       final submission = Submission.fromFirestore(submissionDoc);
 
       // Check if user is trying to vote for their own submission
-      if (submission.userId == currentUser.uid) {
+      if (submission.userId == currentUser.id) {
         throw Exception('Ви не можете голосувати за власне відео');
       }
 
       // Check if user already voted
-      if (submission.hasUserVoted(currentUser.uid)) {
+      if (submission.hasUserVoted(currentUser.id)) {
         throw Exception('Ви вже проголосували за це відео');
       }
 
       // Add vote
-      final updatedSubmission = submission.addVote(currentUser.uid, rating);
+      final updatedSubmission = submission.addVote(currentUser.id, rating);
 
       // Update in Firestore
       await _submissionsCollection.doc(submissionId).update({
@@ -187,11 +188,11 @@ class SubmissionService {
 
       // Also update in challenge's submissionVotes
       await _firestore.collection('challenges').doc(submission.challengeId).update({
-        'submissionVotes.${submissionId}.${currentUser.uid}': rating,
+        'submissionVotes.${submissionId}.${currentUser.id}': rating,
       });
 
       // Get voter's name for notification
-      final voterDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+      final voterDoc = await _firestore.collection('users').doc(currentUser.id).get();
       final voterName = voterDoc.data()?['name'] ?? 'Анонім';
 
       // Send notification to video author
@@ -226,7 +227,7 @@ class SubmissionService {
   // Delete submission (only owner)
   Future<bool> deleteSubmission(String submissionId) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
@@ -237,7 +238,7 @@ class SubmissionService {
       }
 
       final submission = Submission.fromFirestore(submissionDoc);
-      if (submission.userId != currentUser.uid) {
+      if (submission.userId != currentUser.id) {
         throw Exception('Ви можете видаляти тільки свої відео');
       }
 

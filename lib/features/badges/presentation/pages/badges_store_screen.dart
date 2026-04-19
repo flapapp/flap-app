@@ -5,10 +5,10 @@ import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/badges_repository.dart';
-import '../../../../router/app_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/models/badge.dart' as app_badge;
+import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:flap_app/core/supabase/coin_ledger.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 @RoutePage()
 class BadgesStoreScreen extends StatefulWidget {
@@ -43,21 +43,19 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
     try {
       setState(() => _isLoading = true);
       
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser != null) {
         await _badgesRepo.initializeDefaultBadges();
 
         final results = await Future.wait([
           _badgesRepo.getAvailableBadges().first,
-          _badgesRepo.getUserBadgeIds(currentUser.uid),
-          FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get(),
+          _badgesRepo.getUserBadgeIds(currentUser.id),
+          coinBalance(Supabase.instance.client, currentUser.id),
         ]);
 
         final badges = results[0] as List<app_badge.Badge>;
         final userBadges = results[1] as List<String>;
-        final userDoc = results[2] as DocumentSnapshot<Map<String, dynamic>>;
-        final userData = userDoc.data() ?? {};
-        final coins = userData['coins'] ?? 0;
+        final coins = results[2] as int;
         
         setState(() {
           _allBadges = badges;

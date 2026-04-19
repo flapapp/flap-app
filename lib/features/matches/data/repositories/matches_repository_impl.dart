@@ -12,9 +12,11 @@ class MatchesRepositoryImpl implements MatchesRepository {
 
   @override
   Future<app_match.Match?> fetchMatchById(String matchId) async {
-    final snap = await _remote.getMatch(matchId);
-    if (!snap.exists) return null;
-    return app_match.Match.fromFirestore(snap);
+    final data = await _remote.getMatch(matchId);
+    if (data == null) {
+      return null;
+    }
+    return app_match.Match.fromLegacyMap(matchId, data);
   }
 
   @override

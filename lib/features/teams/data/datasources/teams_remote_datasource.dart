@@ -1,10 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Firestore access for `teams` and `teamStats` collections (data layer).
+/// Remote access for team rows + membership (Supabase).
 abstract class TeamsRemoteDataSource {
-  Stream<DocumentSnapshot<Map<String, dynamic>>> watchTeamDocument(String teamId);
+  Stream<Map<String, dynamic>?> watchTeamDocument(String teamId);
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> watchTeamsOrderedByWins();
+  Stream<List<Map<String, dynamic>>> watchTeamsOrderedByWins();
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> watchTeamStatsCollection();
+  Stream<List<Map<String, dynamic>>> watchTeamStatsCollection();
 }

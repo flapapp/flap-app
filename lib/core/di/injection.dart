@@ -1,6 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get_it/get_it.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/admin/data/repositories/admin_repository_impl.dart';
 import '../../features/admin/domain/repositories/admin_repository.dart';
@@ -133,10 +132,10 @@ Future<void> configureDependencies() async {
       () => CheckIntroCompletedUseCase(sl()),
     )
     ..registerLazySingleton<ProfileRemoteDataSource>(
-      () => ProfileRemoteDataSourceImpl(FirebaseFirestore.instance),
+      () => ProfileRemoteDataSourceImpl(Supabase.instance.client),
     )
     ..registerLazySingleton<ProfileStorageDataSource>(
-      () => ProfileStorageDataSourceImpl(FirebaseStorage.instance),
+      () => ProfileStorageDataSourceImpl(Supabase.instance.client),
     )
     ..registerLazySingleton<ProfileRepository>(
       () => ProfileRepositoryImpl(sl(), sl()),
@@ -166,13 +165,13 @@ Future<void> configureDependencies() async {
       () => ProfileCreationCubit(sl()),
     )
     ..registerLazySingleton<MatchParticipationStatsRemoteDataSource>(
-      () => MatchParticipationStatsRemoteDataSourceImpl(FirebaseFirestore.instance),
+      () => MatchParticipationStatsRemoteDataSourceImpl(Supabase.instance.client),
     )
     ..registerLazySingleton<PlayerVideosRemoteDataSource>(
-      () => PlayerVideosRemoteDataSourceImpl(FirebaseFirestore.instance),
+      () => PlayerVideosRemoteDataSourceImpl(Supabase.instance.client),
     )
     ..registerLazySingleton<TeamStatsRemoteDataSource>(
-      () => TeamStatsRemoteDataSourceImpl(FirebaseFirestore.instance),
+      () => TeamStatsRemoteDataSourceImpl(Supabase.instance.client),
     )
     ..registerLazySingleton<PlayerVideosRepository>(
       () => PlayerVideosRepositoryImpl(sl(), sl()),
@@ -181,14 +180,14 @@ Future<void> configureDependencies() async {
       () => TeamStatsRepositoryImpl(sl()),
     )
     ..registerLazySingleton<TeamsRemoteDataSource>(
-      () => TeamsRemoteDataSourceImpl(FirebaseFirestore.instance),
+      () => TeamsRemoteDataSourceImpl(Supabase.instance.client),
     )
     ..registerLazySingleton<TeamService>(() => TeamService())
     ..registerLazySingleton<TeamsRepository>(
       () => TeamsRepositoryImpl(sl(), sl()),
     )
     ..registerLazySingleton<MatchesReadRemoteDataSource>(
-      () => MatchesReadRemoteDataSourceImpl(FirebaseFirestore.instance),
+      () => MatchesReadRemoteDataSourceImpl(Supabase.instance.client),
     )
     ..registerLazySingleton<MatchService>(() => MatchService())
     ..registerLazySingleton<MatchesRepository>(
@@ -211,10 +210,10 @@ Future<void> configureDependencies() async {
       () => SubscriptionsRepositoryImpl(sl()),
     )
     ..registerLazySingleton<StatsRepository>(
-      () => StatsRepositoryImpl(FirebaseFirestore.instance),
+      () => StatsRepositoryImpl(Supabase.instance.client),
     )
     ..registerLazySingleton<AdminRepository>(
-      () => AdminRepositoryImpl(FirebaseFirestore.instance),
+      () => AdminRepositoryImpl(Supabase.instance.client),
     )
     ..registerLazySingleton<MatchParticipationStatsRepository>(
       () => MatchParticipationStatsRepositoryImpl(sl()),
@@ -242,7 +241,7 @@ Future<void> configureDependencies() async {
       () => PlayerSocialRepositoryImpl(sl<FriendsRepository>()),
     )
     ..registerLazySingleton<PlayerBadgeEndorsementRepository>(
-      () => PlayerBadgeEndorsementRepositoryImpl(FirebaseFirestore.instance),
+      () => PlayerBadgeEndorsementRepositoryImpl(Supabase.instance.client),
     )
     ..registerLazySingleton<NotificationService>(NotificationService.new)
     ..registerLazySingleton<NotificationsRepository>(
@@ -252,7 +251,7 @@ Future<void> configureDependencies() async {
       () => PlayerNotificationActionsRepositoryImpl(sl()),
     )
     ..registerLazySingleton<PlayerChallengeInviteRepository>(
-      () => PlayerChallengeInviteRepositoryImpl(FirebaseFirestore.instance),
+      () => PlayerChallengeInviteRepositoryImpl(Supabase.instance.client),
     )
     ..registerLazySingleton<CurrentUserProfileAvatarRepository>(
       () => CurrentUserProfileAvatarRepositoryImpl(sl(), sl()),

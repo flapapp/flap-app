@@ -16,7 +16,7 @@ Match _$MatchFromJson(Map<String, dynamic> json) => Match(
       time: json['time'] as String,
       location: json['location'] as String,
       city: json['city'] as String,
-      coordinates: const GeoPointConverter().fromJson(json['coordinates']),
+      coordinates: const LatLngConverter().fromJson(json['coordinates']),
       currentPlayers: (json['currentPlayers'] as num).toInt(),
       maxPlayers: (json['maxPlayers'] as num).toInt(),
       participants: (json['participants'] as List<dynamic>)
@@ -94,7 +94,7 @@ Map<String, dynamic> _$MatchToJson(Match instance) => <String, dynamic>{
       'time': instance.time,
       'location': instance.location,
       'city': instance.city,
-      'coordinates': const GeoPointConverter().toJson(instance.coordinates),
+      'coordinates': const LatLngConverter().toJson(instance.coordinates),
       'currentPlayers': instance.currentPlayers,
       'maxPlayers': instance.maxPlayers,
       'participants': instance.participants,

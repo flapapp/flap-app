@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../../../../core/common/unit.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/error/result.dart';
@@ -67,7 +65,6 @@ class ProfileRepositoryImpl implements ProfileRepository {
         'age': data.age,
         'position': data.position,
         'experience': data.experience,
-        'updatedAt': FieldValue.serverTimestamp(),
       };
       if (avatarUrl != null) {
         map['avatarUrl'] = avatarUrl;

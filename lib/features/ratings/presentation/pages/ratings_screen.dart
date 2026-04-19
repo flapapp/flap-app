@@ -8,6 +8,7 @@ import '../../../../router/app_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../profile/presentation/pages/player_profile_page.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class RatingsScreen extends StatefulWidget {
@@ -132,13 +133,13 @@ if (_selectedPosition != tr('il_0e333190c1')) {
   }
   
   Future<void> _loadMyStats() async {
-  final currentUser = FirebaseAuth.instance.currentUser;
+  final currentUser = AppAuth.currentUser;
   if (currentUser == null) {
     setState(() => _myStats = {});
     return;
   }
   try {
-    final stats = await _ratingRepo.getUserRatingStats(currentUser.uid);
+    final stats = await _ratingRepo.getUserRatingStats(currentUser.id);
     setState(() => _myStats = stats);
   } catch (e) {
     if (!mounted) return;

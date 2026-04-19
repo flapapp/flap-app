@@ -10,6 +10,7 @@ import '../../data/models/challenge.dart';
 import 'challenge_create_screen.dart';
 import 'challenge_details_screen.dart';
 import '../../../../widgets/player_avatar_button.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class ChallengeListScreen extends StatefulWidget {

@@ -12,6 +12,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../ratings/data/services/rating_tracking_service.dart';
 import '../../../profile/data/services/user_settings_service.dart';
 import '../../../../widgets/user_chip.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class ChallengeVideoPlayerScreen extends StatefulWidget {
@@ -211,14 +212,14 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
 
   Future<void> _checkIfVoted() async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;
 
       final voteDoc = await FirebaseFirestore.instance
           .collection('challenges')
           .doc(widget.challengeId)
           .collection('votes')
-          .doc('${currentUser.uid}_${widget.submissionId}')
+          .doc('${currentUser.id}_${widget.submissionId}')
           .get();
 
       if (voteDoc.exists) {
@@ -597,7 +598,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
     });
 
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception(tr('il_76144c407d'));
       }
@@ -619,7 +620,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         submissionVideoId = (submissionData['videoId'] ?? '') as String?;
         submissionAuthorId = submissionUserId;
         
-        if (submissionUserId == currentUser.uid) {
+        if (submissionUserId == currentUser.id) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -638,9 +639,9 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
           .collection('challenges')
           .doc(widget.challengeId)
           .collection('votes')
-          .doc('${currentUser.uid}_${widget.submissionId}')
+          .doc('${currentUser.id}_${widget.submissionId}')
           .set({
-        'userId': currentUser.uid,
+        'userId': currentUser.id,
         'submissionId': widget.submissionId,
         'challengeId': widget.challengeId,
         'rating': _rating,
@@ -678,7 +679,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         try {
           await sl<RatingsRepository>().rateVideo(
             videoId: submissionVideoId,
-            ratedBy: currentUser.uid,
+            ratedBy: currentUser.id,
             criteria: {
               'technical': _rating,
               'creativity': _rating,
@@ -690,13 +691,13 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       }
 
       // Award coins for voting
-      await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).update({
+      await FirebaseFirestore.instance.collection('users').doc(currentUser.id).update({
         'coins': FieldValue.increment(1), // +1 coin for voting
       });
 
       // Record transaction with unified type 'voting_reward'
       await FirebaseFirestore.instance.collection('transactions').add({
-        'userId': currentUser.uid,
+        'userId': currentUser.id,
         'type': 'voting_reward',
         'amount': 1,
         'challengeId': widget.challengeId,

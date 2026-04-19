@@ -15,6 +15,7 @@ import '../../../notifications/data/models/notification.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class CreateMatchScreen extends StatefulWidget {
@@ -688,25 +689,23 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     setState(() => _isCreating = true);
     
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;
 
       // NEW: resolve organizer name reliably
 final userSnap = await FirebaseFirestore.instance
     .collection('users')
-    .doc(currentUser.uid)
+    .doc(currentUser.id)
     .get();
 final userData = userSnap.data() ?? {};
 final emailPrefix = currentUser.email?.split('@').first;
-final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == true)
-    ? currentUser.displayName!.trim()
-    : (userData['displayName'] ??
+final resolvedOrganizerName = (userData['displayName'] ??
        userData['authorName'] ??
        userData['name'] ??
        emailPrefix ??
        tr('il_b764cdc0ea')).toString();
       
-      var participants = <String>[currentUser.uid];
+      var participants = <String>[currentUser.id];
       var currentPlayers = 1;
       var autoBalance = _autoBalance;
       var isTeamMatch = false;
@@ -725,7 +724,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
           throw Exception(tr('il_f7f8b89b06'));
         }
         hostIsMyTeam =
-            _selectedTeam!.memberIds.contains(currentUser.uid);
+            _selectedTeam!.memberIds.contains(currentUser.id);
         if (hostIsMyTeam && _selectedRoster.isEmpty) {
           throw Exception(tr('il_5e90e3ad39'));
         }
@@ -774,7 +773,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
         id: '', // Firestore згенерує ID
         title: _titleController.text,
         description: _descriptionController.text,
-        organizerId: currentUser.uid,
+        organizerId: currentUser.id,
         organizerName: resolvedOrganizerName,
         date: _selectedDate,
         time: '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
@@ -1149,7 +1148,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       );
     }
     final rosterLimit = (_selectedPlayers / 2).ceil();
-    final myId = FirebaseAuth.instance.currentUser?.uid;
+    final myId = AppAuth.currentUserId;
     final hostIsMine =
         myId != null && _selectedTeam!.memberIds.contains(myId);
     return Container(
@@ -1360,9 +1359,9 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
 
   Future<List<Map<String, dynamic>>> _loadMyFriends() async {
   try {
-    final me = FirebaseAuth.instance.currentUser;
+    final me = AppAuth.currentUser;
     if (me == null) return [];
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.uid).get();
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.id).get();
     final ids = List<String>.from(userDoc.data()?['friends'] ?? []);
     if (ids.isEmpty) return [];
     final result = <Map<String, dynamic>>[];
@@ -1384,10 +1383,10 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
 }
 
   Future<void> _loadMyTeams() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
     try {
-      final teams = await _teamsRepo.fetchUserTeams(currentUser.uid);
+      final teams = await _teamsRepo.fetchUserTeams(currentUser.id);
       AppTeam? team = teams.isNotEmpty ? teams.first : null;
       Map<String, String> names = {};
       if (team != null) {
@@ -1411,12 +1410,12 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
 
   Future<List<Map<String, dynamic>>> _loadInviteCandidates() async {
     try {
-      final me = FirebaseAuth.instance.currentUser;
+      final me = AppAuth.currentUser;
       if (me == null) return [];
       final snap = await FirebaseFirestore.instance.collection('users').limit(100).get();
       final result = <Map<String, dynamic>>[];
       for (final doc in snap.docs) {
-        if (doc.id == me.uid) continue;
+        if (doc.id == me.id) continue;
         final data = doc.data();
         result.add({
           'id': doc.id,
@@ -1698,7 +1697,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
     if (team == null) return;
     setState(() => _loadingTeams = true);
     final names = await _fetchMemberNames(team.memberIds);
-    final myId = FirebaseAuth.instance.currentUser?.uid;
+    final myId = AppAuth.currentUserId;
     final isMine = myId != null && team.memberIds.contains(myId);
     final limit = (_selectedPlayers / 2).ceil();
     if (!mounted) return;

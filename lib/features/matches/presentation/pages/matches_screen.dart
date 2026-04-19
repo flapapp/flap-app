@@ -23,6 +23,7 @@ import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 
 
@@ -150,7 +151,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   }
 
   Future<void> _loadCurrentUserCity() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuth.currentUserId;
     if (uid == null) return;
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
@@ -511,7 +512,7 @@ void _resetFindFilters() {
       },
           ),
     StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).snapshots(),
+      stream: FirebaseFirestore.instance.collection('users').doc(AppAuth.currentUserId).snapshots(),
       builder: (context, snapshot) {
         String avatarUrl = '';
         String displayName = '';
@@ -678,7 +679,7 @@ void _resetFindFilters() {
                     StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                       stream: FirebaseFirestore.instance
                           .collection('users')
-                          .doc(FirebaseAuth.instance.currentUser?.uid)
+                          .doc(AppAuth.currentUserId)
                           .snapshots(),
                       builder: (context, snapshot) {
                         final rating = snapshot.hasData && snapshot.data!.exists
@@ -802,7 +803,7 @@ void _resetFindFilters() {
 StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
   stream: FirebaseFirestore.instance
       .collection('users')
-      .doc(FirebaseAuth.instance.currentUser?.uid)
+      .doc(AppAuth.currentUserId)
       .snapshots(),
   builder: (context, snap) {
     if (!snap.hasData || !snap.data!.exists) return const SizedBox.shrink();
@@ -943,7 +944,7 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('transactions')
-                      .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                      .where('userId', isEqualTo: AppAuth.currentUserId)
                       .limit(50)
                       .snapshots(),
                   builder: (context, snapshot) {
@@ -1276,7 +1277,7 @@ return Column(
 
               // Фільтрація за чіпами
               final all = snapshot.data!;
-              final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+              final currentUserId = AppAuth.currentUserId;
               List<Match> filtered = all;
               if (_selectedMyMatchesFilter == 'organized' && currentUserId != null) {
                 filtered = all.where((m) => m.organizerId == currentUserId).toList();
@@ -1694,7 +1695,7 @@ Widget _buildRatingsTab() {
                   // 4) Моя статистика
                   Builder(
                     builder: (context) {
-                      final uid = FirebaseAuth.instance.currentUser?.uid;
+                      final uid = AppAuth.currentUserId;
                       if (uid == null) {
                         return Center(
                           child: Text(tr('sign_in_for_stats'),
@@ -1776,10 +1777,10 @@ void _shareMatch(Match match) {
 
   // Метод для створення картки матчу
     Widget _buildMatchCard(Match match) {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser == null) return SizedBox.shrink();
 
-    final userStatus = match.getUserStatus(currentUser.uid);
+    final userStatus = match.getUserStatus(currentUser.id);
     final isOrganizer = userStatus == 'organizer';
     final isParticipant = userStatus == 'participant';
     final isFinished = match.status == MatchStatus.finished;
@@ -1819,7 +1820,7 @@ void _shareMatch(Match match) {
           SizedBox(height: 16),
           
           // Кнопки дій
-          _buildActionButtons(match, currentUser.uid),
+          _buildActionButtons(match, currentUser.id),
           if (match.coverPhotoUrl?.isNotEmpty == true) ...[
             const SizedBox(height: 16),
             _buildMatchPhotoFooter(match),
@@ -2506,16 +2507,16 @@ Widget _buildActionButtons(Match match, String currentUserId) {
   }
   // Метод для отримання матчів користувача
   Stream<List<Match>> _getUserMatches() {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser == null) return Stream.value([]);
-    return _matchRepo.getUserMatches(currentUser.uid);
+    return _matchRepo.getUserMatches(currentUser.id);
   }
 
   // ІСТОРІЯ: завершені матчі користувача (новіші зверху)
   Stream<List<Match>> _getHistoryMatches() {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser == null) return Stream.value([]);
-    return _matchRepo.getUserMatches(currentUser.uid).map((list) {
+    return _matchRepo.getUserMatches(currentUser.id).map((list) {
       final finished = list.where((m) => m.status == MatchStatus.finished).toList();
       finished.sort((a, b) => b.date.compareTo(a.date));
       return finished;
@@ -2658,8 +2659,8 @@ IconData _getStatusIcon(MatchStatus status) {
 // version_0.1/lib/screens/matches_screen.dart
 
 Widget _buildMyMatchCard(Match match) {
-  final currentUser = FirebaseAuth.instance.currentUser;
-  final isOrganizer = currentUser?.uid == match.organizerId;
+  final currentUser = AppAuth.currentUser;
+  final isOrganizer = AppAuth.currentUserId == match.organizerId;
   final role = isOrganizer ? tr('organizer') : tr('participant');
 
   return Container(
@@ -2834,7 +2835,7 @@ Column(
             match.status == MatchStatus.open &&
             !match.isUnplayedByTimeout &&
             currentUser != null &&
-            match.participants.contains(currentUser.uid)) ...[
+            match.participants.contains(currentUser.id)) ...[
           const SizedBox(height: 8),
           Row(
             children: [
@@ -2989,7 +2990,7 @@ Column(
   // Метод для подачі заявки на матч
   Future<void> _applyForMatch(String matchId) async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('il_1141023944')), backgroundColor: Colors.red),
@@ -2997,7 +2998,7 @@ Column(
         return;
       }
 
-      final success = await _matchRepo.applyForMatch(matchId, currentUser.uid);
+      final success = await _matchRepo.applyForMatch(matchId, currentUser.id);
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3026,7 +3027,7 @@ Column(
   // Вихід з матчу
 Future<void> _onLeaveMatch(Match match) async {
   try {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -3037,7 +3038,7 @@ Future<void> _onLeaveMatch(Match match) async {
       return;
     }
 
-    final ok = await _matchRepo.leaveMatch(match.id, currentUser.uid);
+    final ok = await _matchRepo.leaveMatch(match.id, currentUser.id);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? tr('left_match') : tr('leave_failed')),
       backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
@@ -3324,7 +3325,7 @@ Future<void> _onLeaveMatch(Match match) async {
 
   // Картка матчу для історії (детальна як у MVP)
   Widget _buildHistoryMatchCard(Match match) {
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final currentUserId = AppAuth.currentUserId;
     if (currentUserId == null) return const SizedBox.shrink();
 
     // Визначаємо результат матчу для поточного користувача

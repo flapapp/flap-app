@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/supabase/supabase_app_storage.dart';
 import 'web_thumbnail_service.dart';
 
 class ThumbnailService {
@@ -10,8 +12,9 @@ class ThumbnailService {
   factory ThumbnailService() => _instance;
   ThumbnailService._internal();
 
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  SupabaseClient get _sb => Supabase.instance.client;
 
   /// Генерує thumbnail для відео та зберігає його в Firebase Storage
   Future<String?> generateAndUploadThumbnail({
@@ -96,27 +99,17 @@ class ThumbnailService {
     try {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'thumbnail_${videoId}_$timestamp.jpg';
-      final storageRef = _storage
-          .ref()
-          .child('thumbnails/$userId/$fileName');
+      final objectPath = '$userId/$fileName';
 
-      print('📤 Uploading thumbnail: thumbnails/$userId/$fileName');
+      print('📤 Uploading thumbnail: $objectPath');
 
-      // Завантажуємо thumbnail
-      final uploadTask = storageRef.putData(
-        thumbnailData,
-        SettableMetadata(
-          contentType: 'image/jpeg',
-          customMetadata: {
-            'videoId': videoId,
-            'userId': userId,
-            'generated': DateTime.now().toIso8601String(),
-          },
-        ),
+      final downloadUrl = await SupabaseAppStorage.uploadPublicBytes(
+        _sb,
+        bucket: SupabaseAppStorage.thumbnails,
+        path: objectPath,
+        bytes: thumbnailData,
+        contentType: 'image/jpeg',
       );
-
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
       
       print('✅ Thumbnail uploaded successfully: $downloadUrl');
       return downloadUrl;
@@ -168,24 +161,15 @@ class ThumbnailService {
 
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'challenge_thumb_${challengeId}_$timestamp.jpg';
-      final storageRef = _storage
-          .ref()
-          .child('challenge_thumbnails/$userId/$fileName');
+      final objectPath = '$userId/$fileName';
 
-      final uploadTask = storageRef.putData(
-        thumbnailData,
-        SettableMetadata(
-          contentType: 'image/jpeg',
-          customMetadata: {
-            'challengeId': challengeId,
-            'userId': userId,
-            'type': 'challenge_creator',
-          },
-        ),
+      final downloadUrl = await SupabaseAppStorage.uploadPublicBytes(
+        _sb,
+        bucket: SupabaseAppStorage.challengeThumbnails,
+        path: objectPath,
+        bytes: thumbnailData,
+        contentType: 'image/jpeg',
       );
-
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
 
       // Оновлюємо челендж з thumbnail
       await _firestore
@@ -217,25 +201,15 @@ class ThumbnailService {
 
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'submission_thumb_${submissionId}_$timestamp.jpg';
-      final storageRef = _storage
-          .ref()
-          .child('submission_thumbnails/$challengeId/$fileName');
+      final objectPath = '$userId/$challengeId/$fileName';
 
-      final uploadTask = storageRef.putData(
-        thumbnailData,
-        SettableMetadata(
-          contentType: 'image/jpeg',
-          customMetadata: {
-            'challengeId': challengeId,
-            'submissionId': submissionId,
-            'userId': userId,
-            'type': 'submission',
-          },
-        ),
+      final downloadUrl = await SupabaseAppStorage.uploadPublicBytes(
+        _sb,
+        bucket: SupabaseAppStorage.submissionThumbnails,
+        path: objectPath,
+        bytes: thumbnailData,
+        contentType: 'image/jpeg',
       );
-
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
 
       // Оновлюємо submission з thumbnail
       await _firestore

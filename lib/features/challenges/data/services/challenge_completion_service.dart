@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 class ChallengeCompletionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

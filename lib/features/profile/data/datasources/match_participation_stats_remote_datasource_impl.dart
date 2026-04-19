@@ -1,106 +1,58 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'match_participation_stats_remote_datasource.dart';
 
 class MatchParticipationStatsRemoteDataSourceImpl
     implements MatchParticipationStatsRemoteDataSource {
-  MatchParticipationStatsRemoteDataSourceImpl(this._firestore);
+  MatchParticipationStatsRemoteDataSourceImpl(this._client);
 
-  final FirebaseFirestore _firestore;
+  final SupabaseClient _client;
 
   @override
   Future<Map<String, dynamic>> loadFinishedMatchStats(String userId) async {
     try {
-      final base = _firestore
-          .collection('matches')
-          .where('participants', arrayContains: userId);
-
-      QuerySnapshot<Map<String, dynamic>> snap;
-      try {
-        snap = await base
-            .where('status', isEqualTo: 'finished')
-            .orderBy('updatedAt', descending: true)
-            .limit(20)
-            .get();
-      } catch (_) {
-        try {
-          snap = await base
-              .where('status', isEqualTo: 'finished')
-              .limit(20)
-              .get();
-        } catch (_) {
-          snap = await base.limit(20).get();
-        }
+      final partRows = await _client
+          .from('match_participants')
+          .select('match_id')
+          .eq('user_id', userId)
+          .eq('status', 'accepted');
+      final matchIds = (partRows as List<dynamic>)
+          .map((r) => (r as Map<String, dynamic>)['match_id'] as String)
+          .toSet()
+          .toList();
+      if (matchIds.isEmpty) {
+        return _empty;
       }
+
+      final matchRows = await _client
+          .from('matches')
+          .select('id,status,finished_at,updated_at')
+          .eq('status', 'finished')
+          .inFilter('id', matchIds)
+          .order('finished_at', ascending: false)
+          .limit(20);
 
       var wins = 0;
       var draws = 0;
       var losses = 0;
       final recent = <String>[];
 
-      final docs = [...snap.docs]
-        ..sort((a, b) {
-          final dataA = a.data();
-          final dataB = b.data();
-          final tsA = (dataA['finishedAt'] as Timestamp?) ??
-              (dataA['updatedAt'] as Timestamp?) ??
-              Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
-          final tsB = (dataB['finishedAt'] as Timestamp?) ??
-              (dataB['updatedAt'] as Timestamp?) ??
-              Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0));
-          return tsB.compareTo(tsA);
-        });
-
-      for (final d in docs) {
-        final data = d.data();
-
-        var aOpt = data['teamAScore'] as int?;
-        var bOpt = data['teamBScore'] as int?;
-        var a = aOpt ?? 0;
-        var b = bOpt ?? 0;
-
-        if (aOpt == null || bOpt == null) {
-          final r = (data['result'] ?? '').toString();
-          if (r == 'teamAWins') {
-            a = 1;
-            b = 0;
-          } else if (r == 'teamBWins') {
-            a = 0;
-            b = 1;
-          } else if (r == 'draw') {
-            a = 0;
-            b = 0;
-          } else {
-            continue;
-          }
+      for (final raw in (matchRows as List<dynamic>)) {
+        final m = raw as Map<String, dynamic>;
+        final mid = m['id'] as String;
+        final outcome = await _outcomeForUser(mid, userId);
+        if (outcome == null) {
+          continue;
         }
-
-        final teamA =
-            List<String>.from((data['teamA']?['playerIds'] ?? const []));
-        final teamB =
-            List<String>.from((data['teamB']?['playerIds'] ?? const []));
-        var isA = teamA.contains(userId);
-        if (!isA && teamA.isEmpty && teamB.isEmpty) {
-          final parts = List<String>.from(data['participants'] ?? const []);
-          if (parts.isNotEmpty) {
-            final half = (parts.length / 2).ceil();
-            isA = parts.take(half).contains(userId);
-          }
-        }
-
-        late String res;
-        if (a == b) {
+        if (outcome == 'D') {
           draws++;
-          res = 'D';
-        } else if ((isA && a > b) || (!isA && b > a)) {
+        } else if (outcome == 'W') {
           wins++;
-          res = 'W';
         } else {
           losses++;
-          res = 'L';
         }
         if (recent.length < 5) {
-          recent.add(res);
+          recent.add(outcome);
         }
       }
 
@@ -118,14 +70,64 @@ class MatchParticipationStatsRemoteDataSourceImpl
         'recentResults': recent,
       };
     } catch (_) {
-      return {
-        'winRate': 0.0,
-        'wins': 0,
-        'draws': 0,
-        'losses': 0,
-        'matches': 0,
-        'recentResults': const ['-', '-', '-', '-', '-'],
-      };
+      return _empty;
     }
+  }
+
+  static const _empty = <String, dynamic>{
+    'winRate': 0.0,
+    'wins': 0,
+    'draws': 0,
+    'losses': 0,
+    'matches': 0,
+    'recentResults': ['-', '-', '-', '-', '-'],
+  };
+
+  Future<String?> _outcomeForUser(String matchId, String userId) async {
+    final fx = await _client
+        .from('match_fixtures')
+        .select(
+          'home_score,away_score,home_match_team_id,away_match_team_id,status',
+        )
+        .eq('match_id', matchId)
+        .eq('status', 'finished')
+        .limit(1)
+        .maybeSingle();
+    if (fx == null) {
+      return null;
+    }
+    final hs = (fx['home_score'] as num?)?.toInt();
+    final as = (fx['away_score'] as num?)?.toInt();
+    if (hs == null || as == null) {
+      return null;
+    }
+    final homeId = fx['home_match_team_id'] as String?;
+    final awayId = fx['away_match_team_id'] as String?;
+    if (homeId == null || awayId == null) {
+      return null;
+    }
+    final onHome = await _rosterContains(homeId, userId);
+    final onAway = await _rosterContains(awayId, userId);
+    if (!onHome && !onAway) {
+      return null;
+    }
+    if (hs == as) {
+      return 'D';
+    }
+    final homeWins = hs > as;
+    if (onHome) {
+      return homeWins ? 'W' : 'L';
+    }
+    return homeWins ? 'L' : 'W';
+  }
+
+  Future<bool> _rosterContains(String matchTeamId, String userId) async {
+    final row = await _client
+        .from('match_team_rosters')
+        .select('player_id')
+        .eq('match_team_id', matchTeamId)
+        .eq('player_id', userId)
+        .maybeSingle();
+    return row != null;
   }
 }

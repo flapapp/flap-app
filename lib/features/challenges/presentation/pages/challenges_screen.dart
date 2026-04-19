@@ -11,6 +11,7 @@ import '../../data/models/challenge.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../../widgets/player_avatar_button.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 class ChallengesScreen extends StatefulWidget {
   final bool showOnlyMyChallenges;
@@ -94,7 +95,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 }
 
                 final all = snapshot.data!.docs;
-                final currentUser = FirebaseAuth.instance.currentUser;
+                final currentUser = AppAuth.currentUser;
                 final filtered = all.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   switch (_selectedFilter) {
@@ -103,7 +104,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       return status == 'recruiting' || status == 'submission' || status == 'voting';
                     case 'my':
                       if (currentUser == null) return false;
-                      return (data['creatorId'] ?? '') == currentUser.uid;
+                      return (data['creatorId'] ?? '') == currentUser.id;
                     case 'completed':
                       return (data['status'] ?? '') == 'completed';
                     default:
@@ -594,7 +595,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                     child: Text(tr('il_1eb956dc4f'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
-                if (FirebaseAuth.instance.currentUser?.uid == creatorId && status == 'voting') ...[
+                if (AppAuth.currentUserId == creatorId && status == 'voting') ...[
                   const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton(
@@ -669,7 +670,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
 
   void _joinChallenge(String challengeId) async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;
 
       // Отримуємо дані челенджу для показу вартості

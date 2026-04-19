@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/core/supabase/supabase_date.dart';
 
 import '../../domain/entities/friend_request_entity.dart';
 
@@ -24,27 +24,43 @@ class FriendRequest extends FriendRequestEntity {
     super.message,
   });
 
-  // Factory constructor from Firestore
-  factory FriendRequest.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    
+  factory FriendRequest.fromSupabase(Map<String, dynamic> row) {
+    final fromP = row['from_user_profile'];
+    final toP = row['to_user_profile'];
+    final fromMap = fromP is Map<String, dynamic>
+        ? fromP
+        : fromP is Map
+            ? Map<String, dynamic>.from(fromP)
+            : <String, dynamic>{};
+    final toMap = toP is Map<String, dynamic>
+        ? toP
+        : toP is Map
+            ? Map<String, dynamic>.from(toP)
+            : <String, dynamic>{};
+
+    String pickName(Map<String, dynamic> p) {
+      final dn = p['display_name'] as String?;
+      if (dn != null && dn.isNotEmpty) return dn;
+      final em = p['email'] as String?;
+      if (em != null && em.contains('@')) return em.split('@').first;
+      return '';
+    }
+
     return FriendRequest(
-      id: doc.id,
-      fromUserId: data['fromUserId'] ?? '',
-      fromUserName: data['fromUserName'] ?? '',
-      fromUserAvatar: data['fromUserAvatar'] ?? '',
-      toUserId: data['toUserId'] ?? '',
-      toUserName: data['toUserName'] ?? '',
-      toUserAvatar: data['toUserAvatar'] ?? '',
+      id: row['id'] as String,
+      fromUserId: row['from_user_id'] as String,
+      fromUserName: pickName(fromMap),
+      fromUserAvatar: (fromMap['avatar_url'] ?? '') as String,
+      toUserId: row['to_user_id'] as String,
+      toUserName: pickName(toMap),
+      toUserAvatar: (toMap['avatar_url'] ?? '') as String,
       status: FriendRequestStatus.values.firstWhere(
-        (e) => e.toString().split('.').last == data['status'],
+        (e) => e.toString().split('.').last == row['status'],
         orElse: () => FriendRequestStatus.pending,
       ),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      respondedAt: data['respondedAt'] != null 
-          ? (data['respondedAt'] as Timestamp).toDate()
-          : null,
-      message: data['message'],
+      createdAt: asDateTime(row['created_at']),
+      respondedAt: asDateTimeOrNull(row['responded_at']),
+      message: row['message'] as String?,
     );
   }
 
@@ -52,24 +68,6 @@ class FriendRequest extends FriendRequestEntity {
       _$FriendRequestFromJson(json);
 
   Map<String, dynamic> toJson() => _$FriendRequestToJson(this);
-
-  // Convert to Map for Firestore
-  Map<String, dynamic> toFirestore() {
-    return {
-      'fromUserId': fromUserId,
-      'fromUserName': fromUserName,
-      'fromUserAvatar': fromUserAvatar,
-      'toUserId': toUserId,
-      'toUserName': toUserName,
-      'toUserAvatar': toUserAvatar,
-      'status': status.toString().split('.').last,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'respondedAt': respondedAt != null 
-          ? Timestamp.fromDate(respondedAt!)
-          : null,
-      'message': message,
-    };
-  }
 
   // Copy with changes
   FriendRequest copyWith({
@@ -181,9 +179,8 @@ class Friend extends FriendEntity {
       position: userData['position'] ?? 'player',
       friendsSince: friendsSince,
       isOnline: userData['isOnline'] ?? false,
-      lastSeen: userData['lastSeen'] != null 
-          ? (userData['lastSeen'] as Timestamp).toDate()
-          : null,
+      lastSeen: asDateTimeOrNull(userData['lastSeen']) ??
+          asDateTimeOrNull(userData['last_seen_at']),
     );
   }
 

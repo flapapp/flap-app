@@ -17,25 +17,32 @@ class TeamsRepositoryImpl implements TeamsRepository {
 
   @override
   Stream<AppTeam?> watchTeam(String teamId) {
-    return _remote.watchTeamDocument(teamId).map((snap) {
-      if (!snap.exists) return null;
-      return AppTeam.fromDoc(snap);
+    return _remote.watchTeamDocument(teamId).map((data) {
+      if (data == null) {
+        return null;
+      }
+      return AppTeam.fromRemoteMap(teamId, data);
     });
   }
 
   @override
   Stream<List<AppTeam>> watchTeamsOrderedByWins() {
     return _remote.watchTeamsOrderedByWins().map(
-          (snap) => snap.docs.map(AppTeam.fromDoc).toList(growable: false),
+          (rows) => rows
+              .map(
+                (m) => AppTeam.fromRemoteMap(m['id'] as String, m),
+              )
+              .toList(growable: false),
         );
   }
 
   @override
   Stream<Map<String, TeamStats>> watchAllTeamStatsById() {
-    return _remote.watchTeamStatsCollection().map((snap) {
+    return _remote.watchTeamStatsCollection().map((rows) {
       final map = <String, TeamStats>{};
-      for (final doc in snap.docs) {
-        map[doc.id] = TeamStats.fromDoc(doc);
+      for (final row in rows) {
+        final id = row['id'] as String;
+        map[id] = TeamStats.fromFirestoreMap(id, row);
       }
       return map;
     });

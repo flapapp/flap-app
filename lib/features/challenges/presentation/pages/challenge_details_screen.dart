@@ -14,6 +14,7 @@ import '../../../video/data/services/thumbnail_service.dart';
 import 'challenge_completion_screen.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../../widgets/player_avatar_button.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class ChallengeDetailsScreen extends StatefulWidget {
@@ -732,7 +733,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     if (_celebrationChecked) return;
     _celebrationChecked = true;
 
-    final currentUser = _auth.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
 
     try {
@@ -744,11 +745,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
       final latestChallenge = Challenge.fromFirestore(challengeDoc);
       if (latestChallenge.status != ChallengeStatus.completed) return;
-      if (!latestChallenge.winners.contains(currentUser.uid)) return;
+      if (!latestChallenge.winners.contains(currentUser.id)) return;
 
       final celebrationRef = FirebaseFirestore.instance
           .collection('users')
-          .doc(currentUser.uid)
+          .doc(currentUser.id)
           .collection('challengeCelebrations')
           .doc(widget.challenge.id);
       final shownDoc = await celebrationRef.get();
@@ -956,7 +957,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           .collection('challenges')
           .doc(widget.challenge.id)
           .collection('votes')
-          .doc('${FirebaseAuth.instance.currentUser?.uid}_$videoId')
+          .doc('${AppAuth.currentUserId}_$videoId')
           .snapshots(),
       builder: (context, voteSnapshot) {
         final hasVoted = voteSnapshot.hasData && voteSnapshot.data!.exists;
@@ -1122,7 +1123,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   }
 
   Future<void> _submitVote(String videoId, double rating) async {
-    final currentUser = _auth.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
 
     // Перевіряємо чи користувач не голосує за себе
@@ -1137,7 +1138,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       final submissionData = submissionDoc.data() as Map<String, dynamic>;
       final submissionUserId = submissionData['userId'];
       
-      if (submissionUserId == currentUser.uid) {
+      if (submissionUserId == currentUser.id) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr('il_2c08f46d5a')),
@@ -1154,9 +1155,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           .collection('challenges')
           .doc(widget.challenge.id)
           .collection('votes')
-          .doc('${currentUser.uid}_$videoId')
+          .doc('${currentUser.id}_$videoId')
           .set({
-        'userId': currentUser.uid,
+        'userId': currentUser.id,
         'videoId': videoId,
         'challengeId': widget.challenge.id,
         'rating': rating,
@@ -1191,11 +1192,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         final submission = await submissionRef.get();
         if (submission.exists) {
           final userId = (submission.data() as Map<String, dynamic>)['userId'] as String?;
-          if (userId != null && userId.isNotEmpty && userId != currentUser.uid) {
+          if (userId != null && userId.isNotEmpty && userId != currentUser.id) {
             await sl<RatingsRepository>().recomputeOverallRating(
               userId,
               reason: 'challenge_vote',
-              source: currentUser.displayName ?? '',
+              source: currentUser.email?.split('@').first ?? '',
               sourceType: 'challenge',
               sourceId: widget.challenge.id,
             );
@@ -1283,7 +1284,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     if (videoUrl.isNotEmpty && videoDocId.isNotEmpty) {
       try {
         final thumbnailService = ThumbnailService();
-        final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+        final userId = AppAuth.currentUserId ?? '';
         final thumbnailUrl = await thumbnailService.generateSubmissionThumbnail(
           videoUrl: videoUrl,
           challengeId: widget.challenge.id,

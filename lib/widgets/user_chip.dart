@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../router/app_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UserChip extends StatelessWidget {
   final String userId;
@@ -33,13 +33,28 @@ class UserChip extends StatelessWidget {
       return _buildContent(context, displayName: name!, resolvedAvatarUrl: avatarUrl!);
     }
 
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: Supabase.instance.client
+          .from('profiles')
+          .select('display_name,email,avatar_url')
+          .eq('id', userId)
+          .maybeSingle(),
       builder: (context, snapshot) {
-        final data = snapshot.data?.data() ?? <String, dynamic>{};
-        final displayName = name ?? (data['displayName'] ?? data['name'] ?? data['email']?.toString().split('@').first ?? tr('il_b512d97e7c'));
-        final resolvedAvatarUrl = avatarUrl ?? (data['avatarUrl'] ?? data['avatar'] ?? '');
-        return _buildContent(context, displayName: displayName, resolvedAvatarUrl: resolvedAvatarUrl);
+        final data = snapshot.data ?? <String, dynamic>{};
+        final dn = data['display_name'] as String?;
+        final em = data['email'] as String?;
+        final displayName = name ??
+            (dn?.isNotEmpty == true
+                ? dn!
+                : (em != null && em.contains('@')
+                    ? em.split('@').first
+                    : tr('il_b512d97e7c')));
+        final resolvedAvatarUrl = avatarUrl ?? (data['avatar_url'] as String? ?? '');
+        return _buildContent(
+          context,
+          displayName: displayName,
+          resolvedAvatarUrl: resolvedAvatarUrl,
+        );
       },
     );
   }

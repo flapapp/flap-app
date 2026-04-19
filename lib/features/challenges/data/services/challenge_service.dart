@@ -4,6 +4,7 @@ import '../../data/models/challenge.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 class ChallengeService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -78,20 +79,20 @@ class ChallengeService {
   // Створити новий челендж
   Future<String?> createChallenge(Challenge challenge) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
 
       // Перевірка ліміту челенджів для користувача
-      final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+      final userDoc = await _firestore.collection('users').doc(currentUser.id).get();
       final userData = userDoc.data() as Map<String, dynamic>?;
       final maxChallenges = userData?['maxChallengesPerMonth'] ?? 1;
       final isSubscriptionActive = userData?['subscriptionActive'] ?? false;
       
       if (!isSubscriptionActive) {
         final userChallenges = await _challengesCollection
-            .where('creatorId', isEqualTo: currentUser.uid)
+            .where('creatorId', isEqualTo: currentUser.id)
             .get();
         final recentChallenges = userChallenges.docs.where((doc) {
           final c = Challenge.fromFirestore(doc);
@@ -105,7 +106,7 @@ class ChallengeService {
       // Списуємо вступну плату з творця і формуємо стартовий банк
       final entryFee = challenge.entryFee;
       await _firestore.runTransaction((tx) async {
-        final userRef = _firestore.collection('users').doc(currentUser.uid);
+        final userRef = _firestore.collection('users').doc(currentUser.id);
         final userSnap = await tx.get(userRef);
         final coins = (userSnap.data()?['coins'] ?? 0) as int;
         if (coins < entryFee) {
@@ -123,7 +124,7 @@ class ChallengeService {
 
       // Записуємо транзакцію списання для творця
       await _firestore.collection('transactions').add({
-        'userId': currentUser.uid,
+        'userId': currentUser.id,
         'type': 'challenge_create_fee',
         'amount': -entryFee,
         'challengeId': challengeId,
@@ -148,7 +149,7 @@ class ChallengeService {
   // Приєднатися до челенджу
   Future<bool> joinChallenge(String challengeId) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
@@ -167,14 +168,14 @@ class ChallengeService {
       }
 
       // Перевірка чи користувач вже учасник
-      if (challenge.participants.contains(currentUser.uid)) {
+      if (challenge.participants.contains(currentUser.id)) {
         throw Exception('Ви вже учасник цього челенджу');
       }
 
       // Перевірити чи достатньо монет
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(currentUser.uid)
+          .doc(currentUser.id)
           .get();
       
       if (!userDoc.exists) {
@@ -192,19 +193,19 @@ class ChallengeService {
       await _firestore.runTransaction((transaction) async {
         // Додати учасника
         transaction.update(challengeRef, {
-          'participants': FieldValue.arrayUnion([currentUser.uid]),
+          'participants': FieldValue.arrayUnion([currentUser.id]),
           'currentParticipants': FieldValue.increment(1),
           'prizePool': FieldValue.increment(challenge.entryFee), // Додаємо до банку
         });
 
         // Віднімаємо монети за участь
-        transaction.update(_firestore.collection('users').doc(currentUser.uid), {
+        transaction.update(_firestore.collection('users').doc(currentUser.id), {
           'coins': FieldValue.increment(-challenge.entryFee),
         });
 
         // Записуємо транзакцію в історію
         transaction.set(_firestore.collection('transactions').doc(), {
-          'userId': currentUser.uid,
+          'userId': currentUser.id,
           'type': 'challenge_entry_fee',
           'amount': -challenge.entryFee,
           'challengeId': challengeId,
@@ -227,7 +228,7 @@ class ChallengeService {
   // Подати відео на челендж
   Future<bool> submitVideo(String challengeId, String videoUrl) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
@@ -246,18 +247,18 @@ class ChallengeService {
       }
 
       // Перевірка чи користувач учасник
-      if (!challenge.participants.contains(currentUser.uid)) {
+      if (!challenge.participants.contains(currentUser.id)) {
         throw Exception('Ви не учасник цього челенджу');
       }
 
       // Перевірка чи вже подано відео
-      if (challenge.submissions.contains(currentUser.uid)) {
+      if (challenge.submissions.contains(currentUser.id)) {
         throw Exception('Ви вже подали відео на цей челендж');
       }
 
       // Додати відео
       await challengeRef.update({
-        'submissions': FieldValue.arrayUnion([currentUser.uid]),
+        'submissions': FieldValue.arrayUnion([currentUser.id]),
       });
 
       return true;
@@ -270,13 +271,13 @@ class ChallengeService {
   // Проголосувати за відео
   Future<bool> voteForVideo(String challengeId, String userId, Map<String, double> criteria) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
 
       // Перевірка чи користувач не голосує за себе
-      if (currentUser.uid == userId) {
+      if (currentUser.id == userId) {
         throw Exception('Не можна голосувати за себе');
       }
 
@@ -294,7 +295,7 @@ class ChallengeService {
       }
 
       // Перевірка чи користувач вже голосував
-      if (challenge.votes.containsKey(currentUser.uid)) {
+      if (challenge.votes.containsKey(currentUser.id)) {
         throw Exception('Ви вже голосували за це відео');
       }
 
@@ -306,16 +307,16 @@ class ChallengeService {
 
       // Зберегти голос
       await challengeRef.update({
-        'votes.${currentUser.uid}': totalRating,
-        'detailedVotes.${currentUser.uid}': criteria,
+        'votes.${currentUser.id}': totalRating,
+        'detailedVotes.${currentUser.id}': criteria,
       });
 
       // Нарахувати монети за голос (+1 монета)
-      await _addCoinsToUser(currentUser.uid, 1);
+      await _addCoinsToUser(currentUser.id, 1);
       
       // Записати транзакцію за голосування
       await _firestore.collection('transactions').add({
-        'userId': currentUser.uid,
+        'userId': currentUser.id,
         'type': 'voting_reward',
         'amount': 1,
         'challengeId': challengeId,
@@ -333,7 +334,7 @@ class ChallengeService {
   // Завершити челендж та визначити переможців
   Future<bool> completeChallenge(String challengeId) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
@@ -345,7 +346,7 @@ class ChallengeService {
       }
 
       final challenge = Challenge.fromFirestore(challengeDoc);
-      if (challenge.creatorId != currentUser.uid) {
+      if (challenge.creatorId != currentUser.id) {
         throw Exception('Тільки створювач може завершити челендж');
       }
 
@@ -392,7 +393,7 @@ class ChallengeService {
   // Видалити челендж (тільки створювач)
   Future<bool> deleteChallenge(String challengeId) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
@@ -403,7 +404,7 @@ class ChallengeService {
       }
 
       final challenge = Challenge.fromFirestore(challengeDoc);
-      if (challenge.creatorId != currentUser.uid) {
+      if (challenge.creatorId != currentUser.id) {
         throw Exception('Тільки створювач може видалити челендж');
       }
 
@@ -454,7 +455,7 @@ class ChallengeService {
   // Додати відео до челенджу
   Future<bool> addVideoToChallenge(String challengeId, String userId) async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
@@ -485,7 +486,7 @@ class ChallengeService {
 
       // Додаємо відео до челенджу
       await challengeRef.update({
-        'submissions': FieldValue.arrayUnion([currentUser.uid]),
+        'submissions': FieldValue.arrayUnion([currentUser.id]),
       });
 
       return true;

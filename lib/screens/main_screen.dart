@@ -10,6 +10,7 @@ import '../features/video/presentation/pages/videos_screen.dart';
 import '../features/challenges/presentation/pages/challenges_screen.dart';
 import '../features/video/presentation/pages/video_upload_screen.dart';
 import '../features/challenges/presentation/pages/challenge_create_screen.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -145,7 +146,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('users')
-                .doc(FirebaseAuth.instance.currentUser?.uid)
+                .doc(AppAuth.currentUserId)
                 .snapshots(),
             builder: (context, snapshot) {
               if (!snapshot.hasData || !snapshot.data!.exists) {
@@ -242,7 +243,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
-          .doc(FirebaseAuth.instance.currentUser?.uid)
+          .doc(AppAuth.currentUserId)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists) {
@@ -417,7 +418,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('transactions')
-                      .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                      .where('userId', isEqualTo: AppAuth.currentUserId)
                       .limit(50)
                       .snapshots(),
                   builder: (context, snapshot) {
@@ -629,7 +630,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('rating_history')
-                      .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                      .where('userId', isEqualTo: AppAuth.currentUserId)
                       .limit(50)
                       .snapshots(),
                   builder: (context, snapshot) {
@@ -835,13 +836,13 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
 
   Future<void> _ensureTestTransactions() async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;
 
       // Перевіряємо чи є транзакції
       final existingTransactions = await FirebaseFirestore.instance
           .collection('transactions')
-          .where('userId', isEqualTo: currentUser.uid)
+          .where('userId', isEqualTo: currentUser.id)
           .limit(1)
           .get();
 
@@ -853,35 +854,35 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         // Тестові транзакції
         final testTransactions = [
           {
-            'userId': currentUser.uid,
+            'userId': currentUser.id,
             'type': 'initial_bonus',
             'amount': 100,
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 7))),
             'description': 'Початковий бонус за реєстрацію',
           },
           {
-            'userId': currentUser.uid,
+            'userId': currentUser.id,
             'type': 'challenge_entry_fee',
             'amount': -10,
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 3))),
             'description': tr('il_0c26ecde78'),
           },
           {
-            'userId': currentUser.uid,
+            'userId': currentUser.id,
             'type': 'voting_reward',
             'amount': 5,
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 2))),
             'description': tr('il_047610bb3e'),
           },
           {
-            'userId': currentUser.uid,
+            'userId': currentUser.id,
             'type': 'challenge_win',
             'amount': 50,
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 1))),
             'description': tr('il_5f60431558'),
           },
           {
-            'userId': currentUser.uid,
+            'userId': currentUser.id,
             'type': 'badge_purchase',
             'amount': -25,
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 12))),
@@ -904,13 +905,13 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
 
   Future<void> _ensureTestRatingHistory() async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;
 
       // Перевіряємо чи є історія рейтингу
       final existingRatingHistory = await FirebaseFirestore.instance
           .collection('rating_history')
-          .where('userId', isEqualTo: currentUser.uid)
+          .where('userId', isEqualTo: currentUser.id)
           .limit(1)
           .get();
 
@@ -921,7 +922,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
 
         final testRatingChanges = [
           {
-            'userId': currentUser.uid,
+            'userId': currentUser.id,
             'change': 0.15,
             'oldRating': 3.0,
             'newRating': 3.15,
@@ -931,7 +932,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 5))),
           },
           {
-            'userId': currentUser.uid,
+            'userId': currentUser.id,
             'change': 0.25,
             'oldRating': 3.15,
             'newRating': 3.40,
@@ -941,7 +942,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 3))),
           },
           {
-            'userId': currentUser.uid,
+            'userId': currentUser.id,
             'change': 0.10,
             'oldRating': 3.40,
             'newRating': 3.50,
@@ -951,7 +952,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 1))),
           },
           {
-            'userId': currentUser.uid,
+            'userId': currentUser.id,
             'change': -0.05,
             'oldRating': 3.50,
             'newRating': 3.45,

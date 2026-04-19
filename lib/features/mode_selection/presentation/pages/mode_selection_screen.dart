@@ -13,6 +13,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../router/app_router.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 void _pushLegacyPath(BuildContext context, String path) {
   switch (path) {
@@ -54,7 +55,7 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuth.currentUserId;
     if (uid != null) {
       _userStream =
           FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
@@ -66,7 +67,7 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
 
   void _updateGreeting() {
     final phrase = _motivationPhrases[_random.nextInt(_motivationPhrases.length)];
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuth.currentUserId;
     if (uid == null) {
       setState(() {
         _currentGreeting = bilingual(phrase.ua, phrase.en);
@@ -592,7 +593,7 @@ Widget build(BuildContext context) {
     final rating = (data?['rating'] ?? 0.0).toDouble();
     final matches = (data?['totalMatches'] ?? 0).toString();
     final coins = (data?['coins'] ?? data?['flCoins'] ?? 0).toString();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuth.currentUserId;
     if (uid != null) {
       _primeHeroStats(uid);
     }
@@ -605,7 +606,7 @@ Widget build(BuildContext context) {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             PlayerAvatarButton(
-              userId: FirebaseAuth.instance.currentUser?.uid ?? '',
+              userId: AppAuth.currentUserId ?? '',
               displayName: displayName,
               avatarUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
               size: 84,

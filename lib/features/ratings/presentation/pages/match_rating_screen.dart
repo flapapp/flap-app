@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../matches/data/models/match.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 enum RatingMode { simple, advanced }
 
@@ -100,7 +101,7 @@ void initState() {
     // Ініціалізуємо оцінки для всіх гравців
     // Використовуємо participants як fallback, якщо teamA/teamB не існують
     _playerRatings.clear();
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final currentUserId = AppAuth.currentUserId;
 final participantsSet = widget.match.participants.toSet();
 final allTeams = widget.match.allTeams;
 
@@ -567,7 +568,7 @@ final alreadyRatedIds = existingSnap.docs
     try {
       int successCount = 0;
       final List<String> failureMessages = [];
-      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      final currentUserId = AppAuth.currentUserId;
       final idsToRate = _playerRatings.keys.where((id) => id != currentUserId).toList();
       final int totalCount = idsToRate.length;
       if (totalCount == 0) {
@@ -592,7 +593,7 @@ final alreadyRatedIds = existingSnap.docs
           await _ratingRepo.ratePlayerAfterMatch(
             matchId: widget.match.id,
             playerId: playerId,
-            ratedBy: FirebaseAuth.instance.currentUser!.uid,
+            ratedBy: AppAuth.currentUserId!,
             criteria: effectiveCriteria,
           );
           successCount++;

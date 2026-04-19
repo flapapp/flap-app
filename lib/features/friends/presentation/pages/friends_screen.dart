@@ -11,6 +11,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/models/friend_request.dart';
 import 'dart:async';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class FriendsScreen extends StatefulWidget {
@@ -45,9 +46,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   }
 
   void _loadFriends() async {
-    final currentUser = _auth.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser != null) {
-      final friends = await _friendsRepo.getUserFriends(currentUser.uid);
+      final friends = await _friendsRepo.getUserFriends(currentUser.id);
       if (!mounted) return;
       setState(() {
         _friends = friends;
@@ -937,7 +938,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
 
   Future<void> _ensureTestUsers() async {
     try {
-      final currentUser = _auth.currentUser;
+      final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;
 
       // Перевіряємо чи є інші користувачі крім поточного
@@ -947,7 +948,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
           .get();
 
       final otherUsers = existingUsers.docs
-          .where((doc) => doc.id != currentUser.uid)
+          .where((doc) => doc.id != currentUser.id)
           .toList();
 
       if (otherUsers.length < 3) {

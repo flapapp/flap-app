@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:video_player/video_player.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class WebThumbnailService {
@@ -11,7 +10,6 @@ class WebThumbnailService {
   factory WebThumbnailService() => _instance;
   WebThumbnailService._internal();
 
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// Генерує thumbnail для веб-платформи використовуючи VideoPlayer

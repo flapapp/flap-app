@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 class RatingTrackingService {
   static final RatingTrackingService _instance = RatingTrackingService._internal();

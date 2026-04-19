@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
 
@@ -68,8 +67,8 @@ class MatchEntity extends Equatable {
   final String time;
   final String location;
   final String city;
-  @GeoPointConverter()
-  final GeoPoint? coordinates;
+  @LatLngConverter()
+  final LatLng? coordinates;
   final int currentPlayers;
   final int maxPlayers;
   final List<String> participants;

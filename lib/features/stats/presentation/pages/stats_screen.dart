@@ -6,6 +6,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../../../../core/di/injection.dart';
 import '../../../profile/presentation/widgets/sparkline_painter.dart';
 import '../../domain/repositories/stats_repository.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class StatsScreen extends StatefulWidget {
@@ -35,7 +36,7 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Future<void> _loadAll() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuth.currentUserId;
     if (uid == null) {
       if (mounted) setState(() => _loading = false);
       return;

@@ -11,6 +11,7 @@ import '../../../../widgets/user_chip.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../friends/data/models/friend_request.dart' show Friend;
 import '../../../../widgets/video_preview_box.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class VideosScreen extends StatefulWidget {
@@ -196,7 +197,7 @@ class _VideosScreenState extends State<VideosScreen> {
                   return _buildEmptyState();
                 }
 
-                final currentUser = FirebaseAuth.instance.currentUser;
+                final currentUser = AppAuth.currentUser;
                 final allDocs = snapshot.data!.docs;
 
                 // Клієнтська фільтрація для стабільності без індексів
@@ -213,7 +214,7 @@ class _VideosScreenState extends State<VideosScreen> {
                   }
                   
                   if ((_selectedTab == 'my' || widget.showOnlyMyVideos) && currentUser != null) {
-                    if ((data['userId'] ?? '') != currentUser.uid) return false;
+                    if ((data['userId'] ?? '') != currentUser.id) return false;
                   }
                   if (_selectedCity.isNotEmpty && _selectedCity != tr('all_cities')) {
                     if ((data['city'] ?? '') != _selectedCity) return false;
@@ -422,7 +423,7 @@ class _VideosScreenState extends State<VideosScreen> {
   }
 
   Future<void> _toggleLike(String videoId) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AppAuth.currentUserId;
     if (uid == null) return;
     try {
       final likeRef = FirebaseFirestore.instance
@@ -461,11 +462,11 @@ class _VideosScreenState extends State<VideosScreen> {
   }
 
   Future<void> _requestRatingForVideo(String videoId, String title) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
     try {
       final friends =
-          await sl<FriendsRepository>().getUserFriends(currentUser.uid);
+          await sl<FriendsRepository>().getUserFriends(currentUser.id);
       if (friends.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('il_29a7698463'))),
@@ -503,7 +504,7 @@ class _VideosScreenState extends State<VideosScreen> {
               TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70))),
               ElevatedButton(
                 onPressed: selected.isEmpty ? null : () async {
-                  final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+                  final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.id).get();
                   final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач').toString();
                   await sl<NotificationService>().sendRatingRequest(
                     toUserIds: selected.toList(),
@@ -904,13 +905,13 @@ class _VideosScreenState extends State<VideosScreen> {
                     Row(
                       children: [
                         StreamBuilder<DocumentSnapshot>(
-                          stream: FirebaseAuth.instance.currentUser == null
+                          stream: AppAuth.currentUser == null
                               ? null
                               : FirebaseFirestore.instance
                                   .collection('videos')
                                   .doc(videoId)
                                   .collection('likes')
-                                  .doc(FirebaseAuth.instance.currentUser!.uid)
+                                  .doc(AppAuth.currentUserId!)
                                   .snapshots(),
                           builder: (context, likeSnap) {
                             final isLiked = likeSnap.hasData && likeSnap.data!.exists;
@@ -928,7 +929,7 @@ class _VideosScreenState extends State<VideosScreen> {
                           onPressed: () => _shareVideo(videoId, title),
                           icon: const Icon(Icons.share, color: Colors.white70, size: 20),
                         ),
-                        if (FirebaseAuth.instance.currentUser?.uid == userId)
+                        if (AppAuth.currentUserId == userId)
                           IconButton(
                             tooltip: 'Запросити оцінку',
                             onPressed: () => _requestRatingForVideo(videoId, title),
