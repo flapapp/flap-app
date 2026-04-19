@@ -2,7 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/models/submission.dart';
 import '../../../notifications/data/services/notification_service.dart';
-import '../../../../utils/i18n.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 class SubmissionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -130,7 +131,7 @@ class SubmissionService {
         'challengeId': challengeId,
         'submissionId': docRef.id,
         'timestamp': FieldValue.serverTimestamp(),
-          'description': I18n.inline(
+          'description': bilingual(
     'Участь в челенджі: $title',
     'Challenge entry: $title',
   ),
@@ -322,10 +323,7 @@ class SubmissionService {
           'amount': 5,
           'challengeId': challengeId,
           'timestamp': FieldValue.serverTimestamp(),
-            'description': I18n.inline(
-    'Проголосували за всі відео в челенджі',
-    'Voted for every video in the challenge',
-  ),
+            'description': tr('il_e9f698ce68'),
         });
 
         return true;

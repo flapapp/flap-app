@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/progress/progress_status.dart';
 import '../../../../router/app_router.dart';
@@ -61,9 +62,9 @@ class _AuthBootstrapScreenState extends State<AuthBootstrapScreen> {
                     children: [
                       Text(
                         failure.when(
-                          cache: () => 'Storage error',
-                          network: (m) => m ?? 'Network error',
-                          unexpected: (m) => m ?? 'Startup failed',
+                          cache: () => tr('startup_storage_error'),
+                          network: (m) => m ?? tr('startup_network_error'),
+                          unexpected: (m) => m ?? tr('startup_failed'),
                           auth: (code, m) => m ?? code,
                         ),
                         textAlign: TextAlign.center,
@@ -73,7 +74,7 @@ class _AuthBootstrapScreenState extends State<AuthBootstrapScreen> {
                         onPressed: () => context
                             .read<AuthBloc>()
                             .add(const AuthEvent.bootstrapRequested()),
-                        child: const Text('Retry'),
+                        child: Text(tr('try_again')),
                       ),
                     ],
                   ),

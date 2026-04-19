@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/ratings_repository.dart';
@@ -7,7 +8,6 @@ import '../../../../router/app_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../profile/presentation/pages/player_profile_page.dart';
-import '../../../../utils/i18n.dart';
 
 @RoutePage()
 class RatingsScreen extends StatefulWidget {
@@ -23,32 +23,32 @@ class _RatingsScreenState extends State<RatingsScreen>
   int _currentTabIndex = 0;
   
   final List<String> _tabTitles = [
-    I18n.t('overall_rating'),
-    I18n.t('by_city'),
-    I18n.t('by_position'),
-    I18n.t('my_stats'),
+    tr('overall_rating'),
+    tr('by_city'),
+    tr('by_position'),
+    tr('my_stats'),
   ];
   
   // Фільтри
-  String _selectedCity = I18n.t('all_cities');
-  String _selectedPosition = I18n.inline('Всі позиції', 'All positions');
+  String _selectedCity = tr('all_cities');
+  String _selectedPosition = tr('il_0e333190c1');
   
   List<String> get _cityOptions => [
-    I18n.t('all_cities'),
-    I18n.t('kyiv'),
-    I18n.t('kharkiv'),
-    I18n.t('odesa'),
-    I18n.t('dnipro'),
-    I18n.t('lviv'),
-    I18n.inline('Запоріжжя', 'Zaporizhzhia'),
+    tr('all_cities'),
+    tr('kyiv'),
+    tr('kharkiv'),
+    tr('odesa'),
+    tr('dnipro'),
+    tr('lviv'),
+    tr('il_d13f986228'),
   ];
   
   List<String> get _positionOptions => [
-    I18n.inline('Всі позиції', 'All positions'),
-    I18n.inline('Воротар', 'Goalkeeper'),
-    I18n.inline('Захисник', 'Defender'),
-    I18n.inline('Півзахисник', 'Midfielder'),
-    I18n.inline('Нападник', 'Forward'),
+    tr('il_0e333190c1'),
+    tr('il_f2d20c7ee1'),
+    tr('il_157ddc59b5'),
+    tr('il_d332e47845'),
+    tr('il_f1c65e1481'),
   ];
   
   // Дані
@@ -99,7 +99,7 @@ _topPlayers = await _ratingRepo.getTopPlayers(limit: 50);
 _topPlayers = _dedupeById(_topPlayers);
 
 // Завантажуємо гравців за містом
-if (_selectedCity != I18n.t('all_cities')) {
+if (_selectedCity != tr('all_cities')) {
   _cityPlayers = await _ratingRepo.getTopPlayers(
     limit: 50,
     city: _selectedCity,
@@ -108,7 +108,7 @@ if (_selectedCity != I18n.t('all_cities')) {
 }
       
       // Завантажуємо гравців за позицією
-if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) {
+if (_selectedPosition != tr('il_0e333190c1')) {
   _positionPlayers = await _ratingRepo.getTopPlayers(
     limit: 50,
     position: _selectedPosition,
@@ -122,7 +122,7 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
     } catch (e) {
       print('Error loading ratings data: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка завантаження даних: $e', 'Error loading data: $e'))),
+        SnackBar(content: Text(tr('il_e4fdc41fe4'))),
       );
     } finally {
       setState(() {
@@ -143,7 +143,7 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
   } catch (e) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(I18n.inline('Помилка завантаження статистики: $e', 'Error loading statistics: $e'))),
+      SnackBar(content: Text(tr('il_4cb10b7873'))),
     );
   }
 }
@@ -183,14 +183,14 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  I18n.t('ratings'),
+                  tr('ratings'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
                     fontSize: 20,
                   )),
                 Text(
-                  I18n.inline('Топ гравців FLAP', 'FLAP Top Players'),
+                  tr('il_bc93181f0a'),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 10,
@@ -465,9 +465,9 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
-                    _selectedCity = value ?? I18n.t('all_cities');
+                    _selectedCity = value ?? tr('all_cities');
                   });
-                  if (value != null && value != I18n.t('all_cities')) {
+                  if (value != null && value != tr('all_cities')) {
                     _loadCityPlayers(value);
                   }
                 },
@@ -478,7 +478,7 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
         
         // Список гравців
         Expanded(
-          child: _selectedCity == I18n.t('all_cities')
+          child: _selectedCity == tr('all_cities')
               ? Center(
                   child: Text(
                     'Оберіть місто для перегляду рейтингу',
@@ -564,9 +564,9 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
-                    _selectedPosition = value ?? I18n.inline('Всі позиції', 'All positions');
+                    _selectedPosition = value ?? tr('il_0e333190c1');
                   });
-                  if (value != null && value != I18n.inline('Всі позиції', 'All positions')) {
+                  if (value != null && value != tr('il_0e333190c1')) {
                     _loadPositionPlayers(value);
                   }
                 },
@@ -578,7 +578,7 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
         // Список гравців
                 // Список гравців
         Expanded(
-          child: _selectedPosition == I18n.inline('Всі позиції', 'All positions')
+          child: _selectedPosition == tr('il_0e333190c1')
               ? Center(
                   child: Text(
                     'Оберіть позицію для перегляду рейтингу',
@@ -1015,7 +1015,7 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('Помилка завантаження: $e', 'Error loading: $e')),
+            content: Text(tr('il_c487fc4cab')),
             backgroundColor: Colors.red,
           ),
         );
@@ -1050,7 +1050,7 @@ if (_selectedPosition != I18n.inline('Всі позиції', 'All positions')) 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('Помилка завантаження: $e', 'Error loading: $e')),
+            content: Text(tr('il_c487fc4cab')),
             backgroundColor: Colors.red,
           ),
         );

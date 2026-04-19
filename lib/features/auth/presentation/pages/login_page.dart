@@ -1,28 +1,29 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../core/error/failure.dart';
 import '../../../../core/progress/progress_status.dart';
 import '../../../../router/app_router.dart';
-import '../../../../utils/i18n.dart';
 import '../bloc/auth_bloc.dart';
 
 String _loginErrorMessage(Failure failure) {
   return failure.when(
-    cache: () => I18n.t('login_error'),
-    network: (m) => m ?? I18n.t('login_error'),
-    unexpected: (m) => m ?? I18n.t('login_error'),
+    cache: () => tr('login_error'),
+    network: (m) => m ?? tr('login_error'),
+    unexpected: (m) => m ?? tr('login_error'),
     auth: (code, message) {
       switch (code) {
         case 'invalid-credential':
         case 'wrong-password':
         case 'user-not-found':
-          return I18n.t('invalid_email_or_password');
+          return tr('invalid_email_or_password');
         case 'too-many-requests':
-          return I18n.t('too_many_requests');
+          return tr('too_many_requests');
         default:
-          return message ?? I18n.t('login_error');
+          return message ?? tr('login_error');
       }
     },
   );
@@ -74,7 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                I18n.inline(
+                bilingual(
                   'Помилка: ${_loginErrorMessage(failure)}',
                   'Error: ${_loginErrorMessage(failure)}',
                 ),
@@ -148,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            I18n.t('login_subtitle'),
+                            tr('login_subtitle'),
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.8),
                               fontSize: 14,
@@ -172,7 +173,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 fontSize: 16,
                               ),
                               decoration: InputDecoration(
-                                hintText: I18n.t('email_or_phone'),
+                                hintText: tr('email_or_phone'),
                                 hintStyle: TextStyle(
                                   color: Colors.white.withOpacity(0.7),
                                   fontWeight: FontWeight.w400,
@@ -182,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return I18n.t('enter_email');
+                                  return tr('enter_email');
                                 }
                                 return null;
                               },
@@ -206,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 fontSize: 16,
                               ),
                               decoration: InputDecoration(
-                                hintText: I18n.t('password'),
+                                hintText: tr('password'),
                                 hintStyle: TextStyle(
                                   color: Colors.white.withOpacity(0.7),
                                   fontWeight: FontWeight.w400,
@@ -216,7 +217,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return I18n.t('enter_password');
+                                  return tr('enter_password');
                                 }
                                 return null;
                               },
@@ -230,13 +231,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      I18n.t('password_recovery_later'),
+                                      tr('password_recovery_later'),
                                     ),
                                   ),
                                 );
                               },
                               child: Text(
-                                I18n.t('forgot_password'),
+                                tr('forgot_password'),
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.9),
                                   fontWeight: FontWeight.w600,
@@ -301,7 +302,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     )
                                   : Text(
-                                      I18n.t('login'),
+                                      tr('login'),
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         letterSpacing: 1.2,
@@ -318,7 +319,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : () =>
                                     context.router.push(const RegisterRoute()),
                             child: Text(
-                              I18n.t('no_account_register'),
+                              tr('no_account_register'),
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.9),
                                 fontWeight: FontWeight.w600,

@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:easy_localization/easy_localization.dart';
 
-import '../../../../utils/i18n.dart';
 import '../../domain/entities/friend_request_entity.dart';
 
 export '../../domain/entities/friend_request_entity.dart';
@@ -174,10 +174,10 @@ class Friend extends FriendEntity {
   factory Friend.fromUserData(Map<String, dynamic> userData, DateTime friendsSince) {
     return Friend(
       userId: userData['id'] ?? '',
-      name: userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? I18n.inline('Користувач', 'User'),
+      name: userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? tr('il_b512d97e7c'),
       avatar: userData['avatarUrl'] ?? userData['avatar'] ?? '', // Спочатку перевіряємо avatarUrl, потім avatar
       rating: (userData['rating'] ?? 0.0).toDouble(),
-      city: userData['city'] ?? I18n.inline('Невідоме місто', 'Unknown city'),
+      city: userData['city'] ?? tr('il_2491fe94a7'),
       position: userData['position'] ?? 'player',
       friendsSince: friendsSince,
       isOnline: userData['isOnline'] ?? false,
@@ -209,38 +209,38 @@ class Friend extends FriendEntity {
   static String _getLocalizedPosition(String position) {
     switch (position.toLowerCase()) {
       case 'goalkeeper':
-        return I18n.inline('🥅 Воротар', '🥅 Goalkeeper');
+        return tr('il_aaa1d36c11');
       case 'defender':
-        return I18n.inline('🛡️ Захисник', '🛡️ Defender');
+        return tr('il_98dd178c49');
       case 'midfielder':
-        return I18n.inline('⚽ Півзахисник', '⚽ Midfielder');
+        return tr('il_1f9f85e17c');
       case 'forward':
-        return I18n.inline('🎯 Нападник', '🎯 Forward');
+        return tr('il_34b28d645d');
       default:
-        return I18n.inline('⚽ Гравець', '⚽ Player');
+        return tr('il_188a0d7d57');
     }
   }
 
   // Online status
   String get onlineStatus {
-    if (isOnline) return I18n.inline('Онлайн', 'Online');
+    if (isOnline) return tr('il_0d21bd5202');
     
-    if (lastSeen == null) return I18n.inline('Давно не був', 'Long time ago');
+    if (lastSeen == null) return tr('il_052f81f388');
     
     final now = DateTime.now();
     final difference = now.difference(lastSeen!);
     
     if (difference.inDays > 0) {
       final days = difference.inDays;
-      return I18n.inline('Був $days дн. тому', 'Was $days days ago');
+      return tr('il_e345f3fbc6');
     } else if (difference.inHours > 0) {
       final hours = difference.inHours;
-      return I18n.inline('Був $hours год. тому', 'Was $hours hours ago');
+      return tr('il_71260c47e0');
     } else if (difference.inMinutes > 0) {
       final minutes = difference.inMinutes;
-      return I18n.inline('Був $minutes хв. тому', 'Was $minutes minutes ago');
+      return tr('il_031a7ac35e');
     } else {
-      return I18n.inline('Щойно був', 'Just now');
+      return tr('il_66f53417d3');
     }
   }
 

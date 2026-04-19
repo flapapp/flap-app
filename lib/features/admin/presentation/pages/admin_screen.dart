@@ -1,8 +1,8 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
-import '../../../../utils/i18n.dart';
 import '../../domain/repositories/admin_repository.dart';
 
 @RoutePage()
@@ -27,7 +27,7 @@ class _AdminScreenState extends State<AdminScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            I18n.inline('✅ Всі челенджі видалено!', '✅ All challenges deleted!'),
+            tr('il_c9b952ad41'),
           ),
           backgroundColor: Colors.green,
         ),
@@ -36,7 +36,7 @@ class _AdminScreenState extends State<AdminScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('❌ Помилка: $e', '❌ Error: $e')),
+          content: Text(tr('il_0794914a98')),
           backgroundColor: Colors.red,
         ),
       );
@@ -51,7 +51,7 @@ class _AdminScreenState extends State<AdminScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin'),
+        title: Text(tr('admin_app_bar_title')),
         backgroundColor: const Color(0xFF0f0f23),
       ),
       backgroundColor: const Color(0xFF0f0f23),
@@ -68,7 +68,7 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                I18n.inline('Адміністрування', 'Administration'),
+                tr('il_4b42c6690e'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 24,
@@ -89,11 +89,8 @@ class _AdminScreenState extends State<AdminScreen> {
                       : const Icon(Icons.delete_forever),
                   label: Text(
                     _isDeleting
-                        ? I18n.inline('Видаляю...', 'Deleting...')
-                        : I18n.inline(
-                            'Видалити всі челенджі',
-                            'Delete all challenges',
-                          ),
+                        ? tr('il_685ecb984a')
+                        : tr('il_65f7accfb7'),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,

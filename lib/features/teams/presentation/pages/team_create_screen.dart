@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:easy_localization/easy_localization.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +8,6 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/teams_repository.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 
 @RoutePage()
@@ -64,7 +64,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf'))),
       );
     } finally {
       if (mounted) {
@@ -83,7 +83,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        title: Text(I18n.inline('Нова команда', 'New Team')),
+        title: Text(tr('il_b5ad09892b')),
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -139,12 +139,11 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                                 fontWeight: FontWeight.w600,
                               ),
                               decoration: _fieldDecoration(
-                                I18n.inline('Назва команди', 'Team name'),
+                                tr('il_0952fcc6fe'),
                               ),
                               validator: (value) {
                                 if (value == null || value.trim().length < 3) {
-                                  return I18n.inline(
-                                      'Мінімум 3 символи', 'At least 3 characters');
+                                  return tr('il_2bb9a4e3a6');
                                 }
                                 return null;
                               },
@@ -160,14 +159,13 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                                 height: 1.4,
                               ),
                               decoration: _fieldDecoration(
-                                I18n.inline('Опис (необов’язково)', 'Description (optional)'),
+                                tr('il_f6cbe2f0c1'),
                               ),
                               validator: (value) {
                                 if (value != null &&
                                     value.trim().isNotEmpty &&
                                     value.trim().length < 10) {
-                                  return I18n.inline(
-                                      'Мінімум 10 символів', 'At least 10 characters');
+                                  return tr('il_4a33faf877');
                                 }
                                 return null;
                               },
@@ -175,7 +173,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                             const SizedBox(height: 16),
                             CityAutocompleteField(
                           controller: _cityCtrl,
-                          label: I18n.inline('Місто (опційно)', 'City (optional)'),
+                          label: tr('il_23d02bb867'),
                           requiredField: false,
                           style: const TextStyle(color: Colors.white, fontSize: 16),
                           labelStyle: const TextStyle(color: Colors.white70),
@@ -205,16 +203,14 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                                 contentPadding:
                                     const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                                 title: Text(
-                                  I18n.inline('Публічна команда', 'Public team'),
+                                  tr('il_c48fc6f1b4'),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 subtitle: Text(
-                                  I18n.inline(
-                                      'Видима для всіх гравців у FLAP',
-                                      'Visible to all FLAP players'),
+                                  tr('il_369c6f6787'),
                                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                                 ),
                                 value: _isPublic,
@@ -249,7 +245,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                                           ),
                                         ),
                                       )
-                                    : Text(I18n.inline('Створити команду', 'Create team')),
+                                    : Text(tr('il_284ff194f8')),
                               ),
                             ),
                           ],
@@ -293,7 +289,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
-            I18n.inline('Конструктор клубу', 'Club designer'),
+            tr('il_48efab2424'),
             style: TextStyle(
               color: accent,
               fontSize: 14,
@@ -303,10 +299,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            I18n.inline(
-              'Задай тон своєму футбольному бренду',
-              'Set the tone for your football brand',
-            ),
+            tr('il_c0c1852b09'),
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white,
@@ -316,10 +309,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            I18n.inline(
-              'Емблема, місто, маніфест — усе в одному місці. Додавай кольори, форму і голос клубу.',
-              'Crest, city, manifesto — all in one place. Add the club’s colors, kit and voice.',
-            ),
+            tr('il_19c4134847'),
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white70,
@@ -332,9 +322,9 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
             spacing: 12,
             runSpacing: 12,
             children: [
-              _heroChip(Icons.palette, I18n.inline('Брендинг', 'Branding')),
-              _heroChip(Icons.shield, I18n.inline('Ідентичність', 'Identity')),
-              _heroChip(Icons.groups, I18n.inline('Ростер', 'Roster-ready')),
+              _heroChip(Icons.palette, tr('il_d417aa16da')),
+              _heroChip(Icons.shield, tr('il_999f23fcd7')),
+              _heroChip(Icons.groups, tr('il_12fd2f174a')),
             ],
           ),
         ],
@@ -375,10 +365,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              I18n.inline(
-                'Максимум 3 клуби на гравця. Видали один, щоб створити новий.',
-                'You can run up to 3 clubs. Remove one to start another.',
-              ),
+              tr('il_ac1e4b5525'),
               style: const TextStyle(color: Colors.redAccent, fontSize: 13),
             ),
           ),
@@ -433,7 +420,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
           onPressed: _pickLogo,
           icon: const Icon(Icons.upload, color: Colors.white),
           label: Text(
-            I18n.inline('Завантажити емблему', 'Upload crest'),
+            tr('il_0ec3891a84'),
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
           ),
           style: TextButton.styleFrom(
@@ -444,7 +431,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
         ),
         const SizedBox(height: 6),
         Text(
-          I18n.inline('PNG або JPG • 512x512 мінімум', 'PNG or JPG • 512x512 min'),
+          tr('il_748cf916e2'),
           style: const TextStyle(color: Colors.white54, fontSize: 12),
         ),
       ],

@@ -1,5 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../ratings/domain/repositories/ratings_repository.dart';
@@ -12,7 +14,6 @@ import '../../../challenges/data/models/challenge.dart';
 import '../../../../widgets/rating_display.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
@@ -57,16 +58,16 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   
 
   List<String> get _cities => [
-    I18n.t('all_cities'),
-    I18n.t('kyiv'),
-    I18n.t('lviv'),
-    I18n.t('odesa'),
-    I18n.t('kharkiv'),
-    I18n.t('dnipro'),
+    tr('all_cities'),
+    tr('kyiv'),
+    tr('lviv'),
+    tr('odesa'),
+    tr('kharkiv'),
+    tr('dnipro'),
   ];
 
   List<String> get _ratings => [
-    I18n.inline('Всі рейтинги', 'All ratings'),
+    tr('il_a90e7e92a6'),
     '4.0+',
     '4.5+',
   ];
@@ -81,20 +82,20 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   String _sortLabel(String mode) {
     switch (mode) {
       case 'my_city':
-        return I18n.inline('В моєму місті', 'In my city');
+        return tr('il_fd59d53cdc');
       case 'rating_asc':
-        return I18n.inline('Рейтинг: за зростанням', 'Rating: low to high');
+        return tr('il_fc19488e61');
       case 'rating_desc':
-        return I18n.inline('Рейтинг: за спаданням', 'Rating: high to low');
+        return tr('il_dde723aee1');
       case 'newest':
       default:
-        return I18n.inline('Нові додані зверху', 'Newest first');
+        return tr('il_ffb6f5764b');
     }
   }
 
   String _selectedCategoryLabel() {
     if (_selectedCategory.isEmpty) {
-      return I18n.inline('Всі категорії', 'All categories');
+      return tr('il_9d5097a837');
     }
     return videoCategoryById(_selectedCategory)?.label() ??
         videoCategoryLabel(_selectedCategory);
@@ -360,7 +361,7 @@ Widget build(BuildContext context) {
             return Stack(
               children: [
                 IconButton(
-                  tooltip: I18n.t('notifications'),
+                  tooltip: tr('notifications'),
                   icon: const Icon(Icons.notifications_outlined, color: Colors.white),
                   onPressed: () => context.router.push(const NotificationsRoute()),
                 ),
@@ -455,9 +456,9 @@ Widget build(BuildContext context) {
               ),
               child: Row(
                 children: [
-                  _buildTab(I18n.t('all'), 'all'),
-                  _buildTab(I18n.t('challenges'), 'challenges'),
-                  _buildTab(I18n.inline('Тренди', 'Trending'), 'trending'),
+                  _buildTab(tr('all'), 'all'),
+                  _buildTab(tr('challenges'), 'challenges'),
+                  _buildTab(tr('il_5e1a0ebc93'), 'trending'),
                 ],
               ),
             ),
@@ -508,7 +509,7 @@ Widget build(BuildContext context) {
                         child: CityAutocompleteField(
                           controller: _cityFilterController,
                           label: '',
-                          hint: I18n.inline('Введіть місто', 'Enter city'),
+                          hint: tr('il_ada640060a'),
                           includeAllOption: true,
                           requiredField: false,
                           style: const TextStyle(color: Colors.black87, fontSize: 14),
@@ -538,7 +539,7 @@ Widget build(BuildContext context) {
                           onSelected: (value) {
                         final v = value.trim();
                         final allValues = <String>{
-                          I18n.t('all_cities').toLowerCase(),
+                          tr('all_cities').toLowerCase(),
                           'all cities',
                           'всі міста',
                         };
@@ -575,12 +576,12 @@ Widget build(BuildContext context) {
                   _buildFilterDropdown(
                     _ratings,
                     _selectedRating.isEmpty
-                        ? I18n.inline('Всі рейтинги', 'All ratings')
+                        ? tr('il_a90e7e92a6')
                         : _selectedRating,
                     (value) {
                       setState(() {
                         _selectedRating =
-                            value == I18n.inline('Всі рейтинги', 'All ratings')
+                            value == tr('il_a90e7e92a6')
                                 ? ''
                                 : value;
                       });
@@ -605,17 +606,17 @@ Widget build(BuildContext context) {
       shortcuts: [
         ModeDialAction(
           icon: Icons.sports_soccer,
-          tooltip: I18n.t('matches'),
+          tooltip: tr('matches'),
           onTap: () => context.router.push(MatchesRoute()),
         ),
         ModeDialAction(
           icon: Icons.groups_outlined,
-          tooltip: I18n.t('teams'),
+          tooltip: tr('teams'),
           onTap: () => context.router.push(const TeamHubRoute()),
         ),
       ],
       onCreate: _showVideoCreateSheet,
-      createTooltip: I18n.inline('Створити', 'Create'),
+      createTooltip: tr('il_4759498ac2'),
       createGradient: const [Color(0xFFFF6B35), Color(0xFFFF8A65)],
     ),
     floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -635,7 +636,7 @@ Widget build(BuildContext context) {
           children: [
             ListTile(
               leading: const Icon(Icons.videocam_outlined, color: Colors.white),
-              title: Text(I18n.t('upload_video'),
+              title: Text(tr('upload_video'),
                   style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(ctx);
@@ -645,7 +646,7 @@ Widget build(BuildContext context) {
             ListTile(
               leading: const Icon(Icons.emoji_events_outlined,
                   color: Colors.white),
-              title: Text(I18n.t('create_challenge'),
+              title: Text(tr('create_challenge'),
                   style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(ctx);
@@ -759,29 +760,29 @@ Widget build(BuildContext context) {
   String _challengeTypeLabel(String type) {
     switch (parseChallengeType(type)) {
       case ChallengeType.goal:
-        return I18n.inline('Гол', 'Goal');
+        return tr('il_cdbf6975e8');
       case ChallengeType.shotPower:
-        return I18n.inline('Сила удару', 'Shot power');
+        return tr('il_a387ab1835');
       case ChallengeType.pass:
-        return I18n.inline('Пас', 'Pass');
+        return tr('il_ebdf8cc00b');
       case ChallengeType.longPass:
-        return I18n.inline('Довгий пас', 'Long pass');
+        return tr('il_a30ef79268');
       case ChallengeType.dribbling:
-        return I18n.inline('Дриблінг', 'Dribbling');
+        return tr('il_0b337d1bc7');
       case ChallengeType.tackle:
-        return I18n.inline('Підкат', 'Tackle');
+        return tr('il_9c0dd00951');
       case ChallengeType.penalty:
-        return I18n.inline('Пенальті', 'Penalty');
+        return tr('il_241c754092');
       case ChallengeType.save:
-        return I18n.inline('Сейв', 'Save');
+        return tr('il_1509f561f2');
       case ChallengeType.wall:
-        return I18n.inline('Стіна / стандарт', 'Wall / set-piece');
+        return tr('il_93819c7151');
       case ChallengeType.strategy:
-        return I18n.inline('Стратегія', 'Strategy');
+        return tr('il_6b27710dfa');
       case ChallengeType.trick:
-        return I18n.inline('Трюк', 'Trick');
+        return tr('il_209e3aa0b5');
       case ChallengeType.other:
-        return I18n.inline('Інше', 'Other');
+        return tr('il_f97e9da0e3');
     }
   }
 
@@ -800,7 +801,7 @@ Widget build(BuildContext context) {
           const Icon(Icons.star, color: Color(0xFFFFD700), size: 14),
           const SizedBox(width: 4),
           Text(
-            ratingText ?? I18n.inline('Немає', 'No rating'),
+            ratingText ?? tr('il_936f84ca44'),
             style: TextStyle(
               color: Colors.white,
               fontSize: 12,
@@ -911,7 +912,7 @@ Widget build(BuildContext context) {
           _userProfileCache[userId] = _CachedUserProfile(
             name: resolvedName.isNotEmpty
                 ? resolvedName
-                : I18n.inline('Користувач', 'User'),
+                : tr('il_b512d97e7c'),
             avatarUrl: avatar,
             city: profileCity,
           );
@@ -981,8 +982,7 @@ Widget build(BuildContext context) {
     if (currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline(
-              'Увійдіть, щоб оцінювати відео', 'Sign in to rate videos')),
+          content: Text(tr('il_4afcf6b419')),
         ),
       );
       return;
@@ -998,8 +998,7 @@ Widget build(BuildContext context) {
       if (existingVote.exists) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline(
-                'Ви вже оцінили це відео', 'You already rated this video')),
+            content: Text(tr('il_908b4d0670')),
           ),
         );
         return;
@@ -1081,16 +1080,14 @@ Widget build(BuildContext context) {
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(I18n.inline(
-                        'Оцінку збережено', 'Rating submitted')),
+                    content: Text(tr('il_1a564b1a48')),
                   ),
                 );
                 _prefetchVideoRating(videoId);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(I18n.inline(
-                        'Не вдалося зберегти оцінку', 'Unable to save rating')),
+                    content: Text(tr('il_45561ed8d8')),
                     backgroundColor: Colors.redAccent,
                   ),
                 );
@@ -1100,7 +1097,7 @@ Widget build(BuildContext context) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    I18n.inline('Помилка: $e', 'Error: $e'),
+                    tr('il_e69e7edfdf'),
                   ),
                   backgroundColor: Colors.redAccent,
                 ),
@@ -1133,7 +1130,7 @@ Widget build(BuildContext context) {
                     ),
                   ),
                   Text(
-                    I18n.inline('Оцініть відео', 'Rate video'),
+                    tr('il_f059de72eb'),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -1169,7 +1166,7 @@ Widget build(BuildContext context) {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                I18n.inline('Простий', 'Simple'),
+                                tr('il_3fee95da5a'),
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: !advanced
@@ -1195,7 +1192,7 @@ Widget build(BuildContext context) {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                I18n.inline('Розширений', 'Advanced'),
+                                tr('il_9f088dbebd'),
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: advanced
@@ -1214,23 +1211,23 @@ Widget build(BuildContext context) {
                   ),
                   const SizedBox(height: 16),
                   if (advanced) ...[
-                    sliderTile(I18n.inline('Техніка', 'Technical'), technical,
+                    sliderTile(tr('il_e851504f43'), technical,
                         (v) => setModalState(() => technical = v)),
                     sliderTile(
-                        I18n.inline('Креативність', 'Creativity'),
+                        tr('il_1c9fe98ba9'),
                         creativity,
                         (v) => setModalState(() => creativity = v)),
                     sliderTile(
-                        I18n.inline('Складність', 'Difficulty'),
+                        tr('il_be44133ed5'),
                         difficulty,
                         (v) => setModalState(() => difficulty = v)),
                     sliderTile(
-                        I18n.inline('Якість відео', 'Video quality'),
+                        tr('il_b8c237eb0d'),
                         quality,
                         (v) => setModalState(() => quality = v)),
                   ] else ...[
                     sliderTile(
-                      I18n.inline('Загальна оцінка', 'Overall rating'),
+                      tr('il_ee62b83057'),
                       overall,
                       (v) => setModalState(() => overall = v),
                     ),
@@ -1250,8 +1247,8 @@ Widget build(BuildContext context) {
                       ),
                       child: Text(
                         submitting
-                            ? I18n.inline('Надсилаємо...', 'Submitting...')
-                            : I18n.inline('Оцінити відео', 'Submit rating'),
+                            ? tr('il_64115d5b9c')
+                            : tr('il_32944f26fb'),
                         style: const TextStyle(
                           color: Colors.black,
                           fontWeight: FontWeight.w700,
@@ -1401,7 +1398,7 @@ Widget build(BuildContext context) {
       DropdownMenuItem<String>(
         value: '',
         child: Text(
-          I18n.inline('Всі категорії', 'All categories'),
+          tr('il_9d5097a837'),
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
@@ -1549,7 +1546,7 @@ Widget build(BuildContext context) {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              I18n.inline('Помилка завантаження: ${snapshot.error}', 'Error loading: ${snapshot.error}'),
+              tr('il_24ffa7c8c5'),
               style: const TextStyle(color: Colors.white),
             ),
           );
@@ -1567,7 +1564,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  I18n.inline('Поки що немає відео', 'No videos yet'),
+                  tr('il_7b1fd32345'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -1576,7 +1573,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  I18n.inline('Будьте першим, хто завантажить відео!', 'Be the first to upload a video!'),
+                  tr('il_9ee4c85bbb'),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 14,
@@ -1636,11 +1633,11 @@ Widget build(BuildContext context) {
   }
 
   Widget _buildVideoCard(Map<String, dynamic> data, String videoId) {
-    final title = (data['title'] ?? I18n.inline('Без назви', 'No title')).toString();
+    final title = (data['title'] ?? tr('il_30a3b02cbe')).toString();
     final description = (data['description'] ?? '').toString();
     final rawCategory = (data['category'] ?? '').toString();
     final categoryLabel = rawCategory.isEmpty
-        ? I18n.inline('Без категорії', 'No category')
+        ? tr('il_b91b9cac50')
         : videoCategoryLabel(rawCategory);
     final ratingRaw = data['rating'] ?? data['averageRating'] ?? data['voteAverage'] ?? 0.0;
     final double rating = ratingRaw is num
@@ -1669,7 +1666,7 @@ Widget build(BuildContext context) {
     String authorDisplayName = (data['authorName'] ??
             data['displayName'] ??
             data['userName'] ??
-            I18n.inline('Невідомо', 'Unknown'))
+            tr('il_b764cdc0ea'))
         .toString();
     final authorId = data['userId'] as String?;
     String? authorAvatar;
@@ -1689,7 +1686,7 @@ Widget build(BuildContext context) {
       final fallbackCity = cachedProfile?.city?.trim() ?? '';
       locationLabel = fallbackCity.isNotEmpty
           ? fallbackCity
-          : I18n.inline('Невідомо', 'Unknown');
+          : tr('il_b764cdc0ea');
     }
     final createdAt = data['createdAt'] as Timestamp?;
     final isLiked = data['isLikedByCurrentUser'] == true;
@@ -1721,7 +1718,7 @@ Widget build(BuildContext context) {
     final bool hasChallengeLink = resolvedChallengeId.isNotEmpty;
     final String challengeLabel = resolvedChallengeTitle.isNotEmpty
         ? resolvedChallengeTitle
-        : I18n.inline('Челендж', 'Challenge');
+        : tr('il_27cf1792f7');
     final Color challengeColor = const Color(0xFFFFC107);
 
     final badges = <Widget>[];
@@ -1750,7 +1747,7 @@ Widget build(BuildContext context) {
 
     final safeTitle = (hasChallengeInfo && challengeLabel.isNotEmpty)
         ? challengeLabel
-        : (title.isEmpty ? I18n.inline('Без назви', 'Untitled') : title);
+        : (title.isEmpty ? tr('il_f59ab8d133') : title);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -1801,8 +1798,8 @@ Widget build(BuildContext context) {
               durationSeconds != null
                   ? _formatDuration(durationSeconds)
                   : (views > 0
-                      ? I18n.inline('$views переглядів', '$views views')
-                      : I18n.inline('Новинка', 'New')),
+                      ? tr('il_d972e65e3c')
+                      : tr('il_18fdd549b2')),
             ),
           ),
           Padding(
@@ -1918,7 +1915,7 @@ Widget build(BuildContext context) {
                     onPressed: () => _openChallenge(resolvedChallengeId, challengeLabel),
                     icon: const Icon(Icons.emoji_events_outlined, color: Colors.white70),
                     label: Text(
-                      I18n.inline('До челенджу', 'Open challenge'),
+                      tr('il_1157649c00'),
                       style: const TextStyle(color: Colors.white70),
                     ),
                   ),
@@ -1928,7 +1925,7 @@ Widget build(BuildContext context) {
                   children: [
                     _iconCircleButton(
                       icon: isLiked ? Icons.favorite : Icons.favorite_border,
-                      tooltip: I18n.inline('Подобається', 'Like'),
+                      tooltip: tr('il_64f915cb8b'),
                       iconColor: isLiked ? Colors.redAccent : Colors.white,
                       background: isLiked ? Colors.redAccent.withOpacity(0.15) : Colors.white10,
                       onPressed: () => _toggleLike(videoId, isLiked),
@@ -1937,20 +1934,20 @@ Widget build(BuildContext context) {
                     const SizedBox(width: 8),
                     _iconCircleButton(
                       icon: Icons.chat_bubble_outline,
-                      tooltip: I18n.t('comments'),
+                      tooltip: tr('comments'),
                       onPressed: () => _showComments(videoId, safeTitle),
                       trailing: displayComments.toString(),
                     ),
                     const SizedBox(width: 8),
                     _iconCircleButton(
                       icon: Icons.share,
-                      tooltip: I18n.inline('Поділитися', 'Share'),
+                      tooltip: tr('il_29887a5ff9'),
                       onPressed: () => _shareVideo(videoId, safeTitle),
                     ),
                     const Spacer(),
                     _iconCircleButton(
                       icon: Icons.play_arrow_rounded,
-                      tooltip: I18n.inline('Дивитися', 'Watch'),
+                      tooltip: tr('il_a71e757324'),
                       background: const Color(0xFF4caf50),
                       onPressed: () => _openVideo(
                         videoId: videoId,
@@ -1962,7 +1959,7 @@ Widget build(BuildContext context) {
                     const SizedBox(width: 8),
                     _iconCircleButton(
                       icon: Icons.star_rate_rounded,
-                      tooltip: I18n.inline('Проголосувати', 'Vote'),
+                      tooltip: tr('il_cd5588db6f'),
                       background: const Color(0xFFFFC107),
                       onPressed: () => _showRateVideoSheet(
                         videoId: videoId,
@@ -1992,7 +1989,7 @@ Widget build(BuildContext context) {
           const Icon(Icons.emoji_events, color: Colors.black87, size: 14),
           const SizedBox(width: 4),
           Text(
-            I18n.inline('Челендж', 'Challenge'),
+            tr('il_27cf1792f7'),
             style: const TextStyle(
               color: Colors.black87,
               fontSize: 11,
@@ -2093,7 +2090,7 @@ Widget build(BuildContext context) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            I18n.inline(
+            bilingual(
               'Не вдалося відкрити челендж: $e',
               'Unable to open challenge: $e',
             ),
@@ -2105,29 +2102,29 @@ Widget build(BuildContext context) {
   }
 
   String _formatDate(Timestamp? timestamp) {
-    if (timestamp == null) return I18n.inline('Нещодавно', 'Recently');
+    if (timestamp == null) return tr('il_f81ae5034f');
     
     final now = DateTime.now();
     final date = timestamp.toDate();
     final difference = now.difference(date);
     
     if (difference.inDays > 0) {
-      return I18n.inline(
+      return bilingual(
         '${difference.inDays} дн. тому',
         '${difference.inDays} d ago',
       );
     } else if (difference.inHours > 0) {
-      return I18n.inline(
+      return bilingual(
         '${difference.inHours} год. тому',
         '${difference.inHours} h ago',
       );
     } else if (difference.inMinutes > 0) {
-      return I18n.inline(
+      return bilingual(
         '${difference.inMinutes} хв. тому',
         '${difference.inMinutes} min ago',
       );
     } else {
-      return I18n.inline('Щойно', 'Just now');
+      return tr('il_66f53417d3');
     }
   }
 
@@ -2162,7 +2159,7 @@ Widget build(BuildContext context) {
           }
 
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(child: Text('Профіль не знайдено'));
+            return Center(child: Text(tr('profile_not_found')));
           }
 
                      final userData = snapshot.data!.data()!;
@@ -2332,7 +2329,7 @@ Widget build(BuildContext context) {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              I18n.inline('Помилка: ${snapshot.error}', 'Error: ${snapshot.error}'),
+              tr('il_3a6e650bec'),
             ),
           );
         }
@@ -2355,7 +2352,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                    I18n.inline('Поки що немає челенджів', 'No challenges yet'),
+                    tr('il_535b6a64c4'),
                     style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -2364,10 +2361,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                    I18n.inline(
-                      'Створіть перший челендж або дочекайтеся нових!',
-                      'Create your first challenge or wait for new ones!',
-                    ),
+                    tr('il_bca4d186c2'),
                     style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
@@ -2384,7 +2378,7 @@ Widget build(BuildContext context) {
                     ),
                   ),
                   child: Text(
-                    I18n.inline('Створити челендж', 'Create challenge'),
+                    tr('il_a15fecd2a4'),
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
@@ -2418,7 +2412,7 @@ Widget build(BuildContext context) {
     final duration = challenge['duration'] ?? 7;
     final creatorId = (challenge['creatorId'] ?? '').toString();
     final creatorName = (challenge['creatorName'] ??
-            I18n.inline('Невідомо', 'Unknown'))
+            tr('il_b764cdc0ea'))
         .toString();
     final creatorVideoUrl =
         (challenge['creatorVideoUrl'] ?? '').toString();
@@ -2514,7 +2508,7 @@ Widget build(BuildContext context) {
                   children: [
                     Expanded(
                       child: Text(
-                  challenge['title'] ?? I18n.inline('Без назви', 'Untitled'),
+                  challenge['title'] ?? tr('il_f59ab8d133'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -2547,7 +2541,7 @@ Widget build(BuildContext context) {
                 const SizedBox(height: 8),
                 Text(
                   challenge['description'] ??
-                      I18n.inline('Без опису', 'No description'),
+                      tr('il_bcd8cc53f4'),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 13,
@@ -2578,7 +2572,7 @@ Widget build(BuildContext context) {
                             ),
                           ),
                           Text(
-                            I18n.inline('Автор челенджу', 'Challenge author'),
+                            tr('il_bb42908a8a'),
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.7),
                               fontSize: 11,
@@ -2590,7 +2584,7 @@ Widget build(BuildContext context) {
                     const Icon(Icons.access_time, color: Colors.white70, size: 16),
                     const SizedBox(width: 6),
                     Text(
-                      '$duration ${I18n.inline('днів', 'days')}',
+                      '$duration ${tr('il_ab51004e9d')}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -2619,14 +2613,14 @@ Widget build(BuildContext context) {
                           VideoPlayerRoute(
                             videoUrl: creatorVideoUrl,
                             title: challenge['title'] ??
-                                I18n.inline('Відео челенджу', 'Challenge video'),
+                                tr('il_4c92b02f91'),
                             authorName: creatorName,
                             videoId: challengeId,
                           ),
                         );
                       },
                 topLeft: _buildMetaPill(
-                  I18n.inline('Відео організатора', 'Organizer video'),
+                  tr('il_bfccfa4baf'),
                 ),
               ),
             ),
@@ -2654,8 +2648,8 @@ Widget build(BuildContext context) {
                   children: [
                           Text(
                             isCompleted
-                                ? I18n.inline('Статус: завершено', 'Status: completed')
-                                : I18n.inline(
+                                ? tr('il_5042fbee3b')
+                                : bilingual(
                                     'До завершення голосування: $remainingDays дн.',
                                     'Voting ends in: $remainingDays days',
                                   ),
@@ -2667,8 +2661,8 @@ Widget build(BuildContext context) {
                           ),
                           Text(
                             isCompleted
-                                ? I18n.inline('Завершено', 'Completed')
-                                : '$remainingDays ${I18n.inline('дн.', 'd')}',
+                                ? tr('il_22a970d2e5')
+                                : '$remainingDays ${tr('il_18ac3e7343')}',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 12,
@@ -2699,7 +2693,7 @@ Widget build(BuildContext context) {
                       child: _buildStatCard(
                         icon: Icons.people,
                         value: '$currentParticipants',
-                        label: I18n.inline('Учасники', 'Participants'),
+                        label: tr('il_0e27279b33'),
                         color: const Color(0xFF2196F3),
                       ),
                     ),
@@ -2708,7 +2702,7 @@ Widget build(BuildContext context) {
                       child: _buildStatCard(
                         icon: Icons.attach_money,
                         value: '$entryFee',
-                        label: I18n.inline('Вхід', 'Entry'),
+                        label: tr('il_2649e082d9'),
                         color: const Color(0xFFFF9800),
                       ),
                     ),
@@ -2717,7 +2711,7 @@ Widget build(BuildContext context) {
                       child: _buildStatCard(
                         icon: Icons.emoji_events,
                         value: '${prizePool.toInt()}',
-                        label: I18n.inline('Приз', 'Prize'),
+                        label: tr('il_0a489d848c'),
                         color: const Color(0xFFFFD700),
                       ),
                     ),
@@ -2761,7 +2755,7 @@ Widget build(BuildContext context) {
                             size: 18,
                           ),
                           label: Text(
-                            I18n.inline('Переглянути', 'View'),
+                            tr('il_dcc839a401'),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -2807,8 +2801,8 @@ Widget build(BuildContext context) {
                           ),
                           label: Text(
                             isCompleted
-                                ? I18n.inline('Завершено', 'Completed')
-                                : I18n.inline('Участь', 'Join'),
+                                ? tr('il_22a970d2e5')
+                                : tr('il_fd30fe681b'),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -2911,7 +2905,7 @@ Widget build(BuildContext context) {
             const Icon(Icons.groups_2, color: Colors.white70, size: 16),
             const SizedBox(width: 6),
             Text(
-              I18n.inline('Учасники', 'Participants'),
+              tr('il_0e27279b33'),
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 12,
@@ -2976,7 +2970,7 @@ Widget build(BuildContext context) {
                 data?['name'] ??
                 data?['authorName'] ??
                 name ??
-                I18n.inline('Гравець', 'Player'))
+                tr('il_64aee8c6cb'))
             .toString();
         final avatarUrl =
             (data?['avatarUrl'] ?? data?['avatar'] ?? '').toString();
@@ -3059,7 +3053,7 @@ Widget build(BuildContext context) {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              I18n.inline('Помилка: ${snapshot.error}', 'Error: ${snapshot.error}'),
+              tr('il_3a6e650bec'),
             ),
           );
                   }
@@ -3078,7 +3072,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  I18n.inline('У вас поки що немає відео', 'You have no videos yet'),
+                  tr('il_d08de13219'),
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -3087,7 +3081,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  I18n.inline('Завантажте своє перше відео!', 'Upload your first video!'),
+                  tr('il_6aefcf68aa'),
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
@@ -3103,7 +3097,7 @@ Widget build(BuildContext context) {
                     ),
                   ),
                   child: Text(
-                    I18n.inline('Завантажити відео', 'Upload video'),
+                    tr('il_ea79e83338'),
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
@@ -3148,25 +3142,22 @@ Widget build(BuildContext context) {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
         title: Text(
-          I18n.inline('Видалити відео?', 'Delete video?'),
+          tr('il_403e9a5101'),
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          I18n.inline(
-            'Цю дію неможливо скасувати.',
-            'This action cannot be undone.',
-          ),
+          tr('il_3d6a452672'),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text(I18n.t('cancel')),
+            child: Text(tr('cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: Text(I18n.inline('Видалити', 'Delete')),
+            child: Text(tr('il_e2d0a54968')),
           ),
         ],
       ),
@@ -3190,14 +3181,14 @@ Widget build(BuildContext context) {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Відео видалено', 'Video deleted'))),
+        SnackBar(content: Text(tr('il_fbb5de3b38'))),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            I18n.inline('Не вдалося видалити відео', 'Failed to delete video'),
+            tr('il_ab6f889903'),
           ),
         ),
       );
@@ -3216,7 +3207,7 @@ Widget build(BuildContext context) {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              I18n.inline('Помилка: ${snapshot.error}', 'Error: ${snapshot.error}'),
+              tr('il_3a6e650bec'),
             ),
           );
         }
@@ -3235,7 +3226,7 @@ Widget build(BuildContext context) {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  I18n.inline('Поки що немає трендових відео', 'No trending videos yet'),
+                  tr('il_c2160ba474'),
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -3274,10 +3265,7 @@ Widget build(BuildContext context) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            I18n.inline(
-              'Челендж завершено. Подати відео вже неможливо.',
-              'Challenge is completed. Video submission is closed.',
-            ),
+            tr('il_e957ce6dda'),
           ),
         ),
       );
@@ -3290,14 +3278,14 @@ Widget build(BuildContext context) {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1e7d32),
         title: Text(
-          I18n.inline('Приєднатися до челенджу', 'Join challenge'),
+          tr('il_e56c7271db'),
           style: const TextStyle(color: Colors.white),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              I18n.inline(
+              bilingual(
                 'Ви приєднуєтеся до челенджу "${challenge['title']}"',
                 'You are joining the challenge "${challenge['title']}"',
               ),
@@ -3306,7 +3294,7 @@ Widget build(BuildContext context) {
             ),
             const SizedBox(height: 16),
             Text(
-              I18n.inline(
+              bilingual(
                 'Ставка входу: ${challenge['entryFee'] ?? 0} монет',
                 'Entry fee: ${challenge['entryFee'] ?? 0} coins',
               ),
@@ -3318,7 +3306,7 @@ Widget build(BuildContext context) {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              I18n.t('cancel'),
+              tr('cancel'),
               style: const TextStyle(color: Colors.white70),
             ),
           ),
@@ -3345,13 +3333,13 @@ Widget build(BuildContext context) {
                 );
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(I18n.inline('Помилка приєднання: $e', 'Join error: $e'))),
+                  SnackBar(content: Text(tr('il_4f9785e6ae'))),
                 );
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4caf50)),
             child: Text(
-              I18n.inline('Завантажити відео', 'Upload video'),
+              tr('il_ea79e83338'),
               style: const TextStyle(color: Colors.white),
             ),
           ),
@@ -3428,7 +3416,7 @@ Widget build(BuildContext context) {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка лайку: $e', 'Like error: $e')), backgroundColor: Colors.red),
+        SnackBar(content: Text(tr('il_e11b346cb1')), backgroundColor: Colors.red),
       );
     }
   }
@@ -3436,7 +3424,7 @@ Widget build(BuildContext context) {
   void _showComments(String videoId, String videoTitle) {
     final commentController = TextEditingController();
     final safeTitle = videoTitle.trim().isEmpty
-        ? I18n.inline('відео', 'video')
+        ? tr('il_0cab1c9617')
         : videoTitle;
     showModalBottomSheet(
       context: context,
@@ -3476,7 +3464,7 @@ Widget build(BuildContext context) {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Коментарі до "$safeTitle"',
+                      tr('comments_to_video_title', namedArgs: {'title': safeTitle}),
                       style: const TextStyle(
                 color: Colors.white,
                         fontSize: 16,
@@ -3707,7 +3695,7 @@ Widget build(BuildContext context) {
   void _shareVideo(String videoId, String videoTitle) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('📤 Відео "$videoTitle" поділено!'),
+        content: Text(tr('video_shared_message', args: [videoTitle])),
         duration: const Duration(seconds: 2),
         backgroundColor: const Color(0xFF4caf50),
       ),
@@ -3720,22 +3708,22 @@ Widget build(BuildContext context) {
     final difference = now.difference(commentTime);
 
     if (difference.inDays > 0) {
-      return I18n.inline(
+      return bilingual(
         '${difference.inDays} днів тому',
         '${difference.inDays} d ago',
       );
     } else if (difference.inHours > 0) {
-      return I18n.inline(
+      return bilingual(
         '${difference.inHours} годин тому',
         '${difference.inHours} h ago',
       );
     } else if (difference.inMinutes > 0) {
-      return I18n.inline(
+      return bilingual(
         '${difference.inMinutes} хвилин тому',
         '${difference.inMinutes} min ago',
       );
     } else {
-      return I18n.inline('Щойно', 'Just now');
+      return tr('il_66f53417d3');
     }
   }
 
@@ -3746,9 +3734,9 @@ Widget build(BuildContext context) {
     // Перевірка чи videoId не порожній
     if (videoId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('❌ Помилка: ID відео не знайдено'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(tr('video_id_not_found')),
+          duration: const Duration(seconds: 2),
           backgroundColor: Colors.red,
         ),
       );
@@ -3779,17 +3767,17 @@ Widget build(BuildContext context) {
       _prefetchCommentCount(videoId);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('💬 Коментар додано!'),
-          duration: Duration(seconds: 1),
-          backgroundColor: Color(0xFF4caf50),
+        SnackBar(
+          content: Text(tr('comment_added_snack')),
+          duration: const Duration(seconds: 1),
+          backgroundColor: const Color(0xFF4caf50),
         ),
       );
     } catch (e) {
       print('Error adding comment: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Помилка додавання коментаря: $e'),
+          content: Text(tr('comment_add_error_detail', args: ['$e'])),
           duration: const Duration(seconds: 2),
           backgroundColor: Colors.red,
         ),
@@ -3905,13 +3893,13 @@ Widget build(BuildContext context) {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(I18n.inline('Мої монети', 'My coins'),
+                          Text(tr('il_8162d9ed63'),
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600)),
                           Text(
-                            I18n.inline('Баланс: $currentCoins', 'Balance: $currentCoins'),
+                            tr('il_7a6d30960a'),
                             style: const TextStyle(color: Color(0xFFFFD700)),
                           ),
                         ],
@@ -3936,10 +3924,7 @@ Widget build(BuildContext context) {
                     if (snapshot.hasError) {
                       return Center(
                         child: Text(
-                          I18n.inline(
-                            'Не вдалося завантажити історію монет',
-                            'Unable to load coin history',
-                          ),
+                          tr('il_e18668fad3'),
                           style: const TextStyle(color: Colors.white54),
                         ),
                       );
@@ -3962,7 +3947,7 @@ Widget build(BuildContext context) {
                     if (docs.isEmpty) {
                       return Center(
                         child: Text(
-                          I18n.inline('Поки немає транзакцій', 'No transactions yet'),
+                          tr('il_f75dda0d2e'),
                           style: const TextStyle(color: Colors.white54),
                         ),
                       );
@@ -3977,7 +3962,7 @@ Widget build(BuildContext context) {
                         final ts = data['timestamp'] as Timestamp?;
                         final timestampText = ts != null
                             ? _formatTimestamp(ts)
-                            : I18n.inline('Нещодавно', 'Recently');
+                            : tr('il_f81ae5034f');
                         final isPositive = amount >= 0;
                         return Container(
                           margin: const EdgeInsets.only(bottom: 10),
@@ -4067,7 +4052,7 @@ Widget build(BuildContext context) {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            I18n.inline('Історія рейтингу', 'Rating history'),
+                            tr('il_f717400739'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -4075,7 +4060,7 @@ Widget build(BuildContext context) {
                             ),
                           ),
                           Text(
-                            I18n.inline(
+                            bilingual(
                               'Поточний рейтинг: ${currentRating.toStringAsFixed(2)}',
                               'Current rating: ${currentRating.toStringAsFixed(2)}',
                             ),
@@ -4107,10 +4092,7 @@ Widget build(BuildContext context) {
                     if (snapshot.hasError) {
                       return Center(
                         child: Text(
-                          I18n.inline(
-                            'Не вдалося завантажити історію рейтингу',
-                            'Unable to load rating history',
-                          ),
+                          tr('il_48be616f61'),
                           style: const TextStyle(color: Colors.white54),
                         ),
                       );
@@ -4136,10 +4118,7 @@ Widget build(BuildContext context) {
                     if (docs.isEmpty) {
                       return Center(
                         child: Text(
-                          I18n.inline(
-                            'Поки немає історії рейтингу',
-                            'No rating history yet',
-                          ),
+                          tr('il_f0dbc57339'),
                           style: const TextStyle(color: Colors.white54),
                         ),
                       );
@@ -4246,79 +4225,67 @@ Widget build(BuildContext context) {
       case 'video_vote':
       case 'video_rating':
         if (voterName.isNotEmpty && challengeTitle.isNotEmpty) {
-          return I18n.inline(
+          return bilingual(
             '$voterName оцінив ваше відео "$challengeTitle"',
             '$voterName rated your video "$challengeTitle"',
           );
         }
         if (voterName.isNotEmpty) {
-          return I18n.inline(
+          return bilingual(
             '$voterName оцінив ваше відео',
             '$voterName rated your video',
           );
         }
         if (challengeTitle.isNotEmpty) {
-          return I18n.inline(
+          return bilingual(
             'Отримано оцінку за відео "$challengeTitle"',
             'Received a rating for video "$challengeTitle"',
           );
         }
-        return I18n.inline(
-          'Отримано оцінку за відео',
-          'Received a video rating',
-        );
+        return tr('il_29262e8a7e');
       case 'challenge_win':
-        return I18n.inline(
+        return bilingual(
           'Перемога в челенджі "$challengeTitle"',
           'Challenge win "$challengeTitle"',
         );
       case 'challenge_second':
-        return I18n.inline(
+        return bilingual(
           '2-е місце в челенджі "$challengeTitle"',
           '2nd place in challenge "$challengeTitle"',
         );
       case 'challenge_third':
-        return I18n.inline(
+        return bilingual(
           '3-є місце в челенджі "$challengeTitle"',
           '3rd place in challenge "$challengeTitle"',
         );
       case 'match_rating':
         if (voterName.isNotEmpty) {
-          return I18n.inline(
+          return bilingual(
             '$voterName оцінив вас після матчу',
             '$voterName rated you after the match',
           );
         }
-        return I18n.inline(
-          'Оцінка після матчу',
-          'Post-match rating',
-        );
+        return tr('il_64d8152d62');
       case 'manual_recompute':
       case 'manual_recalculation':
       case 'system_recompute':
-        return I18n.inline(
-          'Перерахунок рейтингу системою',
-          'System rating recalculation',
-        );
+        return tr('il_b6ce244d3a');
       case 'penalty':
-        return I18n.inline(
-          'Штраф за порушення правил',
-          'Penalty for rule violation',
-        );
+        return tr('il_58659f628a');
       case 'bonus':
-        return I18n.inline('Бонус за активність', 'Activity bonus');
+        return tr('il_c88734b3ea');
       default:
         if (reason == 'Оцінка після матчу') {
           return voterName.isNotEmpty
-              ? I18n.inline(
+              ? bilingual(
                   '$voterName оцінив вас після матчу',
                   '$voterName rated you after the match',
                 )
-              : I18n.inline('Оцінка після матчу', 'Post-match rating');
+              : tr('il_64d8152d62');
         }
         return reason.isNotEmpty
             ? reason
-            : I18n.inline('Зміна рейтингу', 'Rating change');
+            : tr('il_bcfd1b4865');
     }
   }
 }

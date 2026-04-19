@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:easy_localization/easy_localization.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +9,6 @@ import '../../../../core/di/injection.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../../core/progress/progress_status.dart';
 import 'profile_creation_page.dart';
-import '../../../../utils/i18n.dart';
 import '../cubit/profile_settings_cubit.dart';
 
 @RoutePage()
@@ -38,7 +38,7 @@ class _ProfileSettingsBody extends StatelessWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                I18n.inline('Налаштування збережено', 'Settings saved'),
+                tr('il_74a7f53bad'),
               ),
               backgroundColor: const Color(0xFF4caf50),
             ),
@@ -49,10 +49,7 @@ class _ProfileSettingsBody extends StatelessWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                I18n.inline(
-                  'Не вдалося зберегти налаштування',
-                  'Unable to save settings',
-                ),
+                tr('il_c578b58288'),
               ),
               backgroundColor: Colors.redAccent,
             ),
@@ -69,7 +66,7 @@ class _ProfileSettingsBody extends StatelessWidget {
             backgroundColor: const Color(0xFF0f0f23),
             elevation: 0,
             title: Text(
-              I18n.t('settings'),
+              tr('settings'),
               style: const TextStyle(color: Colors.white),
             ),
             iconTheme: const IconThemeData(color: Colors.white),
@@ -94,7 +91,7 @@ class _ProfileSettingsBody extends StatelessWidget {
                             TextButton(
                               onPressed: () =>
                                   context.read<ProfileSettingsCubit>().load(),
-                              child: Text(I18n.inline('Повторити', 'Retry')),
+                              child: Text(tr('il_942087cc2d')),
                             ),
                           ],
                         ),
@@ -105,11 +102,8 @@ class _ProfileSettingsBody extends StatelessWidget {
                   children: [
                     _buildSectionTitle(
                       context,
-                      I18n.inline('Основні', 'General'),
-                      I18n.inline(
-                        'Керуйте базовими параметрами профілю',
-                        'Manage basic profile preferences',
-                      ),
+                      tr('il_c910d474dc'),
+                      tr('il_1bbb5c650f'),
                     ),
                     const SizedBox(height: 12),
                     Container(
@@ -123,17 +117,14 @@ class _ProfileSettingsBody extends StatelessWidget {
                         onTap: () => _openEditProfile(context),
                         leading: const Icon(Icons.edit, color: Colors.white),
                         title: Text(
-                          I18n.inline('Редагувати профіль', 'Edit profile'),
+                          tr('il_15c4aa1303'),
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         subtitle: Text(
-                          I18n.inline(
-                            'Змінити аватар і дані про себе',
-                            'Change avatar and personal data',
-                          ),
+                          tr('il_88fc14f702'),
                           style: const TextStyle(color: Colors.white70),
                         ),
                         trailing: const Icon(
@@ -143,54 +134,30 @@ class _ProfileSettingsBody extends StatelessWidget {
                       ),
                     ),
                     _buildSwitchTile(
-                      title: I18n.inline(
-                        'Увімкнути сповіщення',
-                        'Enable notifications',
-                      ),
-                      subtitle: I18n.inline(
-                        'Отримувати системні та соціальні сповіщення',
-                        'Receive system and social notifications',
-                      ),
+                      title: tr('il_682be64ae7'),
+                      subtitle: tr('il_79a518f1e6'),
                       value: state.notificationsEnabled,
                       onChanged: (v) => context
                           .read<ProfileSettingsCubit>()
                           .setNotificationsEnabled(v),
                     ),
                     _buildSwitchTile(
-                      title: I18n.inline(
-                        'Автовідтворення відео',
-                        'Autoplay videos',
-                      ),
-                      subtitle: I18n.inline(
-                        'Автоматично запускати відео на екранах перегляду',
-                        'Automatically start videos on viewing screens',
-                      ),
+                      title: tr('il_80bb8632c8'),
+                      subtitle: tr('il_b3b4d5549f'),
                       value: state.autoplayVideos,
                       onChanged: (v) =>
                           context.read<ProfileSettingsCubit>().setAutoplayVideos(v),
                     ),
                     _buildSwitchTile(
-                      title: I18n.inline(
-                        'Показувати онлайн-статус',
-                        'Show online status',
-                      ),
-                      subtitle: I18n.inline(
-                        'Дозволити іншим бачити вашу активність',
-                        'Allow others to see your activity',
-                      ),
+                      title: tr('il_7f94fc6007'),
+                      subtitle: tr('il_d977efd0ad'),
                       value: state.showOnlineStatus,
                       onChanged: (v) =>
                           context.read<ProfileSettingsCubit>().setShowOnlineStatus(v),
                     ),
                     _buildSwitchTile(
-                      title: I18n.inline(
-                        'Дозволити запити в друзі',
-                        'Allow friend requests',
-                      ),
-                      subtitle: I18n.inline(
-                        'Інші гравці зможуть надсилати запити',
-                        'Other players will be able to send requests',
-                      ),
+                      title: tr('il_4188679e07'),
+                      subtitle: tr('il_8f4daa5dea'),
                       value: state.allowFriendRequests,
                       onChanged: (v) => context
                           .read<ProfileSettingsCubit>()
@@ -213,8 +180,8 @@ class _ProfileSettingsBody extends StatelessWidget {
                         ),
                         child: Text(
                           saving
-                              ? I18n.inline('Зберігаємо...', 'Saving...')
-                              : I18n.t('save'),
+                              ? tr('il_dc85af8f2b')
+                              : tr('save'),
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,

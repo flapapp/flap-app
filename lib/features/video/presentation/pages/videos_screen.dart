@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../friends/domain/repositories/friends_repository.dart';
@@ -9,7 +10,6 @@ import 'video_player_screen.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../friends/data/models/friend_request.dart' show Friend;
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/video_preview_box.dart';
 
 @RoutePage()
@@ -31,26 +31,26 @@ class _VideosScreenState extends State<VideosScreen> {
   String _selectedSortKey = 'new'; // new, rating, views
 
   List<String> get _cities => [
-    I18n.t('all_cities'),
-    I18n.t('kyiv'),
-    I18n.t('lviv'),
-    I18n.t('odesa'),
-    I18n.t('kharkiv'),
-    I18n.t('dnipro'),
+    tr('all_cities'),
+    tr('kyiv'),
+    tr('lviv'),
+    tr('odesa'),
+    tr('kharkiv'),
+    tr('dnipro'),
   ];
 
   List<String> get _categories => [
-    I18n.t('all_categories'),
-    I18n.t('technique'),
-    I18n.t('physics'),
-    I18n.t('tactics'),
-    I18n.t('teamplay'),
-    I18n.t('freestyle'),
-    I18n.t('other'),
+    tr('all_categories'),
+    tr('technique'),
+    tr('physics'),
+    tr('tactics'),
+    tr('teamplay'),
+    tr('freestyle'),
+    tr('other'),
   ];
 
   List<String> get _ratings => [
-    I18n.t('all_ratings'),
+    tr('all_ratings'),
     '4.0+',
     '3.0+',
     '2.0+',
@@ -76,9 +76,9 @@ class _VideosScreenState extends State<VideosScreen> {
             ),
             child: Row(
               children: [
-                _buildTab(I18n.t('all_tab'), 'all'),
-                _buildTab(I18n.t('trending'), 'trending'),
-                _buildTab(I18n.t('my'), 'my'),
+                _buildTab(tr('all_tab'), 'all'),
+                _buildTab(tr('trending'), 'trending'),
+                _buildTab(tr('my'), 'my'),
               ],
             ),
           ),
@@ -99,7 +99,7 @@ class _VideosScreenState extends State<VideosScreen> {
                       final isSelected = _selectedCategories.contains(category);
                       return GestureDetector(
                         onTap: () => setState(() {
-                          if (category == I18n.t('all_categories')) {
+                          if (category == tr('all_categories')) {
                             _selectedCategories.clear();
                           } else {
                             if (isSelected) {
@@ -165,9 +165,9 @@ class _VideosScreenState extends State<VideosScreen> {
                           style: const TextStyle(color: Colors.white, fontSize: 12),
                           icon: const Icon(Icons.sort, color: Colors.white70),
                           items: [
-                                {'key': 'new', 'label': I18n.t('new')},
-                                {'key': 'rating', 'label': I18n.t('rating')},
-                                {'key': 'views', 'label': I18n.t('views')},
+                                {'key': 'new', 'label': tr('new')},
+                                {'key': 'rating', 'label': tr('rating')},
+                                {'key': 'views', 'label': tr('views')},
                               ]
                               .map((m) => DropdownMenuItem<String>(value: m['key'] as String, child: Text(m['label'] as String)))
                               .toList(),
@@ -215,7 +215,7 @@ class _VideosScreenState extends State<VideosScreen> {
                   if ((_selectedTab == 'my' || widget.showOnlyMyVideos) && currentUser != null) {
                     if ((data['userId'] ?? '') != currentUser.uid) return false;
                   }
-                  if (_selectedCity.isNotEmpty && _selectedCity != I18n.t('all_cities')) {
+                  if (_selectedCity.isNotEmpty && _selectedCity != tr('all_cities')) {
                     if ((data['city'] ?? '') != _selectedCity) return false;
                   }
                   if (_selectedCategories.isNotEmpty) {
@@ -443,7 +443,7 @@ class _VideosScreenState extends State<VideosScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('Помилка лайку: $e', 'Like error: $e')),
+          content: Text(tr('il_e11b346cb1')),
           backgroundColor: Colors.red,
         ),
       );
@@ -453,7 +453,7 @@ class _VideosScreenState extends State<VideosScreen> {
   void _shareVideo(String videoId, String title) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(I18n.inline('📤 Відео "$title" поділено!', '📤 Video "$title" shared!')),
+        content: Text(tr('il_08998c4fc9')),
         duration: const Duration(seconds: 2),
         backgroundColor: const Color(0xFF4caf50),
       ),
@@ -468,7 +468,7 @@ class _VideosScreenState extends State<VideosScreen> {
           await sl<FriendsRepository>().getUserFriends(currentUser.uid);
       if (friends.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(I18n.inline('Немає друзів для запиту оцінки', 'No friends to request a rating'))),
+          SnackBar(content: Text(tr('il_29a7698463'))),
         );
         return;
       }
@@ -478,7 +478,7 @@ class _VideosScreenState extends State<VideosScreen> {
         builder: (context) => StatefulBuilder(
           builder: (context, setStateDialog) => AlertDialog(
             backgroundColor: const Color(0xFF1a1a2e),
-            title: const Text('Запросити друзів оцінити відео', style: TextStyle(color: Colors.white)),
+            title: Text(tr('invite_friends_rate_video'), style: const TextStyle(color: Colors.white)),
             content: SizedBox(
               width: double.maxFinite,
               child: ListView.builder(
@@ -500,7 +500,7 @@ class _VideosScreenState extends State<VideosScreen> {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Скасувати', style: TextStyle(color: Colors.white70))),
+              TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70))),
               ElevatedButton(
                 onPressed: selected.isEmpty ? null : () async {
                   final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
@@ -513,10 +513,10 @@ class _VideosScreenState extends State<VideosScreen> {
                   if (!mounted) return;
                   Navigator.pop(context, true);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(I18n.inline('✅ Запити на оцінку надіслано', '✅ Rating requests sent'))),
+                    SnackBar(content: Text(tr('il_4bb3733e70'))),
                   );
                 },
-                child: const Text('Надіслати'),
+                child: Text(tr('send')),
               ),
             ],
           ),
@@ -525,7 +525,7 @@ class _VideosScreenState extends State<VideosScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('Помилка: $e', 'Error: $e')),
+          content: Text(tr('il_e69e7edfdf')),
           backgroundColor: Colors.red,
         ),
       );
@@ -756,7 +756,7 @@ class _VideosScreenState extends State<VideosScreen> {
   void _addComment(String videoId) {
     // TODO: Implement add comment
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(I18n.inline('Додавання коментарів буде додано незабаром!', 'Comments coming soon!'))),
+      SnackBar(content: Text(tr('il_86646f9499'))),
     );
   }
 

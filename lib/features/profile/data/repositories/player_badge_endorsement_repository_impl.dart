@@ -1,9 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../core/common/unit.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/error/result.dart';
-import '../../../../utils/i18n.dart';
 import '../../domain/repositories/player_badge_endorsement_repository.dart';
 
 class PlayerBadgeEndorsementRepositoryImpl
@@ -51,10 +52,7 @@ class PlayerBadgeEndorsementRepositoryImpl
     if (endorserUserId == ownerUserId) {
       return Result.failure(
         Failure.unexpected(
-          I18n.inline(
-            'Не можна підтверджувати власні бейджі',
-            'You cannot endorse your own badges',
-          ),
+          tr('il_472d788d72'),
         ),
       );
     }
@@ -90,13 +88,13 @@ class PlayerBadgeEndorsementRepositoryImpl
           await _firestore.collection('users').doc(endorserUserId).get();
       final currentName = currentUserDoc.data()?['displayName'] ??
           currentUserDoc.data()?['name'] ??
-          I18n.inline('Користувач', 'User');
+          tr('il_b512d97e7c');
 
       await _firestore.collection('notifications').add({
         'userId': ownerUserId,
         'type': 'badgeEndorsed',
-        'title': I18n.inline('Підтвердження бейджу', 'Badge endorsement'),
-        'message': I18n.inline(
+        'title': tr('il_cd519087d2'),
+        'message': bilingual(
           '$currentName підтвердив ваш бейдж "$badgeLocalizedName"',
           '$currentName confirmed your badge "$badgeLocalizedName"',
         ),
@@ -110,10 +108,7 @@ class PlayerBadgeEndorsementRepositoryImpl
       if (e is StateError && e.message == 'already-endorsed') {
         return Result.failure(
           Failure.unexpected(
-            I18n.inline(
-              'Ви вже підтвердили цей бейдж',
-              'You already endorsed this badge',
-            ),
+            tr('il_f7964d75ff'),
           ),
         );
       }

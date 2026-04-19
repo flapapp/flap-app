@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../utils/i18n.dart';
+import '../app_locale_access.dart';
 
 class VideoCategoryDefinition {
   final String id;
@@ -23,11 +23,12 @@ class VideoCategoryDefinition {
     this.showInQuickFilters = false,
   });
 
-  String label() => I18n.inline(labelUk, labelEn);
+  String label() =>
+      currentAppLanguageCode() == 'uk' ? labelUk : labelEn;
 
   String description() => (descriptionUk.isEmpty && descriptionEn.isEmpty)
       ? ''
-      : I18n.inline(descriptionUk, descriptionEn);
+      : (currentAppLanguageCode() == 'uk' ? descriptionUk : descriptionEn);
 }
 
 const List<VideoCategoryDefinition> kVideoCategories = [

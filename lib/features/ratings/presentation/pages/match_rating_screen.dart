@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/ratings_repository.dart';
@@ -8,7 +9,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../matches/data/models/match.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../../utils/i18n.dart';
 
 enum RatingMode { simple, advanced }
 
@@ -40,10 +40,10 @@ class _MatchRatingScreenState extends State<MatchRatingScreen> {
   ];
   
   List<String> get _criteriaLabels => [
-    I18n.inline('⚽ Техніка', '⚽ Technique'),
-    I18n.inline('🏃 Фізика', '🏃 Physical'),
-    I18n.inline('🧠 Тактика', '🧠 Tactics'),
-    I18n.inline('🤝 Командна гра', '🤝 Teamwork'),
+    tr('il_76391b2aee'),
+    tr('il_83191d2bd8'),
+    tr('il_385d0084c8'),
+    tr('il_55d3394671'),
   ];
 
   RatingMode _mode = RatingMode.advanced;
@@ -198,7 +198,7 @@ final alreadyRatedIds = existingSnap.docs
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  I18n.inline('Оцінка гравців', 'Rate players'),
+                  tr('il_315b687966'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
@@ -206,7 +206,7 @@ final alreadyRatedIds = existingSnap.docs
                   ),
                 ),
                 Text(
-                  I18n.inline('Після матчу', 'After match'),
+                  tr('il_a160524e96'),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 10,
@@ -221,7 +221,7 @@ final alreadyRatedIds = existingSnap.docs
                     TextButton(
             onPressed: (_isSubmitting || _playerRatings.isEmpty) ? null : _submitAllRatings,
             child: Text(
-              _isSubmitting ? I18n.inline('Зберігаємо...', 'Saving...') : I18n.t('save'),
+              _isSubmitting ? tr('il_dc85af8f2b') : tr('save'),
               style: TextStyle(
                 color: (_isSubmitting || _playerRatings.isEmpty) ? Colors.white54 : Colors.white,
                 fontWeight: FontWeight.w600,
@@ -264,7 +264,7 @@ final alreadyRatedIds = existingSnap.docs
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${widget.match.teamA?.name ?? I18n.inline('Команда А', 'Team A')} vs ${widget.match.teamB?.name ?? I18n.inline('Команда Б', 'Team B')}',
+                  '${widget.match.teamA?.name ?? tr('il_e18d322f14')} vs ${widget.match.teamB?.name ?? tr('il_aceaf5d9ac')}',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 16,
@@ -291,7 +291,7 @@ final alreadyRatedIds = existingSnap.docs
                     ),
                   ),
                   child: Text(
-                    I18n.inline('Оцініть всіх гравців для справедливого рейтингу', 'Rate all players for fair rating'),
+                    tr('il_b09b392002'),
                     style: TextStyle(
                       color: const Color(0xFF4CAF50),
                       fontSize: 12,
@@ -314,7 +314,7 @@ final alreadyRatedIds = existingSnap.docs
     ),
     child: Row(
       children: [
-        Text(I18n.t('mode_colon'), style: const TextStyle(color: Colors.white70)),
+        Text(tr('mode_colon'), style: const TextStyle(color: Colors.white70)),
         const SizedBox(width: 10),
         ToggleButtons(
           isSelected: [_mode == RatingMode.simple, _mode == RatingMode.advanced],
@@ -324,8 +324,8 @@ final alreadyRatedIds = existingSnap.docs
           fillColor: const Color(0xFF4CAF50).withOpacity(0.3),
           color: Colors.white70,
           children: [
-            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text(I18n.t('simple'))),
-            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text(I18n.t('advanced_mode'))),
+            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text(tr('simple'))),
+            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text(tr('advanced_mode'))),
           ],
         ),
       ],
@@ -380,8 +380,8 @@ final alreadyRatedIds = existingSnap.docs
                       : const Icon(Icons.check_circle_outline),
                   label: Text(
                     _isSubmitting
-                        ? I18n.inline('Зберігаємо...', 'Saving...')
-                        : I18n.inline('Зберегти оцінки', 'Save ratings'),
+                        ? tr('il_dc85af8f2b')
+                        : tr('il_fa204511ae'),
                   ),
                 ),
               ),
@@ -403,10 +403,7 @@ final alreadyRatedIds = existingSnap.docs
           border: Border.all(color: Colors.white.withOpacity(0.1)),
         ),
         child: Text(
-          I18n.inline(
-            'Немає гравців для оцінювання.\nМожливо, ви вже оцінили всіх учасників цього матчу.',
-            'No players to rate.\nYou may have already rated all participants of this match.',
-          ),
+          tr('il_432d30edd9'),
           style: const TextStyle(color: Colors.white70, height: 1.4),
         ),
       ),
@@ -473,7 +470,7 @@ final alreadyRatedIds = existingSnap.docs
             const SizedBox(width: 12),
             // Імʼя гравця
             Text(
-              displayName.isNotEmpty ? displayName : I18n.inline('Гравець ${playerId.substring(0, 8)}...', 'Player ${playerId.substring(0, 8)}...'),
+              displayName.isNotEmpty ? displayName : tr('il_9e4608e723'),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -491,7 +488,7 @@ final alreadyRatedIds = existingSnap.docs
             const SizedBox(height: 16),
             
             if (_mode == RatingMode.simple) ...[
-  Text(I18n.inline('Загальна оцінка', 'Overall rating'), style: const TextStyle(color: Colors.white70)),
+  Text(tr('il_ee62b83057'), style: const TextStyle(color: Colors.white70)),
   const SizedBox(height: 8),
   SliderTheme(
     data: SliderTheme.of(context).copyWith(
@@ -576,7 +573,7 @@ final alreadyRatedIds = existingSnap.docs
       if (totalCount == 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('Немає гравців для оцінювання', 'No players to rate')),
+            content: Text(tr('il_d63bd4a9c8')),
             backgroundColor: Colors.orange,
           ),
         );
@@ -615,7 +612,7 @@ final alreadyRatedIds = existingSnap.docs
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('✅ Всі оцінки збережено! Рейтинги оновлено.', '✅ All ratings saved! Ratings updated.')),
+            content: Text(tr('il_4641207a5f')),
             backgroundColor: Colors.green,
           ),
         );
@@ -623,8 +620,8 @@ final alreadyRatedIds = existingSnap.docs
       } else {
         if (!mounted) return;
         final String headline = successCount == 0
-            ? I18n.inline('❌ Не вдалося зберегти оцінки', '❌ Ratings were not saved')
-            : I18n.inline('⚠️ Збережено $successCount з $totalCount оцінок', '⚠️ Saved $successCount of $totalCount ratings');
+            ? tr('il_b43497d860')
+            : tr('il_7e27449e19');
         final String details = failureMessages.isNotEmpty ? '\n${failureMessages.first}' : '';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -638,7 +635,7 @@ final alreadyRatedIds = existingSnap.docs
       print('Error submitting ratings: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('❌ Помилка збереження: $e', '❌ Error saving: $e')),
+          content: Text(tr('il_051ce3d417')),
           backgroundColor: Colors.red,
         ),
       );
@@ -660,13 +657,13 @@ final alreadyRatedIds = existingSnap.docs
     final difference = now.difference(date);
     
     if (difference.inDays > 0) {
-      return I18n.inline('${difference.inDays} дн. тому', '${difference.inDays} d ago');
+      return tr('il_adf8ee5f65');
     } else if (difference.inHours > 0) {
-      return I18n.inline('${difference.inHours} год. тому', '${difference.inHours} h ago');
+      return tr('il_7634d1849f');
     } else if (difference.inMinutes > 0) {
-      return I18n.inline('${difference.inMinutes} хв. тому', '${difference.inMinutes} min ago');
+      return tr('il_e0b53645d6');
     } else {
-      return I18n.inline('Щойно', 'Just now');
+      return tr('il_66f53417d3');
     }
   }
 }

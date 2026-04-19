@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../core/di/injection.dart';
 import '../features/ratings/domain/repositories/ratings_repository.dart';
-import '../utils/i18n.dart';
 
 class RatingDisplay extends StatelessWidget {
   final String userId;
@@ -148,7 +148,7 @@ class RatingDisplay extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            I18n.inline('Середній', 'Average'),
+            tr('il_b38ae2c5b8'),
             style: TextStyle(
               color: Colors.white.withOpacity(0.7),
               fontSize: size * 0.35,

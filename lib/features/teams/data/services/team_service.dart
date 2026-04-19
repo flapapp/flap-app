@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:easy_localization/easy_localization.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,7 +11,6 @@ import '../../data/models/team_join_request.dart';
 import '../../data/models/team_match_request.dart';
 import '../../../notifications/data/models/notification.dart';
 import '../../../notifications/data/services/notification_service.dart';
-import '../../../../utils/i18n.dart';
 
 class TeamService {
   TeamService._();
@@ -579,7 +579,7 @@ class TeamService {
         results.add({
           'id': doc.id,
           'displayName':
-              displayNameRaw.isNotEmpty ? displayNameRaw : I18n.inline('Гравець', 'Player'),
+              displayNameRaw.isNotEmpty ? displayNameRaw : tr('il_64aee8c6cb'),
           'avatarUrl': (data['avatarUrl'] ?? data['avatar'] ?? '').toString(),
           'firstName': firstName,
           'lastName': lastName,
@@ -625,7 +625,7 @@ class TeamService {
   await _firestore.runTransaction((tx) async {
     final teamSnap = await tx.get(teamRef);
     if (!teamSnap.exists) {
-      throw Exception(I18n.inline('Команду не знайдено', 'Team not found'));
+      throw Exception(tr('il_34d918824a'));
     }
 
     final data = teamSnap.data() ?? {};
@@ -635,20 +635,14 @@ class TeamService {
 
     if (!memberIds.contains(userId)) {
       throw Exception(
-        I18n.inline(
-          'Ви не є учасником цієї команди',
-          'You are not a member of this team',
-        ),
+        tr('il_14041e10e5'),
       );
     }
 
     // Якщо капітан останній у команді — не даємо "осиротити" команду
     if (captainId == userId && memberIds.length == 1) {
       throw Exception(
-        I18n.inline(
-          'Ви останній учасник. Видаліть команду або передайте капітанство.',
-          'You are the last member. Delete the team or transfer captain role.',
-        ),
+        tr('il_b0792872ce'),
       );
     }
 
@@ -672,10 +666,7 @@ class TeamService {
 
       if (nextCaptain == null || nextCaptain.isEmpty) {
         throw Exception(
-          I18n.inline(
-            'Не вдалося визначити нового капітана',
-            'Failed to determine next captain',
-          ),
+          tr('il_11f6a422ec'),
         );
       }
 

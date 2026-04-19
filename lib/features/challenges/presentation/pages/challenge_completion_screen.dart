@@ -1,10 +1,10 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/models/challenge.dart';
-import '../../../../utils/i18n.dart';
 
 @RoutePage()
 class ChallengeCompletionScreen extends StatefulWidget {
@@ -158,7 +158,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
         winners.add({
           'position': i + 1,
           'userId': winnerId,
-          'userName': userData['displayName'] ?? userData['name'] ?? I18n.inline('Невідомий', 'Unknown'),
+          'userName': userData['displayName'] ?? userData['name'] ?? tr('il_b764cdc0ea'),
           'userAvatar': userData['avatarUrl'] ?? userData['photoUrl'] ?? '',
           'rating': data['averageRating'] ?? 0.0,
           'prize': prize,
@@ -226,7 +226,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
         backgroundColor: const Color(0xFF0f0f23),
         body: Center(
           child: Text(
-            I18n.t('challenge_not_found'),
+            tr('challenge_not_found'),
             style: const TextStyle(color: Colors.white, fontSize: 18),
           ),
         ),
@@ -251,7 +251,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
                       child: Column(
                         children: [
                           Text(
-                            I18n.t('challenge_completed'),
+                            tr('challenge_completed'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 28,
@@ -306,7 +306,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
                                 ),
                               ),
                               child: Text(
-                                I18n.t('close'),
+                                tr('close'),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
@@ -332,7 +332,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
     if (_winners.isEmpty) {
       return Center(
         child: Text(
-          I18n.t('no_winners'),
+          tr('no_winners'),
           style: const TextStyle(color: Colors.white70, fontSize: 16),
         ),
       );
@@ -448,7 +448,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${I18n.t('rating')}: ${rating.toStringAsFixed(2)}',
+                  '${tr('rating')}: ${rating.toStringAsFixed(2)}',
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 14,

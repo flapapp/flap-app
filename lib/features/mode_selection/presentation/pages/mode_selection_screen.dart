@@ -1,4 +1,6 @@
 import 'dart:math';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +11,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../router/app_router.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
 
@@ -68,8 +69,8 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       setState(() {
-        _currentGreeting = I18n.inline(phrase.ua, phrase.en);
-        _currentRatingText = I18n.inline('Гість у FLAP', 'Guest inside FLAP');
+        _currentGreeting = bilingual(phrase.ua, phrase.en);
+        _currentRatingText = tr('il_70cd076bd7');
       });
       return;
     }
@@ -77,18 +78,16 @@ class ModeSelectionScreenState extends State<ModeSelectionScreen> {
     FirebaseFirestore.instance.collection('users').doc(uid).get().then((doc) {
       final data = doc.data();
       final name = data != null
-          ? (data['displayName'] ?? data['authorName'] ?? data['name'] ?? I18n.t('player'))
-          : I18n.t('player');
+          ? (data['displayName'] ?? data['authorName'] ?? data['name'] ?? tr('player'))
+          : tr('player');
       final rating = data != null ? (data['rating'] ?? 3.0).toDouble() : 3.0;
       final matches = data != null ? ((data['totalMatches'] ?? data['matches'] ?? data['matchesPlayed'] ?? 0) as num).toInt() : 0;
 setState(() {
-  _currentGreeting = I18n.inline(
+  _currentGreeting = bilingual(
     phrase.ua.replaceAll('{name}', name),
     phrase.en.replaceAll('{name}', name),
   );
-  _currentRatingText = I18n.inline(
-      'Рейтинг ${rating.toStringAsFixed(2)} • $matches матчів',
-      'Rating ${rating.toStringAsFixed(2)} • $matches matches');
+  _currentRatingText = tr('il_9ed771006a');
 });
     });
   }
@@ -130,22 +129,22 @@ setState(() {
           .get();
       if (snap.docs.isEmpty) return null;
       final data = snap.docs.first.data();
-      final teamAName = (data['teamA']?['name'] ?? data['title'] ?? I18n.inline('Матч дня', 'Match day')).toString();
-      final teamBName = (data['teamB']?['name'] ?? I18n.inline('Суперник', 'Opponent')).toString();
+      final teamAName = (data['teamA']?['name'] ?? data['title'] ?? tr('il_25f50629be')).toString();
+      final teamBName = (data['teamB']?['name'] ?? tr('il_c0886e50d4')).toString();
       final status = (data['status'] ?? 'open').toString();
       final teamAScore = data['teamAScore'];
       final teamBScore = data['teamBScore'];
       final time = (data['time'] ?? '').toString();
-      final organizer = (data['organizerName'] ?? I18n.inline('Організатор', 'Organizer')).toString();
+      final organizer = (data['organizerName'] ?? tr('il_715a9cc0c3')).toString();
       final matchTitle = (data['title'] ?? '$teamAName vs $teamBName').toString();
       String subtitle;
       if (status == 'finished' && teamAScore != null && teamBScore != null) {
-        subtitle = I18n.inline(
+        subtitle = bilingual(
           '$organizer завершив матч "$matchTitle" • рахунок $teamAScore:$teamBScore',
           '$organizer finished "$matchTitle" • final score $teamAScore:$teamBScore',
         );
       } else {
-        subtitle = I18n.inline(
+        subtitle = bilingual(
           '$organizer створив матч "$matchTitle" • старт о $time',
           '$organizer created "$matchTitle" • kick-off at $time',
         );
@@ -157,7 +156,7 @@ setState(() {
         color: const Color(0xFF4caf50),
         timestamp: _resolveTimestamp(data, const ['updatedAt', 'createdAt']),
         route: '/matches',
-        ctaLabel: I18n.inline('Відкрити матчі', 'Open matches'),
+        ctaLabel: tr('il_100948655a'),
       );
     } catch (_) {
       return null;
@@ -178,21 +177,21 @@ setState(() {
       final type = (data['type'] ?? '').toString();
       if (type != 'joined_team' && type != 'left_team') continue;
 
-      final userName = (data['userName'] ?? I18n.inline('Гравець', 'Player')).toString();
-      final teamName = (data['teamName'] ?? I18n.inline('Команда', 'Team')).toString();
+      final userName = (data['userName'] ?? tr('il_64aee8c6cb')).toString();
+      final teamName = (data['teamName'] ?? tr('il_5985039f10')).toString();
 
       final isJoin = type == 'joined_team';
       items.add(
         _NewsEntry(
           title: teamName,
           subtitle: isJoin
-              ? I18n.inline('$userName приєднався до команди', '$userName joined the team')
-              : I18n.inline('$userName покинув команду', '$userName left the team'),
+              ? tr('il_4bf405d330')
+              : tr('il_ddec2372fb'),
           icon: isJoin ? Icons.person_add_alt_1 : Icons.exit_to_app,
           color: isJoin ? const Color(0xFF26A69A) : const Color(0xFFEF5350),
           timestamp: _resolveTimestamp(data, const ['createdAt']),
           route: '/teams',
-          ctaLabel: I18n.inline('Відкрити клуби', 'Open clubs'),
+          ctaLabel: tr('il_3d8889f3a9'),
         ),
       );
     }
@@ -211,7 +210,7 @@ setState(() {
           .get();
       if (snap.docs.isEmpty) return null;
       final data = snap.docs.first.data();
-      final author = (data['authorName'] ?? I18n.inline('Гравець FLAP', 'FLAP player')).toString();
+      final author = (data['authorName'] ?? tr('il_ccc8f563a4')).toString();
       final rawTitle = (data['title'] ?? '').toString().trim();
       final challengeTitle = (data['challengeTitle'] ?? '').toString().trim();
       final title = (rawTitle.isEmpty ||
@@ -219,11 +218,11 @@ setState(() {
               rawTitle == 'Creator video')
           ? (challengeTitle.isNotEmpty
               ? challengeTitle
-              : I18n.inline('Нове відео', 'New video'))
+              : tr('il_3ef43ead3d'))
           : rawTitle;
       return _NewsEntry(
         title: title,
-        subtitle: I18n.inline(
+        subtitle: bilingual(
           '$author завантажив відео "$title"',
           '$author uploaded "$title"',
         ),
@@ -231,7 +230,7 @@ setState(() {
         color: const Color(0xFFFF7043),
         timestamp: _resolveTimestamp(data, const ['createdAt', 'updatedAt']),
         route: '/video-main',
-        ctaLabel: I18n.inline('Дивитись відео', 'Watch video feed'),
+        ctaLabel: tr('il_9fedb611a8'),
       );
     } catch (_) {
       return null;
@@ -247,11 +246,11 @@ setState(() {
           .get();
       if (snap.docs.isEmpty) return null;
       final data = snap.docs.first.data();
-      final teamName = (data['name'] ?? I18n.inline('Нова команда', 'New team')).toString();
-      final city = (data['city'] ?? I18n.inline('рідному місті', 'their city')).toString();
+      final teamName = (data['name'] ?? tr('il_1b9ed8eaa1')).toString();
+      final city = (data['city'] ?? tr('il_3ec7dbf583')).toString();
       return _NewsEntry(
         title: teamName,
-        subtitle: I18n.inline(
+        subtitle: bilingual(
           'Команда з $city вже в грі',
           'A squad from $city just joined the arena',
         ),
@@ -259,7 +258,7 @@ setState(() {
         color: const Color(0xFF42a5f5),
         timestamp: _resolveTimestamp(data, const ['createdAt', 'updatedAt']),
         route: '/teams',
-        ctaLabel: I18n.inline('Відкрити клуби', 'Open clubs'),
+        ctaLabel: tr('il_3d8889f3a9'),
       );
     } catch (_) {
       return null;
@@ -267,13 +266,13 @@ setState(() {
   }
 
   _NewsEntry _defaultNewsEntry() => _NewsEntry(
-        title: I18n.inline('FLAP Live', 'FLAP Live'),
-        subtitle: I18n.inline('Слідкуй за матчами та відео у реальному часі', 'Watch matches and videos in real time'),
+        title: tr('il_8a05d8ef0e'),
+        subtitle: tr('il_4b0b71b1e9'),
         icon: Icons.flash_on,
         color: const Color(0xFF7e57c2),
         timestamp: DateTime.now(),
         route: '/matches',
-        ctaLabel: I18n.inline('Дивитись розклад', 'View schedule'),
+        ctaLabel: tr('il_0c910eec13'),
       );
 
   DateTime _resolveTimestamp(Map<String, dynamic> data, List<String> keys) {
@@ -305,7 +304,7 @@ setState(() {
           const SizedBox(width: 16),
           Expanded(
             child: Text(
-              I18n.inline('Завантажуємо новини...', 'Loading news...'),
+              tr('il_6eb4de330e'),
               style: const TextStyle(color: Colors.white70),
             ),
           ),
@@ -352,8 +351,8 @@ Widget _buildNewsCardItem(_NewsEntry entry, {required bool primary}) {
               ),
               child: Text(
                 primary
-                    ? I18n.inline('Новина дня', 'News of the day')
-                    : I18n.inline('Свіжа новина', 'Fresh news'),
+                    ? tr('il_e51c4cffae')
+                    : tr('il_e07805a8bf'),
                 style: const TextStyle(
                   color: Colors.black,
                   fontWeight: FontWeight.w700,
@@ -397,10 +396,7 @@ Widget _buildNewsCardItem(_NewsEntry entry, {required bool primary}) {
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                I18n.inline(
-                  'FLAP Live • Оновлено зі стрічки матчів, відео та клубів',
-                  'FLAP Live • Pulled from matches, videos & clubs feed',
-                ),
+                tr('il_9c351cb885'),
                 style: const TextStyle(color: Colors.white60, fontSize: 12),
               ),
             ),
@@ -467,7 +463,7 @@ Widget build(BuildContext context) {
                     return Stack(
                       children: [
                         IconButton(
-                          tooltip: I18n.t('notifications'),
+                          tooltip: tr('notifications'),
                           icon: const Icon(Icons.notifications_outlined, color: Colors.white),
                           onPressed: () => _pushLegacyPath(context, '/notifications'),
                         ),
@@ -530,58 +526,49 @@ Widget build(BuildContext context) {
                 _buildNewsSection(),
                 const SizedBox(height: 24),
                 _ModeCard(
-                  title: I18n.t('matches'),
-                  subtitle: I18n.inline(
-                    'Знаходь матчі поблизу, керуй командами',
-                    'Find matches, manage squads',
-                  ),
+                  title: tr('matches'),
+                  subtitle: tr('il_d090197fc0'),
                   highlights: [
-                    I18n.inline('Новий Team Hub', 'New Team Hub'),
-                    I18n.inline('Гнучкі формати', 'Flexible formats'),
-                    I18n.inline('Рейтинг гравців', 'Player rating'),
+                    tr('il_e64edb9f1e'),
+                    tr('il_68442c9a0e'),
+                    tr('il_a0921488a1'),
                   ],
                   icon: Icons.sports_soccer,
                   colors: matchColors,
-                  badge: I18n.inline('Матч-день', 'Match day'),
-                  actionLabel: I18n.inline('До матчів', 'Browse matches'),
+                  badge: tr('il_25f50629be'),
+                  actionLabel: tr('il_5a0f12a92f'),
                   illustration: _ModeArt(type: _ModeArtType.matches, colors: matchColors),
                   onTap: () => _pushLegacyPath(context, '/matches'),
                 ),
                 const SizedBox(height: 16),
                 _ModeCard(
-                  title: I18n.t('videos'),
-                  subtitle: I18n.inline(
-                    'Кидай челенджі, збирай перегляди',
-                    'Join challenges, grow your audience',
-                  ),
+                  title: tr('videos'),
+                  subtitle: tr('il_2862424bdc'),
                   highlights: [
-                    I18n.inline('16:9 превʼю', '16:9 previews'),
-                    I18n.inline('Челендж-стрічка', 'Challenge feed'),
-                    I18n.inline('Запити на оцінку', 'Rating requests'),
+                    tr('il_2f247110e8'),
+                    tr('il_6a74de50d1'),
+                    tr('il_8ca3167d86'),
                   ],
                   icon: Icons.video_collection,
                   colors: videoColors,
-                  badge: I18n.inline('Пульс контенту', 'Content pulse'),
-                  actionLabel: I18n.inline('До відео', 'Open videos'),
+                  badge: tr('il_d9efc2bb26'),
+                  actionLabel: tr('il_948ce0fcb1'),
                   illustration: _ModeArt(type: _ModeArtType.videos, colors: videoColors),
                   onTap: () => _pushLegacyPath(context, '/video-main'),
                 ),
                 const SizedBox(height: 16),
                 _ModeCard(
-                  title: I18n.inline('Команди', 'Teams'),
-                  subtitle: I18n.inline(
-                    'Створюй клуби, керуй ростером',
-                    'Create clubs, manage rosters',
-                  ),
+                  title: tr('il_1e1a1c078a'),
+                  subtitle: tr('il_8d98f0bec9'),
                   highlights: [
-                    I18n.inline('Запрошення в 1 клік', 'One-tap invites'),
-                    I18n.inline('Матчі між командами', 'Team-only matches'),
-                    I18n.inline('Статистика голів', 'Goal tracking'),
+                    tr('il_d8280e8655'),
+                    tr('il_83be379446'),
+                    tr('il_650d92acb0'),
                   ],
                   icon: Icons.groups_2,
                   colors: teamColors,
-                  badge: I18n.inline('Club DNA', 'Club DNA'),
-                  actionLabel: I18n.inline('Мої команди', 'Your clubs'),
+                  badge: tr('il_a595761987'),
+                  actionLabel: tr('il_ff5d6ccdf0'),
                   illustration: _ModeArt(type: _ModeArtType.teams, colors: teamColors),
                   onTap: () => _pushLegacyPath(context, '/teams'),
                 ),
@@ -599,7 +586,7 @@ Widget build(BuildContext context) {
         data?['name'] ??
         data?['authorName'] ??
         data?['email']?.toString().split('@').first ??
-        I18n.t('player');
+        tr('player');
     final avatarUrl =
         (data?['avatarUrl'] ?? data?['avatar'] ?? '').toString();
     final rating = (data?['rating'] ?? 0.0).toDouble();
@@ -628,7 +615,7 @@ Widget build(BuildContext context) {
             ),
             const SizedBox(height: 12),
             Text(
-              I18n.inline('Привіт, $displayName', 'Hey, $displayName'),
+              tr('il_0a2d828e92'),
               textAlign: TextAlign.center,
               style: GoogleFonts.manrope(
                 color: Colors.white,
@@ -660,7 +647,7 @@ Widget build(BuildContext context) {
               onPressed: _updateGreeting,
               icon: const Icon(Icons.refresh, size: 18, color: Colors.white70),
               label: Text(
-                I18n.inline('оновити настрій', 'refresh vibe'),
+                tr('il_15b1a29fbf'),
                 style: const TextStyle(color: Colors.white70, fontSize: 12),
               ),
               style: TextButton.styleFrom(
@@ -681,7 +668,7 @@ Widget build(BuildContext context) {
               child: _heroPill(
                 icon: Icons.star,
                 value: rating.toStringAsFixed(2),
-                label: I18n.inline('Рейтинг', 'Rating'),
+                label: tr('il_9f29530464'),
               ),
             ),
             const SizedBox(width: 12),
@@ -689,7 +676,7 @@ Widget build(BuildContext context) {
               child: _heroPill(
                 icon: Icons.sports_soccer,
                 value: matches,
-                label: I18n.inline('Матчів', 'Matches'),
+                label: tr('il_98abff28a9'),
               ),
             ),
             const SizedBox(width: 12),
@@ -856,7 +843,7 @@ Widget build(BuildContext context) {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    I18n.inline('Відсоток перемог', 'Win rate'),
+                    tr('il_4be2547225'),
                     style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 12,
@@ -1035,13 +1022,13 @@ Widget build(BuildContext context) {
     final now = DateTime.now();
     final diff = now.difference(timestamp);
     if (diff.inMinutes < 1) {
-      return I18n.inline('щойно', 'just now');
+      return tr('il_7ddb44d8a5');
     }
     if (diff.inHours < 1) {
-      return I18n.inline('${diff.inMinutes} хв', '${diff.inMinutes}m ago');
+      return tr('il_481b95953d');
     }
     if (diff.inHours < 24) {
-      return I18n.inline('${diff.inHours} год', '${diff.inHours}h ago');
+      return tr('il_027c01229b');
     }
     return '${timestamp.day.toString().padLeft(2, '0')}.${timestamp.month.toString().padLeft(2, '0')}';
   }
@@ -1073,7 +1060,7 @@ class _ModeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveAction =
-        actionLabel.isNotEmpty ? actionLabel : I18n.inline('Відкрити', 'Open');
+        actionLabel.isNotEmpty ? actionLabel : tr('il_ed077f3d81');
     return GestureDetector(
       onTap: onTap,
       child: Container(

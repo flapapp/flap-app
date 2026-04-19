@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/models/badge.dart';
-import '../../../../utils/i18n.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 class BadgeService {
   static Future<void>? _initializationFuture;
@@ -112,7 +113,7 @@ class BadgeService {
           'badgeId': badgeId,
           'badgeName': localizedBadgeName,
           'timestamp': FieldValue.serverTimestamp(),
-          'description': I18n.inline(
+          'description': bilingual(
             'Покупка бейджу: $localizedBadgeName',
             'Badge purchase: $localizedBadgeName',
           ),
@@ -148,7 +149,7 @@ class BadgeService {
         'amount': 0,
         'badgeId': badgeId,
         'timestamp': FieldValue.serverTimestamp(),
-        'description': I18n.inline(
+        'description': bilingual(
           'Отримано бейдж: $reason',
           'Badge received: $reason',
         ),

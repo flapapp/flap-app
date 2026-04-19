@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
@@ -22,7 +24,6 @@ import '../../data/models/team_match_request.dart';
 import '../../data/models/team_stats.dart';
 import '../../../friends/data/models/friend_request.dart';
 import '../../data/models/team_join_request.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../matches/presentation/pages/create_match_screen.dart';
@@ -63,7 +64,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(I18n.inline('Команда', 'Team')),
+        title: Text(tr('il_5985039f10')),
       ),
       body: StreamBuilder<AppTeam?>(
         stream: _teamWatch,
@@ -76,7 +77,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
           if (team == null) {
             return Center(
               child: Text(
-                I18n.inline('Команда не знайдена', 'Team not found'),
+                tr('il_34d918824a'),
                 style: const TextStyle(color: Colors.white70),
               ),
             );
@@ -198,37 +199,37 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
             children: [
               if (team.city != null)
                 _infoChip(Icons.location_on,
-                    I18n.inline(team.city!, team.city!)),
+                    bilingual(team.city!, team.city!)),
               _infoChip(
                 Icons.public,
                 team.isPublic
-                    ? I18n.inline('Публічна команда', 'Public team')
-                    : I18n.inline('Приватна команда', 'Private team'),
+                    ? tr('il_c48fc6f1b4')
+                    : tr('il_f45e73c588'),
               ),
               _infoChip(Icons.calendar_month,
-                  I18n.inline('Засновано ${formatter.format(team.createdAt)}', 'Founded ${formatter.format(team.createdAt)}')),
+                  tr('il_79f5cba540')),
               if (canManage)
                 _infoChip(Icons.security,
-                    I18n.inline('Панель капітана', 'Captain controls')),
+                    tr('il_54e8296ca4')),
             ],
           ),
           const SizedBox(height: 24),
           Row(
             children: [
               _heroStatBlock(
-                label: I18n.inline('Перемоги', 'Wins'),
+                label: tr('il_41da8b729f'),
                 value: stats.wins.toString(),
               ),
               _heroStatBlock(
-                label: I18n.inline('Нічиї', 'Draws'),
+                label: tr('il_e0b3a2a5d7'),
                 value: stats.draws.toString(),
               ),
               _heroStatBlock(
-                label: I18n.inline('Поразки', 'Losses'),
+                label: tr('il_5bf03f14da'),
                 value: stats.losses.toString(),
               ),
               _heroStatBlock(
-                label: I18n.inline('Матчів', 'Matches'),
+                label: tr('il_98abff28a9'),
                 value: totalMatches.toString(),
               ),
             ],
@@ -279,9 +280,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
             return _joinStatusBanner(
               icon: Icons.hourglass_top,
               color: Colors.orangeAccent,
-              title: I18n.inline('Запит надіслано', 'Request sent'),
-              subtitle: I18n.inline(
-                  'Капітан перевіряє ваш профіль', 'Captain is reviewing your profile'),
+              title: tr('il_a73f99f6bf'),
+              subtitle: tr('il_61ce3136de'),
             );
           } else if (request.status == TeamJoinRequestStatus.declined) {
             return Column(
@@ -290,10 +290,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                 _joinStatusBanner(
                   icon: Icons.close,
                   color: Colors.redAccent,
-                  title: I18n.inline('Запит відхилено', 'Request declined'),
-                  subtitle: I18n.inline(
-                      'Спробуйте пізніше або напишіть капітану',
-                      'Try later or contact the captain'),
+                  title: tr('il_1df48b2da0'),
+                  subtitle: tr('il_3b89bf7a40'),
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
@@ -301,7 +299,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                       ? null
                       : () => _sendJoinRequest(team),
                   icon: const Icon(Icons.refresh),
-                  label: Text(I18n.inline('Спробувати ще раз', 'Try again')),
+                  label: Text(tr('il_d8b8392e2c')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white.withOpacity(0.08),
                     foregroundColor: Colors.white,
@@ -318,7 +316,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
           onPressed:
               _isSendingJoinRequest ? null : () => _sendJoinRequest(team),
           icon: const Icon(Icons.group_add),
-          label: Text(I18n.inline('Приєднатися до команди', 'Join this team')),
+          label: Text(tr('il_9353afae8b')),
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF4caf50),
             foregroundColor: Colors.white,
@@ -346,31 +344,25 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                     builder: (ctx) => AlertDialog(
                       backgroundColor: const Color(0xFF111827),
                       title: Text(
-                        I18n.inline('Покинути команду?', 'Leave team?'),
+                        tr('il_d35d16a4b1'),
                         style: const TextStyle(color: Colors.white),
                       ),
                       content: Text(
                         isCaptain
-                            ? I18n.inline(
-                                'Ви капітан. Після виходу капітанство буде передано іншому учаснику.',
-                                'You are captain. On leave, captain role will be transferred to another member.',
-                              )
-                            : I18n.inline(
-                                'Ви справді хочете покинути цю команду?',
-                                'Do you really want to leave this team?',
-                              ),
+                            ? tr('il_ea52704482')
+                            : tr('il_66b80f0860'),
                         style: const TextStyle(color: Colors.white70),
                       ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(ctx, false),
-                          child: Text(I18n.t('cancel'),
+                          child: Text(tr('cancel'),
                               style: const TextStyle(color: Colors.white70)),
                         ),
                         TextButton(
                           onPressed: () => Navigator.pop(ctx, true),
                           child: Text(
-                            I18n.inline('Покинути', 'Leave'),
+                            tr('il_fc6e4a408d'),
                             style: const TextStyle(color: Colors.redAccent),
                           ),
                         ),
@@ -389,7 +381,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      I18n.inline('Ви покинули команду', 'You left the team'),
+                      tr('il_4a91b2fdf8'),
                     ),
                   ),
                 );
@@ -397,7 +389,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(I18n.inline('Помилка: $e', 'Error: $e')),
+                    content: Text(tr('il_e69e7edfdf')),
                     backgroundColor: Colors.redAccent,
                   ),
                 );
@@ -408,8 +400,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       icon: const Icon(Icons.exit_to_app, color: Colors.redAccent),
       label: Text(
         _isLeavingTeam
-            ? I18n.inline('Вихід...', 'Leaving...')
-            : I18n.inline('Покинути команду', 'Leave team'),
+            ? tr('il_9b6b4fb63c')
+            : tr('il_ca808af337'),
         style: const TextStyle(color: Colors.redAccent),
       ),
       style: OutlinedButton.styleFrom(
@@ -473,8 +465,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            I18n.inline(
-                'Запит на приєднання надіслано', 'Join request sent'),
+            tr('il_2b01b19485'),
           ),
         ),
       );
@@ -506,8 +497,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         SnackBar(
           content: Text(
             accept
-                ? I18n.inline('Гравця додано до команди', 'Player accepted')
-                : I18n.inline('Запит відхилено', 'Request declined'),
+                ? tr('il_9de07bcfc1')
+                : tr('il_1df48b2da0'),
           ),
         ),
       );
@@ -559,7 +550,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            I18n.inline('Панель менеджера', 'Coach desk'),
+            tr('il_af22c9dd60'),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
@@ -582,7 +573,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                     ),
                   ),
                   icon: const Icon(Icons.person_add_alt_1),
-                  label: Text(I18n.inline('Додати гравців', 'Invite players')),
+                  label: Text(tr('il_6442e97ac6')),
                 ),
               ),
               const SizedBox(width: 12),
@@ -603,7 +594,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                     ),
                   ),
                   icon: const Icon(Icons.sports_soccer),
-                  label: Text(I18n.inline('Матч команди', 'Team match')),
+                  label: Text(tr('il_4f76cec7a7')),
                 ),
               ),
             ],
@@ -622,26 +613,26 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       _MetricTileData(
         icon: Icons.auto_graph,
         value: avgGoals,
-        title: I18n.inline('Голи / матч', 'Goals / match'),
-        caption: I18n.inline('Ритм атаки', 'Attack tempo'),
+        title: tr('il_52f28f3500'),
+        caption: tr('il_5ea4ceef18'),
       ),
       _MetricTileData(
         icon: Icons.shield,
         value: '${stats.goalsAgainst}',
-        title: I18n.inline('Пропущено', 'Conceded'),
-        caption: I18n.inline('Блок оборони', 'Defensive wall'),
+        title: tr('il_07d6b41160'),
+        caption: tr('il_7075a6ba14'),
       ),
       _MetricTileData(
         icon: Icons.change_circle,
         value: '${goalDiff >= 0 ? '+' : ''}$goalDiff',
-        title: I18n.inline('Баланс голів', 'Goal balance'),
-        caption: I18n.inline('Тиск на суперника', 'Pressure index'),
+        title: tr('il_13674f440a'),
+        caption: tr('il_6c7302cb3c'),
       ),
       _MetricTileData(
         icon: Icons.groups_3,
         value: '${team.memberIds.length}',
-        title: I18n.inline('Склад', 'Roster'),
-        caption: I18n.inline('Готових гравців', 'Active players'),
+        title: tr('il_cd4795809e'),
+        caption: tr('il_a36357dfad'),
       ),
     ];
     return GridView.builder(
@@ -699,7 +690,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          I18n.inline('Хайлайти клубу', 'Club highlights'),
+          tr('il_fe89709ec3'),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
@@ -709,17 +700,17 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         const SizedBox(height: 12),
         _highlightTile(
           icon: Icons.timeline,
-          title: I18n.inline('Форма', 'Form'),
+          title: tr('il_2e0e960ab3'),
           value: _formString(team),
-          caption: I18n.inline('Останні матчі', 'Last fixtures'),
+          caption: tr('il_8bc38c9839'),
         ),
         const SizedBox(height: 12),
         _highlightTile(
           icon: Icons.local_fire_department,
-          title: I18n.inline('Клубна енергія', 'Club momentum'),
+          title: tr('il_4d8aa119da'),
           value:
               '+${stats.wins} / -${stats.losses} / =${stats.draws}',
-          caption: I18n.inline('Свіжа статистика', 'Fresh stats'),
+          caption: tr('il_dbd2e87efe'),
         ),
         const SizedBox(height: 12),
         _buildTopScorerCard(stats),
@@ -731,9 +722,9 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     if (stats.playerGoals.isEmpty) {
       return _highlightTile(
         icon: Icons.sports_soccer,
-        title: I18n.inline('Бомбардирів ще немає', 'No scorers yet'),
-        value: I18n.inline('Забий перший гол', 'Score the first goal'),
-        caption: I18n.inline('Список оновлюється миттєво', 'Table updates right away'),
+        title: tr('il_3063c85237'),
+        value: tr('il_9ea34e5802'),
+        caption: tr('il_1173ec5f77'),
       );
     }
     final entries = stats.playerGoals.entries.toList()
@@ -743,7 +734,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          I18n.inline('Бомбардири команди', 'Team top scorers'),
+          tr('il_c24687b978'),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
@@ -757,7 +748,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                 final data = snapshot.data?.document;
                 final name = (data?['displayName'] ??
                         data?['name'] ??
-                        I18n.inline('Гравець', 'Player'))
+                        tr('il_64aee8c6cb'))
                     .toString();
                 final avatarUrl =
                     (data?['avatarUrl'] ?? data?['avatar'] ?? '').toString();
@@ -790,7 +781,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                               ),
                             ),
                             Text(
-                              I18n.inline('Гравець команди', 'Squad member'),
+                              tr('il_67d783e9bb'),
                               style: const TextStyle(
                                 color: Colors.white54,
                                 fontSize: 11,
@@ -827,7 +818,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              I18n.inline('Запити до команди', 'Join requests'),
+              tr('il_a1321fc27d'),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -893,13 +884,13 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                     onPressed:
                         busy ? null : () => _handleJoinResponse(request, false),
                     icon: const Icon(Icons.close, color: Colors.redAccent),
-                    tooltip: I18n.inline('Відхилити', 'Decline'),
+                    tooltip: tr('il_a2d285b352'),
                   ),
                   IconButton(
                     onPressed:
                         busy ? null : () => _handleJoinResponse(request, true),
                     icon: const Icon(Icons.check, color: Color(0xFF4caf50)),
-                    tooltip: I18n.inline('Підтвердити', 'Accept'),
+                    tooltip: tr('il_89713b9c9c'),
                   ),
                 ],
               ),
@@ -974,9 +965,9 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     if (stats.playerGoals.isEmpty) {
       return _highlightTile(
         icon: Icons.stars,
-        title: I18n.inline('Очікує героя', 'Awaiting hero'),
-        value: I18n.inline('Ще без забитих', 'No goals yet'),
-        caption: I18n.inline('Перший гол запише історію', 'First scorer writes history'),
+        title: tr('il_f8c14603ce'),
+        value: tr('il_82333be252'),
+        caption: tr('il_a9fae84e89'),
       );
     }
     final entries = stats.playerGoals.entries.toList()
@@ -988,13 +979,12 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         final data = snapshot.data?.document;
         final name = data?['displayName'] ??
             data?['name'] ??
-            I18n.inline('Гравець', 'Player');
+            tr('il_64aee8c6cb');
         return _highlightTile(
           icon: Icons.star,
-          title: I18n.inline('Топ скорер', 'Top scorer'),
+          title: tr('il_17d2ec06ae'),
           value: name,
-          caption: I18n.inline(
-              '${best.value} голів у сезоні', '${best.value} goals this season'),
+          caption: tr('il_63740ed7ec'),
         );
       },
     );
@@ -1004,17 +994,15 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     final recent = stats.recentMatches.take(4).toList();
     if (recent.isEmpty) {
       return _emptyState(
-        title: I18n.inline('Ще немає історій', 'No stories yet'),
-        subtitle: I18n.inline(
-            'Зіграй перший матч, щоб з’явилася статистика',
-            'Play the first match to unlock insights'),
+        title: tr('il_77313c35ad'),
+        subtitle: tr('il_1bcaff1c62'),
       );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          I18n.inline('Останні матчі', 'Recent fixtures'),
+          tr('il_dd39c9da8f'),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
@@ -1028,7 +1016,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   }
 
   Widget _recentMatchTile(Map<String, dynamic> match) {
-    final opponent = (match['opponentName'] ?? I18n.inline('Суперник', 'Opponent')).toString();
+    final opponent = (match['opponentName'] ?? tr('il_c0886e50d4')).toString();
     final score = (match['score'] ?? '-:-').toString();
     final result = (match['result'] ?? 'draw').toString();
     final playedRaw = match['playedAt'];
@@ -1038,7 +1026,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     }
     final label = playedAt != null
         ? DateFormat('d MMM').format(playedAt)
-        : I18n.inline('Нещодавно', 'recently');
+        : tr('il_59f7a3dd09');
     final badgeColor = _resultColor(result);
     final matchId = (match['matchId'] ?? '').toString();
     return InkWell(
@@ -1109,7 +1097,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       if (match == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('Матч не знайдено', 'Match not found')),
+            content: Text(tr('il_688010d886')),
           ),
         );
         return;
@@ -1124,7 +1112,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('Не вдалося відкрити матч: $e', 'Unable to open match: $e')),
+          content: Text(tr('il_fae55d5171')),
         ),
       );
     }
@@ -1135,7 +1123,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          I18n.inline('Склад', 'Roster'),
+          tr('il_cd4795809e'),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
@@ -1150,12 +1138,12 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
               final data = snapshot.data?.document;
               final name = data?['displayName'] ??
                   data?['name'] ??
-                  I18n.inline('Гравець', 'Player');
+                  tr('il_64aee8c6cb');
               final role = memberId == team.captainId
-                  ? I18n.inline('Капітан', 'Captain')
+                  ? tr('il_2e786c488b')
                   : team.viceCaptainIds.contains(memberId)
-                      ? I18n.inline('Віце', 'Vice')
-                      : I18n.inline('Гравець', 'Player');
+                      ? tr('il_9a9036ab0f')
+                      : tr('il_64aee8c6cb');
               final avatarUrl = (data?['avatarUrl'] ?? data?['avatar']) as String?;
               return InkWell(
                 onTap: () {
@@ -1209,7 +1197,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                               PopupMenuItem(
                                 value: 'promote',
                                 child: Text(
-                                  I18n.inline('Зробити віце', 'Promote to vice'),
+                                  tr('il_d470396292'),
                                   style: const TextStyle(color: Colors.white),
                                 ),
                               )
@@ -1217,14 +1205,14 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                               PopupMenuItem(
                                 value: 'demote',
                                 child: Text(
-                                  I18n.inline('Зняти віце', 'Remove vice role'),
+                                  tr('il_6d9eea42f3'),
                                   style: const TextStyle(color: Colors.white),
                                 ),
                               ),
                             PopupMenuItem(
                               value: 'remove',
                               child: Text(
-                                I18n.inline('Видалити', 'Remove'),
+                                tr('il_c3812fc4ac'),
                                 style: const TextStyle(color: Colors.redAccent),
                               ),
                             ),
@@ -1281,17 +1269,15 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         final requests = snapshot.data ?? const [];
         if (requests.isEmpty) {
           return _emptyState(
-            title: I18n.inline('Немає нових викликів', 'No pending requests'),
-            subtitle: I18n.inline(
-                'Як тільки інші клуби кинуть виклик — побачиш їх тут',
-                'Incoming challenges will appear here'),
+            title: tr('il_883a9f47c7'),
+            subtitle: tr('il_b5bd1b0762'),
           );
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              I18n.inline('Запити на матчі', 'Match requests'),
+              tr('il_7554a1b5ec'),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -1322,7 +1308,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
-                            I18n.inline('VS', 'VS'),
+                            tr('il_8db1a2e199'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
@@ -1347,8 +1333,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          I18n.inline('Запропоновано складів: ${req.proposedRoster.length}',
-                              'Proposed roster: ${req.proposedRoster.length}'),
+                          tr('il_ea317e322b'),
                           style: const TextStyle(color: Colors.white54, fontSize: 12),
                         ),
                         Text(
@@ -1370,7 +1355,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                               side: BorderSide(color: Colors.white.withOpacity(0.3)),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
-                            child: Text(I18n.t('cancel')),
+                            child: Text(tr('cancel')),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1383,7 +1368,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
-                            child: Text(I18n.inline('Погодитись', 'Accept')),
+                            child: Text(tr('il_89713b9c9c')),
                           ),
                         ),
                       ],
@@ -1439,7 +1424,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   String _formString(AppTeam team) {
     if (team.recentMatches.isEmpty) {
-      return I18n.inline('Ще без матчів', 'No matches yet');
+      return tr('il_417b217a64');
     }
     final buffer = team.recentMatches.take(5).map((match) {
       final result = (match['result'] ?? 'draw').toString();
@@ -1510,7 +1495,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         return StatefulBuilder(
           builder: (ctx, setStateDialog) {
             return AlertDialog(
-              title: Text(I18n.inline('Обрати склад', 'Select roster')),
+              title: Text(tr('il_d5dd1f9c74')),
               content: SizedBox(
                 width: double.maxFinite,
                 child: ListView(
@@ -1521,7 +1506,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                     final disabled =
                         (!checked && selected.length >= limit) || isSelf;
                     final name =
-                        namesCache[id] ?? I18n.inline('Гравець', 'Player');
+                        namesCache[id] ?? tr('il_64aee8c6cb');
                     return CheckboxListTile(
                       value: checked,
                       onChanged: disabled
@@ -1538,7 +1523,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                       title: Text(name),
                       subtitle: isSelf
                           ? Text(
-                              I18n.inline('Капітан команди', 'Team captain'),
+                              tr('il_96c1688234'),
                               style: const TextStyle(fontSize: 12),
                             )
                           : null,
@@ -1552,13 +1537,13 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                     selected.clear();
                     Navigator.pop(ctx);
                   },
-                  child: Text(I18n.t('cancel')),
+                  child: Text(tr('cancel')),
                 ),
                 ElevatedButton(
                   onPressed: selected.isEmpty
                       ? null
                       : () => Navigator.pop(ctx),
-                  child: Text(I18n.t('confirm')),
+                  child: Text(tr('confirm')),
                 ),
               ],
             );
@@ -1680,7 +1665,7 @@ class _InviteSheetState extends State<_InviteSheet> {
             ),
             const SizedBox(height: 16),
             Text(
-              I18n.inline('Запросити гравців', 'Invite players'),
+              tr('il_6442e97ac6'),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -1695,7 +1680,7 @@ class _InviteSheetState extends State<_InviteSheet> {
               onChanged: _handleSearchChanged,
               onSubmitted: (_) => _searchPlayers(),
               decoration: InputDecoration(
-                hintText: I18n.inline('Пошук за ім’ям', 'Search by name'),
+                hintText: tr('il_4ae2b33364'),
                 hintStyle: const TextStyle(color: Colors.white54),
                 filled: true,
                 fillColor: Colors.white.withOpacity(0.04),
@@ -1755,7 +1740,7 @@ class _InviteSheetState extends State<_InviteSheet> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _selectedIds.isEmpty ? null : _sendInvites,
-                child: Text(I18n.inline('Надіслати запрошення', 'Send invites')),
+                child: Text(tr('il_c57456e442')),
               ),
             ),
           ],

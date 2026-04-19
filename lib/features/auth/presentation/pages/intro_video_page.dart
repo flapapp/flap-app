@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:easy_localization/easy_localization.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +8,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/progress/progress_status.dart';
 import '../../../../router/app_router.dart';
-import '../../../../utils/i18n.dart';
 import '../bloc/auth_bloc.dart';
 
 @RoutePage()
@@ -140,7 +140,7 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
                     children: [
                       Text(
                         state.introGateFailure?.toString() ??
-                            I18n.inline('Помилка', 'Something went wrong'),
+                            tr('il_ab827e3fe1'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.white70),
                       ),
@@ -149,7 +149,7 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
                         onPressed: () => context.read<AuthBloc>().add(
                               const AuthEvent.introGateCheckRequested(),
                             ),
-                        child: Text(I18n.inline('Повторити', 'Retry')),
+                        child: Text(tr('il_942087cc2d')),
                       ),
                     ],
                   ),
@@ -209,10 +209,7 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            I18n.inline(
-                              'Натисніть будь-яку клавішу або торкніться екрана',
-                              'Press any key or tap anywhere to continue',
-                            ),
+                            tr('il_94d0378bbe'),
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 15,
@@ -237,7 +234,7 @@ class _IntroVideoScreenState extends State<IntroVideoScreen> {
                           ),
                         ),
                         onPressed: markLoading ? null : _navigateToWelcome,
-                        child: Text(I18n.inline('Далі', 'Continue')),
+                        child: Text(tr('il_31fbef1625')),
                       ),
                     ),
                   ],

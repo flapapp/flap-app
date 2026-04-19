@@ -2,7 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/models/challenge.dart';
 import '../../../notifications/data/services/notification_service.dart';
-import '../../../../utils/i18n.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 class ChallengeService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -128,7 +129,7 @@ class ChallengeService {
         'challengeId': challengeId,
         'challengeTitle': challenge.title,
         'timestamp': FieldValue.serverTimestamp(),
-        'description': I18n.inline(
+        'description': bilingual(
   'Плата за створення челенджу: ${challenge.title}',
   'Challenge creation fee: ${challenge.title}',
 ),
@@ -209,7 +210,7 @@ class ChallengeService {
           'challengeId': challengeId,
           'challengeTitle': challenge.title,
           'timestamp': FieldValue.serverTimestamp(),
-          'description': I18n.inline(
+          'description': bilingual(
   'Вступна плата за челендж: ${challenge.title}',
   'Challenge entry fee: ${challenge.title}',
 ),
@@ -319,10 +320,7 @@ class ChallengeService {
         'amount': 1,
         'challengeId': challengeId,
         'timestamp': FieldValue.serverTimestamp(),
-        'description': I18n.inline(
-  'Нагорода за голосування в челенджі',
-  'Reward for voting in the challenge',
-),
+        'description': tr('il_e461fc9a2d'),
       });
 
       return true;
@@ -674,7 +672,7 @@ class ChallengeService {
           'challengeTitle': challenge.title,
           'position': i + 1,
           'timestamp': FieldValue.serverTimestamp(),
-          'description': I18n.inline(
+          'description': bilingual(
             'Приз за ${i + 1}-е місце в челенджі "${challenge.title}"',
             'Prize for place ${i + 1} in "${challenge.title}"',
           ),

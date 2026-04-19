@@ -1,8 +1,8 @@
 import 'package:auto_route/auto_route.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../router/app_router.dart';
-import '../utils/i18n.dart';
 
 @RoutePage()
 class WelcomeScreen extends StatelessWidget {
@@ -60,6 +60,7 @@ class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final lang = context.locale.languageCode;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -117,37 +118,33 @@ class WelcomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ValueListenableBuilder<String>(
-                    valueListenable: I18n.language,
-                    builder: (context, lang, _) => Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildLanguageButton(
-                          label: 'Українська',
-                          selected: lang == 'uk',
-                          onTap: () => I18n.setLanguage('uk'),
-                        ),
-                        const SizedBox(width: 12),
-                        _buildLanguageButton(
-                          label: 'English',
-                          selected: lang == 'en',
-                          onTap: () => I18n.setLanguage('en'),
-                        ),
-                      ],
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildLanguageButton(
+                        label: 'Українська',
+                        selected: lang == 'uk',
+                        onTap: () async =>
+                            context.setLocale(const Locale('uk')),
+                      ),
+                      const SizedBox(width: 12),
+                      _buildLanguageButton(
+                        label: 'English',
+                        selected: lang == 'en',
+                        onTap: () async =>
+                            context.setLocale(const Locale('en')),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
-                  ValueListenableBuilder<String>(
-                    valueListenable: I18n.language,
-                    builder: (context, lang, _) => Text(
-                      'Feel Like A Pro\n${I18n.t('feel_like_a_pro')}',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.white.withOpacity(0.9),
-                        height: 1.5,
-                      ),
-                      textAlign: TextAlign.center,
+                  Text(
+                    '${tr('welcome_brand_line')}\n${tr('feel_like_a_pro')}',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.white.withOpacity(0.9),
+                      height: 1.5,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 40),
                   SizedBox(
@@ -181,16 +178,13 @@ class WelcomeScreen extends StatelessWidget {
                             onPressed: () {
                               context.router.push(const LoginRoute());
                             },
-                            child: ValueListenableBuilder<String>(
-                              valueListenable: I18n.language,
-                              builder: (context, lang, _) => Text(
-                                I18n.t('login'),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1,
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                ),
+                            child: Text(
+                              tr('login'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1,
+                                fontSize: 16,
+                                color: Colors.white,
                               ),
                             ),
                           ),
@@ -215,16 +209,13 @@ class WelcomeScreen extends StatelessWidget {
                             onPressed: () {
                               context.router.push(const RegisterRoute());
                             },
-                            child: ValueListenableBuilder<String>(
-                              valueListenable: I18n.language,
-                              builder: (context, lang, _) => Text(
-                                I18n.t('register'),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1,
-                                  fontSize: 16,
-                                ),
+                            child: Text(
+                              tr('register'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1,
+                                fontSize: 16,
                               ),
                             ),
                           ),

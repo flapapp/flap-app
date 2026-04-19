@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:easy_localization/easy_localization.dart';
 
-import '../../../../utils/i18n.dart';
 import '../../domain/entities/challenge_entity.dart';
 
 export '../../domain/entities/challenge_entity.dart';
@@ -278,29 +278,29 @@ class Challenge extends ChallengeEntity {
   String get typeText {
     switch (type) {
       case ChallengeType.goal:
-        return I18n.inline('Гол', 'Goal');
+        return tr('il_cdbf6975e8');
       case ChallengeType.shotPower:
-        return I18n.inline('Сила удару', 'Shot power');
+        return tr('il_a387ab1835');
       case ChallengeType.save:
-        return I18n.inline('Сейв', 'Save');
+        return tr('il_1509f561f2');
       case ChallengeType.pass:
-        return I18n.inline('Пас', 'Pass');
+        return tr('il_ebdf8cc00b');
       case ChallengeType.longPass:
-        return I18n.inline('Довгий пас', 'Long pass');
+        return tr('il_a30ef79268');
       case ChallengeType.tackle:
-        return I18n.inline('Підкат', 'Tackle');
+        return tr('il_9c0dd00951');
       case ChallengeType.dribbling:
-        return I18n.inline('Дриблінг', 'Dribbling');
+        return tr('il_0b337d1bc7');
       case ChallengeType.penalty:
-        return I18n.inline('Пенальті', 'Penalty');
+        return tr('il_241c754092');
       case ChallengeType.wall:
-        return I18n.inline('Стіна / стандарт', 'Wall / set-piece');
+        return tr('il_93819c7151');
       case ChallengeType.strategy:
-        return I18n.inline('Стратегія', 'Strategy');
+        return tr('il_6b27710dfa');
       case ChallengeType.trick:
-        return I18n.inline('Трюк', 'Trick');
+        return tr('il_209e3aa0b5');
       case ChallengeType.other:
-        return I18n.inline('Інше', 'Other');
+        return tr('il_f97e9da0e3');
     }
   }
 

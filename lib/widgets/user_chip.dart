@@ -1,9 +1,9 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/i18n.dart';
 
 class UserChip extends StatelessWidget {
   final String userId;
@@ -26,7 +26,7 @@ class UserChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (userId.isEmpty) {
-      return _buildContent(context, displayName: name ?? I18n.inline('Користувач', 'User'), resolvedAvatarUrl: avatarUrl ?? '');
+      return _buildContent(context, displayName: name ?? tr('il_b512d97e7c'), resolvedAvatarUrl: avatarUrl ?? '');
     }
 
     if (name != null && avatarUrl != null) {
@@ -37,7 +37,7 @@ class UserChip extends StatelessWidget {
       future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
       builder: (context, snapshot) {
         final data = snapshot.data?.data() ?? <String, dynamic>{};
-        final displayName = name ?? (data['displayName'] ?? data['name'] ?? data['email']?.toString().split('@').first ?? I18n.inline('Користувач', 'User'));
+        final displayName = name ?? (data['displayName'] ?? data['name'] ?? data['email']?.toString().split('@').first ?? tr('il_b512d97e7c'));
         final resolvedAvatarUrl = avatarUrl ?? (data['avatarUrl'] ?? data['avatar'] ?? '');
         return _buildContent(context, displayName: displayName, resolvedAvatarUrl: resolvedAvatarUrl);
       },

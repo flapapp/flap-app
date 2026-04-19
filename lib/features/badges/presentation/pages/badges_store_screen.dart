@@ -1,5 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/badges_repository.dart';
@@ -7,7 +9,6 @@ import '../../../../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/models/badge.dart' as app_badge;
-import '../../../../utils/i18n.dart';
 
 @RoutePage()
 class BadgesStoreScreen extends StatefulWidget {
@@ -83,7 +84,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
             const Icon(Icons.auto_awesome, color: Color(0xFF4caf50), size: 24),
             const SizedBox(width: 8),
             Text(
-              I18n.inline('Додати скіли', 'Add skills'),
+              tr('il_7e02e138e6'),
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -129,11 +130,11 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white54,
           tabs: [
-            Tab(text: 'Всі'.i18n('All')),
-            Tab(text: 'Початкові'.i18n('Starter')),
-            Tab(text: 'Навички'.i18n('Skills')),
-            Tab(text: 'Досягнення'.i18n('Achievements')),
-            Tab(text: 'Легендарні'.i18n('Legendary')),
+            Tab(text: bilingual('Всі', 'All')),
+            Tab(text: bilingual('Початкові', 'Starter')),
+            Tab(text: bilingual('Навички', 'Skills')),
+            Tab(text: bilingual('Досягнення', 'Achievements')),
+            Tab(text: bilingual('Легендарні', 'Legendary')),
           ],
         ),
       ),
@@ -171,7 +172,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              'Немає бейджів у цій категорії'.i18n('No badges in this category'),
+              bilingual('Немає бейджів у цій категорії', 'No badges in this category'),
               style: const TextStyle(
                 color: Colors.white54,
                 fontSize: 16,
@@ -262,7 +263,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        'МАЄТЕ'.i18n('OWNED'),
+                        bilingual('МАЄТЕ', 'OWNED'),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 9,
@@ -277,33 +278,27 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
               // Badge info
               Column(
                 children: [
-                  ValueListenableBuilder<String>(
-                    valueListenable: I18n.language,
-                    builder: (context, _, __) => Text(
-                      badge.localizedName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  Text(
+                    badge.localizedName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  ValueListenableBuilder<String>(
-                    valueListenable: I18n.language,
-                    builder: (context, _, __) => Text(
-                      badge.localizedDescription,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
-                        fontSize: 12,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                  Text(
+                    badge.localizedDescription,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 12,
                     ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
                   Container(
@@ -374,7 +369,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                     border: Border.all(color: const Color(0xFF4caf50)),
                   ),
                   child: Text(
-                    '✓ КУПЛЕНО'.i18n('✓ PURCHASED'),
+                    bilingual('✓ КУПЛЕНО', '✓ PURCHASED'),
                     style: const TextStyle(
                       color: Color(0xFF4caf50),
                       fontSize: 11,
@@ -411,26 +406,20 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ValueListenableBuilder<String>(
-                      valueListenable: I18n.language,
-                      builder: (context, _, __) => Text(
-                        badge.localizedName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    Text(
+                      badge.localizedName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    ValueListenableBuilder<String>(
-                      valueListenable: I18n.language,
-                      builder: (context, _, __) => Text(
-                        badge.rarityText,
-                        style: TextStyle(
-                          color: Color(badge.categoryColor),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    Text(
+                      badge.rarityText,
+                      style: TextStyle(
+                        color: Color(badge.categoryColor),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -442,14 +431,11 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ValueListenableBuilder<String>(
-                valueListenable: I18n.language,
-                builder: (context, _, __) => Text(
-                  badge.localizedDescription,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 16,
-                  ),
+              Text(
+                badge.localizedDescription,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
                 ),
               ),
               const SizedBox(height: 16),
@@ -464,7 +450,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Ціна:'.i18n('Price:'),
+                      bilingual('Ціна:', 'Price:'),
                       style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                     Row(
@@ -500,7 +486,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Ваш баланс:'.i18n('Your balance:'),
+                      bilingual('Ваш баланс:', 'Your balance:'),
                       style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                     Row(
@@ -533,8 +519,10 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'Недостатньо монет! Потрібно ще ${badge.price - _userCoins} монет.'
-                        .i18n('Not enough coins! You need ${badge.price - _userCoins} more.'),
+                    bilingual(
+                      'Недостатньо монет! Потрібно ще ${badge.price - _userCoins} монет.',
+                      'Not enough coins! You need ${badge.price - _userCoins} more.',
+                    ),
                     style: const TextStyle(
                       color: Colors.red,
                       fontSize: 12,
@@ -548,7 +536,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                I18n.t('cancel'),
+                tr('cancel'),
                 style: const TextStyle(color: Colors.white54),
               ),
             ),
@@ -564,7 +552,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                 ),
               ),
               child: Text(
-                'Купити'.i18n('Buy'),
+                bilingual('Купити', 'Buy'),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -603,12 +591,9 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
               Text(badge.emoji, style: const TextStyle(fontSize: 20)),
               const SizedBox(width: 12),
               Expanded(
-                child: ValueListenableBuilder<String>(
-                  valueListenable: I18n.language,
-                  builder: (context, _, __) => Text(
-                    I18n.inline('Бейдж "${badge.localizedName}" успішно куплено!', 'Badge "${badge.localizedName}" purchased successfully!'),
-                    style: const TextStyle(fontSize: 16),
-                  ),
+                child: Text(
+                  tr('il_f9ef28036b'),
+                  style: const TextStyle(fontSize: 16),
                 ),
               ),
             ],
@@ -631,7 +616,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  I18n.inline('Помилка покупки: ${e.toString()}', 'Purchase error: ${e.toString()}'),
+                  tr('il_baad69c3af'),
                   style: const TextStyle(fontSize: 16),
                 ),
               ),

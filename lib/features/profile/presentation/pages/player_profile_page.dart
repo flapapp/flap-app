@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +10,6 @@ import 'package:video_player/video_player.dart';
 import '../../../../core/di/injection.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../../../badges/data/models/badge.dart' as app_badge;
-import '../../../../utils/i18n.dart';
 import '../../../auth/domain/repositories/auth_session_repository.dart';
 import '../../domain/repositories/current_user_profile_avatar_repository.dart';
 import '../../domain/repositories/player_badge_endorsement_repository.dart';
@@ -61,17 +62,17 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   List<AppTeam> _playerTeams = [];
   // Опції як у реєстрації
   List<String> get _positions => [
-        'Воротар'.i18n('Goalkeeper'),
-        'Захисник'.i18n('Defender'),
-        'Півзахисник'.i18n('Midfielder'),
-        'Нападник'.i18n('Forward'),
-        'Універсал'.i18n('Utility player'),
+        bilingual('Воротар', 'Goalkeeper'),
+        bilingual('Захисник', 'Defender'),
+        bilingual('Півзахисник', 'Midfielder'),
+        bilingual('Нападник', 'Forward'),
+        bilingual('Універсал', 'Utility player'),
       ];
   List<String> get _experiences => [
-        'Початківець'.i18n('Beginner'),
-        'Аматор'.i18n('Amateur'),
-        'Досвідчений'.i18n('Experienced'),
-        'Професіонал'.i18n('Professional'),
+        bilingual('Початківець', 'Beginner'),
+        bilingual('Аматор', 'Amateur'),
+        bilingual('Досвідчений', 'Experienced'),
+        bilingual('Професіонал', 'Professional'),
       ];
 
   @override
@@ -150,7 +151,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   } catch (e) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(I18n.inline('Помилка вибору фото: $e', 'Photo selection error: $e'))),
+      SnackBar(content: Text(tr('il_a5c2eb690c'))),
     );
   }
 }
@@ -215,7 +216,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            I18n.inline('Помилка завантаження: $e', 'Upload error: $e'),
+            tr('il_7e1f7f4eb9'),
           ),
         ),
       );
@@ -239,7 +240,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     if (_myVideoIds.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(parentContext).showSnackBar(
-        SnackBar(content: Text('Немає ваших відео для запиту оцінки'.i18n('No videos available for a rating request'))),
+        SnackBar(content: Text(bilingual('Немає ваших відео для запиту оцінки', 'No videos available for a rating request'))),
       );
       return;
     }
@@ -259,7 +260,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 
           return AlertDialog(
             backgroundColor: const Color(0xFF1a1a2e),
-            title: Text('Оберіть мої відео для оцінки'.i18n('Select my videos to rate'), style: const TextStyle(color: Colors.white)),
+            title: Text(bilingual('Оберіть мої відео для оцінки', 'Select my videos to rate'), style: const TextStyle(color: Colors.white)),
             content: SizedBox(
               width: double.maxFinite,
               child: _loadingMyVideos
@@ -270,7 +271,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                       itemBuilder: (context, index) {
                         final v = videos[index];
                         final id = (v['id'] ?? '').toString();
-                        final title = (v['title'] ?? 'Відео'.i18n('Video')).toString();
+                        final title = (v['title'] ?? bilingual('Відео', 'Video')).toString();
                         final isSel = selected.contains(id);
                         return CheckboxListTile(
                           value: isSel,
@@ -292,7 +293,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                   dialogClosed = true;
                   Navigator.pop(ctx, false);
                 },
-                child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
+                child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70)),
               ),
               ElevatedButton(
                 onPressed: selected.isEmpty
@@ -304,7 +305,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                         final myName = (meProfile?.displayName.isNotEmpty == true
                                 ? meProfile!.displayName
                                 : null) ??
-                            'Користувач'.i18n('User');
+                            bilingual('Користувач', 'User');
                         await sl<PlayerNotificationActionsRepository>().sendRatingRequest(
                           toUserIds: [widget.playerId],
                           fromUserName: myName,
@@ -315,10 +316,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                         Navigator.pop(ctx, true);
                         if (!mounted) return;
                         ScaffoldMessenger.of(parentContext).showSnackBar(
-                          SnackBar(content: Text('✅ Запит на оцінку надіслано'.i18n('✅ Rating request sent'))),
+                          SnackBar(content: Text(bilingual('✅ Запит на оцінку надіслано', '✅ Rating request sent'))),
                         );
                       },
-                child: Text('Надіслати'.i18n('Send')),
+                child: Text(bilingual('Надіслати', 'Send')),
               ),
             ],
           );
@@ -365,7 +366,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Запрошення надіслано!'.i18n('✅ Invitation sent!')),
+            content: Text(bilingual('✅ Запрошення надіслано!', '✅ Invitation sent!')),
             backgroundColor: Colors.green,
           ),
         );
@@ -374,7 +375,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
+          SnackBar(content: Text(tr('il_e69e7edfdf'))),
         );
       }
     } finally {
@@ -404,23 +405,23 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   switch (value) {
     case 'воротар':
     case 'goalkeeper':
-      return I18n.inline('Воротар', 'Goalkeeper');
+      return tr('il_f2d20c7ee1');
 
     case 'захисник':
     case 'defender':
-      return I18n.inline('Захисник', 'Defender');
+      return tr('il_157ddc59b5');
 
     case 'півзахисник':
     case 'midfielder':
-      return I18n.inline('Півзахисник', 'Midfielder');
+      return tr('il_d332e47845');
 
     case 'нападник':
     case 'forward':
-      return I18n.inline('Нападник', 'Forward');
+      return tr('il_f1c65e1481');
 
     case 'універсал':
     case 'utility player':
-      return I18n.inline('Універсал', 'Utility player');
+      return tr('il_ab28eea9ef');
 
     default:
       return (raw ?? '').toString();
@@ -441,7 +442,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            widget.playerName ?? 'Профіль гравця'.i18n('Player profile'),
+            widget.playerName ?? bilingual('Профіль гравця', 'Player profile'),
             style: const TextStyle(color: Colors.white),
           ),
         ),
@@ -462,13 +463,13 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            I18n.t('profile_not_found'),
+            tr('profile_not_found'),
             style: const TextStyle(color: Colors.white),
           ),
         ),
         body: Center(
           child: Text(
-            'Профіль гравця не знайдено'.i18n('Player profile not found'),
+            bilingual('Профіль гравця не знайдено', 'Player profile not found'),
             style: const TextStyle(color: Colors.white70, fontSize: 16),
           ),
         ),
@@ -479,7 +480,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                          playerData!['name'] ?? 
                          playerData!['authorName'] ?? 
                          playerData!['email']?.toString().split('@').first ?? 
-                         I18n.t('player')).toString();
+                         tr('player')).toString();
     final position = _localizedPosition(playerData!['position']?.toString());
     final city = playerData!['city'] ?? '';
     final rating = (playerData!['rating'] ?? 0.0).toDouble();
@@ -505,7 +506,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(widget.playerName ?? 'Профіль гравця'.i18n('Player profile'), style: const TextStyle(color: Colors.white)),
+        title: Text(widget.playerName ?? bilingual('Профіль гравця', 'Player profile'), style: const TextStyle(color: Colors.white)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -555,18 +556,18 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
               child: Column(children: [
                 Text(rating.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
-                Text(I18n.t('overall_rating'), style: const TextStyle(color: Colors.white70)),
+                Text(tr('overall_rating'), style: const TextStyle(color: Colors.white70)),
               ]),
             ),
             const SizedBox(height: 12),
             Row(children: [
-              Expanded(child: _statBox(value: matches.toString(), label: 'Матчі'.i18n('Matches'), icon: Icons.sports_soccer, color: const Color(0xFF4CAF50))),
+              Expanded(child: _statBox(value: matches.toString(), label: bilingual('Матчі', 'Matches'), icon: Icons.sports_soccer, color: const Color(0xFF4CAF50))),
               const SizedBox(width: 10),
-              Expanded(child: _statBox(value: averageRating.toStringAsFixed(2), label: 'Середня'.i18n('Average'), icon: Icons.star_border, color: const Color(0xFFFFD54F))),
+              Expanded(child: _statBox(value: averageRating.toStringAsFixed(2), label: bilingual('Середня', 'Average'), icon: Icons.star_border, color: const Color(0xFFFFD54F))),
               const SizedBox(width: 10),
               Expanded(child: _statBox(value: '${_winRate.toStringAsFixed(0)}%', label: 'Win rate', icon: Icons.percent, color: const Color(0xFF64B5F6))),
               const SizedBox(width: 10),
-              Expanded(child: _statBox(value: goals.toString(), label: I18n.inline('Голи', 'Goals'), icon: Icons.sports, color: const Color(0xFFFF7043))),
+              Expanded(child: _statBox(value: goals.toString(), label: tr('il_116cd3982a'), icon: Icons.sports, color: const Color(0xFFFF7043))),
             ]),
             const SizedBox(height: 20),
 
@@ -599,7 +600,7 @@ Container(
         children: [
           const Icon(Icons.percent, color: Colors.white70, size: 16),
           const SizedBox(width: 6),
-          Text('Win Rate: ${_winRate.toStringAsFixed(0)}%',
+          Text(tr('win_rate_percent', args: [_winRate.toStringAsFixed(0)]),
               style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
         ],
       ),
@@ -633,7 +634,7 @@ const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  I18n.inline('Команди', 'Teams'),
+                  tr('il_1e1a1c078a'),
                   style: const TextStyle(
                     color: Colors.white70,
                     fontWeight: FontWeight.w600,
@@ -693,12 +694,12 @@ const SizedBox(height: 12),
                                   ? Icons.schedule
                                   : Icons.person_add),
                           label: Text(isFriend
-                              ? I18n.t('friends')
+                              ? tr('friends')
                               : hasPendingRequest
-                                  ? 'Запрошення надіслано'.i18n('Invitation sent')
+                                  ? bilingual('Запрошення надіслано', 'Invitation sent')
                                   : _isSendingRequest
-                                      ? 'Надсилання...'.i18n('Sending...')
-                                      : 'Додати в друзі'.i18n('Add friend')),
+                                      ? bilingual('Надсилання...', 'Sending...')
+                                      : bilingual('Додати в друзі', 'Add friend')),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF4caf50),
                             foregroundColor: Colors.white,
@@ -727,7 +728,7 @@ const SizedBox(height: 12),
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                         ),
-                        child: Text('Оціни мене'.i18n('Rate me')),
+                        child: Text(bilingual('Оціни мене', 'Rate me')),
                       ),
                     ]);
                   },
@@ -746,10 +747,10 @@ const SizedBox(height: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(I18n.t('badges'), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                  Text(tr('badges'), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   if (_userBadges.isEmpty)
-                    Text('Бейджів поки немає'.i18n('No badges yet'), style: const TextStyle(color: Colors.white54))
+                    Text(bilingual('Бейджів поки немає', 'No badges yet'), style: const TextStyle(color: Colors.white54))
                   else
                     SizedBox(
                       height: 82,
@@ -871,7 +872,7 @@ const SizedBox(height: 12),
             if (playerVideos.isNotEmpty) ...[
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text(I18n.t('videos'), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                child: Text(tr('videos'), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
               ),
               const SizedBox(height: 8),
               SizedBox(
@@ -883,7 +884,7 @@ const SizedBox(height: 12),
                     final v = playerVideos[index];
                     final thumb = (v['thumbnailUrl'] ?? '').toString();
                     final vUrl = (v['videoUrl'] ?? '').toString();
-                    final title = (v['title'] ?? 'Відео'.i18n('Video')).toString();
+                    final title = (v['title'] ?? bilingual('Відео', 'Video')).toString();
                     return SizedBox(
                       width: 170,
                       child: VideoPreviewBox(
@@ -917,7 +918,7 @@ const SizedBox(height: 12),
                   color: Colors.white.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text('Поки що немає відео'.i18n('No videos yet'), style: const TextStyle(color: Colors.white54)),
+                child: Text(bilingual('Поки що немає відео', 'No videos yet'), style: const TextStyle(color: Colors.white54)),
               ),
             ],
           ],
@@ -1055,7 +1056,7 @@ const SizedBox(height: 12),
       if (all.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(parentContext).showSnackBar(
-          SnackBar(content: Text('Немає доступних ваших челенджів для запрошення.'.i18n('No available challenges to invite.'))),
+          SnackBar(content: Text(bilingual('Немає доступних ваших челенджів для запрошення.', 'No available challenges to invite.'))),
         );
         return;
       }
@@ -1072,7 +1073,7 @@ const SizedBox(height: 12),
 
             return AlertDialog(
               backgroundColor: const Color(0xFF1a1a2e),
-              title: Text('Запросити до челенджу'.i18n('Invite to challenge'), style: const TextStyle(color: Colors.white)),
+              title: Text(bilingual('Запросити до челенджу', 'Invite to challenge'), style: const TextStyle(color: Colors.white)),
               content: SizedBox(
                 width: double.maxFinite,
                 child: ListView.builder(
@@ -1084,9 +1085,12 @@ const SizedBox(height: 12),
                       value: index,
                       groupValue: selectedIndex,
                       onChanged: (v) => safeDialogSetState(() => selectedIndex = v ?? -1),
-                      title: Text(c['title'] ?? 'Челендж'.i18n('Challenge'), style: const TextStyle(color: Colors.white)),
+                      title: Text(c['title'] ?? bilingual('Челендж', 'Challenge'), style: const TextStyle(color: Colors.white)),
                       subtitle: Text(
-                        'Учасників: ${(c['participants'] as List?)?.length ?? 0}'.i18n('Participants: ${(c['participants'] as List?)?.length ?? 0}'),
+                        bilingual(
+                          'Учасників: ${(c['participants'] as List?)?.length ?? 0}',
+                          'Participants: ${(c['participants'] as List?)?.length ?? 0}',
+                        ),
                         style: const TextStyle(color: Colors.white54, fontSize: 12),
                       ),
                     );
@@ -1099,7 +1103,7 @@ const SizedBox(height: 12),
                     dialogClosed = true;
                     Navigator.pop(ctx, false);
                   },
-                  child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
+                  child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70)),
                 ),
                 ElevatedButton(
                   onPressed: selectedIndex < 0
@@ -1112,8 +1116,8 @@ const SizedBox(height: 12),
                               .sendChallengeInvitation(
                             toUserId: widget.playerId,
                             challengeId: (selected['id'] ?? '').toString(),
-                            challengeTitle: (selected['title'] ?? 'Челендж'.i18n('Challenge')).toString(),
-                            creatorName: (playerData?['displayName'] ?? 'Користувач'.i18n('User')).toString(),
+                            challengeTitle: (selected['title'] ?? bilingual('Челендж', 'Challenge')).toString(),
+                            creatorName: (playerData?['displayName'] ?? bilingual('Користувач', 'User')).toString(),
                             challengeType: (selected['type'] ?? 'goal').toString(),
                           );
                           if (!mounted || dialogClosed) return;
@@ -1121,10 +1125,10 @@ const SizedBox(height: 12),
                           Navigator.pop(ctx, true);
                           if (!mounted) return;
                           ScaffoldMessenger.of(parentContext).showSnackBar(
-                            SnackBar(content: Text(ok ? '✅ Запрошення надіслано'.i18n('✅ Invitation sent') : '❌ Не вдалося надіслати'.i18n('❌ Failed to send'))),
+                            SnackBar(content: Text(ok ? bilingual('✅ Запрошення надіслано', '✅ Invitation sent') : bilingual('❌ Не вдалося надіслати', '❌ Failed to send'))),
                           );
                         },
-                  child: Text('Запросити'.i18n('Invite')),
+                  child: Text(bilingual('Запросити', 'Invite')),
                 ),
               ],
             );
@@ -1136,7 +1140,7 @@ const SizedBox(height: 12),
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(parentContext).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf'))),
       );
     }
   }
@@ -1163,7 +1167,7 @@ const SizedBox(height: 12),
         ),
       ),
       validator: requiredField
-          ? (v) => (v == null || v.trim().isEmpty) ? 'Обов’язкове поле'.i18n('This field is required') : null
+          ? (v) => (v == null || v.trim().isEmpty) ? bilingual('Обов’язкове поле', 'This field is required') : null
           : null,
     );
   }
@@ -1172,13 +1176,13 @@ const SizedBox(height: 12),
     final currentUserId = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     if (currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Увійдіть, щоб підтверджувати бейджі'.i18n('Sign in to endorse badges'))),
+        SnackBar(content: Text(bilingual('Увійдіть, щоб підтверджувати бейджі', 'Sign in to endorse badges'))),
       );
       return;
     }
     if (currentUserId == ownerId) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Не можна підтверджувати власні бейджі'.i18n('You cannot endorse your own badges'))),
+        SnackBar(content: Text(bilingual('Не можна підтверджувати власні бейджі', 'You cannot endorse your own badges'))),
       );
       return;
     }
@@ -1194,7 +1198,7 @@ const SizedBox(height: 12),
       success: (_) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(I18n.inline('✅ Ви підтвердили бейдж "${badge.localizedName}"', '✅ You endorsed the badge "${badge.localizedName}"'))),
+          SnackBar(content: Text(tr('il_67089ac557'))),
         );
         setState(() {
           _badgeEndorseVersion++;
@@ -1203,11 +1207,11 @@ const SizedBox(height: 12),
       failure: (f) {
         if (!mounted) return;
         final message = f.when(
-          cache: () => 'Помилка підтвердження'.i18n('Endorsement error'),
-          network: (m) => m ?? 'Помилка мережі'.i18n('Network error'),
+          cache: () => bilingual('Помилка підтвердження', 'Endorsement error'),
+          network: (m) => m ?? bilingual('Помилка мережі', 'Network error'),
           unexpected: (m) =>
-              m ?? 'Помилка підтвердження'.i18n('Endorsement error'),
-          auth: (_, m) => m ?? 'Помилка авторизації'.i18n('Auth error'),
+              m ?? bilingual('Помилка підтвердження', 'Endorsement error'),
+          auth: (_, m) => m ?? bilingual('Помилка авторизації', 'Auth error'),
         );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),
@@ -1283,7 +1287,7 @@ Widget build(BuildContext context) {
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          I18n.inline('${team.memberIds.length} гравців', '${team.memberIds.length} players'),
+                          tr('il_3ac75e6772'),
                           style: const TextStyle(color: Colors.white60, fontSize: 11),
                         ),
                       ],
@@ -1302,7 +1306,7 @@ Widget build(BuildContext context) {
               ),
               const SizedBox(height: 6),
               Text(
-                I18n.inline('Win rate: $winRate%', 'Win rate: $winRate%'),
+                tr('il_6eba3c021d'),
                 style: const TextStyle(color: Colors.white60, fontSize: 11),
               ),
             ],

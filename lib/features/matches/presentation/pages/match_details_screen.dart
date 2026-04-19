@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../router/app_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,7 +15,6 @@ import '../../domain/repositories/matches_repository.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../../data/models/match.dart';
 import '../../../notifications/data/services/notification_service.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/user_chip.dart';
 
@@ -50,13 +51,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           .get();
       final data = snap.data() as Map<String, dynamic>? ?? const {};
       final profile = <String, dynamic>{
-        'displayName': (data['displayName'] ?? data['authorName'] ?? I18n.t('player')).toString(),
+        'displayName': (data['displayName'] ?? data['authorName'] ?? tr('player')).toString(),
         'avatarUrl': (data['avatarUrl'] ?? '').toString(),
       };
       _profileCache[userId] = profile;
       return profile;
     } catch (_) {
-      final fallback = <String, dynamic>{'displayName': I18n.t('player'), 'avatarUrl': ''};
+      final fallback = <String, dynamic>{'displayName': tr('player'), 'avatarUrl': ''};
       _profileCache[userId] = fallback;
       return fallback;
     }
@@ -68,7 +69,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       backgroundColor: const Color(0xFF1a1a2e),
       appBar: AppBar(
         title: Text(
-          I18n.inline('⚽ Деталі матчу', '⚽ Match Details'),
+          tr('il_f6e1977cf4'),
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         backgroundColor: Colors.transparent,
@@ -255,10 +256,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                                       size: 18),
                                   const SizedBox(width: 8),
                                   Text(
-                                    I18n.inline(
-                                      'Післяматчеве фото',
-                                      'Post-match highlight',
-                                    ),
+                                    tr('il_556df31ebb'),
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w600,
@@ -291,10 +289,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                         )
                       : const Icon(Icons.cloud_upload),
                   label: Text(hasPhoto
-                      ? I18n.inline(
-                          'Оновити фото матчу', 'Update match photo')
-                      : I18n.inline(
-                          'Додати фото матчу', 'Add match photo')),
+                      ? tr('il_7e683a862b')
+                      : tr('il_97572951db')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4caf50),
                     foregroundColor: Colors.white,
@@ -325,10 +321,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 color: Colors.white.withOpacity(0.6), size: 36),
             const SizedBox(height: 8),
             Text(
-              I18n.inline(
-                'Додайте фото, щоб матч виглядав яскравіше',
-                'Add a highlight photo for this match',
-              ),
+              tr('il_2f9b6b2d9d'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
@@ -377,7 +370,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            I18n.inline('Фото матчу оновлено.', 'Match photo updated.'),
+            tr('il_af75da9942'),
           ),
           backgroundColor: const Color(0xFF4caf50),
         ),
@@ -387,7 +380,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            I18n.inline(
+            bilingual(
               'Не вдалося завантажити фото: $e',
               'Failed to upload photo: $e',
             ),
@@ -427,7 +420,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            I18n.inline('📋 Інформація про матч', '📋 Match Information'),
+            tr('il_1286a9ab94'),
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -443,7 +436,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                   '🗓️',
                   '${widget.match.date.day}.${widget.match.date.month}.${widget.match.date.year}',
-                  I18n.inline('Дата', 'Date'),
+                  tr('il_99c40ab405'),
                 ),
               ),
               SizedBox(width: 12),
@@ -451,7 +444,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                   '⏰',
                   widget.match.time,
-                  I18n.inline('Час', 'Time'),
+                  tr('il_33b93476cf'),
                 ),
               ),
             ],
@@ -463,7 +456,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                   '👥',
                   '${widget.match.participants.length}/${widget.match.maxPlayers}',
-                  I18n.inline('Гравці', 'Players'),
+                  tr('il_84e12ac655'),
                 ),
               ),
               SizedBox(width: 12),
@@ -471,7 +464,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                   '💰',
                   '${widget.match.cost} грн',
-                  I18n.inline('Вартість', 'Cost'),
+                  tr('il_204a5eb2cd'),
                 ),
               ),
             ],
@@ -483,7 +476,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                   '⭐',
                   _getLevelText(widget.match.level),
-                  I18n.inline('Рівень', 'Level'),
+                  tr('il_1709305c9f'),
                 ),
               ),
               SizedBox(width: 12),
@@ -491,7 +484,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 child: _buildStatCard(
                    '🏙️',
                   widget.match.city,
-                  I18n.inline('Місто', 'City'),
+                  tr('il_fc33f73246'),
                 ),
               ),
             ],
@@ -530,12 +523,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   Widget _buildTeamMatchSection() {
     final teamAName = (widget.match.teamA?.name.isNotEmpty ?? false)
         ? widget.match.teamA!.name
-        : I18n.inline('Команда організатора', 'Host team');
+        : tr('il_d161440e8d');
     final teamBName = (widget.match.teamB?.name.isNotEmpty ?? false)
         ? widget.match.teamB!.name
         : (widget.match.teamBId != null
-            ? I18n.inline('Команда суперника', 'Opponent team')
-            : I18n.inline('Очікує суперника', 'Awaiting opponent'));
+            ? tr('il_6b3e8cd77f')
+            : tr('il_324df4ad19'));
 
     final rosterA =
         widget.match.teamRosters['teamA'] ?? widget.match.teamA?.playerIds ?? const <String>[];
@@ -578,7 +571,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               const Icon(Icons.sports_soccer, color: Colors.white70),
               const SizedBox(width: 8),
               Text(
-                I18n.inline('Командний матч', 'Team match'),
+                tr('il_4f76cec7a7'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -739,9 +732,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      I18n.inline(
-                          'Склад команди "${team.name}"',
-                          'Roster for "${team.name}"'),
+                      tr('il_9212d8dcc4'),
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -753,9 +744,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                    I18n.inline(
-                        'У складі ${roster.length} гравців',
-                        '${roster.length} players selected'),
+                    tr('il_e411803602'),
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.8),
                   fontSize: 13,
@@ -764,9 +753,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               if (roster.isEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
-                  I18n.inline(
-                      'Поки що нікого не додано до складу.',
-                      'No players have been selected yet.'),
+                  tr('il_eda0355fec'),
                   style: const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ] else ...[
@@ -785,8 +772,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 icon: const Icon(Icons.group_add),
                 label: Text(
                   roster.isEmpty
-                      ? I18n.inline('Обрати склад', 'Pick roster')
-                      : I18n.inline('Оновити склад', 'Update roster'),
+                      ? tr('il_6ae263d842')
+                      : tr('il_0474305707'),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4caf50),
@@ -796,12 +783,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               const SizedBox(height: 6),
               Text(
                 allConfirmed
-                    ? I18n.inline(
-                        'Усі гравці підтвердили участь.',
-                        'All players confirmed.')
-                    : I18n.inline(
-                        'Після вибору складу гравці отримають інвайти і мають підтвердити участь.',
-                        'After selecting a roster, players will receive invites to confirm participation.'),
+                    ? tr('il_42d5e0da31')
+                    : tr('il_253d26aef7'),
                 style: TextStyle(
                   color: allConfirmed
                       ? const Color(0xFF4caf50)
@@ -857,7 +840,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         const SizedBox(height: 10),
         if (playerIds.isEmpty)
           Text(
-            I18n.inline('Склад ще не визначено', 'Roster not selected yet'),
+            tr('il_c6b28c9228'),
             style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
           )
         else
@@ -959,29 +942,23 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
         final teamName = teamKey == 'teamA'
             ? (data['teamA']?['name']?.toString() ??
-                I18n.inline('Команда А', 'Team A'))
+                tr('il_e18d322f14'))
             : (data['teamB']?['name']?.toString() ??
-                I18n.inline('Команда Б', 'Team B'));
+                tr('il_aceaf5d9ac'));
         final isPending = playerStatus.isEmpty || playerStatus == 'pending';
         final headline = isPending
-            ? I18n.inline('Підтвердіть участь',
-                'Confirm your spot')
+            ? tr('il_a23b1c12bb')
             : playerStatus == 'confirmed'
-                ? I18n.inline(
-                    'Участь підтверджено', 'Participation confirmed')
-                : I18n.inline('Участь відхилено', 'Participation declined');
+                ? tr('il_d585866af0')
+                : tr('il_d3bcba9446');
         final description = isPending
-            ? I18n.inline(
+            ? bilingual(
                 'Капітан "$teamName" додав вас до складу. Підтвердіть, що ви готові грати.',
                 'Captain of "$teamName" added you to the roster. Confirm you are ready to play.',
               )
             : playerStatus == 'confirmed'
-                ? I18n.inline(
-                    'Очікуємо інших гравців. Ви завжди можете змінити рішення.',
-                    'Waiting for other teammates. You can still change your decision.')
-                : I18n.inline(
-                    'Ви відхилили участь. Якщо ситуація зміниться, підтвердіть повторно.',
-                    'You declined the invite. Confirm again if things change.');
+                ? tr('il_cf3c929b1b')
+                : tr('il_9a08914842');
         return Column(
           children: [
             Container(
@@ -1055,8 +1032,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                           ),
                           child: Text(
                             playerStatus == 'confirmed'
-                                ? I18n.inline('Підтверджено', 'Confirmed')
-                                : I18n.inline('Підтвердити', 'Confirm'),
+                                ? tr('il_fe00b67b6d')
+                                : tr('il_eebdd24a77'),
                           ),
                         ),
                       ),
@@ -1076,8 +1053,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                           ),
                           child: Text(
                             playerStatus == 'declined'
-                                ? I18n.inline('Відхилено', 'Declined')
-                                : I18n.inline('Відхилити', 'Decline'),
+                                ? tr('il_dce083a2c4')
+                                : tr('il_a2d285b352'),
                           ),
                         ),
                       ),
@@ -1133,7 +1110,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
       child: Text(
-        I18n.inline('Склади', 'Rosters'),
+        tr('il_9e236cb5f1'),
         style: const TextStyle(
           color: Colors.white70,
           fontSize: 11,
@@ -1146,11 +1123,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   String _teamStatusText(String? status) {
     switch (status) {
       case 'confirmed':
-        return I18n.inline('Підтверджено', 'Confirmed');
+        return tr('il_fe00b67b6d');
       case 'declined':
-        return I18n.inline('Відхилено', 'Declined');
+        return tr('il_dce083a2c4');
       default:
-        return I18n.inline('Очікує', 'Pending');
+        return tr('il_331551b0de');
     }
   }
 
@@ -1203,13 +1180,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     return Row(
       children: [
         _legendChip(_playerStatusColor('confirmed'),
-            I18n.inline('Підтверджено', 'Confirmed')),
+            tr('il_fe00b67b6d')),
         const SizedBox(width: 8),
         _legendChip(_playerStatusColor('pending'),
-            I18n.inline('Очікує', 'Pending')),
+            tr('il_331551b0de')),
         const SizedBox(width: 8),
         _legendChip(_playerStatusColor('declined'),
-            I18n.inline('Відхилено', 'Declined')),
+            tr('il_dce083a2c4')),
       ],
     );
   }
@@ -1268,12 +1245,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       final name = (data?['displayName'] ??
               data?['name'] ??
               data?['authorName'] ??
-              I18n.t('player'))
+              tr('player'))
           .toString();
       _playerNameCache[userId] = name;
       return name;
     } catch (_) {
-      final fallback = I18n.t('player');
+      final fallback = tr('player');
       _playerNameCache[userId] = fallback;
       return fallback;
     }
@@ -1288,9 +1265,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     if (members.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline(
-              'У команди поки немає гравців для вибору.',
-              'This team has no members to select.')),
+          content: Text(tr('il_208058ae7b')),
         ),
       );
       return;
@@ -1339,9 +1314,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      I18n.inline(
-                          'Обери склад для "${team.name}"',
-                          'Pick a roster for "${team.name}"'),
+                      tr('il_944478b5c4'),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -1369,7 +1342,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                                   },
                             activeColor: const Color(0xFF4caf50),
                             title: Text(
-                              memberNames[memberId] ?? I18n.t('player'),
+                              memberNames[memberId] ?? tr('player'),
                               style: const TextStyle(color: Colors.white),
                             ),
                           );
@@ -1386,7 +1359,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                               foregroundColor: Colors.white70,
                               side: const BorderSide(color: Colors.white24),
                             ),
-                            child: Text(I18n.t('cancel')),
+                            child: Text(tr('cancel')),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1401,8 +1374,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                             ),
                             child: Text(
                               selected.isEmpty
-                                  ? I18n.inline('Обрати гравців', 'Pick players')
-                                  : I18n.inline('Підтвердити склад', 'Confirm roster'),
+                                  ? tr('il_91ba85a4a0')
+                                  : tr('il_31b7605fc5'),
                             ),
                           ),
                         ),
@@ -1436,9 +1409,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     if (playerIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline(
-              'Оберіть принаймні одного гравця.',
-              'Select at least one player.')),
+          content: Text(tr('il_5eac012cf2')),
         ),
       );
       return;
@@ -1467,8 +1438,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline(
-              'Склад команди оновлено.', 'Team roster updated.')),
+          content: Text(tr('il_80626508c7')),
         ),
       );
     } catch (e) {
@@ -1519,7 +1489,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               future: _fetchPlayerName(playerId),
               initialData: _playerNameCache[playerId],
               builder: (context, snapshot) {
-                final name = snapshot.data ?? I18n.t('player');
+                final name = snapshot.data ?? tr('player');
                 final status = rosterStatus[playerId] ?? 'pending';
                 return _playerStatusChip(name, status);
               },
@@ -1552,11 +1522,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   String _statusLabel(String status) {
     switch (status) {
       case 'confirmed':
-        return I18n.inline('Підтверджено', 'Confirmed');
+        return tr('il_fe00b67b6d');
       case 'declined':
-        return I18n.inline('Відхилено', 'Declined');
+        return tr('il_dce083a2c4');
       default:
-        return I18n.inline('Очікує', 'Pending');
+        return tr('il_331551b0de');
     }
   }
 
@@ -1622,7 +1592,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                I18n.inline('👥 Учасники (${widget.match.participants.length})', '👥 Participants (${widget.match.participants.length})'),
+                tr('il_1610626016'),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -1657,7 +1627,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ),
               child: Center(
                 child: Text(
-                  I18n.inline('Поки що немає учасників', 'No participants yet'),
+                  tr('il_e051442724'),
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 16,
@@ -1700,7 +1670,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       final cityLabel = _localizedCity(userData['city'] as String?);
       final isOrganizer = participantId == widget.match.organizerId;
       final displayName =
-          (userData['displayName'] ?? userData['authorName'] ?? I18n.t('player'))
+          (userData['displayName'] ?? userData['authorName'] ?? tr('player'))
               .toString()
               .trim();
       final avatarUrl = (userData['avatarUrl'] ?? '').toString();
@@ -1737,7 +1707,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             children: [
               PlayerAvatarButton(
                 userId: participantId,
-                displayName: displayName.isNotEmpty ? displayName : I18n.t('player'),
+                displayName: displayName.isNotEmpty ? displayName : tr('player'),
                 avatarUrl: avatarUrl,
                 size: 48,
                 borderColor: isOrganizer
@@ -1759,7 +1729,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       children: [
                         Flexible(
                           child: Text(
-                            displayName.isNotEmpty ? displayName : I18n.t('player'),
+                            displayName.isNotEmpty ? displayName : tr('player'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -1807,7 +1777,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         border: Border.all(color: const Color(0xFF4caf50).withOpacity(0.6)),
       ),
       child: Text(
-        I18n.t('organizer'),
+        tr('organizer'),
         style: const TextStyle(
           color: Colors.white,
           fontSize: 10,
@@ -1848,7 +1818,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          I18n.inline('Рейтинг', 'Rating'),
+          tr('il_9f29530464'),
           style: const TextStyle(
             color: Colors.white54,
             fontSize: 10,
@@ -1863,24 +1833,24 @@ String _localizedPosition(String? raw) {
   switch ((raw ?? '').toLowerCase()) {
     case 'goalkeeper':
     case 'воротар':
-      return I18n.inline('Воротар', 'Goalkeeper');
+      return tr('il_f2d20c7ee1');
     case 'defender':
     case 'захисник':
-      return I18n.inline('Захисник', 'Defender');
+      return tr('il_157ddc59b5');
     case 'midfielder':
     case 'півзахисник':
-      return I18n.inline('Півзахисник', 'Midfielder');
+      return tr('il_d332e47845');
     case 'forward':
     case 'нападник':
-      return I18n.inline('Нападник', 'Forward');
+      return tr('il_f1c65e1481');
     default:
-      return I18n.inline('Універсал', 'Utility player');
+      return tr('il_ab28eea9ef');
   }
 }
 
 String _localizedCity(String? raw) {
   if (raw == null || raw.trim().isEmpty) {
-    return I18n.inline('Місто не вказано', 'City not specified');
+    return tr('il_49980d893f');
   }
   return raw;
 }
@@ -1923,7 +1893,7 @@ String _localizedCity(String? raw) {
                 Row(
                   children: [
                     Text(
-                      '${I18n.t('player')} ${participantId.length > 8 ? '${participantId.substring(0, 8)}...' : participantId}',
+                      '${tr('player')} ${participantId.length > 8 ? '${participantId.substring(0, 8)}...' : participantId}',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -1938,7 +1908,7 @@ String _localizedCity(String? raw) {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${I18n.inline('Позиція не вказана', 'Position not specified')} • ${I18n.inline('Місто не вказано', 'City not specified')}',
+                  '${tr('il_a62e8c639a')} • ${tr('il_49980d893f')}',
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 12.5,
@@ -1995,8 +1965,7 @@ String _localizedCity(String? raw) {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                I18n.inline('Матч заповнений. Нових учасників не приймають.',
-                    'Match is full. No new participants accepted.'),
+                tr('il_1b3438d9c8'),
                 style: const TextStyle(
                   color: Colors.red,
                   fontSize: 16,
@@ -2032,10 +2001,8 @@ String _localizedCity(String? raw) {
                     Expanded(
                       child: Text(
                         value > 0
-                            ? I18n.inline(
-                                'Ваша оцінка за матч: ${value.toStringAsFixed(2)}',
-                                'Your match rating: ${value.toStringAsFixed(2)}')
-                            : I18n.inline('Ще немає оцінок', 'No ratings yet'),
+                            ? tr('il_f45eec2ce1')
+                            : tr('il_41d1f1a079'),
                         style: const TextStyle(
                           color: Color(0xFF4CAF50),
                           fontSize: 16,
@@ -2067,7 +2034,7 @@ String _localizedCity(String? raw) {
                     ),
                   ),
                   icon: const Icon(Icons.how_to_vote_rounded),
-                  label: Text(I18n.inline('Оцінити гравців', 'Rate teammates')),
+                  label: Text(tr('il_acddf82ed7')),
                 ),
               ),
             ],
@@ -2090,8 +2057,7 @@ String _localizedCity(String? raw) {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                I18n.inline('Ви вже приєднані до цього матчу!',
-                    'You are already joined to this match!'),
+                tr('il_537d8a9dcd'),
                 style: const TextStyle(
                   color: Colors.green,
                   fontSize: 16,
@@ -2114,10 +2080,7 @@ String _localizedCity(String? raw) {
       border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.35)),
     ),
     child: Text(
-      I18n.inline(
-        'Матч не був розпочатий протягом 24 годин після запланованого часу. Він позначений як незіграний.',
-        'The match was not started within 24 hours after the scheduled time. It is marked as unplayed.',
-      ),
+      tr('il_efda4a187c'),
       style: const TextStyle(color: Colors.white70),
     ),
   );
@@ -2156,7 +2119,7 @@ return Row(
                             const Icon(Icons.add, color: Colors.white, size: 20),
                             const SizedBox(width: 8),
                             Text(
-                              I18n.t('join'),
+                              tr('join'),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -2196,7 +2159,7 @@ return Row(
                 const Icon(Icons.share, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  I18n.t('share'),
+                  tr('share'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -2230,9 +2193,7 @@ return Row(
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              I18n.inline(
-                  'Це командний матч. Попросіть капітана команди додати вас до складу або зачекайте запрошення.',
-                  'This is a team-only match. Ask a team captain to add you to the roster or wait for an invite.'),
+              tr('il_a2822d30af'),
               style: const TextStyle(color: Colors.white70, fontSize: 14),
             ),
           ),
@@ -2255,8 +2216,8 @@ return Row(
         SnackBar(
           content: Text(
             accept
-                ? I18n.inline('Участь підтверджено', 'Participation confirmed')
-                : I18n.inline('Участь відхилено', 'Participation declined'),
+                ? tr('il_d585866af0')
+                : tr('il_d3bcba9446'),
           ),
           backgroundColor: accept ? const Color(0xFF4caf50) : Colors.orangeAccent,
         ),
@@ -2286,7 +2247,7 @@ return Row(
           );
         },
         icon: const Icon(Icons.tune),
-        label: Text(I18n.inline('Керувати матчем', 'Manage match')),
+        label: Text(tr('il_dfe3bd5721')),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF4caf50),
           foregroundColor: Colors.white,
@@ -2309,10 +2270,7 @@ return Row(
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          I18n.inline(
-            'Цей матч позначено як незіграний. Приєднання недоступне.',
-            'This match is marked as unplayed. Joining is unavailable.',
-          ),
+          tr('il_d11de119cf'),
         ),
       ),
     );
@@ -2330,7 +2288,7 @@ return Row(
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.t('applied_wait')),
+          content: Text(tr('applied_wait')),
           backgroundColor: const Color(0xFF4caf50),
         ),
       );
@@ -2338,7 +2296,7 @@ return Row(
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.t('already_applied')),
+          content: Text(tr('already_applied')),
           backgroundColor: Colors.red,
         ),
       );
@@ -2347,7 +2305,7 @@ return Row(
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(I18n.inline('Помилка: $e', 'Error: $e')),
+        content: Text(tr('il_e69e7edfdf')),
         backgroundColor: Colors.red,
       ),
     );
@@ -2360,21 +2318,21 @@ return Row(
 
   void _shareMatch() {
     final url = 'https://flap.app/match/${widget.match.id}';
-    Share.share(I18n.inline('Приєднуйся до матчу "${widget.match.title}": ', 'Join the match "${widget.match.title}": ') + url);
+    Share.share(tr('il_5f7bc7026d') + url);
   }
 
   String _getLevelText(MatchLevel level) {
     switch (level) {
       case MatchLevel.beginner:
-        return I18n.t('beginner');
+        return tr('beginner');
       case MatchLevel.intermediate:
-        return I18n.inline('Середній', 'Intermediate');
+        return tr('il_3b1cfa63d7');
       case MatchLevel.advanced:
-        return I18n.inline('Високий', 'Advanced');
+        return tr('il_9f088dbebd');
       case MatchLevel.professional:
-        return I18n.t('professional');
+        return tr('professional');
       default:
-        return I18n.t('unknown');
+        return tr('unknown');
     }
   }
 
@@ -2400,21 +2358,21 @@ return Row(
 
 String _getStatusText(MatchStatus status, {Match? match}) {
   if (match?.isUnplayedByTimeout == true) {
-    return I18n.inline('Незіграний', 'Unplayed');
+    return tr('il_ee288d682b');
   }
   switch (status) {
     case MatchStatus.open:
-      return I18n.inline('Відкритий', 'Open');
+      return tr('il_ed077f3d81');
     case MatchStatus.full:
-      return I18n.inline('Заповнений', 'Full');
+      return tr('il_008dacb6d1');
     case MatchStatus.inProgress:
-      return I18n.inline('В процесі', 'In progress');
+      return tr('il_c1f88e9d6c');
     case MatchStatus.finished:
-      return I18n.inline('Завершений', 'Finished');
+      return tr('il_7804f7a79a');
     case MatchStatus.cancelled:
-      return I18n.inline('Скасований', 'Cancelled');
+      return tr('il_d353a99eb4');
     default:
-      return I18n.inline('Невідомо', 'Unknown');
+      return tr('il_b764cdc0ea');
   }
 }
   Future<double> _getMyMatchAverageRating(String matchId, String userId) async {
@@ -2580,7 +2538,7 @@ String _getStatusText(MatchStatus status, {Match? match}) {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            I18n.inline('Підсумки турніру', 'Tournament standings'),
+            tr('il_ad6bbae214'),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -2590,14 +2548,8 @@ String _getStatusText(MatchStatus status, {Match? match}) {
           const SizedBox(height: 8),
           Text(
             widget.match.multiTeamStats.isEmpty
-                ? I18n.inline(
-                    'Організатор ще не зафіксував рахунки — показуємо склади команд.',
-                    'Organizer has not recorded scores yet — showing the rosters only.',
-                  )
-                : I18n.inline(
-                    'Нижче вказані перемоги та голи кожної команди так, як їх зафіксували в застосунку.',
-                    'Wins and goals below follow what the organizer entered in the app.',
-                  ),
+                ? tr('il_e41d2dd5a0')
+                : tr('il_c4c9155815'),
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 13,
@@ -2614,9 +2566,7 @@ String _getStatusText(MatchStatus status, {Match? match}) {
                 border: Border.all(color: Colors.white.withOpacity(0.08)),
               ),
               child: Text(
-                I18n.inline(
-                    'Склади багато-командного матчу ще не збережені.',
-                    'Multi-team lineups have not been saved yet.'),
+                tr('il_c9484266af'),
                 style: const TextStyle(color: Colors.white70),
               ),
             )
@@ -2656,7 +2606,7 @@ String _getStatusText(MatchStatus status, {Match? match}) {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          I18n.inline('Голи', 'Goals'),
+          tr('il_116cd3982a'),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 16,
@@ -2701,7 +2651,7 @@ String _getStatusText(MatchStatus status, {Match? match}) {
           border: Border.all(color: Colors.white.withOpacity(0.06)),
         ),
         child: Text(
-          I18n.inline('Без голів', 'No goals'),
+          tr('il_e53cc468ea'),
           style: const TextStyle(color: Colors.white70),
         ),
       );
@@ -2736,7 +2686,7 @@ String _getStatusText(MatchStatus status, {Match? match}) {
                       future: _fetchPlayerName(entry.key),
                       builder: (context, snapshot) {
                         final name =
-                            snapshot.data ?? I18n.inline('Гравець', 'Player');
+                            snapshot.data ?? tr('il_64aee8c6cb');
                         return Text(
                           name,
                           style: const TextStyle(
@@ -2783,7 +2733,7 @@ String _getStatusText(MatchStatus status, {Match? match}) {
     final goals = (stat?['goals'] ?? 0) as num;
     final label = team.name.isNotEmpty
         ? team.name
-        : I18n.inline('Команда ${index + 1}', 'Team ${index + 1}');
+        : tr('il_d040fd4027');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -2829,14 +2779,14 @@ String _getStatusText(MatchStatus status, {Match? match}) {
           Row(
             children: [
               _statPill(
-                label: I18n.inline('Перемоги', 'Wins'),
+                label: tr('il_41da8b729f'),
                 value: wins.toString(),
                 icon: Icons.emoji_events,
                 accent: accent,
               ),
               const SizedBox(width: 12),
               _statPill(
-                label: I18n.inline('Голи', 'Goals'),
+                label: tr('il_116cd3982a'),
                 value: goals.toString(),
                 icon: Icons.sports_soccer,
                 accent: accent,

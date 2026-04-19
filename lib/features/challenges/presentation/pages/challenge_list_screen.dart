@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,7 +9,6 @@ import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
 import 'challenge_create_screen.dart';
 import 'challenge_details_screen.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';
 
 @RoutePage()
@@ -52,12 +52,12 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   ];
 
   List<String> get _cities => [
-    I18n.t('all_cities'),
-    I18n.t('kyiv'),
-    I18n.t('kharkiv'),
-    I18n.t('odesa'),
-    I18n.t('dnipro'),
-    I18n.t('lviv'),
+    tr('all_cities'),
+    tr('kyiv'),
+    tr('kharkiv'),
+    tr('odesa'),
+    tr('dnipro'),
+    tr('lviv'),
   ];
 
   @override
@@ -68,7 +68,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          I18n.inline('🏆 Челенджі', '🏆 Challenges'),
+          tr('il_71690bd800'),
           style: const TextStyle(color: Colors.white),
         ),
         actions: [
@@ -95,7 +95,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         onPressed: () => _showCreateChallenge(),
         backgroundColor: const Color(0xFFFF9800),
         child: const Icon(Icons.add, color: Colors.white),
-        tooltip: I18n.inline('Створити челендж', 'Create challenge'),
+        tooltip: tr('il_a15fecd2a4'),
       ),
     );
   }
@@ -118,7 +118,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                 });
               },
               decoration: InputDecoration(
-                hintText: I18n.inline('🔍 Пошук челенджів...', '🔍 Search challenges...'),
+                hintText: tr('il_062314f3ab'),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                 suffixIcon: Icon(Icons.search, color: Colors.grey[600]),
@@ -166,7 +166,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
           // Фільтр по місту
           _buildFilterDropdown(
             _cities,
-            _cities.map((c) => c == I18n.t('all_cities') ? '' : c).toList(),
+            _cities.map((c) => c == tr('all_cities') ? '' : c).toList(),
             _selectedCity,
             (value) {
               setState(() {
@@ -204,7 +204,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
             children: [
               Text(icon),
               const SizedBox(width: 8),
-              Expanded(child: Text(I18n.t('all'))),
+              Expanded(child: Text(tr('all'))),
             ],
           ),
           items: displayItems.asMap().entries.map((entry) {
@@ -248,7 +248,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              I18n.inline('Помилка завантаження: ${snapshot.error}', 'Error loading: ${snapshot.error}'),
+              tr('il_24ffa7c8c5'),
               style: const TextStyle(color: Colors.white),
             ),
           );
@@ -268,7 +268,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  I18n.inline('Поки що немає челенджів', 'No challenges yet'),
+                  tr('il_535b6a64c4'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -277,7 +277,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  I18n.inline('Створіть перший челендж!', 'Create the first challenge!'),
+                  tr('il_5a60646d87'),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 14,
@@ -293,7 +293,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                     ),
                   ),
                   child: Text(
-                    I18n.inline('Створити челендж', 'Create challenge'),
+                    tr('il_a15fecd2a4'),
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
@@ -413,7 +413,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                     const SizedBox(width: 20),
                     _buildStatItem('🎬', '${challenge.submissions.length}'),
                     const SizedBox(width: 20),
-                    _buildStatItem('💰', '${challenge.prizePool.toInt()} ${I18n.inline('монет', 'coins')}'),
+                    _buildStatItem('💰', '${challenge.prizePool.toInt()} ${tr('il_62f014cb31')}'),
                   ],
                 ),
                 
@@ -424,9 +424,9 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                   children: [
                     _buildStatItem(challenge.audienceIcon, challenge.audienceText),
                     const SizedBox(width: 20),
-                    _buildStatItem('💸', '${I18n.inline('Вхід:', 'Entry:')} ${challenge.entryFee} ${I18n.inline('монет', 'coins')}'),
+                    _buildStatItem('💸', '${tr('il_861e39505d')} ${challenge.entryFee} ${tr('il_62f014cb31')}'),
                     const SizedBox(width: 20),
-                    _buildStatItem('⏰', '${challenge.duration} ${I18n.inline('дн.', 'days')}'),
+                    _buildStatItem('⏰', '${challenge.duration} ${tr('il_ab51004e9d')}'),
                   ],
                 ),
                 
@@ -505,19 +505,19 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     switch (challenge.status) {
       case ChallengeStatus.recruiting:
         progress = challenge.recruitmentProgress;
-        progressText = I18n.inline('Збір учасників', 'Recruiting');
+        progressText = tr('il_a0d55310f8');
         break;
       case ChallengeStatus.submission:
         progress = challenge.submissionProgress;
-        progressText = I18n.inline('Подання відео', 'Video submission');
+        progressText = tr('il_fefdc339a9');
         break;
       case ChallengeStatus.voting:
         progress = challenge.votingProgress;
-        progressText = I18n.inline('Голосування', 'Voting');
+        progressText = tr('il_aca2f665db');
         break;
       case ChallengeStatus.completed:
         progress = 1.0;
-        progressText = I18n.inline('Завершено', 'Completed');
+        progressText = tr('il_22a970d2e5');
         break;
     }
 
@@ -566,17 +566,17 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     switch (challenge.status) {
       case ChallengeStatus.recruiting:
         timeRemaining = challenge.timeUntilSubmission;
-        timeText = I18n.inline('До подання відео', 'Until video submission');
+        timeText = tr('il_afd69ba5ce');
         timeColor = Colors.orange;
         break;
       case ChallengeStatus.submission:
         timeRemaining = challenge.timeUntilVoting;
-        timeText = I18n.inline('До голосування', 'Until voting');
+        timeText = tr('il_8b1fdff570');
         timeColor = Colors.blue;
         break;
       case ChallengeStatus.voting:
         timeRemaining = challenge.timeUntilEnd;
-        timeText = I18n.inline('До завершення', 'Until completion');
+        timeText = tr('il_3dffee23bf');
         timeColor = Colors.green;
         break;
       case ChallengeStatus.completed:
@@ -587,7 +587,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
-            I18n.inline('Завершено', 'Completed'),
+            tr('il_22a970d2e5'),
             style: TextStyle(
               color: Colors.grey[700],
               fontSize: 10,
@@ -598,17 +598,17 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     }
 
     if (timeRemaining.isNegative) {
-      timeText = I18n.inline('Завершено', 'Completed');
+      timeText = tr('il_22a970d2e5');
       timeColor = Colors.red;
     } else {
       if (timeRemaining.inDays > 0) {
-        timeText = '${timeRemaining.inDays} ${I18n.inline('дн.', 'd')}';
+        timeText = '${timeRemaining.inDays} ${tr('il_18ac3e7343')}';
       } else if (timeRemaining.inHours > 0) {
-        timeText = '${timeRemaining.inHours} ${I18n.inline('год.', 'h')}';
+        timeText = '${timeRemaining.inHours} ${tr('il_aaa9402664')}';
       } else if (timeRemaining.inMinutes > 0) {
-        timeText = '${timeRemaining.inMinutes} ${I18n.inline('хв.', 'min')}';
+        timeText = '${timeRemaining.inMinutes} ${tr('il_1f6fa6f69d')}';
       } else {
-        timeText = I18n.inline('Майже час!', 'Almost time!');
+        timeText = tr('il_5a2f1ea47f');
         timeColor = Colors.red;
       }
     }
@@ -672,15 +672,15 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   String _getStatusText(String status) {
     switch (status) {
       case 'all':
-        return I18n.inline('Всі статуси', 'All statuses');
+        return tr('il_8ee57323a6');
       case 'recruiting':
-        return I18n.inline('Збір учасників', 'Recruiting');
+        return tr('il_a0d55310f8');
       case 'submission':
-        return I18n.inline('Подання відео', 'Video submission');
+        return tr('il_fefdc339a9');
       case 'voting':
-        return I18n.inline('Голосування', 'Voting');
+        return tr('il_aca2f665db');
       case 'completed':
-        return I18n.inline('Завершено', 'Completed');
+        return tr('il_22a970d2e5');
       default:
         return status;
     }
@@ -689,31 +689,31 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   String _getTypeText(String type) {
     switch (type) {
       case 'all':
-        return I18n.inline('Всі типи', 'All types');
+        return tr('il_f10988e79e');
       case 'goal':
-        return I18n.inline('Гол', 'Goal');
+        return tr('il_cdbf6975e8');
       case 'shot_power':
-        return I18n.inline('Сила удару', 'Shot power');
+        return tr('il_a387ab1835');
       case 'save':
-        return I18n.inline('Сейв', 'Save');
+        return tr('il_1509f561f2');
       case 'pass':
-        return I18n.inline('Пас', 'Pass');
+        return tr('il_ebdf8cc00b');
       case 'long_pass':
-        return I18n.inline('Довгий пас', 'Long pass');
+        return tr('il_a30ef79268');
       case 'tackle':
-        return I18n.inline('Підкат', 'Tackle');
+        return tr('il_9c0dd00951');
       case 'dribbling':
-        return I18n.inline('Дриблінг', 'Dribbling');
+        return tr('il_0b337d1bc7');
       case 'penalty':
-        return I18n.inline('Пенальті', 'Penalty');
+        return tr('il_241c754092');
       case 'wall':
-        return I18n.inline('Стіна / стандарт', 'Wall / set-piece');
+        return tr('il_93819c7151');
       case 'strategy':
-        return I18n.inline('Стратегія', 'Strategy');
+        return tr('il_6b27710dfa');
       case 'trick':
-        return I18n.inline('Трюк', 'Trick');
+        return tr('il_209e3aa0b5');
       case 'other':
-        return I18n.inline('Інше', 'Other');
+        return tr('il_f97e9da0e3');
       default:
         return type;
     }
@@ -724,13 +724,13 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     final difference = now.difference(date);
     
     if (difference.inDays > 0) {
-      return '${difference.inDays} ${I18n.inline('дн. тому', 'd ago')}';
+      return '${difference.inDays} ${tr('il_738bb7160d')}';
     } else if (difference.inHours > 0) {
-      return '${difference.inHours} ${I18n.inline('год. тому', 'h ago')}';
+      return '${difference.inHours} ${tr('il_9e9470fd83')}';
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} ${I18n.inline('хв. тому', 'min ago')}';
+      return '${difference.inMinutes} ${tr('il_f47b946b9b')}';
     } else {
-      return I18n.inline('Щойно', 'Just now');
+      return tr('il_66f53417d3');
     }
   }
 

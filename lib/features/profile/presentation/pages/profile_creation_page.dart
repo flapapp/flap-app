@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -11,7 +13,6 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/usecases/no_params.dart';
 import '../../../auth/domain/repositories/auth_session_repository.dart';
 import '../../../../router/app_router.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import '../../domain/entities/editable_profile_submission.dart';
 import '../../domain/usecases/load_current_profile_usecase.dart';
@@ -103,17 +104,17 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
   XFile? _pickedImage;
 
   List<String> get _positions => [
-    I18n.inline('Воротар', 'Goalkeeper'),
-    I18n.inline('Захисник', 'Defender'),
-    I18n.inline('Півзахисник', 'Midfielder'),
-    I18n.inline('Нападник', 'Forward'),
+    tr('il_f2d20c7ee1'),
+    tr('il_157ddc59b5'),
+    tr('il_d332e47845'),
+    tr('il_f1c65e1481'),
   ];
 
   List<String> get _experiences => [
-    I18n.inline('Початківець', 'Beginner'),
-    I18n.inline('Любитель', 'Amateur'),
-    I18n.inline('Напівпрофесіонал', 'Semi-professional'),
-    I18n.inline('Професіонал', 'Professional'),
+    tr('il_c865ebb305'),
+    tr('il_8cc398e1bf'),
+    tr('il_394f7f5514'),
+    tr('il_19c73a5cdf'),
   ];
 
   Future<void> _pickImage() async {
@@ -126,7 +127,7 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
 
     if (picked == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Вибір фото скасовано', 'Photo selection cancelled'))),
+        SnackBar(content: Text(tr('il_61aa8a16fb'))),
       );
       return;
     }
@@ -136,7 +137,7 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(I18n.inline('Фото додано!', 'Photo added!'))),
+      SnackBar(content: Text(tr('il_fee01cd3cc'))),
     );
   }
 
@@ -189,8 +190,8 @@ Widget build(BuildContext context) {
               children: [
                 Text(
                   widget.isEditing
-                      ? I18n.inline('Редагувати профіль', 'Edit profile')
-                      : I18n.inline('Створити профіль', 'Create profile'),
+                      ? tr('il_15c4aa1303')
+                      : tr('il_61d30d997d'),
                   style: TextStyle(
                     fontFamily: robotoFamily,
                     fontSize: 28,
@@ -249,7 +250,7 @@ Widget build(BuildContext context) {
                               const Icon(Icons.camera_alt, color: Colors.white, size: 40),
                               const SizedBox(height: 8),
                               Text(
-                                I18n.inline('Додати фото', 'Add photo'),
+                                tr('il_c0660be883'),
                                 style: TextStyle(
                                   fontFamily: robotoFamily,
                                   color: Colors.white,
@@ -271,7 +272,7 @@ Widget build(BuildContext context) {
                     controller: _nameController,
                     style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: I18n.inline('Ім\'я', 'First name'),
+                      hintText: tr('il_702ef921ed'),
                       hintStyle: TextStyle(
                         fontFamily: robotoFamily,
                         color: Colors.white.withOpacity(0.7),
@@ -281,7 +282,7 @@ Widget build(BuildContext context) {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return I18n.inline('Введіть ім\'я', 'Enter first name');
+                        return tr('il_05786ecba6');
                       }
                       return null;
                     },
@@ -298,7 +299,7 @@ Widget build(BuildContext context) {
                     controller: _surnameController,
                     style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: I18n.inline('Прізвище', 'Last name'),
+                      hintText: tr('il_7b48880494'),
                       hintStyle: TextStyle(
                         fontFamily: robotoFamily,
                         color: Colors.white.withOpacity(0.7),
@@ -308,7 +309,7 @@ Widget build(BuildContext context) {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return I18n.inline('Введіть прізвище', 'Enter last name');
+                        return tr('il_6efd92ba0d');
                       }
                       return null;
                     },
@@ -326,7 +327,7 @@ Widget build(BuildContext context) {
                     style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
                     dropdownColor: const Color(0xFF1e7d32),
                     decoration: InputDecoration(
-                      hintText: I18n.inline('Позиція', 'Position'),
+                      hintText: tr('il_6d031af10d'),
                       hintStyle: TextStyle(
                         fontFamily: robotoFamily,
                         color: Colors.white.withOpacity(0.7),
@@ -353,7 +354,7 @@ Widget build(BuildContext context) {
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return I18n.inline('Виберіть позицію', 'Select position');
+                        return tr('il_b48d31fb5a');
                       }
                       return null;
                     },
@@ -368,7 +369,7 @@ Widget build(BuildContext context) {
                   ),
                   child: CityAutocompleteField(
                     controller: _cityController,
-                    label: I18n.inline('Місто', 'City'),
+                    label: tr('il_fc33f73246'),
                     requiredField: true,
                     style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
                     labelStyle: TextStyle(fontFamily: robotoFamily, color: Colors.white70),
@@ -390,7 +391,7 @@ Widget build(BuildContext context) {
                     keyboardType: TextInputType.number,
                     style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: I18n.inline('Вік', 'Age'),
+                      hintText: tr('il_39b7370f30'),
                       hintStyle: TextStyle(
                         fontFamily: robotoFamily,
                         color: Colors.white.withOpacity(0.7),
@@ -400,7 +401,7 @@ Widget build(BuildContext context) {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return I18n.inline('Введіть вік', 'Enter age');
+                        return tr('il_3a50f41891');
                       }
                       return null;
                     },
@@ -418,7 +419,7 @@ Widget build(BuildContext context) {
                     style: TextStyle(fontFamily: robotoFamily, color: Colors.white),
                     dropdownColor: const Color(0xFF1e7d32),
                     decoration: InputDecoration(
-                      hintText: I18n.inline('Досвід', 'Experience'),
+                      hintText: tr('il_8eab0f09df'),
                       hintStyle: TextStyle(
                         fontFamily: robotoFamily,
                         color: Colors.white.withOpacity(0.7),
@@ -445,7 +446,7 @@ Widget build(BuildContext context) {
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return I18n.inline('Виберіть досвід', 'Select experience');
+                        return tr('il_4c04588b57');
                       }
                       return null;
                     },
@@ -466,7 +467,7 @@ Widget build(BuildContext context) {
                         ),
                         onPressed: () => Navigator.pop(context),
                         child: Text(
-                          I18n.inline('Скасувати', 'Cancel'),
+                          tr('il_19766ed6cc'),
                           style: TextStyle(
                             fontFamily: robotoFamily,
                             color: Colors.white,
@@ -494,10 +495,7 @@ Widget build(BuildContext context) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  I18n.inline(
-                                    'Потрібно увійти в акаунт',
-                                    'You need to sign in',
-                                  ),
+                                  tr('il_1141023944'),
                                 ),
                               ),
                             );
@@ -512,7 +510,7 @@ Widget build(BuildContext context) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    I18n.inline(
+                                    bilingual(
                                       'Не вдалося прочитати фото: $e',
                                       'Failed to read photo: $e',
                                     ),
@@ -556,8 +554,8 @@ Widget build(BuildContext context) {
                         },
                         child: Text(
                           widget.isEditing
-                              ? I18n.inline('Зберегти зміни', 'Save changes')
-                              : I18n.inline('Створити профіль', 'Create profile'),
+                              ? tr('il_dd0ae7a5cb')
+                              : tr('il_61d30d997d'),
                           style: TextStyle(
                             fontFamily: robotoFamily,
                             fontWeight: FontWeight.bold,

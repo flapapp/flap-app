@@ -1,4 +1,6 @@
 import 'dart:math';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +15,6 @@ import '../../../badges/data/models/badge.dart' as app_badge;
 import '../../../teams/data/models/app_team.dart';
 import '../../../teams/data/models/team_stats.dart';
 import '../../../teams/data/models/team_invite.dart';
-import '../../../../utils/i18n.dart';
 import '../../domain/repositories/match_participation_stats_repository.dart';
 import '../../domain/repositories/player_badge_endorsement_repository.dart';
 import '../../domain/repositories/player_social_repository.dart';
@@ -70,7 +71,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   }
 
   _DonationConfig _getDonationConfig() {
-    final isEnglish = I18n.language.value.toLowerCase().startsWith('en');
+    final isEnglish = currentAppLanguageCode().toLowerCase().startsWith('en');
     if (isEnglish) {
       return const _DonationConfig(
         imageAssetPath: 'assets/donate/en_donate.png',
@@ -106,10 +107,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          I18n.inline(
-            'Не вдалося відкрити посилання для донату',
-            'Failed to open donation link',
-          ),
+          tr('il_7c78703c2a'),
         ),
       ),
     );
@@ -125,7 +123,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
         backgroundColor: const Color(0xFF1a1a2e),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          I18n.inline('Підтримайте розвиток проєкту', 'Support project growth'),
+          tr('il_e8c3f980cf'),
           style: const TextStyle(color: Colors.white),
         ),
         content: SingleChildScrollView(
@@ -133,10 +131,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                I18n.inline(
-                  'Ваша підтримка допомагає швидше запускати нові фішки.',
-                  'Your support helps us ship new features faster.',
-                ),
+                tr('il_edc3fc8e6d'),
                 style: const TextStyle(color: Colors.white70),
                 textAlign: TextAlign.center,
               ),
@@ -150,10 +145,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
               ),
               const SizedBox(height: 8),
               Text(
-                I18n.inline(
-                  'Натисніть на QR-код, щоб перейти до донату',
-                  'Tap the QR code to open donation page',
-                ),
+                tr('il_f3bab18f57'),
                 style: const TextStyle(color: Colors.white54, fontSize: 12),
               ),
             ],
@@ -165,11 +157,11 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
               await _setDonationPromptDismissed();
               if (dialogContext.mounted) Navigator.of(dialogContext).pop();
             },
-            child: Text(I18n.inline('Більше не нагадувати', 'Don\'t remind again')),
+            child: Text(tr('il_f7f8a139c1')),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(I18n.inline('Закрити', 'Close')),
+            child: Text(tr('il_7d9eb7acb1')),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -180,7 +172,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
               backgroundColor: const Color(0xFF4caf50),
               foregroundColor: Colors.white,
             ),
-            child: Text(I18n.inline('Підтримати', 'Donate')),
+            child: Text(tr('il_c91ee0f279')),
           ),
         ],
       ),
@@ -224,7 +216,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
               child: Row(
                 children: [
                   Text(
-                    I18n.inline('Мої команди', 'My teams'),
+                    tr('il_9bccdf7bea'),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -246,7 +238,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                         : null,
                     icon: const Icon(Icons.add, color: Colors.white),
                     label: Text(
-                      I18n.inline('Створити', 'Create'),
+                      tr('il_4759498ac2'),
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
@@ -272,7 +264,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        I18n.inline('У вас немає команд', 'You have no teams yet'),
+                        tr('il_a6742b3a72'),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -281,9 +273,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        I18n.inline(
-                            'Створіть першу команду та запросіть друзів',
-                            'Create your first team and invite friends'),
+                        tr('il_747ca024e8'),
                         style: const TextStyle(
                           color: Colors.white70,
                         ),
@@ -301,7 +291,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                 );
                               }
                             : null,
-                        child: Text(I18n.inline('Створити команду', 'Create team')),
+                        child: Text(tr('il_284ff194f8')),
                       ),
                     ],
                   ),
@@ -353,7 +343,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                I18n.inline('Запрошення до команд', 'Team invites'),
+                tr('il_c0d5f0a05a'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -379,8 +369,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
         final motto = (team?.description.isNotEmpty == true
                 ? team!.description
                 : null) ??
-            I18n.inline(
-                'Команда кличе вас у склад', 'Club wants you on the roster');
+            tr('il_e6c2280de7');
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
@@ -482,7 +471,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: Text(I18n.t('cancel')),
+                    child: Text(tr('cancel')),
                   );
                   final joinButton = ElevatedButton(
                     onPressed: () async {
@@ -494,14 +483,13 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(I18n.inline(
-                                'Команду додано!', 'Joined the team!')),
+                            content: Text(tr('il_b7b3f790f9')),
                           ),
                         );
                       } catch (e) {
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
+                          SnackBar(content: Text(tr('il_e69e7edfdf'))),
                         );
                       }
                     },
@@ -514,7 +502,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: Text(I18n.inline('Приєднатись', 'Join')),
+                    child: Text(tr('il_fd30fe681b')),
                   );
                   if (isTight) {
                     return Column(
@@ -588,7 +576,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     if (state.profile == null) {
       return Center(
         child: Text(
-          'Профіль не знайдено'.i18n('Profile not found'),
+          bilingual('Профіль не знайдено', 'Profile not found'),
           style: const TextStyle(color: Colors.white),
         ),
       );
@@ -605,7 +593,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   }
 
   Widget _buildProfileContent(Map<String, dynamic> userData) {
-    final displayName = userData['name'] ?? userData['displayName'] ?? I18n.t('player');
+    final displayName = userData['name'] ?? userData['displayName'] ?? tr('player');
     final avatarUrl = userData['avatar'] ?? userData['avatarUrl'];
     final rating = (userData['rating'] ?? 0.0).toDouble();
     final coins = userData['coins'] ?? 0;
@@ -787,8 +775,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              I18n.inline('Полюй на моменти — поле запам’ятає.',
-                                  'Hunt for moments — the pitch remembers.'),
+                              tr('il_02354d6492'),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -802,13 +789,13 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                 final pills = [
                                   _profilePill(
                                     icon: Icons.star_border_rounded,
-                                    label: I18n.t('rating'),
+                                    label: tr('rating'),
                                     value: rating.toStringAsFixed(2),
                                     accent: const Color(0xFFFFD54F),
                                   ),
                                   _profilePill(
                                     icon: Icons.sports_soccer,
-                                    label: I18n.t('matches'),
+                                    label: tr('matches'),
                                     value:
                                         ((userData['matchesPlayed'] ?? 0) as num)
                                             .toString(),
@@ -822,7 +809,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                   ),
                                   _profilePill(
                                     icon: Icons.sports,
-                                    label: I18n.inline('Голи', 'Goals'),
+                                    label: tr('il_116cd3982a'),
                                     value:
                                         ((userData['goals'] ?? 0) as num).toString(),
                                     accent: const Color(0xFFFF7043),
@@ -870,8 +857,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              I18n.inline('Серія останніх матчів',
-                                  'Recent form'),
+                              tr('il_f86d5d6d2f'),
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.65),
                                 fontSize: 12,
@@ -961,7 +947,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
         children: [
           Expanded(
             child: _buildStatCard(
-              I18n.t('matches'),
+              tr('matches'),
               (userData['matchesPlayed'] ?? 0).toString(),
               Icons.sports_soccer,
               const Color(0xFF4caf50),
@@ -973,7 +959,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           const SizedBox(width: 12),
           Expanded(
             child: _buildStatCard(
-              I18n.t('videos'),
+              tr('videos'),
               (userData['videosUploaded'] ?? 0).toString(),
               Icons.videocam,
               const Color(0xFFFF6B35),
@@ -984,7 +970,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           const SizedBox(width: 12),
           Expanded(
             child: _buildStatCard(
-              I18n.t('friends'),
+              tr('friends'),
               _friendsCount.toString(),
               Icons.people,
               const Color(0xFF2196F3),
@@ -1066,7 +1052,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                I18n.inline('Скіли', 'Skills'),
+                tr('il_66d0f523a3'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -1076,7 +1062,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
               TextButton(
                 onPressed: _openBadgesStore,
                 child: Text(
-                  I18n.inline('Додати', 'Add'),
+                  tr('il_9fd728c66c'),
                   style: const TextStyle(color: Color(0xFF4caf50)),
                 ),
               ),
@@ -1102,7 +1088,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    I18n.inline('Ще немає скілів', 'No skills yet'),
+                    tr('il_32ae9b80f8'),
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 14,
@@ -1169,18 +1155,15 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      ValueListenableBuilder<String>(
-                                        valueListenable: I18n.language,
-                                        builder: (context, _, __) => Text(
-                                          badge.localizedName,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                      Text(
+                                        badge.localizedName,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 6),
                                       Container(
@@ -1255,50 +1238,50 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
       child: Column(
         children: [
           _buildActionItem(
-            '👥 Друзі'.i18n('👥 Friends'),
-            I18n.t('manage_friends'),
+            bilingual('👥 Друзі', '👥 Friends'),
+            tr('manage_friends'),
             Icons.people,
             () => _openFriends(),
           ),
              _buildActionItem(
-     '⚽ Мої матчі'.i18n('⚽ My matches'),
-     I18n.inline('Переглянути свої матчі', 'View your matches'),
+     bilingual('⚽ Мої матчі', '⚽ My matches'),
+     tr('il_224b3a8c5d'),
      Icons.sports_soccer,
      () => _openMyMatches(),
    ),
           _buildActionItem(
-            '🏆 Мої відео'.i18n('🏆 My videos'),
-            I18n.t('view_uploaded_videos'),
+            bilingual('🏆 Мої відео', '🏆 My videos'),
+            tr('view_uploaded_videos'),
             Icons.videocam,
             () => _openMyVideos(),
           ),
           _buildActionItem(
-            '⚔️ Мої челенджі'.i18n('⚔️ My challenges'),
-            I18n.t('view_challenges'),
+            bilingual('⚔️ Мої челенджі', '⚔️ My challenges'),
+            tr('view_challenges'),
             Icons.emoji_events,
             () => _openMyChallenges(),
           ),
           _buildActionItem(
-            I18n.t('statistics_title'),
-            I18n.t('detailed_statistics'),
+            tr('statistics_title'),
+            tr('detailed_statistics'),
             Icons.analytics,
             () => _openStats(userData),
           ),
           _buildActionItem(
-            I18n.t('subscriptions_title'),
-            I18n.t('manage_subscription'),
+            tr('subscriptions_title'),
+            tr('manage_subscription'),
             Icons.workspace_premium,
             () => _openSubscriptions(),
           ),
           _buildActionItem(
-            I18n.t('settings_title'),
-            I18n.t('profile_settings'),
+            tr('settings_title'),
+            tr('profile_settings'),
             Icons.settings,
             () => _showSettings(),
           ),
           _buildActionItem(
-            I18n.t('logout_title'),
-            I18n.t('logout_from_account'),
+            tr('logout_title'),
+            tr('logout_from_account'),
             Icons.logout,
             () => _signOut(),
             isDestructive: true,
@@ -1388,15 +1371,15 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   String _getPositionDisplay(String? position) {
     switch (position?.toLowerCase()) {
       case 'goalkeeper':
-        return '🥅 Воротар'.i18n('🥅 Goalkeeper');
+        return bilingual('🥅 Воротар', '🥅 Goalkeeper');
       case 'defender':
-        return '🛡️ Захисник'.i18n('🛡️ Defender');
+        return bilingual('🛡️ Захисник', '🛡️ Defender');
       case 'midfielder':
-        return '⚽ Півзахисник'.i18n('⚽ Midfielder');
+        return bilingual('⚽ Півзахисник', '⚽ Midfielder');
       case 'forward':
-        return '🎯 Нападник'.i18n('🎯 Forward');
+        return bilingual('🎯 Нападник', '🎯 Forward');
       default:
-        return '⚽ ${I18n.t('player')}';
+        return '⚽ ${tr('player')}';
     }
   }
 
@@ -1406,7 +1389,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
 
     if (currentUserId == userId) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Не можна підтверджувати свої бейджі'.i18n('You cannot endorse your own badges'))),
+        SnackBar(content: Text(bilingual('Не можна підтверджувати свої бейджі', 'You cannot endorse your own badges'))),
       );
       return;
     }
@@ -1423,7 +1406,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('✅ Бейдж "${badge.localizedName}" підтверджено!', '✅ Badge "${badge.localizedName}" verified!')),
+            content: Text(tr('il_5fc81f7ab3')),
             backgroundColor: Colors.green,
           ),
         );
@@ -1435,11 +1418,11 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           SnackBar(
             content: Text(
               f.when(
-                cache: () => 'Помилка підтвердження'.i18n('Endorsement error'),
-                network: (m) => m ?? 'Помилка мережі'.i18n('Network error'),
+                cache: () => bilingual('Помилка підтвердження', 'Endorsement error'),
+                network: (m) => m ?? bilingual('Помилка мережі', 'Network error'),
                 unexpected: (m) =>
-                    m ?? 'Помилка підтвердження'.i18n('Endorsement error'),
-                auth: (_, m) => m ?? 'Помилка авторизації'.i18n('Auth error'),
+                    m ?? bilingual('Помилка підтвердження', 'Endorsement error'),
+                auth: (_, m) => m ?? bilingual('Помилка авторизації', 'Auth error'),
               ),
             ),
             backgroundColor: Colors.orange,
@@ -1502,24 +1485,24 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
         title: Text(
-  I18n.t('logout_confirm'),
+  tr('logout_confirm'),
   style: TextStyle(color: Colors.white),
 ),
         content: Text(
-          'Ви впевнені, що хочете вийти?'.i18n('Are you sure you want to log out?'),
+          bilingual('Ви впевнені, що хочете вийти?', 'Are you sure you want to log out?'),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
+            child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () async {
               await sl<AuthSessionRepository>().signOut();
               context.router.replace(const LoginRoute());
             },
-            child: Text(I18n.t('logout'), style: const TextStyle(color: Colors.red)),
+            child: Text(tr('logout'), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -1662,8 +1645,7 @@ class _TeamCardBody extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        I18n.inline('${team.memberIds.length} гравців',
-                            '${team.memberIds.length} players'),
+                        tr('il_3ac75e6772'),
                         style: const TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ],
@@ -1689,7 +1671,7 @@ class _TeamCardBody extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              I18n.inline('Win rate: $winRate%', 'Win rate: $winRate%'),
+              tr('il_6eba3c021d'),
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ],
@@ -1753,7 +1735,7 @@ class ProfileStatsPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
       appBar: AppBar(
-        title: Text(I18n.t('statistics_title')),
+        title: Text(tr('statistics_title')),
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
       ),
@@ -1788,7 +1770,7 @@ class ProfileStatsPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  I18n.inline('Загальні показники', 'Summary'),
+                  tr('il_8e76a94ac8'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -1801,38 +1783,37 @@ class ProfileStatsPage extends StatelessWidget {
                   runSpacing: 12,
                   children: [
                     buildPerformanceStat(
-                      I18n.inline('Win rate', 'Win rate'),
+                      tr('il_4be2547225'),
                       '${winRate.toStringAsFixed(0)}%',
-                      I18n.inline('W: $wins · D: $draws · L: $losses',
-                          'W: $wins · D: $draws · L: $losses'),
+                      tr('il_0579245845'),
                       Icons.pie_chart_outline,
                       const Color(0xFF4CAF50),
                     ),
                     buildPerformanceStat(
-                      I18n.inline('Голи', 'Goals'),
+                      tr('il_116cd3982a'),
                       goalsValue.toString(),
-                      I18n.inline('за матч: $goalsPerMatch', 'per match: $goalsPerMatch'),
+                      tr('il_6aecd96fcb'),
                       Icons.sports_soccer,
                       const Color(0xFFFF7043),
                     ),
                     buildPerformanceStat(
-                      I18n.inline('Асисти', 'Assists'),
+                      tr('il_ccccbbe9d0'),
                       assistsValue.toString(),
-                      I18n.inline('створено моментів', 'created chances'),
+                      tr('il_9307ef280b'),
                       Icons.timeline,
                       const Color(0xFF42A5F5),
                     ),
                     buildPerformanceStat(
-                      I18n.inline('Матчів', 'Matches'),
+                      tr('il_98abff28a9'),
                       totalMatches.toString(),
-                      I18n.inline('в кар’єрі', 'career total'),
+                      tr('il_d5bef65348'),
                       Icons.calendar_month,
                       const Color(0xFF26C6DA),
                     ),
                     buildPerformanceStat(
-                      I18n.inline('Сухі ігри', 'Clean sheets'),
+                      tr('il_73dfe49f88'),
                       cleanSheetsValue.toString(),
-                      I18n.inline('для воротарів', 'keeper badge'),
+                      tr('il_0f8d1cb759'),
                       Icons.shield,
                       const Color(0xFF8D6E63),
                     ),
@@ -1840,7 +1821,7 @@ class ProfileStatsPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  I18n.inline('Форма (останні 5)', 'Form (last 5)'),
+                  tr('il_1d97631f72'),
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 14,

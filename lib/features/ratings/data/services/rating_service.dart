@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import 'rating_tracking_service.dart';
-import '../../../../utils/i18n.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 class RatingService {
   static const double _matchWeight = 0.7; // 70% ваги для матчів
@@ -241,7 +241,7 @@ if (multiTeams.isNotEmpty) {
         'matchId': matchId,
       });
 
-      String raterName = I18n.inline('Гравець', 'Player');
+      String raterName = tr('il_64aee8c6cb');
       try {
         final raterDoc = await FirebaseFirestore.instance
             .collection('users')
@@ -252,7 +252,7 @@ if (multiTeams.isNotEmpty) {
           raterName = (raterData['displayName'] ??
                   raterData['authorName'] ??
                   raterData['name'] ??
-                  I18n.inline('Гравець', 'Player'))
+                  tr('il_64aee8c6cb'))
               .toString();
         }
       } catch (_) {}
@@ -680,12 +680,12 @@ if (multiTeams.isNotEmpty) {
 
   // Отримати рівень гравця за рейтингом
   String getPlayerLevel(double rating) {
-    if (rating >= 0.0 && rating < 1.5) return I18n.inline('Новачок', 'Beginner');
-    if (rating >= 1.5 && rating < 2.5) return I18n.inline('Початковий', 'Novice');
-    if (rating >= 2.5 && rating < 3.5) return I18n.inline('Середній', 'Intermediate');
-    if (rating >= 3.5 && rating < 4.5) return I18n.inline('Високий', 'Advanced');
-    if (rating >= 4.5 && rating <= 5.0) return I18n.inline('Професійний', 'Professional');
-    return I18n.inline('Невідомо', 'Unknown');
+    if (rating >= 0.0 && rating < 1.5) return tr('il_c865ebb305');
+    if (rating >= 1.5 && rating < 2.5) return tr('il_7df0f3202d');
+    if (rating >= 2.5 && rating < 3.5) return tr('il_3b1cfa63d7');
+    if (rating >= 3.5 && rating < 4.5) return tr('il_9f088dbebd');
+    if (rating >= 4.5 && rating <= 5.0) return tr('il_19c73a5cdf');
+    return tr('il_b764cdc0ea');
   }
 
   // Отримати кольір рівня

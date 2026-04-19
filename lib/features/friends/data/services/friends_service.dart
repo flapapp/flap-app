@@ -2,7 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/models/friend_request.dart';
 import '../../../notifications/data/services/notification_service.dart';
-import '../../../../utils/i18n.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 class FriendsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -90,7 +91,7 @@ class FriendsService {
         'type': 'friend_request_sent',
         'amount': 3,
         'timestamp': FieldValue.serverTimestamp(),
-        'description': I18n.inline(
+        'description': bilingual(
   'Надіслано запрошення в друзі: ${toUserData['name']}',
   'Friend invite sent to: ${toUserData['name']}',
 ),
@@ -206,7 +207,7 @@ class FriendsService {
             'type': 'friend_added',
             'amount': 5,
             'timestamp': FieldValue.serverTimestamp(),
-            'description': I18n.inline(
+            'description': bilingual(
   'Новий друг: ${request.fromUserName}',
   'New friend: ${request.fromUserName}',
 ),

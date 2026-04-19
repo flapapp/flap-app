@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../ratings/domain/repositories/ratings_repository.dart';
@@ -11,7 +12,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../ratings/data/services/rating_tracking_service.dart';
 import '../../../profile/data/services/user_settings_service.dart';
 import '../../../../widgets/user_chip.dart';
-import '../../../../utils/i18n.dart';
 
 @RoutePage()
 class ChallengeVideoPlayerScreen extends StatefulWidget {
@@ -104,7 +104,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    I18n.inline('Помилка відтворення відео', 'Video playback error'),
+                    tr('il_6529e83499'),
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                   const SizedBox(height: 8),
@@ -199,7 +199,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
             if (userDoc.exists) {
               final u = userDoc.data() as Map<String, dynamic>;
               setState(() {
-                _submissionAuthorName = u['displayName'] ?? u['name'] ?? u['email']?.toString().split('@').first ?? I18n.inline('Користувач', 'User');
+                _submissionAuthorName = u['displayName'] ?? u['name'] ?? u['email']?.toString().split('@').first ?? tr('il_b512d97e7c');
                 _submissionAuthorAvatar = u['avatarUrl'] ?? u['avatar'] ?? '';
               });
             }
@@ -301,7 +301,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                I18n.inline('Помилка завантаження відео', 'Video loading error'),
+                                tr('il_8073f27473'),
                                 style: const TextStyle(color: Colors.white, fontSize: 18),
                               ),
                               const SizedBox(height: 8),
@@ -380,7 +380,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                       const Icon(Icons.how_to_vote, color: Color(0xFF4caf50), size: 24),
                       const SizedBox(width: 8),
                       Text(
-                        I18n.inline('Ваша оцінка', 'Your rating'),
+                        tr('il_68548b47e7'),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
@@ -396,7 +396,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            I18n.inline('Проголосовано', 'Voted'),
+                            tr('il_9cf238dedb'),
                             style: const TextStyle(
                               color: Color(0xFF4caf50),
                               fontSize: 12,
@@ -423,7 +423,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              I18n.inline('Загальна оцінка:', 'Overall rating:'),
+                              tr('il_c1be3e30f1'),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -543,8 +543,8 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                                   )
                                 : Text(
                                     _hasVoted 
-                                        ? I18n.inline('Ви вже проголосували', 'You already voted') 
-                                        : I18n.inline('🗳️ Проголосувати (+1 монета)', '🗳️ Vote (+1 coin)'),
+                                        ? tr('il_4737e31c44') 
+                                        : tr('il_c829c4660c'),
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -569,7 +569,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            I18n.inline('Оціните відео від 0.00 до 5.00. Ваша оцінка впливає на результат челенджу.', 'Rate video from 0.00 to 5.00. Your rating affects challenge results.'),
+                            tr('il_f434505723'),
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.7),
                               fontSize: 12,
@@ -599,7 +599,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
-        throw Exception(I18n.inline('Користувач не авторизований', 'User not authorized'));
+        throw Exception(tr('il_76144c407d'));
       }
 
       // Перевіряємо чи користувач не голосує за себе та зберігаємо videoId
@@ -623,7 +623,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(I18n.inline('❌ Не можна голосувати за себе!', '❌ Cannot vote for yourself!')),
+                content: Text(tr('il_2c08f46d5a')),
                 backgroundColor: Colors.red,
               ),
             );
@@ -702,7 +702,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         'challengeId': widget.challengeId,
         'submissionId': widget.submissionId,
         'timestamp': FieldValue.serverTimestamp(),
-        'description': I18n.inline('Нагорода за голосування в челенджі', 'Reward for voting in challenge'),
+        'description': tr('il_97e061af07'),
       });
 
       // Додатковий recompute не потрібен — rateVideo вже зробив оновлення рейтингу автора
@@ -715,7 +715,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('✅ Ваша оцінка ${_rating.toStringAsFixed(2)} збережена! +1 монета', '✅ Your rating ${_rating.toStringAsFixed(2)} saved! +1 coin')),
+            content: Text(tr('il_acf6612bf4')),
             backgroundColor: const Color(0xFF4caf50),
           ),
         );
@@ -728,7 +728,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('❌ Помилка збереження оцінки: ${e.toString()}', '❌ Error saving rating: ${e.toString()}')),
+            content: Text(tr('il_01a804d574')),
             backgroundColor: Colors.red,
           ),
         );
@@ -739,7 +739,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   void _shareVideo() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(I18n.inline('🔗 Посилання на відео скопійовано', '🔗 Video link copied')),
+        content: Text(tr('il_5e912f6fff')),
         backgroundColor: const Color(0xFF4caf50),
       ),
     );

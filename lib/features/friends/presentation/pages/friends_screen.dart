@@ -1,5 +1,8 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
+import 'package:flap_app/city_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/friends_repository.dart';
@@ -8,7 +11,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/models/friend_request.dart';
 import 'dart:async';
-import '../../../../utils/i18n.dart';
 
 @RoutePage()
 class FriendsScreen extends StatefulWidget {
@@ -87,7 +89,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
         backgroundColor: const Color(0xFF0f0f23),
         elevation: 0,
         title: Text(
-          '👥 ${I18n.t('friends')}',
+          '👥 ${tr('friends')}',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         leading: IconButton(
@@ -110,21 +112,21 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             Tab(
               icon: const Icon(Icons.people, size: 20),
               child: Text(
-                '${I18n.t('friends')} (${_friends.length})',
+                '${tr('friends')} (${_friends.length})',
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             Tab(
               icon: const Icon(Icons.person_add, size: 20),
               child: Text(
-                I18n.inline('Запрошення (${_incomingRequests.length})', 'Invites (${_incomingRequests.length})'),
+                tr('il_65f5f7f821'),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             Tab(
               icon: const Icon(Icons.send, size: 20),
               child: Text(
-                I18n.inline('Надіслані (${_outgoingRequests.length})', 'Sent (${_outgoingRequests.length})'),
+                tr('il_c50f88c7a6'),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -161,7 +163,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 16),
             Text(
-              'У вас поки немає друзів'.i18n('You have no friends yet'),
+              bilingual('У вас поки немає друзів', 'You have no friends yet'),
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 18,
@@ -170,7 +172,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 8),
             Text(
-              'Додайте друзів, щоб грати разом!'.i18n('Add friends to play together!'),
+              bilingual('Додайте друзів, щоб грати разом!', 'Add friends to play together!'),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 14,
@@ -180,7 +182,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ElevatedButton.icon(
               onPressed: _showAddFriendDialog,
               icon: const Icon(Icons.person_add),
-              label: Text(I18n.t('add_friend')),
+              label: Text(tr('add_friend')),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4caf50),
                 foregroundColor: Colors.white,
@@ -286,14 +288,11 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       ),
                     ),
                     const SizedBox(width: 8),
-                    ValueListenableBuilder<String>(
-                      valueListenable: I18n.language,
-                      builder: (context, _, __) => Text(
-                        friend.positionDisplay,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 12,
-                        ),
+                    Text(
+                      friend.positionDisplay,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -301,26 +300,20 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    ValueListenableBuilder<String>(
-                      valueListenable: I18n.language,
-                      builder: (context, _, __) => Text(
-                        '📍 ${I18n.localizeCity(friend.city)}',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
-                          fontSize: 12,
-                        ),
+                    Text(
+                      '📍 ${localizeCity(friend.city)}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.6),
+                        fontSize: 12,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    ValueListenableBuilder<String>(
-                      valueListenable: I18n.language,
-                      builder: (context, _, __) => Text(
-                        friend.onlineStatus,
-                        style: TextStyle(
-                          color: Color(friend.onlineStatusColor),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    Text(
+                      friend.onlineStatus,
+                      style: TextStyle(
+                        color: Color(friend.onlineStatusColor),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -352,7 +345,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                   children: [
                     Icon(Icons.person, color: Colors.white70, size: 20),
                     SizedBox(width: 8),
-                    Text(I18n.t('profile'), style: TextStyle(color: Colors.white)),
+                    Text(tr('profile'), style: TextStyle(color: Colors.white)),
                   ],
                 ),
               ),
@@ -362,7 +355,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                   children: [
                     Icon(Icons.sports_soccer, color: Colors.white70, size: 20),
                     SizedBox(width: 8),
-                    Text(I18n.t('invite_to_match'), style: TextStyle(color: Colors.white)),
+                    Text(tr('invite_to_match'), style: TextStyle(color: Colors.white)),
                   ],
                 ),
               ),
@@ -372,7 +365,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                   children: [
                     Icon(Icons.person_remove, color: Colors.red, size: 20),
                     SizedBox(width: 8),
-                    Text(I18n.t('remove_friend'), style: TextStyle(color: Colors.red)),
+                    Text(tr('remove_friend'), style: TextStyle(color: Colors.red)),
                   ],
                 ),
               ),
@@ -396,7 +389,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 16),
             Text(
-              'Немає нових запрошень'.i18n('No new requests'),
+              bilingual('Немає нових запрошень', 'No new requests'),
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 18,
@@ -405,7 +398,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 8),
             Text(
-              'Тут з\'являться запрошення в друзі'.i18n('Friend requests will appear here'),
+              bilingual('Тут з\'являться запрошення в друзі', 'Friend requests will appear here'),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 14,
@@ -439,7 +432,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 16),
             Text(
-              'Немає надісланих запрошень'.i18n('No sent requests'),
+              bilingual('Немає надісланих запрошень', 'No sent requests'),
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 18,
@@ -448,7 +441,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 8),
             Text(
-              'Тут з\'являться ваші запрошення'.i18n('Your invitations will appear here'),
+              bilingual('Тут з\'являться ваші запрошення', 'Your invitations will appear here'),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 14,
@@ -523,8 +516,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                     const SizedBox(height: 4),
                     Text(
                       isIncoming 
-                          ? 'Хоче додати вас у друзі'.i18n('Wants to add you as a friend')
-                          : 'Запрошення надіслано'.i18n('Invitation sent'),
+                          ? bilingual('Хоче додати вас у друзі', 'Wants to add you as a friend')
+                          : bilingual('Запрошення надіслано', 'Invitation sent'),
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.7),
                         fontSize: 14,
@@ -577,7 +570,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       foregroundColor: Colors.red,
                       side: const BorderSide(color: Colors.red),
                     ),
-                    child: Text(I18n.t('reject')),
+                    child: Text(tr('reject')),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -588,7 +581,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       backgroundColor: const Color(0xFF4caf50),
                       foregroundColor: Colors.white,
                     ),
-                    child: Text(I18n.t('accept')),
+                    child: Text(tr('accept')),
                   ),
                 ),
               ] else ...[
@@ -600,7 +593,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       foregroundColor: Colors.white70,
                       side: BorderSide(color: Colors.white.withOpacity(0.3)),
                     ),
-                    child: Text(I18n.t('cancel')),
+                    child: Text(tr('cancel')),
                   ),
                 ),
               ],
@@ -634,7 +627,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
         builder: (context, setState) => AlertDialog(
           backgroundColor: const Color(0xFF1a1a2e),
           title: Text(
-            I18n.t('add_friend'),
+            tr('add_friend'),
             style: const TextStyle(color: Colors.white),
           ),
           content: Container(
@@ -650,7 +643,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                   controller: _searchController,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: I18n.inline('Введіть ім\'я користувача', 'Enter a username'),
+                    hintText: tr('il_35b68c1380'),
                     hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                     border: OutlineInputBorder(
                       borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
@@ -695,8 +688,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  I18n.inline('Debug: ${_searchResults.length} результатів, пошук: $_isSearching',
-                      'Debug: ${_searchResults.length} results, searching: $_isSearching'),
+                  tr('il_cfa9991764'),
                   style: const TextStyle(color: Colors.orange, fontSize: 10),
                 ),
                 const SizedBox(height: 8),
@@ -751,10 +743,10 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                                 ),
                               );
                             },
-                            child: Text(user['name'] ?? 'Невідомий'.i18n('Unknown'), style: const TextStyle(color: Colors.white)),
+                            child: Text(user['name'] ?? bilingual('Невідомий', 'Unknown'), style: const TextStyle(color: Colors.white)),
                           ),
                           subtitle: Text(
-                              I18n.inline('📍 ${user['city'] ?? 'Невідоме місто'}', '📍 ${user['city'] ?? 'Unknown city'}'),
+                              bilingual('📍 ${user['city'] ?? 'Невідоме місто'}', '📍 ${user['city'] ?? 'Unknown city'}'),
                               style: TextStyle(color: Colors.white.withOpacity(0.7))),
                           trailing: IconButton(
                             icon: const Icon(Icons.person_add, color: Color(0xFF4caf50)),
@@ -765,14 +757,14 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                     ),
                   )
                 else if (!_isSearching && _searchController.text.length >= 2)
-                  Text(I18n.t('no_users_found'), style: const TextStyle(color: Colors.white70)),
+                  Text(tr('no_users_found'), style: const TextStyle(color: Colors.white70)),
               ],
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
+              child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70)),
             ),
           ],
         ),
@@ -828,13 +820,13 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ Запрошення надіслано!'.i18n('✅ Invitation sent!')),
+          content: Text(bilingual('✅ Запрошення надіслано!', '✅ Invitation sent!')),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf'))),
       );
     }
   }
@@ -850,14 +842,14 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(accept
-              ? '✅ Запрошення прийнято!'.i18n('✅ Invitation accepted!')
-              : '❌ Запрошення відхилено'.i18n('❌ Invitation declined')),
+              ? bilingual('✅ Запрошення прийнято!', '✅ Invitation accepted!')
+              : bilingual('❌ Запрошення відхилено', '❌ Invitation declined')),
           backgroundColor: accept ? Colors.green : Colors.red,
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf'))),
       );
     }
   }
@@ -867,13 +859,13 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       await _friendsRepo.cancelFriendRequest(requestId);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ Запрошення скасовано'.i18n('✅ Invitation cancelled')),
+          content: Text(bilingual('✅ Запрошення скасовано', '✅ Invitation cancelled')),
           backgroundColor: Colors.orange,
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf'))),
       );
     }
   }
@@ -892,7 +884,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          I18n.inline('Запрошення на матч для ${friend.name} (буде реалізовано)', 'Match invite for ${friend.name} (coming soon)'),
+          tr('il_4b4bef8539'),
         ),
       ),
     );
@@ -904,25 +896,24 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
         title: Text(
-          'Видалити з друзів?'.i18n('Remove from friends?'),
+          bilingual('Видалити з друзів?', 'Remove from friends?'),
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          I18n.inline('Ви впевнені, що хочете видалити ${friend.name} з друзів?',
-              'Are you sure you want to remove ${friend.name} from friends?'),
+          tr('il_2bf3c2cda3'),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70)),
+            child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
               _removeFriend(friend);
             },
-            child: Text(I18n.t('delete'), style: const TextStyle(color: Colors.red)),
+            child: Text(tr('delete'), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -935,11 +926,11 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       _loadFriends(); // Refresh friends list
       
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('${friend.name} видалено з друзів', '${friend.name} removed from friends'))),
+        SnackBar(content: Text(tr('il_0e0331a717'))),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка: $e', 'Error: $e'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf'))),
       );
     }
   }

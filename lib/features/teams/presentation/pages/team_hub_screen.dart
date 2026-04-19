@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../features/auth/domain/repositories/auth_session_repository.dart';
@@ -10,7 +11,6 @@ import '../../../../router/app_router.dart';
 
 import '../../data/models/app_team.dart';
 import '../../data/models/team_stats.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/team_logo_button.dart';
@@ -70,7 +70,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
               ),
               const SizedBox(width: 10),
               Text(
-                I18n.inline('Клуби', 'Clubs'),
+                tr('il_98348a9036'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -129,17 +129,17 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         shortcuts: [
           ModeDialAction(
             icon: Icons.sports_soccer,
-            tooltip: I18n.t('matches'),
+            tooltip: tr('matches'),
             onTap: () => context.router.push(MatchesRoute()),
           ),
           ModeDialAction(
             icon: Icons.play_circle_outline,
-            tooltip: I18n.t('videos'),
+            tooltip: tr('videos'),
             onTap: () => context.router.push(VideoMainRoute()),
           ),
         ],
         onCreate: _onCreateTeamPressed,
-        createTooltip: I18n.inline('Нова команда', 'Create team'),
+        createTooltip: tr('il_284ff194f8'),
       ),
     );
   }
@@ -151,7 +151,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            I18n.inline('Увійдіть, щоб створити команду.', 'Sign in to create a team.'),
+            tr('il_89803af156'),
           ),
           backgroundColor: Colors.redAccent,
         ),
@@ -182,7 +182,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              I18n.inline('Створи першу команду', 'Create your first club'),
+              tr('il_9af4722ab4'),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,
@@ -191,9 +191,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              I18n.inline(
-                  'Збирай склад, плануй матчі та заходь у турнірну таблицю',
-                  'Build your roster, plan matches and climb the table'),
+              tr('il_9c1000ed18'),
               style: const TextStyle(color: Colors.white70),
             ),
           ],
@@ -226,7 +224,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            I18n.inline('Лідер туру', 'Club of the week'),
+            tr('il_dc7a9ee810'),
             style: const TextStyle(
               color: Colors.white70,
               letterSpacing: 1.2,
@@ -259,11 +257,11 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             spacing: 12,
             children: [
               _chip(Icons.emoji_events,
-                  '${stats.wins} ${I18n.inline('перемог', 'wins')}'),
+                  '${stats.wins} ${tr('il_a962826d46')}'),
               _chip(
                   Icons.sports_soccer,
                   '${stats.matches} '
-                      '${I18n.inline('матчів', 'matches')}'),
+                      '${tr('il_a54084383e')}'),
               _chip(Icons.star, '${stats.points} pts'),
             ],
           ),
@@ -284,7 +282,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
-            child: Text(I18n.inline('Переглянути клуб', 'View club')),
+            child: Text(tr('il_8bf3093807')),
           ),
         ],
       ),
@@ -316,10 +314,8 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         final myTeams = snapshot.data ?? const [];
         if (myTeams.isEmpty) {
           return _emptyState(
-            title: I18n.inline('Немає клубів', 'No clubs yet'),
-            subtitle: I18n.inline(
-                'Створи команду або приєднайся, щоб відслідковувати прогрес',
-                'Create or join to start tracking your club'),
+            title: tr('il_3ac1496270'),
+            subtitle: tr('il_37735f756e'),
           );
         }
 
@@ -327,7 +323,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              I18n.inline('Мої команди', 'My clubs'),
+              tr('il_f665423b2a'),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -390,9 +386,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            I18n.inline(
-                                'Гравців: ${team.memberIds.length}',
-                                'Players: ${team.memberIds.length}'),
+                            tr('il_5d379b3bb6'),
                             style: const TextStyle(
                                 color: Colors.white54, fontSize: 12),
                           ),
@@ -414,7 +408,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          I18n.inline('Турнірна таблиця', 'League table'),
+          tr('il_3a12ab9ef7'),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
@@ -424,10 +418,8 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         const SizedBox(height: 12),
         if (teams.isEmpty)
           _emptyState(
-            title: I18n.inline('Команд ще немає', 'No clubs yet'),
-            subtitle: I18n.inline(
-                'Створіть перший клуб і виведіть його в топ',
-                'Create the first club and reach the top'),
+            title: tr('il_3ac1496270'),
+            subtitle: tr('il_5ee6befe39'),
           )
         else
           Container(
@@ -474,9 +466,8 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
 
     if (top.isEmpty) {
       return _emptyState(
-        title: I18n.inline('Бомбардирів ще немає', 'No scorers yet'),
-        subtitle: I18n.inline(
-            'Після перших голів ми покажемо рейтинг', 'Leaders will appear once teams score'),
+        title: tr('il_3063c85237'),
+        subtitle: tr('il_26a03b01b5'),
       );
     }
 
@@ -489,7 +480,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              I18n.inline('Бомбардири ліги', 'Golden boot'),
+              tr('il_452625d752'),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -510,12 +501,12 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
                   final user = data[scorer.playerId] ?? const {};
                   final name = (user['displayName'] ??
                           user['name'] ??
-                          I18n.inline('Гравець', 'Player'))
+                          tr('il_64aee8c6cb'))
                       .toString();
                   final avatarUrl =
                       (user['avatarUrl'] ?? user['avatar'] ?? '').toString();
                   final subtitle = scorer.teamNames.isEmpty
-                      ? I18n.inline('Без клубу', 'No club')
+                      ? tr('il_42b11ff123')
                       : scorer.teamNames.join(', ');
                   return ListTile(
                     contentPadding:
@@ -579,28 +570,28 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
           const SizedBox(width: 24),
           Expanded(
             flex: 6,
-            child: Text(I18n.inline('Команда', 'Team'), style: style),
+            child: Text(tr('il_5985039f10'), style: style),
           ),
           Expanded(
             flex: 2,
             child: Text(
-              I18n.inline('Матчі', 'Matches'),
+              tr('il_98abff28a9'),
               style: style,
               textAlign: TextAlign.center,
             ),
           ),
           Expanded(
             flex: 3,
-            child: Text('W-D-L', style: style, textAlign: TextAlign.center),
+            child: Text(tr('team_standings_wdl'), style: style, textAlign: TextAlign.center),
           ),
           Expanded(
             flex: 2,
-            child: Text('GD', style: style, textAlign: TextAlign.center),
+            child: Text(tr('team_standings_gd'), style: style, textAlign: TextAlign.center),
           ),
           Expanded(
             flex: 2,
             child: Text(
-              I18n.inline('Очки', 'Pts'),
+              tr('il_52ee1923e9'),
               style: style,
               textAlign: TextAlign.right,
             ),

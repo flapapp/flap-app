@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/models/subscription.dart';
-import '../../../../utils/i18n.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 class SubscriptionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -223,10 +223,7 @@ class SubscriptionService {
         'amount': coinsToAward,
         'subscriptionType': type.toString().split('.').last,
         'timestamp': FieldValue.serverTimestamp(),
-        'description': I18n.inline(
-  'Місячний бонус за підписку',
-  'Monthly bonus for subscription',
-),
+        'description': tr('il_c4dbbb91b5'),
       });
     }
   }

@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart' as el;
 import 'package:json_annotation/json_annotation.dart';
 
-import '../../../../utils/i18n.dart';
+import '../../../../app_locale_access.dart';
 import '../../domain/entities/badge_entity.dart';
 
 export '../../domain/entities/badge_entity.dart';
@@ -103,17 +104,17 @@ class Badge extends BadgeEntity {
   String get rarityText {
     switch (category) {
       case 'starter':
-        return I18n.inline('Початковий', 'Starter');
+        return el.tr('il_262b4ff6af');
       case 'skill':
-        return I18n.inline('Навичка', 'Skill');
+        return el.tr('il_6df1bb18a5');
       case 'achievement':
-        return I18n.inline('Досягнення', 'Achievement');
+        return el.tr('il_293523c3bf');
       case 'legendary':
-        return I18n.inline('Легендарний', 'Legendary');
+        return el.tr('il_c80b041f5d');
       case 'special':
-        return I18n.inline('Спеціальний', 'Special');
+        return el.tr('il_997c544f1b');
       default:
-        return I18n.inline('Звичайний', 'Common');
+        return el.tr('il_309955e008');
     }
   }
 
@@ -129,7 +130,7 @@ class Badge extends BadgeEntity {
 
   // Helper method to get localized badge name
   static String _getLocalizedName(String id, String defaultName) {
-    final lang = I18n.language.value;
+    final lang = currentAppLanguageCode();
     final skillData = _skillLocalizations[id];
     if (skillData != null) {
       return lang == 'uk'
@@ -176,7 +177,7 @@ class Badge extends BadgeEntity {
 
   // Helper method to get localized badge description
   static String _getLocalizedDescription(String id, String defaultDescription) {
-    final lang = I18n.language.value;
+    final lang = currentAppLanguageCode();
     final skillData = _skillLocalizations[id];
     if (skillData != null) {
       return lang == 'uk'

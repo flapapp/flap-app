@@ -1,5 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../router/app_router.dart';
 import 'package:flutter/foundation.dart';
@@ -13,7 +15,6 @@ import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../video/data/services/thumbnail_service.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';
 
 @RoutePage()
@@ -33,7 +34,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   
   ChallengeType _selectedType = ChallengeType.goal;
   ChallengeAudience _selectedAudience = ChallengeAudience.city;
-  String _selectedCity = I18n.t('kyiv_city');
+  String _selectedCity = tr('kyiv_city');
   int _selectedEntryFee = 10;
   int _recruitmentHours = 24; // 1 доба за замовчуванням
   int _submissionHours = 24;
@@ -47,63 +48,63 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   final Set<String> _selectedInviteFriendIds = <String>{};
 
   final List<String> _cities = [
-    I18n.t('kyiv_city'),
-    I18n.t('kharkiv_city'),
-    I18n.t('odesa_city'),
-    I18n.t('dnipro_city'),
-    I18n.t('lviv_city'),
-    I18n.t('zaporizhzhia'),
-    I18n.t('kryvyi_rih'),
-    I18n.t('mykolaiv'),
-    I18n.t('vinnytsia'),
-    I18n.t('poltava'),
-    I18n.t('cherkasy'),
-    I18n.inline('Суми', 'Sumy'),
-    I18n.inline('Хмельницький', 'Khmelnytskyi'),
-    I18n.inline('Чернівці', 'Chernivtsi'),
-    I18n.inline('Житомир', 'Zhytomyr'),
-    I18n.inline('Тернопіль', 'Ternopil'),
-    I18n.inline('Івано-Франківськ', 'Ivano-Frankivsk'),
-    I18n.inline('Луцьк', 'Lutsk'),
-    I18n.inline('Рівне', 'Rivne'),
-    I18n.inline('Ужгород', 'Uzhhorod'),
+    tr('kyiv_city'),
+    tr('kharkiv_city'),
+    tr('odesa_city'),
+    tr('dnipro_city'),
+    tr('lviv_city'),
+    tr('zaporizhzhia'),
+    tr('kryvyi_rih'),
+    tr('mykolaiv'),
+    tr('vinnytsia'),
+    tr('poltava'),
+    tr('cherkasy'),
+    tr('il_2aada3499c'),
+    tr('il_7502cd8bc2'),
+    tr('il_48cf95a721'),
+    tr('il_2fd080c8a4'),
+    tr('il_f29d5e9865'),
+    tr('il_1d884deb01'),
+    tr('il_f839a71bb2'),
+    tr('il_39fb989cf7'),
+    tr('il_3837cdaef9'),
   ];
 
   final List<int> _entryFees = [5, 10, 15, 20, 25];
   List<Map<String, dynamic>> get _durations => [
-    {'hours': 1, 'label': I18n.inline('1 година', '1 hour')},
-    {'hours': 6, 'label': I18n.inline('6 годин', '6 hours')},
-    {'hours': 24, 'label': I18n.inline('1 доба', '1 day')},
-    {'hours': 72, 'label': I18n.inline('3 доби', '3 days')},
-    {'hours': 168, 'label': I18n.inline('1 тиждень', '1 week')},
+    {'hours': 1, 'label': tr('il_f8b8883f0c')},
+    {'hours': 6, 'label': tr('il_4105ae3b8a')},
+    {'hours': 24, 'label': tr('il_fa665d95d2')},
+    {'hours': 72, 'label': tr('il_360719440e')},
+    {'hours': 168, 'label': tr('il_c8cc522340')},
   ];
 
   String _typeLabel(ChallengeType type) {
     switch (type) {
       case ChallengeType.goal:
-        return I18n.inline('Гол', 'Goal');
+        return tr('il_cdbf6975e8');
       case ChallengeType.shotPower:
-        return I18n.inline('Сила удару', 'Shot power');
+        return tr('il_a387ab1835');
       case ChallengeType.save:
-        return I18n.inline('Сейв', 'Save');
+        return tr('il_1509f561f2');
       case ChallengeType.pass:
-        return I18n.inline('Пас', 'Pass');
+        return tr('il_ebdf8cc00b');
       case ChallengeType.longPass:
-        return I18n.inline('Довгий пас', 'Long pass');
+        return tr('il_a30ef79268');
       case ChallengeType.tackle:
-        return I18n.inline('Підкат', 'Tackle');
+        return tr('il_9c0dd00951');
       case ChallengeType.dribbling:
-        return I18n.inline('Дриблінг', 'Dribbling');
+        return tr('il_0b337d1bc7');
       case ChallengeType.penalty:
-        return I18n.inline('Пенальті', 'Penalty');
+        return tr('il_241c754092');
       case ChallengeType.wall:
-        return I18n.inline('Стіна / стандарт', 'Wall / set-piece');
+        return tr('il_93819c7151');
       case ChallengeType.strategy:
-        return I18n.inline('Стратегія', 'Strategy');
+        return tr('il_6b27710dfa');
       case ChallengeType.trick:
-        return I18n.inline('Трюк', 'Trick');
+        return tr('il_209e3aa0b5');
       case ChallengeType.other:
-        return I18n.inline('Інше', 'Other');
+        return tr('il_f97e9da0e3');
     }
   }
 
@@ -195,7 +196,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             Icon(Icons.emoji_events, color: Colors.amber, size: 24),
             const SizedBox(width: 8),
             Text(
-              I18n.t('create_challenge'),
+              tr('create_challenge'),
               style: const TextStyle(color: Colors.white),
             ),
           ],
@@ -214,11 +215,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Заголовок
-                _buildSectionTitle(Icons.info, I18n.inline('Основна інформація', 'Basic Information')),
+                _buildSectionTitle(Icons.info, tr('il_d094b334d8')),
                 const SizedBox(height: 15),
 
                 // Завантаження відео для челенджу
-                _buildSectionTitle(Icons.video_library, I18n.inline('Відео челенджу', 'Challenge Video')),
+                _buildSectionTitle(Icons.video_library, tr('il_af9d7e3d65')),
                 const SizedBox(height: 15),
 
                 Container(
@@ -238,7 +239,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          I18n.inline('Завантажте відео для челенджу', 'Upload challenge video'),
+                          tr('il_7d7eb7441c'),
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -247,7 +248,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          I18n.inline('Це відео буде показуватися як приклад для інших учасників', 'This video will be shown as an example for other participants'),
+                          tr('il_55d7bf332a'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white70,
@@ -256,10 +257,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          I18n.inline(
-                            'Ліміт: до 10 секунд, максимум 25 МБ',
-                            'Limit: up to 10 seconds, maximum 25 MB',
-                          ),
+                          tr('il_2186dc395e'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.75),
@@ -273,7 +271,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                               child: ElevatedButton.icon(
                                 onPressed: () => _pickVideo(fromCamera: false),
                                 icon: const Icon(Icons.video_library),
-                                label: Text(I18n.inline('Галерея', 'Gallery')),
+                                label: Text(tr('il_352cfc749e')),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF4caf50),
                                   foregroundColor: Colors.white,
@@ -289,7 +287,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                               child: ElevatedButton.icon(
                                 onPressed: () => _pickVideo(fromCamera: true),
                                 icon: const Icon(Icons.videocam),
-                                label: Text(I18n.inline('Камера', 'Camera')),
+                                label: Text(tr('il_03494b0d1f')),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white24,
                                   foregroundColor: Colors.white,
@@ -316,7 +314,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    I18n.inline('Відео обрано', 'Video selected'),
+                                    tr('il_4f8b7998bd'),
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,
@@ -349,14 +347,14 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 // Назва челенджу
                 _buildTextField(
                   controller: _titleController,
-                  label: I18n.inline('Назва челенджу *', 'Challenge title *'),
-                  hint: I18n.inline('Наприклад: "Дриблінг через конуси"', 'Example: "Dribbling through cones"'),
+                  label: tr('il_1b64eea021'),
+                  hint: tr('il_3ba12e8766'),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return I18n.inline('Введіть назву челенджу', 'Enter challenge title');
+                      return tr('il_841873f8a6');
                     }
                     if (value.trim().length < 5) {
-                      return I18n.inline('Назва має бути не менше 5 символів', 'Title must be at least 5 characters');
+                      return tr('il_a405ba411a');
                     }
                     return null;
                   },
@@ -367,15 +365,15 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 // Опис
                 _buildTextField(
                   controller: _descriptionController,
-                  label: I18n.inline('Опис челенджу *', 'Challenge description *'),
-                  hint: I18n.inline('Детально опишіть правила та вимоги до челенджу...', 'Describe rules and requirements in detail...'),
+                  label: tr('il_d1b6cdb562'),
+                  hint: tr('il_c6fe7905a3'),
                   maxLines: 4,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return I18n.inline('Введіть опис челенджу', 'Enter challenge description');
+                      return tr('il_0190aa50f8');
                     }
                     if (value.trim().length < 20) {
-                      return I18n.inline('Опис має бути не менше 20 символів', 'Description must be at least 20 characters');
+                      return tr('il_01a8bb483e');
                     }
                     return null;
                   },
@@ -384,7 +382,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 const SizedBox(height: 25),
                 
                 // Тип та аудиторія
-                _buildSectionTitle(Icons.settings, I18n.t('settings')),
+                _buildSectionTitle(Icons.settings, tr('settings')),
                 const SizedBox(height: 15),
                 
                 Row(
@@ -392,7 +390,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     Expanded(
                       flex: 1,
                       child: _buildDropdownField(
-                        label: I18n.inline('Тип челенджу *', 'Challenge type *'),
+                        label: tr('il_9a2597b919'),
                         value: _selectedType,
                         items: ChallengeType.values,
                         onChanged: (value) { setState(() { _selectedType = value!; }); },
@@ -415,15 +413,15 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     Expanded(
                       flex: 1,
                       child: _buildDropdownField(
-                        label: I18n.inline('Аудиторія *', 'Audience *'),
+                        label: tr('il_3013c7e4fa'),
                         value: _selectedAudience,
                         items: ChallengeAudience.values,
                         onChanged: (value) { setState(() { _selectedAudience = value!; }); },
                         itemBuilder: (audience) => Text(
-                          audience == ChallengeAudience.friends ? I18n.inline('Моїм друзям', 'My friends')
-                          : audience == ChallengeAudience.city ? I18n.inline('Моєму місту', 'My city')
-                          : audience == ChallengeAudience.country ? I18n.inline('Моїй країні', 'My country')
-                          : I18n.inline('Усьому світу', 'Worldwide'),
+                          audience == ChallengeAudience.friends ? tr('il_1419851d1b')
+                          : audience == ChallengeAudience.city ? tr('il_eb5e5b054b')
+                          : audience == ChallengeAudience.country ? tr('il_beba73d45d')
+                          : tr('il_42605c01fa'),
                           overflow: TextOverflow.ellipsis,
                         ),
                         icon: '👥',
@@ -440,7 +438,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      I18n.inline('Запросити друзів', 'Invite friends'),
+                      tr('il_2614b42d84'),
                       style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -451,7 +449,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                   builder: (context, snapshot) {
                     final friends = snapshot.data ?? const <Map<String, dynamic>>[];
                     if (friends.isEmpty) {
-                      return Text(I18n.inline('Немає друзів для запрошення', 'No friends to invite'), style: TextStyle(color: Colors.white.withOpacity(0.7)));
+                      return Text(tr('il_3f6a83aa65'), style: TextStyle(color: Colors.white.withOpacity(0.7)));
                     }
                     return Container(
                       constraints: const BoxConstraints(maxHeight: 300),
@@ -466,7 +464,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         itemBuilder: (context, index) {
                           final f = friends[index];
                           final id = f['id'] as String;
-                          final name = (f['displayName'] ?? f['name'] ?? I18n.inline('Користувач', 'User')).toString();
+                          final name = (f['displayName'] ?? f['name'] ?? tr('il_b512d97e7c')).toString();
                           final photoUrl = (f['avatarUrl'] ?? f['photoUrl'] ?? '').toString();
                           final position = (f['position'] ?? f['role'] ?? '').toString();
                           final rating = ((f['rating'] ?? f['averageRating'] ?? 0) as num).toDouble();
@@ -543,7 +541,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 
                 // Ставка входу
                 _buildDropdownField(
-                  label: I18n.inline('Ставка входу *', 'Entry fee *'),
+                  label: tr('il_8ef4bf1d45'),
                   value: _selectedEntryFee,
                   items: _entryFees,
                   onChanged: (value) {
@@ -551,14 +549,14 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                       _selectedEntryFee = value!;
                     });
                   },
-                  itemBuilder: (fee) => Text(I18n.inline('$fee монет', '$fee coins')),
+                  itemBuilder: (fee) => Text(tr('il_eae716cab3')),
                   icon: Icons.monetization_on,
                 ),
                 
                 const SizedBox(height: 20),
                 
                 // Тривалості етапів
-                _buildSectionTitle(Icons.schedule, I18n.inline('Тривалості етапів', 'Stage durations')),
+                _buildSectionTitle(Icons.schedule, tr('il_8c56789629')),
                 const SizedBox(height: 15),
                 
                 LayoutBuilder(
@@ -574,7 +572,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         SizedBox(
                           width: itemWidth,
                           child: _buildDurationDropdown(
-                            label: I18n.t('participant_recruitment') + ' *',
+                            label: tr('participant_recruitment') + ' *',
                             value: _recruitmentHours,
                             onChanged: (value) {
                               setState(() {
@@ -587,7 +585,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         SizedBox(
                           width: itemWidth,
                           child: _buildDurationDropdown(
-                            label: I18n.t('video_submission_stage') + ' *',
+                            label: tr('video_submission_stage') + ' *',
                             value: _submissionHours,
                             onChanged: (value) {
                               setState(() {
@@ -600,7 +598,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         SizedBox(
                           width: itemWidth,
                           child: _buildDurationDropdown(
-                            label: I18n.t('voting') + ' *',
+                            label: tr('voting') + ' *',
                             value: _votingHours,
                             onChanged: (value) {
                               setState(() {
@@ -618,7 +616,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 const SizedBox(height: 25),
                 
                 // Інформація про етапи
-                _buildSectionTitle(Icons.schedule, I18n.inline('Етапи челенджу', 'Challenge stages')),
+                _buildSectionTitle(Icons.schedule, tr('il_d35fa97769')),
                 const SizedBox(height: 15),
                 
                 _buildStageInfo(),
@@ -626,7 +624,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 const SizedBox(height: 25),
                 
                 // Призовий фонд розподіл
-                _buildSectionTitle(Icons.monetization_on, I18n.inline('Розподіл призів', 'Prize distribution')),
+                _buildSectionTitle(Icons.monetization_on, tr('il_54d3171fd8')),
                 const SizedBox(height: 15),
                 
                 _buildPrizeDistribution(),
@@ -645,19 +643,19 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         builder: (context) => AlertDialog(
                           backgroundColor: const Color(0xFF1e7d32),
                           title: Text(
-                            I18n.inline('Підтвердження', 'Confirmation'),
+                            tr('il_d743070540'),
                             style: const TextStyle(color: Colors.white),
                           ),
                           content: Text(
-                            I18n.inline(
+                            bilingual(
                               'Буде списано ${_selectedEntryFee} монет за створення челенджу. Продовжити?',
                               '${_selectedEntryFee} coins will be charged to create the challenge. Continue?',
                             ),
                             style: const TextStyle(color: Colors.white70),
                           ),
                           actions: [
-                            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(I18n.t('cancel'), style: const TextStyle(color: Colors.white70))),
-                            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: Text(I18n.t('confirm'))),
+                            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70))),
+                            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: Text(tr('confirm'))),
                           ],
                         ),
                       );
@@ -687,7 +685,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                               Icon(Icons.emoji_events, color: Colors.white, size: 20),
                               const SizedBox(width: 8),
                               Text(
-                                I18n.t('create_challenge'),
+                                tr('create_challenge'),
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 18,
@@ -717,7 +715,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                           const Icon(Icons.info_outline, color: Colors.white70, size: 20),
                           const SizedBox(width: 8),
                           Text(
-                            I18n.inline('Важливо знати:', 'Important to know:'),
+                            tr('il_7a26875758'),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -728,12 +726,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                                                 I18n.inline('• Ліміт: 1 челендж на місяць\n', '• Limit: 1 challenge per month\n')
-                         + I18n.inline('• Ставка входу: ${_selectedEntryFee} монет\n', '• Entry fee: ${_selectedEntryFee} coins\n')
-                         + I18n.inline('• Призовий фонд: ${_selectedEntryFee * 20} монет\n', '• Prize pool: ${_selectedEntryFee * 20} coins\n')
-                         + I18n.inline('• 1-е місце: 50% (${(_selectedEntryFee * 20 * 0.5).toInt()} монет)\n', '• 1st place: 50% (${(_selectedEntryFee * 20 * 0.5).toInt()} coins)\n')
-                         + I18n.inline('• 2-е місце: 30% (${(_selectedEntryFee * 20 * 0.3).toInt()} монет)\n', '• 2nd place: 30% (${(_selectedEntryFee * 20 * 0.3).toInt()} coins)\n')
-                         + I18n.inline('• 3-є місце: 20% (${(_selectedEntryFee * 20 * 0.2).toInt()} монет)', '• 3rd place: 20% (${(_selectedEntryFee * 20 * 0.2).toInt()} coins)'),
+                                                 tr('il_b288ca1f0f')
+                         + tr('il_82a07f2980')
+                         + tr('il_c96602cb3a')
+                         + tr('il_f1b4cbd59c')
+                         + tr('il_0b24b4d5e6')
+                         + tr('il_1f74dfdb89'),
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -921,13 +919,13 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       ),
       child: Column(
         children: [
-          _buildStageItem(Icons.people, I18n.t('participant_recruitment'), _formatDuration(_recruitmentHours), Colors.green),
+          _buildStageItem(Icons.people, tr('participant_recruitment'), _formatDuration(_recruitmentHours), Colors.green),
           const Divider(color: Colors.white24, height: 20),
-          _buildStageItem(Icons.video_library, I18n.t('video_submission_stage'), _formatDuration(_submissionHours), Colors.orange),
+          _buildStageItem(Icons.video_library, tr('video_submission_stage'), _formatDuration(_submissionHours), Colors.orange),
           const Divider(color: Colors.white24, height: 20),
-          _buildStageItem(Icons.how_to_vote, I18n.t('voting'), _formatDuration(_votingHours), Colors.blue),
+          _buildStageItem(Icons.how_to_vote, tr('voting'), _formatDuration(_votingHours), Colors.blue),
           const Divider(color: Colors.white24, height: 20),
-          _buildStageItem(Icons.emoji_events, I18n.inline('Оголошення переможців', 'Winner announcement'), I18n.inline('Автоматично', 'Automatic'), Colors.purple),
+          _buildStageItem(Icons.emoji_events, tr('il_c2f88479d7'), tr('il_d461a493a3'), Colors.purple),
         ],
       ),
     );
@@ -992,11 +990,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       ),
       child: Column(
         children: [
-          _buildPrizeItem('🥇', I18n.inline('1-е місце', '1st place'), '50%', (prizePool * 0.5).toInt(), Colors.amber),
+          _buildPrizeItem('🥇', tr('il_6b25a21b71'), '50%', (prizePool * 0.5).toInt(), Colors.amber),
           const SizedBox(height: 15),
-          _buildPrizeItem('🥈', I18n.inline('2-е місце', '2nd place'), '30%', (prizePool * 0.3).toInt(), Colors.grey),
+          _buildPrizeItem('🥈', tr('il_aaeaebca09'), '30%', (prizePool * 0.3).toInt(), Colors.grey),
           const SizedBox(height: 15),
-          _buildPrizeItem('🥉', I18n.inline('3-є місце', '3rd place'), '20%', (prizePool * 0.2).toInt(), Colors.orange),
+          _buildPrizeItem('🥉', tr('il_bb8a4734dc'), '20%', (prizePool * 0.2).toInt(), Colors.orange),
         ],
       ),
     );
@@ -1051,7 +1049,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             border: Border.all(color: color.withOpacity(0.5)),
           ),
           child: Text(
-            I18n.inline('$coins монет', '$coins coins'),
+            tr('il_ddf8cb0f4a'),
             style: TextStyle(
               color: color,
               fontSize: 14,
@@ -1121,12 +1119,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   }
 
   String _formatDuration(int hours) {
-    if (hours == 1) return I18n.inline('1 година', '1 hour');
-    if (hours == 6) return I18n.inline('6 годин', '6 hours');
-    if (hours == 24) return I18n.inline('1 доба', '1 day');
-    if (hours == 72) return I18n.inline('3 доби', '3 days');
-    if (hours == 168) return I18n.inline('1 тиждень', '1 week');
-    return I18n.inline('$hours год', '$hours h');
+    if (hours == 1) return tr('il_f8b8883f0c');
+    if (hours == 6) return tr('il_4105ae3b8a');
+    if (hours == 24) return tr('il_fa665d95d2');
+    if (hours == 72) return tr('il_360719440e');
+    if (hours == 168) return tr('il_c8cc522340');
+    return tr('il_fc64c33206');
   }
 
   Future<void> _createChallenge() async {
@@ -1143,7 +1141,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  I18n.inline('Будь ласка, оберіть відео для челенджу', 'Please select challenge video'),
+                  tr('il_f9ca2c929f'),
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
@@ -1166,7 +1164,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        throw Exception(I18n.inline('Користувач не авторизований', 'User not authorized'));
+        throw Exception(tr('il_76144c407d'));
       }
 
       // Отримати дані користувача
@@ -1176,11 +1174,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           .get();
       
       if (!userDoc.exists) {
-        throw Exception(I18n.inline('Профіль користувача не знайдено', 'User profile not found'));
+        throw Exception(tr('il_9ea4a0bb3d'));
       }
 
       final userData = userDoc.data()!;
-      final userName = userData['displayName'] ?? userData['name'] ?? I18n.inline('Невідомий', 'Unknown');
+      final userName = userData['displayName'] ?? userData['name'] ?? tr('il_b764cdc0ea');
       final userCity = userData['city'] ?? _selectedCity;
 
       // Розрахунок дат з окремими тривалостями
@@ -1271,7 +1269,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               print('WARNING: Creator video upload returned null/empty URL');
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(I18n.inline('⚠️ Відео створювача не завантажено!', '⚠️ Creator video was not uploaded!')),
+                  content: Text(tr('il_bf73be535c')),
                   backgroundColor: Colors.orange,
                 ),
               );
@@ -1280,7 +1278,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             print('ERROR: Creator video upload failed: $e');
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(I18n.inline('❌ Помилка завантаження відео: $e', '❌ Video upload error: $e')),
+                content: Text(tr('il_7fe2d5cb6e')),
                 backgroundColor: Colors.red,
               ),
             );
@@ -1289,7 +1287,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           print('WARNING: No video file selected for creator!');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(I18n.inline('⚠️ Відео створювача обов\'язкове!', '⚠️ Creator video is required!')),
+              content: Text(tr('il_32d2ecebbd')),
               backgroundColor: Colors.orange,
             ),
           );
@@ -1309,7 +1307,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                   const Icon(Icons.check_circle, color: Colors.white, size: 28),
                   const SizedBox(width: 12),
                   Text(
-                    I18n.inline('Челендж створено!', 'Challenge created!'),
+                    tr('il_ebee9d2f8e'),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -1320,14 +1318,8 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               ),
               content: Text(
                 _selectedVideoFile != null 
-                  ? I18n.inline(
-                      'Челендж та ваше відео успішно створені! Тепер інші гравці можуть приєднатися та завантажити свої відео.',
-                      'The challenge and your video were created successfully! Other players can now join and upload their videos.',
-                    )
-                  : I18n.inline(
-                      'Челендж створено! Ви можете додати відео пізніше в деталях челенджу.',
-                      'Challenge created! You can add a video later in the challenge details.',
-                    ),
+                  ? tr('il_b80e3f2d55')
+                  : tr('il_dff6be6f34'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -1347,7 +1339,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     ),
                   ),
                   child: Text(
-                    I18n.inline('Готово', 'Done'),
+                    tr('il_11a6767d56'),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -1359,7 +1351,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           },
         );
       } else {
-        throw Exception(I18n.inline('Помилка створення челенджу', 'Failed to create challenge'));
+        throw Exception(tr('il_0d4aef73b7'));
       }
     } catch (e) {
       // Показати помилку
@@ -1371,7 +1363,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  I18n.inline('Помилка: ${e.toString()}', 'Error: ${e.toString()}'),
+                  tr('il_7bdfebf56b'),
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
@@ -1440,10 +1432,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             SnackBar(
               backgroundColor: Colors.redAccent,
               content: Text(
-                I18n.inline(
-                  'Файл занадто великий. Максимум 25 МБ.',
-                  'File is too large. Maximum size is 25 MB.',
-                ),
+                tr('il_c5e57856db'),
               ),
             ),
           );
@@ -1457,7 +1446,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       print('Error picking video: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('Помилка вибору відео: ${e.toString()}', 'Video selection error: ${e.toString()}')),
+          content: Text(tr('il_d1976cbb3b')),
           backgroundColor: Colors.red,
         ),
       );
@@ -1492,17 +1481,14 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         final bytes = await _selectedVideoFile!.readAsBytes();
         if (bytes.length > _maxVideoBytes) {
           throw Exception(
-            I18n.inline(
-              'Розмір відео перевищує 25 МБ.',
-              'Video size exceeds 25 MB.',
-            ),
+            tr('il_8af3536c64'),
           );
         }
         print('Video file size: ${bytes.length} bytes');
         uploadTask = storageRef.putData(bytes);
       } catch (e) {
         print('ERROR reading video file: $e');
-        throw Exception(I18n.inline('Помилка читання відео файлу: $e', 'Video file read error: $e'));
+        throw Exception(tr('il_44a8286fde'));
       }
       
       print('Upload started...');
@@ -1516,7 +1502,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         print('Video URL obtained: $videoUrl');
       } catch (e) {
         print('ERROR during upload or getting URL: $e');
-        throw Exception(I18n.inline('Помилка завантаження або отримання URL: $e', 'Upload or URL retrieval error: $e'));
+        throw Exception(tr('il_cc3ca4e740'));
       }
       
       // Створюємо запис у колекції videos, щоб мати єдиний шлях голосів і агрегатів
@@ -1528,10 +1514,10 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           'authorName': authorName,
           'title': _titleController.text.trim().isNotEmpty
               ? _titleController.text.trim()
-              : I18n.inline('Відео створювача', 'Creator video'),
+              : tr('il_b51a6ac57e'),
           'description': _descriptionController.text.trim().isNotEmpty
               ? _descriptionController.text.trim()
-              : I18n.inline('Відео челенджу', 'Challenge video'),
+              : tr('il_4c92b02f91'),
           'category': 'Інше',
           'difficulty': null,
           'videoUrl': videoUrl,
@@ -1561,7 +1547,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           'authorName': authorName,
           'title': _titleController.text.trim().isNotEmpty
               ? _titleController.text.trim()
-              : I18n.inline('Відео створювача', 'Creator video'),
+              : tr('il_b51a6ac57e'),
           'videoUrl': videoUrl,
           'videoId': createdVideoDocId,
           'isCreatorVideo': true,
@@ -1606,7 +1592,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Помилка завантаження відео: ${e.toString()}'),
+            content: Text(tr('video_upload_error_detail', args: [e.toString()])),
             backgroundColor: Colors.red,
           ),
         );

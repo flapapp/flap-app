@@ -5,8 +5,9 @@ import '../../data/models/notification.dart';
 import 'package:flutter/foundation.dart';
 import '../../../matches/data/models/match.dart' as app_models;
 import '../../../../router/app_router.dart';
-import '../../../../utils/i18n.dart';
 import '../../../profile/data/services/user_settings_service.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -410,8 +411,8 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     id: '',
     userId: toUserId,
     type: NotificationType.videoVote,
-    title: I18n.inline('Нова оцінка відео', 'New video rating'),
-    message: I18n.inline(
+    title: tr('il_e54105ee12'),
+    message: bilingual(
       '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(2)}',
       '$voterName rated your video "$videoTitle" at ${rating.toStringAsFixed(2)}',
     ),
@@ -585,8 +586,8 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     id: '',
     userId: toUserId,
     type: NotificationType.challengeInvitation,
-    title: I18n.inline('Запрошення на челендж!', 'Challenge invitation!'),
-    message: I18n.inline(
+    title: tr('il_f9b41369d5'),
+    message: bilingual(
       '$creatorName запросив вас взяти участь у челенджі "$challengeTitle"',
       '$creatorName invited you to join the "$challengeTitle" challenge',
     ),
@@ -613,8 +614,8 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     id: '',
     userId: toUserId,
     type: NotificationType.challengeUpdate,
-    title: I18n.inline('Нове відео в челенджі!', 'New video in the challenge!'),
-    message: I18n.inline(
+    title: tr('il_7ce51873c6'),
+    message: bilingual(
       '$participantName завантажив відео до челенджу "$challengeTitle"',
       '$participantName uploaded a video to the "$challengeTitle" challenge',
     ),
@@ -639,8 +640,8 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     id: '',
     userId: toUserId,
     type: NotificationType.challengeUpdate,
-    title: I18n.inline('Голосування розпочато!', 'Voting has started!'),
-    message: I18n.inline(
+    title: tr('il_8da8637d80'),
+    message: bilingual(
       'Розпочалося голосування в челенджі "$challengeTitle". Проголосуйте за найкращі відео!',
       'Voting has started in the "$challengeTitle" challenge. Please vote for the best videos!',
     ),
@@ -668,29 +669,29 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
 
   switch (position) {
     case 1:
-      title = I18n.inline('🥇 Ви перемогли!', '🥇 You won!');
-      message = I18n.inline(
+      title = tr('il_0901974591');
+      message = bilingual(
         'Вітаємо! Ви зайняли 1 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!',
         'Congratulations! You took 1st place in "$challengeTitle" and earned $coinsWon coins!',
       );
       break;
     case 2:
-      title = I18n.inline('🥈 Друге місце!', '🥈 Second place!');
-      message = I18n.inline(
+      title = tr('il_1c3e8ad54d');
+      message = bilingual(
         'Чудово! Ви зайняли 2 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!',
         'Great! You took 2nd place in "$challengeTitle" and earned $coinsWon coins!',
       );
       break;
     case 3:
-      title = I18n.inline('🥉 Третє місце!', '🥉 Third place!');
-      message = I18n.inline(
+      title = tr('il_c7c21b29c5');
+      message = bilingual(
         'Добре! Ви зайняли 3 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!',
         'Nice! You took 3rd place in "$challengeTitle" and earned $coinsWon coins!',
       );
       break;
     default:
-      title = I18n.inline('Челендж завершено', 'Challenge completed');
-      message = I18n.inline(
+      title = tr('il_6011c9f25a');
+      message = bilingual(
         'Челендж "$challengeTitle" завершено. Дякуємо за участь!',
         'The "$challengeTitle" challenge has ended. Thanks for participating!',
       );
@@ -727,8 +728,8 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
         id: '',
         userId: userId,
         type: NotificationType.challengeInvitation,
-        title: I18n.inline('Запрошення на челендж!', 'Challenge invitation!'),
-        message: I18n.inline(
+        title: tr('il_f9b41369d5'),
+        message: bilingual(
           '$creatorName запросив вас взяти участь у челенджі "$challengeTitle"',
           '$creatorName invited you to join the "$challengeTitle" challenge',
         ),
@@ -802,9 +803,8 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   String? title,
   String? body,
 }) async {
-  final localizedTitle = title ?? I18n.inline('Запрошення на матч', 'Match invitation');
-  final localizedBody = body ?? I18n.inline('$organizerName запросив(ла) вас на матч',
-          '$organizerName invited you to a match');
+  final localizedTitle = title ?? tr('il_bfaa223845');
+  final localizedBody = body ?? tr('il_2a17d067e3');
   return sendNotification(AppNotification(
     id: '',
     userId: toUserId,
@@ -825,8 +825,8 @@ Future<bool> sendMatchApplicationSubmitted({
     id: '',
     userId: toOrganizerId,
     type: NotificationType.matchInvite,
-    title: I18n.inline('Нова заявка на матч', 'New match application'),
-    message: I18n.inline(
+    title: tr('il_8b79eee0c4'),
+    message: bilingual(
       '$applicantName подав(ла) заявку на участь у вашому матчі',
       '$applicantName applied to join your match',
     ),
@@ -844,8 +844,8 @@ Future<bool> sendMatchApplicationAccepted({
     id: '',
     userId: toUserId,
     type: NotificationType.matchInvite,
-    title: I18n.inline('Заявку підтверджено', 'Application approved'),
-    message: I18n.inline(
+    title: tr('il_c491d848c2'),
+    message: bilingual(
       '$organizerName підтвердив(ла) вашу участь у матчі',
       '$organizerName approved your participation in the match',
     ),
@@ -863,8 +863,8 @@ Future<bool> sendMatchApplicationRejected({
     id: '',
     userId: toUserId,
     type: NotificationType.matchInvite,
-    title: I18n.inline('Заявку відхилено', 'Application declined'),
-    message: I18n.inline(
+    title: tr('il_149be53f9a'),
+    message: bilingual(
       '$organizerName відхилив(ла) вашу заявку на матч',
       '$organizerName declined your match application',
     ),
@@ -886,8 +886,8 @@ Future<bool> sendMatchFinished({
     id: '',
     userId: toUserId,
     type: NotificationType.matchFinished,
-    title: I18n.inline('Матч завершено', 'Match finished'),
-    message: I18n.inline(
+    title: tr('il_dc00754e01'),
+    message: bilingual(
       'Матч завершено: $score. Поставте оцінки гравцям.',
       'Full time: $score. Please rate the players.',
     ),

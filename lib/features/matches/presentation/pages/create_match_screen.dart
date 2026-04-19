@@ -1,5 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,7 +12,6 @@ import '../../domain/repositories/matches_repository.dart';
 import '../../../../features/teams/domain/repositories/teams_repository.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../notifications/data/models/notification.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
@@ -32,8 +33,8 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   
   DateTime _selectedDate = DateTime.now().add(Duration(days: 1));
   TimeOfDay _selectedTime = TimeOfDay.now();
-  String _selectedCity = I18n.t('kyiv');
-  String _selectedLevel = I18n.inline('Середній', 'Intermediate');
+  String _selectedCity = tr('kyiv');
+  String _selectedLevel = tr('il_3b1cfa63d7');
   int _selectedPlayers = 10;
   double _cost = 0.0;
   bool _autoBalance = true;
@@ -41,8 +42,8 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   int _numberOfTeams = 2; // 2, 3 or 4 teams
   final Set<String> _selectedInviteFriendIds = <String>{};
   
-  List<String> get _cities => [I18n.t('kyiv'), I18n.t('kharkiv'), I18n.t('odesa'), I18n.t('dnipro'), I18n.t('lviv')];
-  List<String> get _levels => [I18n.t('beginner'), I18n.inline('Середній', 'Intermediate'), I18n.inline('Високий', 'Advanced'), I18n.t('professional')];
+  List<String> get _cities => [tr('kyiv'), tr('kharkiv'), tr('odesa'), tr('dnipro'), tr('lviv')];
+  List<String> get _levels => [tr('beginner'), tr('il_3b1cfa63d7'), tr('il_9f088dbebd'), tr('professional')];
   final List<int> _playerOptions = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
   final ScrollController _friendsScrollController = ScrollController();
 
@@ -74,7 +75,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF1a1a2e),
       appBar: AppBar(
-        title: Text(I18n.t('create_match'), style: const TextStyle(color: Colors.white)),
+        title: Text(tr('create_match'), style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.white,
@@ -89,7 +90,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             TextFormField(
               controller: _titleController,
               decoration: InputDecoration(
-                labelText: I18n.inline('Назва матчу *', 'Match name *'),
+                labelText: tr('il_40e6c88126'),
                 labelStyle: TextStyle(color: Colors.white70),
                 border: OutlineInputBorder(),
                 enabledBorder: OutlineInputBorder(
@@ -101,7 +102,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
               ),
               style: TextStyle(color: Colors.white),
               validator: (value) {
-                if (value?.isEmpty ?? true) return I18n.inline('Введіть назву матчу', 'Enter match name');
+                if (value?.isEmpty ?? true) return tr('il_23245bd9a6');
                 return null;
               },
             ),
@@ -111,7 +112,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             TextFormField(
               controller: _descriptionController,
               decoration: InputDecoration(
-                labelText: I18n.inline('Опис матчу', 'Match description'),
+                labelText: tr('il_61c1c67c7f'),
                 labelStyle: TextStyle(color: Colors.white70),
                 border: OutlineInputBorder(),
                 enabledBorder: OutlineInputBorder(
@@ -162,7 +163,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(I18n.inline('Дата *', 'Date *'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                          Text(tr('il_c218c8b08e'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
                           Text(
                             '${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}',
                             style: TextStyle(color: Colors.white, fontSize: 16),
@@ -204,7 +205,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(I18n.inline('Час *', 'Time *'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                          Text(tr('il_f255eef12c'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
                           Text(
                             '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
                             style: TextStyle(color: Colors.white, fontSize: 16),
@@ -222,7 +223,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             TextFormField(
               controller: _locationController,
               decoration: InputDecoration(
-                labelText: I18n.inline('Локація *', 'Location *'),
+                labelText: tr('il_692d4cc700'),
                 labelStyle: TextStyle(color: Colors.white70),
                 border: OutlineInputBorder(),
                 enabledBorder: OutlineInputBorder(
@@ -234,7 +235,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
               ),
               style: TextStyle(color: Colors.white),
               validator: (value) {
-                if (value?.isEmpty ?? true) return I18n.inline('Введіть локацію', 'Enter location');
+                if (value?.isEmpty ?? true) return tr('il_de5898b9bb');
                 return null;
               },
             ),
@@ -246,7 +247,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                 Expanded(
                   child: CityAutocompleteField(
                     controller: _cityController,
-                    label: I18n.inline('Місто *', 'City *'),
+                    label: tr('il_4b59236336'),
                     requiredField: true,
                     style: const TextStyle(color: Colors.white),
                     labelStyle: const TextStyle(color: Colors.white70),
@@ -266,7 +267,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _selectedLevel,
                     decoration: InputDecoration(
-                      labelText: I18n.inline('Рівень *', 'Level *'),
+                      labelText: tr('il_1213d3201a'),
                       labelStyle: TextStyle(color: Colors.white70),
                       border: OutlineInputBorder(),
                       enabledBorder: OutlineInputBorder(
@@ -297,7 +298,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                   child: DropdownButtonFormField<int>(
                     initialValue: _selectedPlayers,
                     decoration: InputDecoration(
-                      labelText: I18n.inline('Гравці *', 'Players *'),
+                      labelText: tr('il_62a929fea8'),
                       labelStyle: TextStyle(color: Colors.white70),
                       border: OutlineInputBorder(),
                       enabledBorder: OutlineInputBorder(
@@ -312,7 +313,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                     items: _playerOptions.map((players) => 
                       DropdownMenuItem(
                         value: players, 
-                        child: Text(I18n.inline('$players гравців', '$players players'))
+                        child: Text(tr('il_460cbf0720'))
                       )
                     ).toList(),
                     onChanged: (value) {
@@ -329,7 +330,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                 Expanded(
                   child: TextFormField(
                     decoration: InputDecoration(
-                      labelText: I18n.inline('Вартість (грн)', 'Cost (UAH)'),
+                      labelText: tr('il_6d595710b8'),
                       labelStyle: TextStyle(color: Colors.white70),
                       border: OutlineInputBorder(),
                       enabledBorder: OutlineInputBorder(
@@ -356,16 +357,16 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                 final isNarrow = constraints.maxWidth < 640;
                 final toggles = [
                   _buildSettingToggle(
-                    title: I18n.inline('Автобаланс', 'Auto balance'),
-                    subtitle: I18n.inline('Система підбере склади', 'System balances teams'),
+                    title: tr('il_ace59f5c4f'),
+                    subtitle: tr('il_2989176c3a'),
                     value: _autoBalance,
                     onChanged: (value) {
                       setState(() => _autoBalance = value);
                     },
                   ),
                   _buildSettingToggle(
-                    title: I18n.inline('Приватний матч', 'Private match'),
-                    subtitle: I18n.inline('Бачать лише запрошені', 'Visible to invited only'),
+                    title: tr('il_aaffbee0e1'),
+                    subtitle: tr('il_b7dc15d102'),
                     value: _isPrivate,
                     onChanged: (value) {
                       setState(() => _isPrivate = value);
@@ -404,7 +405,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(I18n.inline('Кількість команд:', 'Number of teams:'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text(tr('il_9be39530da'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                     SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -449,12 +450,11 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             const SizedBox(height: 12),
             SwitchListTile(
               title: Text(
-                I18n.inline('Матч між командами', 'Team vs team'),
+                tr('il_5084b91728'),
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
               ),
               subtitle: Text(
-                I18n.inline('Виберіть свою команду та оберіть склад',
-                    'Pick your team and roster'),
+                tr('il_a94d1ecc4e'),
                 style: const TextStyle(color: Colors.white70),
               ),
               value: _teamMode,
@@ -486,7 +486,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                   Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   Text(
-                    I18n.inline('Запросити друзів', 'Invite friends'),
+                    tr('il_2614b42d84'),
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -501,8 +501,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                   final friends = snapshot.data ?? const <Map<String, dynamic>>[];
                   if (friends.isEmpty) {
                     return Text(
-                      I18n.inline('Немає друзів для запрошення',
-                          'No friends to invite'),
+                      tr('il_3f6a83aa65'),
                       style:
                           TextStyle(color: Colors.white.withValues(alpha: 0.75)),
                     );
@@ -536,7 +535,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                             final id = f['id'] as String;
                             final name = (f['displayName'] ??
                                     f['name'] ??
-                                    I18n.inline('Користувач', 'User'))
+                                    tr('il_b512d97e7c'))
                                 .toString();
                             final photoUrl =
                                 (f['avatarUrl'] ?? f['photoUrl'] ?? '').toString();
@@ -641,9 +640,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        I18n.inline(
-                            'Запрошення друзів вимкнено для командних матчів. Капітани додають гравців зі складу команди.',
-                            'Inviting individual friends is disabled in team mode. Captains manage rosters inside their teams.'),
+                        tr('il_361b9541bf'),
                         style:
                             const TextStyle(color: Colors.white70, fontSize: 13),
                       ),
@@ -674,7 +671,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                       ),
                     )
                   : Text(
-                      I18n.t('create_match'),
+                      tr('create_match'),
                       style: const TextStyle(
                           color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                     ),
@@ -707,7 +704,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
        userData['authorName'] ??
        userData['name'] ??
        emailPrefix ??
-       I18n.inline('Невідомий', 'Unknown')).toString();
+       tr('il_b764cdc0ea')).toString();
       
       var participants = <String>[currentUser.uid];
       var currentPlayers = 1;
@@ -725,13 +722,12 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
 
       if (_teamMode) {
         if (_selectedTeam == null) {
-          throw Exception(I18n.inline('Оберіть команду', 'Select a team'));
+          throw Exception(tr('il_f7f8b89b06'));
         }
         hostIsMyTeam =
             _selectedTeam!.memberIds.contains(currentUser.uid);
         if (hostIsMyTeam && _selectedRoster.isEmpty) {
-          throw Exception(I18n.inline(
-              'Оберіть склад команди', 'Choose at least one player'));
+          throw Exception(tr('il_5e90e3ad39'));
         }
         if (!hostIsMyTeam) {
           participants = <String>[];
@@ -769,7 +765,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       _selectedCity = _cityController.text.trim();
       if (_selectedCity.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(I18n.inline('Оберіть місто зі списку', 'Select city from suggestions'))),
+          SnackBar(content: Text(tr('il_0683014b0c'))),
         );
         return;
       }
@@ -818,8 +814,8 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
               id: '',
               userId: uid,
               type: NotificationType.matchInvite,
-              title: I18n.inline('Запрошення на матч', 'Match invitation'),
-              message: I18n.inline(
+              title: tr('il_bfaa223845'),
+              message: bilingual(
                 '$resolvedOrganizerName запросив вас на матч "$title"',
                 '$resolvedOrganizerName invited you to the match "$title"',
               ),
@@ -843,7 +839,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
             teamId: _selectedTeam!.id,
             opponentTeamId: _opponentTeam?.id ?? '',
             opponentName:
-                _opponentTeam?.name ?? I18n.inline('Суперник', 'Opponent'),
+                _opponentTeam?.name ?? tr('il_c0886e50d4'),
             matchId: matchId,
             proposedRoster: hostIsMyTeam ? _selectedRoster : const [],
           );
@@ -877,7 +873,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
   SnackBar(
-    content: Text(I18n.inline('Помилка створення: $e', 'Failed to create match: $e')),
+    content: Text(tr('il_a25ff440b8')),
     backgroundColor: Colors.red,
   ),
 );
@@ -1022,7 +1018,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                     controller: controller,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: I18n.inline('Пошук команди', 'Search team'),
+                      labelText: tr('il_c81e115cc3'),
                       labelStyle: const TextStyle(color: Colors.white70),
                       filled: true,
                       fillColor: Colors.white.withOpacity(0.06),
@@ -1052,8 +1048,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20),
                       child: Text(
-                        I18n.inline('Введіть назву команди для пошуку.',
-                            'Type a team name to search.'),
+                        tr('il_9598782e39'),
                         style: const TextStyle(color: Colors.white54),
                       ),
                     )
@@ -1071,7 +1066,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                             title: Text(team.name,
                                 style: const TextStyle(color: Colors.white)),
                             subtitle: Text(
-                              '${team.memberIds.length} ${I18n.inline('гравців', 'players')}',
+                              '${team.memberIds.length} ${tr('il_afc0d772a2')}',
                               style: const TextStyle(color: Colors.white54),
                             ),
                             onTap: () {
@@ -1117,8 +1112,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              I18n.inline(
-                  'Обрати команду організатора', 'Pick an organizer team'),
+              tr('il_6aaa94a1ae'),
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
@@ -1127,9 +1121,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
             ),
             const SizedBox(height: 8),
             Text(
-              I18n.inline(
-                  'Натисніть, щоб знайти існуючу команду, навіть якщо вона не ваша.',
-                  'Tap to search any existing team, even if it is not yours.'),
+              tr('il_de51695051'),
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
             const SizedBox(height: 16),
@@ -1139,7 +1131,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                 onPressed: () => _openTeamSearchSheet(forHost: true),
                 icon: const Icon(Icons.search, color: Colors.white),
                 label: Text(
-                  I18n.inline('Знайти команду', 'Find a team'),
+                  tr('il_95c42e9726'),
                   style: const TextStyle(color: Colors.white),
                 ),
                 style: OutlinedButton.styleFrom(
@@ -1194,15 +1186,13 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${_selectedTeam!.memberIds.length} ${I18n.inline('гравців', 'players')}',
+                      '${_selectedTeam!.memberIds.length} ${tr('il_afc0d772a2')}',
                       style: const TextStyle(color: Colors.white70),
                     ),
                     if (!hostIsMine) ...[
                       const SizedBox(height: 4),
                       Text(
-                        I18n.inline(
-                            'Цю команду запросимо підтвердити склад',
-                            'This club will confirm line-up themselves'),
+                        tr('il_5d5f05a24c'),
                         style: const TextStyle(
                           color: Colors.white54,
                           fontSize: 12,
@@ -1213,7 +1203,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                 ),
               ),
               IconButton(
-                tooltip: I18n.t('remove'),
+                tooltip: tr('remove'),
                 onPressed: () {
                   setState(() {
                     _selectedTeam = null;
@@ -1235,7 +1225,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                   onPressed: () => _openTeamSearchSheet(forHost: true),
                   icon: const Icon(Icons.swap_horiz, color: Colors.white70),
                   label: Text(
-                    I18n.inline('Змінити', 'Change'),
+                    tr('il_c0bf75bd78'),
                     style: const TextStyle(color: Colors.white70),
                   ),
                 ),
@@ -1245,8 +1235,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
           const SizedBox(height: 12),
           if (hostIsMine) ...[
             Text(
-              I18n.inline('Склад (${_selectedRoster.length}/$rosterLimit)',
-                  'Roster (${_selectedRoster.length}/$rosterLimit)'),
+              tr('il_39635064a3'),
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -1257,7 +1246,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
               spacing: 8,
               runSpacing: 8,
               children: _selectedTeam!.memberIds.map((id) {
-                final name = _teamMemberNames[id] ?? I18n.t('player');
+                final name = _teamMemberNames[id] ?? tr('player');
                 final selected = _selectedRoster.contains(id);
                 final disabled =
                     !selected && _selectedRoster.length >= rosterLimit;
@@ -1279,16 +1268,14 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                 border: Border.all(color: Colors.white24),
               ),
               child: Text(
-                I18n.inline(
-                    'Капітан команди підтвердить участь та заявить склад у своїй програмі.',
-                    'Team captain will accept the invite and pick the roster on their side.'),
+                tr('il_42a057437b'),
                 style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
             ),
           ],
           const SizedBox(height: 16),
           Text(
-            I18n.inline('Запросити суперника', 'Invite opponent team'),
+            tr('il_ecbd71fddb'),
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w600,
@@ -1299,7 +1286,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
             controller: _opponentSearchCtrl,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              labelText: I18n.inline('Пошук команди', 'Search team'),
+              labelText: tr('il_c81e115cc3'),
               labelStyle: const TextStyle(color: Colors.white70),
               filled: true,
               fillColor: Colors.white.withOpacity(0.04),
@@ -1321,9 +1308,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(
-                I18n.inline(
-                    'Обрана команда: ${_opponentTeam!.name}',
-                    'Selected team: ${_opponentTeam!.name}'),
+                tr('il_4d80ab83ac'),
                 style: const TextStyle(color: Colors.white),
               ),
               trailing: IconButton(
@@ -1346,7 +1331,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                     style: const TextStyle(color: Colors.white),
                   ),
                   subtitle: Text(
-                    '${team.memberIds.length} ${I18n.inline('гравців', 'players')}',
+                    '${team.memberIds.length} ${tr('il_afc0d772a2')}',
                     style: const TextStyle(color: Colors.white70),
                   ),
                   onTap: () {
@@ -1458,7 +1443,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
     if (!mounted) return;
 
     final searchController = TextEditingController();
-    String selectedCity = I18n.t('all_cities');
+    String selectedCity = tr('all_cities');
     final selectedIds = <String>{};
 
     await showDialog<void>(
@@ -1470,14 +1455,14 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
             final name = (user['displayName'] ?? user['name'] ?? '').toString().toLowerCase();
             final city = (user['city'] ?? '').toString();
             final matchesQuery = query.isEmpty || name.contains(query);
-            final matchesCity = selectedCity == I18n.t('all_cities') || city == selectedCity;
+            final matchesCity = selectedCity == tr('all_cities') || city == selectedCity;
             return matchesQuery && matchesCity;
           }).toList();
 
           return AlertDialog(
             backgroundColor: const Color(0xFF1a1a2e),
             title: Text(
-              I18n.inline('Запросити учасників', 'Invite participants'),
+              tr('il_146ee72e30'),
               style: const TextStyle(color: Colors.white),
             ),
             content: SizedBox(
@@ -1489,7 +1474,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                     controller: searchController,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: I18n.inline('Пошук по імені', 'Search by name'),
+                      labelText: tr('il_4ae2b33364'),
                       labelStyle: const TextStyle(color: Colors.white70),
                     ),
                     onChanged: (_) => setStateDialog(() {}),
@@ -1500,7 +1485,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                     dropdownColor: const Color(0xFF1a1a2e),
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: I18n.inline('Місто', 'City'),
+                      labelText: tr('il_fc33f73246'),
                       labelStyle: const TextStyle(color: Colors.white70),
                     ),
                     items: _cities
@@ -1512,12 +1497,12 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                       ..insert(
                         0,
                         DropdownMenuItem<String>(
-                          value: I18n.t('all_cities'),
-                          child: Text(I18n.t('all_cities')),
+                          value: tr('all_cities'),
+                          child: Text(tr('all_cities')),
                         ),
                       ),
                     onChanged: (value) {
-                      selectedCity = value ?? I18n.t('all_cities');
+                      selectedCity = value ?? tr('all_cities');
                       setStateDialog(() {});
                     },
                   ),
@@ -1526,7 +1511,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                     child: filtered.isEmpty
                         ? Center(
                             child: Text(
-                              I18n.inline('Нікого не знайдено', 'No users found'),
+                              tr('il_bf1e104fb3'),
                               style: const TextStyle(color: Colors.white54),
                             ),
                           )
@@ -1536,7 +1521,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                             itemBuilder: (context, index) {
                               final user = filtered[index];
                               final id = user['id'] as String;
-                              final name = (user['displayName'] ?? user['name'] ?? I18n.inline('Користувач', 'User')).toString();
+                              final name = (user['displayName'] ?? user['name'] ?? tr('il_b512d97e7c')).toString();
                               final city = (user['city'] ?? '').toString();
                               final rating = ((user['rating'] ?? 0) as num).toDouble();
                               final avatar = (user['avatarUrl'] ?? user['avatar'] ?? '').toString();
@@ -1600,7 +1585,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: Text(I18n.t('cancel')),
+                child: Text(tr('cancel')),
               ),
               ElevatedButton(
                 onPressed: selectedIds.isEmpty
@@ -1613,8 +1598,8 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
                               id: '',
                               userId: uid,
                               type: NotificationType.matchInvite,
-                              title: I18n.inline('Запрошення на матч', 'Match invitation'),
-                              message: I18n.inline(
+                              title: tr('il_bfaa223845'),
+                              message: bilingual(
                                 '$organizerName запросив вас на матч "$matchTitle"',
                                 '$organizerName invited you to the match "$matchTitle"',
                               ),
@@ -1634,7 +1619,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
 
                         if (context.mounted) Navigator.pop(ctx);
                       },
-                child: Text(I18n.inline('Запросити', 'Invite')),
+                child: Text(tr('il_1fd9ae1607')),
               ),
             ],
           );
@@ -1656,24 +1641,21 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
         title: Text(
-          I18n.inline('Матч створено!', 'Match created!'),
+          tr('il_283da721cc'),
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          I18n.inline(
-            'Матч успішно створено. Можете запросити учасників прямо зараз.',
-            'The match was created successfully. You can invite participants right now.',
-          ),
+          tr('il_e985e12c90'),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, 'done'),
-            child: Text(I18n.inline('Готово', 'Done')),
+            child: Text(tr('il_11a6767d56')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, 'invite'),
-            child: Text(I18n.inline('Запросити учасників', 'Invite participants')),
+            child: Text(tr('il_146ee72e30')),
           ),
         ],
       ),
@@ -1687,7 +1669,7 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('Матч створено успішно!', 'Match created successfully!')),
+          content: Text(tr('il_49c3255be3')),
         ),
       );
     }
@@ -1703,10 +1685,10 @@ final resolvedOrganizerName = (currentUser.displayName?.trim().isNotEmpty == tru
         map[id] = (data?['displayName'] ??
                 data?['name'] ??
                 data?['authorName'] ??
-                I18n.t('player'))
+                tr('player'))
             .toString();
       } catch (_) {
-        map[id] = I18n.t('player');
+        map[id] = tr('player');
       }
     }
     return map;

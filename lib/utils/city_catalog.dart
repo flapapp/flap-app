@@ -1,6 +1,6 @@
 import 'dart:collection';
 
-import 'i18n.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 class CityCatalog {
   static const List<Map<String, String>> _cityPairs = <Map<String, String>>[
@@ -38,7 +38,7 @@ class CityCatalog {
       // accept both languages for "all cities"
       set.add('Всі міста');
       set.add('All cities');
-      set.add(I18n.t('all_cities'));
+      set.add(tr('all_cities'));
     }
 
     return set.toList(growable: false);

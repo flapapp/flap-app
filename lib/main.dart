@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,7 +18,6 @@ import 'features/badges/domain/repositories/badges_repository.dart';
 import 'features/subscriptions/domain/repositories/subscriptions_repository.dart';
 import 'features/notifications/data/services/notification_service.dart';
 import 'features/profile/data/services/user_settings_service.dart';
-import 'utils/i18n.dart';
 
 
 @pragma('vm:entry-point')
@@ -27,11 +27,21 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await EasyLocalization.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await configureDependencies();
-  runApp(const MyApp());
+  runApp(
+    EasyLocalization(
+      supportedLocales: const [Locale('en'), Locale('uk')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en'),
+      useOnlyLangCode: true,
+      saveLocale: true,
+      child: const MyApp(),
+    ),
+  );
   unawaited(_bootstrapAppServices());
 }
 
@@ -136,36 +146,36 @@ class _MyAppState extends State<MyApp> {
       useMaterial3: true,
     );
 
-    return ValueListenableBuilder<String>(
-      valueListenable: I18n.language,
-      builder: (context, lang, _) => BlocProvider<AuthBloc>(
-        create: (_) => AuthBloc(
-          resolveStartup: sl(),
-          signIn: sl(),
-          registerNewUser: sl(),
-          checkIntroCompleted: sl(),
-          markIntroCompleted: sl(),
-          postLoginActions: sl(),
-        ),
-        child: MaterialApp.router(
-          debugShowCheckedModeBanner: false,
-          title: 'FLAP',
-          theme: baseTheme.copyWith(
-            textTheme: GoogleFonts.robotoTextTheme(baseTheme.textTheme),
-            appBarTheme: baseTheme.appBarTheme.copyWith(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.white),
-              titleTextStyle: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-              foregroundColor: Colors.white,
+    return BlocProvider<AuthBloc>(
+      create: (_) => AuthBloc(
+        resolveStartup: sl(),
+        signIn: sl(),
+        registerNewUser: sl(),
+        checkIntroCompleted: sl(),
+        markIntroCompleted: sl(),
+        postLoginActions: sl(),
+      ),
+      child: MaterialApp.router(
+        debugShowCheckedModeBanner: false,
+        title: 'FLAP',
+        localizationsDelegates: context.localizationDelegates,
+        supportedLocales: context.supportedLocales,
+        locale: context.locale,
+        theme: baseTheme.copyWith(
+          textTheme: GoogleFonts.robotoTextTheme(baseTheme.textTheme),
+          appBarTheme: baseTheme.appBarTheme.copyWith(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            iconTheme: const IconThemeData(color: Colors.white),
+            titleTextStyle: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
             ),
+            foregroundColor: Colors.white,
           ),
-          routerConfig: appRouter.config(),
         ),
+        routerConfig: appRouter.config(),
       ),
     );
   }

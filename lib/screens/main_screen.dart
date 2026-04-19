@@ -1,4 +1,5 @@
 import 'package:auto_route/auto_route.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../router/app_router.dart';
@@ -9,7 +10,6 @@ import '../features/video/presentation/pages/videos_screen.dart';
 import '../features/challenges/presentation/pages/challenges_screen.dart';
 import '../features/video/presentation/pages/video_upload_screen.dart';
 import '../features/challenges/presentation/pages/challenge_create_screen.dart';
-import '../utils/i18n.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -78,7 +78,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     ),
                   ),
                   Text(
-                    'FEEL LIKE A PRO',
+                    tr('welcome_brand_line'),
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 8,
@@ -102,7 +102,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
               return Stack(
                 children: [
                   IconButton(
-                    tooltip: I18n.t('notifications'),
+                    tooltip: tr('notifications'),
                     icon: const Icon(Icons.notifications_outlined, color: Colors.white),
                     onPressed: () => context.router.push(const NotificationsRoute()),
                   ),
@@ -137,7 +137,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           ),
           // Quick Matches button
           IconButton(
-            tooltip: I18n.inline('Матчі', 'Matches'),
+            tooltip: tr('il_98abff28a9'),
             icon: const Icon(Icons.sports_soccer, color: Colors.white),
             onPressed: () => context.router.push(MatchesRoute()),
           ),
@@ -157,7 +157,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
 
               final userData = snapshot.data!.data() as Map<String, dynamic>;
               final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-              final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? I18n.inline('Користувач', 'User');
+              final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? tr('il_b512d97e7c');
 
               return IconButton(
                 onPressed: () => _showProfile(context),
@@ -203,10 +203,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     children: [
                       const Icon(Icons.videocam, size: 20),
                       const SizedBox(width: 8),
-                      ValueListenableBuilder(
-                        valueListenable: I18n.language,
-                        builder: (_, __, ___) => Text(I18n.t('videos')),
-                      ),
+                      Text(tr('videos')),
                     ],
                   ),
                 ),
@@ -216,10 +213,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     children: [
                       const Icon(Icons.emoji_events, size: 20),
                       const SizedBox(width: 8),
-                      ValueListenableBuilder(
-                        valueListenable: I18n.language,
-                        builder: (_, __, ___) => Text(I18n.t('challenges')),
-                      ),
+                      Text(tr('challenges')),
                     ],
                   ),
                 ),
@@ -351,7 +345,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            I18n.inline('Мої монети', 'My coins'),
+                            tr('il_8162d9ed63'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -359,7 +353,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                             ),
                           ),
                           Text(
-                            I18n.inline('Поточний баланс: $currentCoins монет', 'Current balance: $currentCoins coins'),
+                            tr('il_7bd5596886'),
                             style: const TextStyle(
                               color: Color(0xFFffc107),
                               fontSize: 14,
@@ -386,13 +380,13 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     // TODO: Implement coin purchase
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(I18n.inline('🚧 Покупка монет буде доступна незабаром!', '🚧 Coin purchase will be available soon!')),
+                        content: Text(tr('il_3d6df1a7cd')),
                         backgroundColor: const Color(0xFF4caf50),
                       ),
                     );
                   },
                   icon: const Icon(Icons.shopping_cart),
-                  label: Text(I18n.inline('Купити монети', 'Buy coins')),
+                  label: Text(tr('il_d14b405111')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFffc107),
                     foregroundColor: Colors.black,
@@ -407,7 +401,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    I18n.inline('Історія транзакцій', 'Transaction history'),
+                    tr('il_de7c340f64'),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -451,7 +445,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                             const Icon(Icons.history, size: 64, color: Colors.white54),
                             const SizedBox(height: 16),
                             Text(
-                              I18n.inline('Поки немає транзакцій', 'No transactions yet'),
+                              tr('il_f75dda0d2e'),
                               style: const TextStyle(color: Colors.white70, fontSize: 16),
                             ),
                           ],
@@ -566,7 +560,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            I18n.inline('Мій рейтинг', 'My rating'),
+                            tr('il_4f7e83106d'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -574,7 +568,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                             ),
                           ),
                           Text(
-                            I18n.inline('Поточний рейтинг: ${currentRating.toStringAsFixed(2)} ⭐', 'Current rating: ${currentRating.toStringAsFixed(2)} ⭐'),
+                            tr('il_a763f1866c'),
                             style: const TextStyle(
                               color: Color(0xFF4caf50),
                               fontSize: 14,
@@ -606,7 +600,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   child: Column(
                     children: [
                       Text(
-                        I18n.inline('Як формується рейтинг?', 'How is rating calculated?'),
+                        tr('il_931a606b53'),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -615,10 +609,10 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        I18n.inline('• Перемоги в челенджах: +0.1-0.5\n', '• Challenge wins: +0.1-0.5\n')
-                        + I18n.inline('• Високі оцінки за відео: +0.05-0.2\n', '• High video ratings: +0.05-0.2\n')
-                        + I18n.inline('• Активна участь: +0.01-0.05\n', '• Active participation: +0.01-0.05\n')
-                        + I18n.inline('• Порушення правил: -0.1-1.0', '• Rule violations: -0.1-1.0'),
+                        tr('il_140fc50c0d')
+                        + tr('il_ec6a74cc23')
+                        + tr('il_2231c771ca')
+                        + tr('il_2d817bcff6'),
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
@@ -663,12 +657,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                             const Icon(Icons.timeline, size: 64, color: Colors.white54),
                             const SizedBox(height: 16),
                             Text(
-                              I18n.inline('Поки немає змін рейтингу', 'No rating changes yet'),
+                              tr('il_8070bd0b10'),
                               style: const TextStyle(color: Colors.white70, fontSize: 16),
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              I18n.inline('Беріть участь у челенджах та отримуйте оцінки\nза свої відео, щоб побачити історію рейтингу', 'Participate in challenges and get ratings\nfor your videos to see rating history'),
+                              tr('il_a1be7a8663'),
                               textAlign: TextAlign.center,
                               style: const TextStyle(color: Colors.white54, fontSize: 14),
                             ),
@@ -799,13 +793,13 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                      'лип', 'серп', 'вер', 'жовт', 'лист', 'груд'];
       return '${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}';
     } else if (difference.inDays > 0) {
-      return I18n.inline('${difference.inDays} дн. тому', '${difference.inDays} d ago');
+      return tr('il_adf8ee5f65');
     } else if (difference.inHours > 0) {
-      return I18n.inline('${difference.inHours} год. тому', '${difference.inHours} h ago');
+      return tr('il_7634d1849f');
     } else if (difference.inMinutes > 0) {
-      return I18n.inline('${difference.inMinutes} хв. тому', '${difference.inMinutes} min ago');
+      return tr('il_e0b53645d6');
     } else {
-      return I18n.inline('Щойно', 'Just now');
+      return tr('il_66f53417d3');
     }
   }
 
@@ -815,27 +809,27 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       case 'video_vote':
       case 'video_rating':
         if (voterName.isNotEmpty && challengeTitle.isNotEmpty) {
-          return I18n.inline('$voterName оцінив ваше відео "$challengeTitle"', '$voterName rated your video "$challengeTitle"');
+          return tr('il_a97735a0aa');
         }
-        if (voterName.isNotEmpty) return I18n.inline('$voterName оцінив ваше відео', '$voterName rated your video');
-        if (challengeTitle.isNotEmpty) return I18n.inline('Отримано оцінку за відео "$challengeTitle"', 'Received rating for video "$challengeTitle"');
-        return I18n.inline('Отримано оцінку за відео', 'Received video rating');
+        if (voterName.isNotEmpty) return tr('il_b4ce1ec898');
+        if (challengeTitle.isNotEmpty) return tr('il_73abcbe250');
+        return tr('il_e7a04f3648');
       case 'challenge_win':
-        return I18n.inline('Перемога в челенджі "$challengeTitle"', 'Challenge win "$challengeTitle"');
+        return tr('il_f6317c6873');
       case 'challenge_second':
-        return I18n.inline('2-е місце в челенджі "$challengeTitle"', '2nd place in challenge "$challengeTitle"');
+        return tr('il_90e7c87869');
       case 'challenge_third':
-        return I18n.inline('3-є місце в челенджі "$challengeTitle"', '3rd place in challenge "$challengeTitle"');
+        return tr('il_414a7e49e3');
       case 'manual_recompute':
       case 'manual_recalculation':
       case 'system_recompute':
-        return I18n.inline('Перерахунок рейтингу системою', 'System rating recalculation');
+        return tr('il_b6ce244d3a');
       case 'penalty':
-        return I18n.inline('Штраф за порушення правил', 'Penalty for rule violation');
+        return tr('il_58659f628a');
       case 'bonus':
-        return I18n.inline('Бонус за активність', 'Activity bonus');
+        return tr('il_c88734b3ea');
       default:
-        return reason.isNotEmpty ? reason : I18n.inline('Зміна рейтингу', 'Rating change');
+        return reason.isNotEmpty ? reason : tr('il_bcfd1b4865');
     }
   }
 
@@ -870,28 +864,28 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             'type': 'challenge_entry_fee',
             'amount': -10,
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 3))),
-            'description': I18n.inline('Вступна плата за челендж: Найкрутіший пас', 'Challenge entry fee: Coolest pass'),
+            'description': tr('il_0c26ecde78'),
           },
           {
             'userId': currentUser.uid,
             'type': 'voting_reward',
             'amount': 5,
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 2))),
-            'description': I18n.inline('Нагорода за голосування в челенджах', 'Reward for voting in challenges'),
+            'description': tr('il_047610bb3e'),
           },
           {
             'userId': currentUser.uid,
             'type': 'challenge_win',
             'amount': 50,
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 1))),
-            'description': I18n.inline('Перемога в челенджі: Гол зацінить', 'Challenge win: Goal will count'),
+            'description': tr('il_5f60431558'),
           },
           {
             'userId': currentUser.uid,
             'type': 'badge_purchase',
             'amount': -25,
             'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 12))),
-            'description': I18n.inline('Покупка значка: Майстер техніки', 'Badge purchase: Technique Master'),
+            'description': tr('il_6fec2487c7'),
           },
         ];
 
@@ -1027,11 +1021,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   child: const Icon(Icons.videocam, color: Color(0xFF2196F3)),
                 ),
                 title: Text(
-                  I18n.t('create_video'),
+                  tr('create_video'),
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                 ),
                 subtitle: Text(
-                  I18n.inline('Завантажте своє футбольне відео', 'Upload your football video'),
+                  tr('il_8dfa00ec39'),
                   style: TextStyle(color: Colors.white.withOpacity(0.7)),
                 ),
                 onTap: () {
@@ -1057,11 +1051,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   child: const Icon(Icons.emoji_events, color: Color(0xFF4caf50)),
                 ),
                 title: Text(
-                  I18n.t('create_challenge'),
+                  tr('create_challenge'),
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                 ),
                 subtitle: Text(
-                  I18n.t('invite_others'),
+                  tr('invite_others'),
                   style: TextStyle(color: Colors.white.withOpacity(0.7)),
                 ),
                 onTap: () {

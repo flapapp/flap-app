@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:easy_localization/easy_localization.dart';
 
-import '../../../../utils/i18n.dart';
 import '../../domain/entities/subscription_entity.dart';
 
 export '../../domain/entities/subscription_entity.dart';
@@ -90,7 +90,7 @@ class Subscription extends SubscriptionEntity {
       case SubscriptionType.champions:
         return 'Champions League';
       default:
-        return I18n.inline('Безкоштовна', 'Free');
+        return tr('il_f411a1fb62');
     }
   }
 
@@ -101,11 +101,11 @@ class Subscription extends SubscriptionEntity {
   static String _getLocalizedDescription(SubscriptionType type) {
     switch (type) {
       case SubscriptionType.europa:
-        return I18n.inline('Розширені можливості для серйозних гравців', 'Extended features for serious players');
+        return tr('il_32ba7323a7');
       case SubscriptionType.champions:
-        return I18n.inline('Преміум досвід для справжніх чемпіонів', 'Premium experience for true champions');
+        return tr('il_7132e3d7a7');
       default:
-        return I18n.inline('Базові можливості FLAP', 'Basic FLAP features');
+        return tr('il_d345e00054');
     }
   }
 
@@ -128,30 +128,30 @@ class Subscription extends SubscriptionEntity {
     switch (type) {
       case SubscriptionType.europa:
         return [
-          I18n.inline('Видимий рейтинг всіх гравців', 'Visible ratings of all players'),
-          I18n.inline('5 челенджів на місяць', '5 challenges per month'),
-          I18n.inline('+30 монет щомісяця', '+30 coins monthly'),
-          I18n.inline('Коментарі до відео', 'Video comments'),
-          I18n.inline('Додаткові фільтри пошуку', 'Additional search filters'),
-          I18n.inline('Синя позначка біля імені', 'Blue badge next to name'),
+          tr('il_f2f4f86869'),
+          tr('il_dc674ca73a'),
+          tr('il_b04fa216ad'),
+          tr('il_b30a0e36fb'),
+          tr('il_fc39298e1f'),
+          tr('il_7adcd6836d'),
         ];
       case SubscriptionType.champions:
         return [
-          I18n.inline('Все з Europa League', 'Everything from Europa League'),
-          I18n.inline('Необмежені челенджі', 'Unlimited challenges'),
-          I18n.inline('+60 монет щомісяця', '+60 coins monthly'),
-          I18n.inline('Знижка 20% на монети', '20% discount on coins'),
-          I18n.inline('Приватні матчі', 'Private matches'),
-          I18n.inline('Детальна статистика', 'Detailed statistics'),
-          I18n.inline('Золота позначка біля імені', 'Gold badge next to name'),
-          I18n.inline('VIP підтримка', 'VIP support'),
+          tr('il_1042932b5f'),
+          tr('il_19c8cd536b'),
+          tr('il_4b497c5b9c'),
+          tr('il_9f37ff73d7'),
+          tr('il_98d22bd207'),
+          tr('il_2eae371829'),
+          tr('il_ee166fb067'),
+          tr('il_713b30da5a'),
         ];
       default:
         return [
-          I18n.inline('Базовий функціонал', 'Basic functionality'),
-          I18n.inline('1 челендж на місяць', '1 challenge per month'),
-          I18n.inline('Рейтинги інших гравців приховані', 'Other players ratings are hidden'),
-          I18n.inline('Обмежені фільтри', 'Limited filters'),
+          tr('il_fcf2dcb27a'),
+          tr('il_2b49688a56'),
+          tr('il_1d741d8cfc'),
+          tr('il_7f19034ddd'),
         ];
     }
   }

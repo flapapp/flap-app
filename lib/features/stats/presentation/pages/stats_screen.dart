@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../profile/presentation/widgets/sparkline_painter.dart';
@@ -65,7 +66,7 @@ class _StatsScreenState extends State<StatsScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Статистика', style: TextStyle(color: Colors.white)),
+        title: Text(tr('stats'), style: const TextStyle(color: Colors.white)),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)))
@@ -76,9 +77,9 @@ class _StatsScreenState extends State<StatsScreen> {
                 children: [
                   _countersRow(),
                   const SizedBox(height: 16),
-                  _ratingBlock('Динаміка за 7 днів', _history7),
+                  _ratingBlock(tr('stats_dynamics_7d'), _history7),
                   const SizedBox(height: 12),
-                  _ratingBlock('Динаміка за 30 днів', _history30),
+                  _ratingBlock(tr('stats_dynamics_30d'), _history30),
                   const SizedBox(height: 16),
                   _topVideosBlock(),
                 ],
@@ -90,11 +91,11 @@ class _StatsScreenState extends State<StatsScreen> {
   Widget _countersRow() {
     return Row(
       children: [
-        Expanded(child: _counterCard('Матчі', _counters['matchesPlayed']!.toString(), Icons.sports_soccer, const Color(0xFF4caf50))),
+        Expanded(child: _counterCard(tr('stat_matches'), _counters['matchesPlayed']!.toString(), Icons.sports_soccer, const Color(0xFF4caf50))),
         const SizedBox(width: 8),
-        Expanded(child: _counterCard('Перемоги', _counters['matchesWon']!.toString(), Icons.emoji_events, const Color(0xFFFFC107))),
+        Expanded(child: _counterCard(tr('stat_wins'), _counters['matchesWon']!.toString(), Icons.emoji_events, const Color(0xFFFFC107))),
         const SizedBox(width: 8),
-        Expanded(child: _counterCard('Відео', _counters['videosUploaded']!.toString(), Icons.videocam, const Color(0xFF2196F3))),
+        Expanded(child: _counterCard(tr('stat_videos_short'), _counters['videosUploaded']!.toString(), Icons.videocam, const Color(0xFF2196F3))),
       ],
     );
   }
@@ -150,7 +151,7 @@ class _StatsScreenState extends State<StatsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Топ відео за переглядами', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        Text(tr('top_videos_by_views'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         if (_topVideos.isEmpty)
           Container(
@@ -161,7 +162,7 @@ class _StatsScreenState extends State<StatsScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white.withOpacity(0.1)),
             ),
-            child: const Text('Поки що немає відео', style: TextStyle(color: Colors.white70)),
+            child: Text(tr('no_videos_yet'), style: const TextStyle(color: Colors.white70)),
           )
         else
           SizedBox(
@@ -173,7 +174,7 @@ class _StatsScreenState extends State<StatsScreen> {
               itemBuilder: (context, index) {
                 final v = _topVideos[index];
                 final thumb = (v['thumbnailUrl'] ?? '') as String;
-                final title = (v['title'] ?? 'Відео') as String;
+                final title = (v['title'] ?? tr('video_fallback_title')) as String;
                 final views = (v['views'] ?? 0).toString();
                 return Container(
                   width: 160,

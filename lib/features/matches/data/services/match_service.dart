@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/models/match.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../../../notifications/data/services/notification_service.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 class MatchService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -728,15 +729,15 @@ Future<void> promptFinishGame(BuildContext context, String matchId, int fixtureI
   final ctrlB = TextEditingController();
   final ok = await showDialog<bool>(context: context, builder: (ctx) {
     return AlertDialog(
-      title: Text('Результат: $aName vs $bName'),
+      title: Text(tr('match_result_title', args: [aName, bName])),
       content: Row(children: [
-        Expanded(child: TextField(controller: ctrlA, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Голи $aName'))),
+        Expanded(child: TextField(controller: ctrlA, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('goals_for_team', args: [aName])))),
         const SizedBox(width: 12),
-        Expanded(child: TextField(controller: ctrlB, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Голи $bName'))),
+        Expanded(child: TextField(controller: ctrlB, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: tr('goals_for_team', args: [bName])))),
       ]),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Скасувати')),
-        ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Зберегти')),
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+        ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('save'))),
       ],
     );
   });

@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
-import '../../../../utils/i18n.dart';
 import '../../domain/entities/app_notification_entity.dart';
 
 export '../../domain/entities/app_notification_entity.dart';
@@ -183,22 +184,22 @@ class AppNotification extends AppNotificationEntity {
     final difference = now.difference(createdAt);
     
     if (difference.inDays > 0) {
-  return I18n.inline(
+  return bilingual(
     '${difference.inDays} дн. тому',
     '${difference.inDays} d ago',
   );
 } else if (difference.inHours > 0) {
-  return I18n.inline(
+  return bilingual(
     '${difference.inHours} год. тому',
     '${difference.inHours} h ago',
   );
 } else if (difference.inMinutes > 0) {
-  return I18n.inline(
+  return bilingual(
     '${difference.inMinutes} хв. тому',
     '${difference.inMinutes} min ago',
   );
 } else {
-  return I18n.inline('Щойно', 'Just now');
+  return tr('il_66f53417d3');
 }
   }
 
@@ -212,8 +213,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.friendRequest,
-      title: I18n.inline('Нове запрошення в друзі', 'New friend request'),
-      message: I18n.inline(
+      title: tr('il_ac614bd269'),
+      message: bilingual(
         '$fromUserName хоче додати вас у друзі',
         '$fromUserName wants to add you as a friend',
       ),
@@ -234,8 +235,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.friendAccepted,
-      title: I18n.inline('Запрошення прийнято!', 'Friend request accepted!'),
-      message: I18n.inline(
+      title: tr('il_7e7ee1c623'),
+      message: bilingual(
         '$friendName прийняв ваше запрошення в друзі',
         '$friendName accepted your friend request',
       ),
@@ -257,8 +258,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.challengeInvitation,
-      title: I18n.inline('Запрошення на челендж', 'Challenge invitation'),
-      message: I18n.inline(
+      title: tr('il_47f0651e42'),
+      message: bilingual(
         '$creatorName запросив вас на челендж "$challengeTitle"',
         '$creatorName invited you to the "$challengeTitle" challenge',
       ),
@@ -286,8 +287,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.challengeResult,
-      title: I18n.inline('Результати челенджу!', 'Challenge results!'),
-      message: I18n.inline(
+      title: tr('il_cba165efd4'),
+      message: bilingual(
         'Ви зайняли $ukPosition місце в "$challengeTitle" і отримали $coinsWon монет!',
         'You finished $enPosition in "$challengeTitle" and earned $coinsWon coins!',
       ),
@@ -311,8 +312,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.challengeCompleted,
-      title: I18n.inline('Челендж завершено!', 'Challenge completed!'),
-      message: I18n.inline(
+      title: tr('il_4d9daaed13'),
+      message: bilingual(
         '«$challengeTitle» завершено. Переглянь результати.',
         '"$challengeTitle" just finished. Check out the winners.',
       ),
@@ -335,8 +336,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.videoVote,
-      title: I18n.inline('Нова оцінка відео', 'New video rating'),
-      message: I18n.inline(
+      title: tr('il_e54105ee12'),
+      message: bilingual(
         '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(1)} зірок',
         '$voterName rated your video "$videoTitle" ${rating.toStringAsFixed(1)} stars',
       ),
@@ -360,8 +361,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.ratingRequest,
-      title: I18n.inline('Запит оцінки відео', 'Video rating request'),
-      message: I18n.inline(
+      title: tr('il_89e35b78ef'),
+      message: bilingual(
         '$fromUserName просить оцінити його відео (${videoIds.length} шт.)',
         '$fromUserName asks you to rate ${videoIds.length} video(s)',
       ),
@@ -387,11 +388,11 @@ class AppNotification extends AppNotificationEntity {
     final sign = delta >= 0 ? '+' : '';
     final hasVideo = videoTitle != null && videoTitle.isNotEmpty;
     final messageText = hasVideo
-    ? I18n.inline(
+    ? bilingual(
         '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(2)}. Зміна: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
         '$voterName rated your video "$videoTitle" ${rating.toStringAsFixed(2)}. Change: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
       )
-    : I18n.inline(
+    : bilingual(
         'Ваш рейтинг було оновлено. Зміна: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
         'Your rating was updated. Change: $sign${delta.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
       );
@@ -399,7 +400,7 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.ratingChanged,
-      title: I18n.inline('Новий рейтинг', 'Rating update'),
+      title: tr('il_de9ad208de'),
       message: messageText,
       data: {
         'voterName': voterName,
@@ -422,8 +423,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.teamInvite,
-      title: I18n.inline('Запрошення до команди', 'Team invitation'),
-      message: I18n.inline(
+      title: tr('il_03ff084400'),
+      message: bilingual(
         'Вас запросили до команди "$teamName"',
         'You were invited to join "$teamName"',
       ),
@@ -446,8 +447,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.teamMatchRequest,
-      title: I18n.inline('Запит на матч', 'Team match request'),
-      message: I18n.inline(
+      title: tr('il_d55adbd76d'),
+      message: bilingual(
         'Команда "$opponentTeamName" пропонує матч',
         'Team "$opponentTeamName" is challenging you to a match',
       ),
@@ -471,10 +472,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.teamRosterInvite,
-      title: I18n.inline('Підтвердьте участь', 'Confirm roster spot'),
-      message: I18n.inline(
-          'Команда "$teamName" запрошує вас на матч. Підтвердьте участь у складі.',
-          'Team "$teamName" wants you in the line-up. Confirm participation.'),
+      title: tr('il_61658c3091'),
+      message: tr('il_f59dcb7976'),
       data: {
         'type': 'team_roster_invite',
         'matchId': matchId,
@@ -497,8 +496,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.teamJoinRequest,
-      title: I18n.inline('Запит на вступ до команди', 'New team join request'),
-      message: I18n.inline(
+      title: tr('il_1b52d0e324'),
+      message: bilingual(
         '$requesterName хоче приєднатися до "$teamName"',
         '$requesterName wants to join "$teamName"',
       ),
@@ -523,10 +522,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.teamMatchReady,
-      title: I18n.inline('Команди готові', 'Teams are ready'),
-      message: I18n.inline(
-          'Склади $teamAName та $teamBName підтверджені. Можна запускати матч.',
-          '$teamAName and $teamBName locked in. You can start the match.'),
+      title: tr('il_e30350b8a9'),
+      message: tr('il_0d03de8d63'),
       data: {
         'type': 'team_match_ready',
         'matchId': matchId,
@@ -548,8 +545,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.badgeEarned,
-      title: I18n.inline('Новий бейдж!', 'New badge!'),
-      message: I18n.inline(
+      title: tr('il_40199c7b5f'),
+      message: bilingual(
         'Ви отримали бейдж "$badgeEmoji $badgeName" за $reason',
         'You earned the "$badgeEmoji $badgeName" badge for $reason',
       ),
@@ -572,8 +569,8 @@ class AppNotification extends AppNotificationEntity {
       id: '',
       userId: userId,
       type: NotificationType.coinsEarned,
-      title: I18n.inline('Монети нараховано!', 'Coins earned!'),
-      message: I18n.inline(
+      title: tr('il_f3b024a55d'),
+      message: bilingual(
         'Ви отримали $amount монет за $reason',
         'You earned $amount coins for $reason',
       ),

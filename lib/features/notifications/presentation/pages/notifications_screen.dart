@@ -1,13 +1,14 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../challenges/data/models/challenge.dart';
 import '../../../matches/data/models/match.dart';
 import '../../data/models/notification.dart';
 import '../../../../router/app_router.dart';
-import '../../../../utils/i18n.dart';
 import '../../domain/repositories/notifications_repository.dart';
 
 @RoutePage()
@@ -29,7 +30,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         backgroundColor: const Color(0xFF0f0f23),
         elevation: 0,
         title: Text(
-          I18n.inline('🔔 Сповіщення', '🔔 Notifications'),
+          tr('il_209f1f8c24'),
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         leading: IconButton(
@@ -40,7 +41,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           IconButton(
             icon: const Icon(Icons.mark_email_read, color: Colors.white),
             onPressed: _markAllAsRead,
-            tooltip: I18n.inline('Позначити все як прочитане', 'Mark all as read'),
+            tooltip: tr('il_d7592650e1'),
           ),
         ],
       ),
@@ -65,7 +66,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    I18n.inline('Помилка завантаження', 'Error loading'),
+                    tr('il_d68c419c3c'),
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 16,
@@ -84,7 +85,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ElevatedButton.icon(
                     onPressed: () => setState(() {}),
                     icon: const Icon(Icons.refresh),
-                    label: Text(I18n.inline('Спробувати знову', 'Try again')),
+                    label: Text(tr('il_d8b8392e2c')),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF4caf50),
                       foregroundColor: Colors.white,
@@ -127,7 +128,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           const SizedBox(height: 24),
           Text(
-            I18n.inline('Немає сповіщень', 'No notifications'),
+            tr('il_cbce2040cc'),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 20,
@@ -136,7 +137,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            I18n.inline('Тут з\'являться ваші сповіщення\nпро друзів, челенджі та відео', 'Your notifications about friends, challenges and videos will appear here'),
+            tr('il_66cbe43baa'),
             style: TextStyle(
               color: Colors.white.withOpacity(0.7),
               fontSize: 14,
@@ -201,7 +202,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(I18n.inline('Сповіщення видалено', 'Notification removed')),
+              content: Text(tr('il_e3f244f1ba')),
             ),
           );
         }
@@ -314,7 +315,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      I18n.inline('Позначити', 'Mark as read'),
+                                      tr('il_50c8b81faf'),
                                       style: TextStyle(
                                         color: Color(notification.typeColor),
                                         fontSize: 11,
@@ -366,11 +367,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       String dateKey;
       
       if (_isSameDay(date, now)) {
-        dateKey = I18n.inline('Сьогодні', 'Today');
+        dateKey = tr('il_2b065c7c9c');
       } else if (_isSameDay(date, now.subtract(const Duration(days: 1)))) {
-        dateKey = I18n.inline('Вчора', 'Yesterday');
+        dateKey = tr('il_566181254b');
       } else if (now.difference(date).inDays < 7) {
-        final weekdays = I18n.language.value == 'en' 
+        final weekdays = currentAppLanguageCode() == 'en' 
             ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
             : ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота'];
         dateKey = weekdays[date.weekday % 7];
@@ -386,7 +387,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     
     // Convert to list and maintain order
     final sortedKeys = dateGroups.keys.toList();
-    final priorityOrder = [I18n.inline('Сьогодні', 'Today'), I18n.inline('Вчора', 'Yesterday')];
+    final priorityOrder = [tr('il_2b065c7c9c'), tr('il_566181254b')];
     
     sortedKeys.sort((a, b) {
       final aIndex = priorityOrder.indexOf(a);
@@ -487,7 +488,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!doc.exists) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(I18n.inline('Челендж не знайдено', 'Challenge not found'))),
+          SnackBar(content: Text(tr('il_a29799fa76'))),
         );
         return;
       }
@@ -497,7 +498,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка відкриття челенджу: $e', 'Error opening challenge: $e'))),
+        SnackBar(content: Text(tr('il_f5d8bd3f0a'))),
       );
     }
   }
@@ -508,7 +509,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!doc.exists) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(I18n.inline('Матч не знайдено: $matchId', 'Match not found: $matchId'))),
+          SnackBar(content: Text(tr('il_6b539d4234'))),
         );
         return;
       }
@@ -518,7 +519,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка відкриття оцінювання: $e', 'Error opening rating: $e'))),
+        SnackBar(content: Text(tr('il_5eda94340a'))),
       );
     }
   }
@@ -532,7 +533,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!doc.exists) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(I18n.inline('Матч не знайдено: $matchId', 'Match not found: $matchId'))),
+          SnackBar(content: Text(tr('il_6b539d4234'))),
         );
         return;
       }
@@ -546,7 +547,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       print('❌ NOTIFICATION: Error opening match: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка відкриття матчу: $e', 'Error opening match: $e'))),
+        SnackBar(content: Text(tr('il_80c7341273'))),
       );
     }
   }
@@ -583,17 +584,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!doc.exists) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(I18n.inline('Відео не знайдено', 'Video not found'))),
+          SnackBar(content: Text(tr('il_e861519b9c'))),
         );
         return;
       }
       final data = doc.data() as Map<String, dynamic>;
       final videoUrl = (data['videoUrl'] ?? '').toString();
-      final title = (data['title'] ?? I18n.inline('Відео', 'Video')).toString();
+      final title = (data['title'] ?? tr('il_d534be829e')).toString();
       if (videoUrl.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(I18n.inline('Посилання на відео відсутнє', 'Video link missing'))),
+          SnackBar(content: Text(tr('il_e1bc626d15'))),
         );
         return;
       }
@@ -609,7 +610,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('Помилка відкриття відео: $e', 'Error opening video: $e'))),
+        SnackBar(content: Text(tr('il_2e74389175'))),
       );
     }
   }
@@ -618,7 +619,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     await _notificationsRepo.markAsRead(notification.id);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(I18n.inline('Позначено як прочитане', 'Marked as read')),
+        content: Text(tr('il_908aed4260')),
         duration: const Duration(seconds: 1),
       ),
     );
@@ -629,7 +630,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('Всі сповіщення позначені як прочитані', 'All notifications marked as read')),
+          content: Text(tr('il_7ff45c5f80')),
           backgroundColor: Colors.green,
         ),
       );
@@ -641,7 +642,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('Сповіщення видалено', 'Notification deleted')),
+          content: Text(tr('il_f9caffd585')),
           duration: const Duration(seconds: 1),
         ),
       );

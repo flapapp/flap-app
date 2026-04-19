@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/app_locale_access.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -8,19 +10,18 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/progress/progress_status.dart';
 import '../../../../router/app_router.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import '../../domain/entities/register_request.dart';
 import '../bloc/auth_bloc.dart';
 
 String _registrationErrorMessage(Failure failure) {
   return failure.when(
-    cache: () => I18n.inline('Помилка реєстрації', 'Registration error'),
-    network: (m) => m ?? I18n.inline('Помилка реєстрації', 'Registration error'),
+    cache: () => tr('il_789c156110'),
+    network: (m) => m ?? tr('il_789c156110'),
     unexpected: (m) =>
-        m ?? I18n.inline('Помилка реєстрації', 'Registration error'),
+        m ?? tr('il_789c156110'),
     auth: (code, message) =>
-        message ?? I18n.inline('Помилка реєстрації', 'Registration error'),
+        message ?? tr('il_789c156110'),
   );
 }
 
@@ -57,18 +58,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final ImagePicker _picker = ImagePicker();
 
   List<String> get _positions => [
-        I18n.inline('Воротар', 'Goalkeeper'),
-        I18n.inline('Захисник', 'Defender'),
-        I18n.inline('Півзахисник', 'Midfielder'),
-        I18n.inline('Нападник', 'Forward'),
-        I18n.inline('Універсал', 'Universal'),
+        tr('il_f2d20c7ee1'),
+        tr('il_157ddc59b5'),
+        tr('il_d332e47845'),
+        tr('il_f1c65e1481'),
+        tr('il_b23b6b4d06'),
       ];
 
   List<String> get _experiences => [
-        I18n.inline('Початківець', 'Beginner'),
-        I18n.inline('Аматор', 'Amateur'),
-        I18n.inline('Досвідчений', 'Experienced'),
-        I18n.inline('Професіонал', 'Professional'),
+        tr('il_c865ebb305'),
+        tr('il_8cc398e1bf'),
+        tr('il_2506204d5d'),
+        tr('il_19c73a5cdf'),
       ];
 
   Future<void> _pickImage() async {
@@ -90,7 +91,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            I18n.inline(
+            bilingual(
               'Помилка вибору фото: $e',
               'Error selecting photo: $e',
             ),
@@ -115,9 +116,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       password: _passwordController.text.trim(),
       city: _cityController.text.trim(),
       age: int.tryParse(_ageController.text.trim()) ?? 18,
-      position: _selectedPosition ?? I18n.inline('Універсал', 'Universal'),
+      position: _selectedPosition ?? tr('il_b23b6b4d06'),
       experience:
-          _selectedExperience ?? I18n.inline('Початківець', 'Beginner'),
+          _selectedExperience ?? tr('il_c865ebb305'),
       avatarBytes: avatarBytes,
     );
     if (!mounted) return;
@@ -140,10 +141,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                I18n.inline(
-                  '🎉 Вітаємо! Ви отримали 2 тижні Champions League преміум!',
-                  '🎉 Congratulations! You received 2 weeks of Champions League premium!',
-                ),
+                tr('il_11506dbdb4'),
               ),
               duration: const Duration(seconds: 3),
               backgroundColor: const Color(0xFF4caf50),
@@ -200,14 +198,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   color: Colors.white,
                                 ),
                                 label: Text(
-                                  I18n.t('back'),
+                                  tr('back'),
                                   style: const TextStyle(color: Colors.white),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              I18n.t('register'),
+                              tr('register'),
                               style: const TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w700,
@@ -216,10 +214,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              I18n.inline(
-                                'Приєднуйтесь до футбольної спільноти',
-                                'Join the football community',
-                              ),
+                              tr('il_5f00fe3f37'),
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.white.withOpacity(0.8),
@@ -270,10 +265,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           ),
                                           const SizedBox(height: 8),
                                           Text(
-                                            I18n.inline(
-                                              'Додати фото',
-                                              'Add photo',
-                                            ),
+                                            tr('il_c0660be883'),
                                             style: TextStyle(
                                               color: Colors.white
                                                   .withOpacity(0.7),
@@ -299,7 +291,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 enabled: !loading,
                                 style: const TextStyle(color: Colors.white),
                                 decoration: InputDecoration(
-                                  labelText: I18n.inline('Ім\'я', 'Name'),
+                                  labelText: tr('il_dcd1d5223f'),
                                   labelStyle: TextStyle(
                                     color: Colors.white.withOpacity(0.7),
                                   ),
@@ -308,10 +300,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 validator: (value) => (value == null ||
                                         value.isEmpty)
-                                    ? I18n.inline(
-                                        'Введіть ваше ім\'я',
-                                        'Enter your name',
-                                      )
+                                    ? tr('il_0421de1204')
                                     : null,
                               ),
                             ),
@@ -339,7 +328,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 validator: (value) => (value == null ||
                                         value.isEmpty)
-                                    ? I18n.t('enter_email')
+                                    ? tr('enter_email')
                                     : null,
                               ),
                             ),
@@ -358,9 +347,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 enabled: !loading,
                                 style: const TextStyle(color: Colors.white),
                                 decoration: InputDecoration(
-                                  labelText: I18n.inline('Телефон', 'Phone'),
+                                  labelText: tr('il_63dceb8800'),
                                   hintText:
-                                      I18n.inline('Необовʼязково', 'Optional'),
+                                      tr('il_59be71333c'),
                                   labelStyle: TextStyle(
                                     color: Colors.white.withOpacity(0.7),
                                   ),
@@ -385,7 +374,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 style: const TextStyle(color: Colors.white),
                                 decoration: InputDecoration(
                                   labelText:
-                                      I18n.inline('Прізвище', 'Surname'),
+                                      tr('il_f762da05f4'),
                                   labelStyle: TextStyle(
                                     color: Colors.white.withOpacity(0.7),
                                   ),
@@ -394,10 +383,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 validator: (value) => (value == null ||
                                         value.isEmpty)
-                                    ? I18n.inline(
-                                        'Введіть ваше прізвище',
-                                        'Enter your surname',
-                                      )
+                                    ? tr('il_a865381880')
                                     : null,
                               ),
                             ),
@@ -413,7 +399,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                               child: CityAutocompleteField(
                                 controller: _cityController,
-                                label: I18n.t('city'),
+                                label: tr('city'),
                                 requiredField: true,
                                 style: const TextStyle(color: Colors.white),
                                 labelStyle: TextStyle(
@@ -444,7 +430,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 style: const TextStyle(color: Colors.white),
                                 keyboardType: TextInputType.number,
                                 decoration: InputDecoration(
-                                  labelText: I18n.inline('Вік', 'Age'),
+                                  labelText: tr('il_39b7370f30'),
                                   labelStyle: TextStyle(
                                     color: Colors.white.withOpacity(0.7),
                                   ),
@@ -453,10 +439,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 validator: (value) => (value == null ||
                                         value.isEmpty)
-                                    ? I18n.inline(
-                                        'Введіть ваш вік',
-                                        'Enter your age',
-                                      )
+                                    ? tr('il_3d7566fac9')
                                     : null,
                               ),
                             ),
@@ -475,10 +458,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 style: const TextStyle(color: Colors.white),
                                 dropdownColor: const Color(0xFF1e7d32),
                                 decoration: InputDecoration(
-                                  labelText: I18n.inline(
-                                    'Позиція на полі',
-                                    'Position on field',
-                                  ),
+                                  labelText: tr('il_fe3ef9b3f4'),
                                   labelStyle: TextStyle(
                                     color: Colors.white.withOpacity(0.7),
                                   ),
@@ -504,10 +484,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         });
                                       },
                                 validator: (value) => value == null
-                                    ? I18n.inline(
-                                        'Оберіть позицію',
-                                        'Select position',
-                                      )
+                                    ? tr('il_b48d31fb5a')
                                     : null,
                               ),
                             ),
@@ -526,10 +503,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 style: const TextStyle(color: Colors.white),
                                 dropdownColor: const Color(0xFF1e7d32),
                                 decoration: InputDecoration(
-                                  labelText: I18n.inline(
-                                    'Рівень досвіду',
-                                    'Experience level',
-                                  ),
+                                  labelText: tr('il_71293dadc2'),
                                   labelStyle: TextStyle(
                                     color: Colors.white.withOpacity(0.7),
                                   ),
@@ -555,10 +529,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         });
                                       },
                                 validator: (value) => value == null
-                                    ? I18n.inline(
-                                        'Оберіть рівень досвіду',
-                                        'Select experience level',
-                                      )
+                                    ? tr('il_146b18ba66')
                                     : null,
                               ),
                             ),
@@ -578,7 +549,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 obscureText: true,
                                 style: const TextStyle(color: Colors.white),
                                 decoration: InputDecoration(
-                                  labelText: I18n.t('password'),
+                                  labelText: tr('password'),
                                   labelStyle: TextStyle(
                                     color: Colors.white.withOpacity(0.7),
                                   ),
@@ -587,13 +558,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
-                                    return I18n.t('enter_password');
+                                    return tr('enter_password');
                                   }
                                   if (value.length < 6) {
-                                    return I18n.inline(
-                                      'Пароль має бути не менше 6 символів',
-                                      'Password must be at least 6 characters',
-                                    );
+                                    return tr('il_2005290ddd');
                                   }
                                   return null;
                                 },
@@ -628,10 +596,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         color: Colors.white,
                                       )
                                     : Text(
-                                        I18n.inline(
-                                          'Створити профіль',
-                                          'Create profile',
-                                        ),
+                                        tr('il_61d30d997d'),
                                         style: const TextStyle(
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,

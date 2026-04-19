@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../utils/city_catalog.dart';
-import '../utils/i18n.dart';
 
 class CityAutocompleteField extends StatelessWidget {
   final TextEditingController controller;
@@ -65,7 +65,7 @@ class CityAutocompleteField extends StatelessWidget {
           style: style,
           decoration: InputDecoration(
             labelText: label,
-            hintText: hint ?? I18n.inline('Введіть 2+ літери', 'Type 2+ letters'),
+            hintText: hint ?? tr('il_4ea8790c36'),
             labelStyle: labelStyle,
             prefixIcon: prefixIcon,
             filled: filled,
@@ -81,14 +81,11 @@ class CityAutocompleteField extends StatelessWidget {
           validator: (value) {
             final v = (value ?? '').trim();
             if (requiredField && v.isEmpty) {
-              return I18n.inline('Оберіть місто зі списку', 'Select city from suggestions');
+              return tr('il_0683014b0c');
             }
             if (v.isEmpty) return null;
             if (!CityCatalog.isAllowed(v, includeAll: includeAllOption)) {
-              return I18n.inline(
-                'Оберіть місто зі списку підказок',
-                'Please choose a city from suggestions',
-              );
+              return tr('il_b1bcd0130d');
             }
             return null;
           },

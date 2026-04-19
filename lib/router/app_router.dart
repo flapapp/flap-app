@@ -40,6 +40,7 @@ import '../features/video/presentation/pages/video_player_screen.dart';
 import '../features/video/presentation/pages/video_upload_screen.dart';
 import '../features/video/presentation/pages/videos_screen.dart';
 import '../screens/welcome_screen.dart';
+import '../app_navigator_key.dart';
 
 part 'app_router.gr.dart';
 
@@ -48,7 +49,7 @@ AuthGuard get appAuthGuard => AuthGuard(sl());
 GuestGuard get appGuestGuard => GuestGuard(sl());
 
 /// Global router instance for imperative navigation (e.g. push from services).
-final AppRouter appRouter = AppRouter();
+final AppRouter appRouter = AppRouter(navigatorKey: appNavigatorKey);
 
 @AutoRouterConfig(replaceInRouteName: 'Screen,Route')
 class AppRouter extends RootStackRouter {

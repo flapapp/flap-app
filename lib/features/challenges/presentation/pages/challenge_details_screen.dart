@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../ratings/domain/repositories/ratings_repository.dart';
@@ -11,7 +12,6 @@ import '../../../video/presentation/pages/video_upload_screen.dart';
 import 'challenge_video_player_screen.dart';
 import '../../../video/data/services/thumbnail_service.dart';
 import 'challenge_completion_screen.dart';
-import '../../../../utils/i18n.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../../widgets/player_avatar_button.dart';
 
@@ -86,10 +86,10 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     children: [
                       GestureDetector(
                         onTap: _showParticipants,
-                        child: _buildStatChip(I18n.inline('👥 ${widget.challenge.participants.length} учасників', '👥 ${widget.challenge.participants.length} participants')),
+                        child: _buildStatChip(tr('il_467d80c72d')),
                       ),
                       const SizedBox(width: 8),
-                      _buildStatChip(I18n.inline('📹 ${widget.challenge.submissions.length} відео', '📹 ${widget.challenge.submissions.length} videos')),
+                      _buildStatChip(tr('il_bb1d0b2b0e')),
                       const SizedBox(width: 8),
                       _buildStatChip('💰 ${widget.challenge.prizePool}'),
                     ],
@@ -157,11 +157,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                   const Icon(Icons.video_library_outlined, size: 48, color: Colors.white30),
                   const SizedBox(height: 12),
                   Text(
-                    I18n.inline('Поки що немає відео', 'No videos yet'),
+                    tr('il_7b1fd32345'),
                     style: const TextStyle(color: Colors.white54, fontSize: 16),
                   ),
                   Text(
-                    I18n.inline('Будьте першим, хто прийме виклик!', 'Be the first to accept the challenge!'),
+                    tr('il_cab1225bc9'),
                     style: const TextStyle(color: Colors.white30, fontSize: 14),
                   ),
                   const SizedBox(height: 8),
@@ -241,7 +241,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                 const Icon(Icons.videocam_off, size: 64, color: Colors.white54),
                 const SizedBox(height: 12),
                 Text(
-                  I18n.inline('Поки що немає відео', 'No videos yet'),
+                  tr('il_7b1fd32345'),
                   style: const TextStyle(color: Colors.white54, fontSize: 16),
                 ),
               ],
@@ -275,7 +275,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   Widget _buildModalVideoCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final videoId = doc.id;
-    final title = data['title'] ?? I18n.inline('Без назви', 'Untitled');
+    final title = data['title'] ?? tr('il_f59ab8d133');
     final userId = data['userId'] ?? '';
     final videoUrl = data['videoUrl'] ?? '';
     final isCreatorVideo = data['isCreatorVideo'] ?? false;
@@ -314,10 +314,10 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                 },
                 borderRadius: 12,
                 topLeft: isCreatorVideo
-                    ? _badge(I18n.inline('Автор', 'Creator'), color: const Color(0xFF4caf50))
+                    ? _badge(tr('il_88447b8309'), color: const Color(0xFF4caf50))
                     : null,
                 bottomRight: _badge(
-                  I18n.inline('${rating.toStringAsFixed(1)}★', '${rating.toStringAsFixed(1)}★'),
+                  tr('il_22f29c1ea8'),
                   color: Colors.black.withOpacity(0.6),
                 ),
               );
@@ -341,7 +341,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                   
                   final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
                   final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-                  final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? I18n.inline('Користувач', 'User');
+                  final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? tr('il_b512d97e7c');
                   
                   return PlayerAvatarButton(
                     userId: userId,
@@ -379,7 +379,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              I18n.inline('АВТОР', 'CREATOR'),
+                              tr('il_fdd5f6745e'),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
@@ -403,7 +403,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                           ),
                         ),
                         Text(
-                          I18n.inline(' (${likesCount} оцінок)', ' (${likesCount} votes)'),
+                          tr('il_bc2a9a8bbb'),
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.5),
                             fontSize: 11,
@@ -424,7 +424,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   Widget _buildVideoCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final videoId = doc.id;
-    final title = data['title'] ?? I18n.inline('Без назви', 'Untitled');
+    final title = data['title'] ?? tr('il_f59ab8d133');
     final userId = data['userId'] ?? '';
     final videoUrl = data['videoUrl'] ?? '';
     final isCreatorVideo = data['isCreatorVideo'] ?? false;
@@ -459,7 +459,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
               final userName = userData['displayName'] ??
                   userData['name'] ??
                   userData['email']?.split('@')[0] ??
-                  I18n.inline('Користувач', 'User');
+                  tr('il_b512d97e7c');
               return Row(
                 children: [
                   PlayerAvatarButton(
@@ -512,7 +512,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    I18n.inline('АВТОР', 'CREATOR'),
+                                    tr('il_fdd5f6745e'),
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 10,
@@ -553,7 +553,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                 ),
               ),
               Text(
-                I18n.inline(' (${likesCount} оцінок)', ' (${likesCount} votes)'),
+                tr('il_bc2a9a8bbb'),
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.5),
                   fontSize: 12,
@@ -582,7 +582,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       ElevatedButton.icon(
         onPressed: () => _playVideo(videoUrl, title, videoId, userId, thumbnailUrl: thumb),
         icon: const Icon(Icons.play_arrow, size: 16),
-        label: Text(I18n.inline('Дивитися', 'Watch'), style: const TextStyle(fontSize: 12)),
+        label: Text(tr('il_a71e757324'), style: const TextStyle(fontSize: 12)),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white.withOpacity(0.1),
           foregroundColor: Colors.white,
@@ -595,7 +595,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       ElevatedButton.icon(
         onPressed: () => _shareVideo(videoId),
         icon: const Icon(Icons.share, size: 16),
-        label: Text(I18n.t('share'), style: const TextStyle(fontSize: 12)),
+        label: Text(tr('share'), style: const TextStyle(fontSize: 12)),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white.withOpacity(0.1),
           foregroundColor: Colors.white,
@@ -608,7 +608,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       ElevatedButton.icon(
         onPressed: () => _saveVideo(videoId),
         icon: const Icon(Icons.bookmark_outline, size: 16),
-        label: Text(I18n.t('save'), style: const TextStyle(fontSize: 12)),
+        label: Text(tr('save'), style: const TextStyle(fontSize: 12)),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white.withOpacity(0.1),
           foregroundColor: Colors.white,
@@ -669,7 +669,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       return ElevatedButton.icon(
         onPressed: _showResults,
         icon: const Icon(Icons.emoji_events),
-        label: Text(I18n.inline('🏆 Результати', '🏆 Results'), style: const TextStyle(fontWeight: FontWeight.w600)),
+        label: Text(tr('il_82389e3a90'), style: const TextStyle(fontWeight: FontWeight.w600)),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFFD700),
           foregroundColor: Colors.black,
@@ -696,7 +696,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: Text(I18n.inline('📤 Завантажити відео', '📤 Upload video'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(tr('il_b0237f6faf'), style: const TextStyle(fontWeight: FontWeight.w600)),
           ),
         ),
         const SizedBox(width: 12),
@@ -712,7 +712,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: Text(I18n.inline('📹 Переглянути (${widget.challenge.submissions.length})', '📹 View (${widget.challenge.submissions.length})'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(tr('il_55d4b4bd7f'), style: const TextStyle(fontWeight: FontWeight.w600)),
           ),
         ),
       ],
@@ -826,7 +826,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              I18n.inline('Поки немає учасників', 'No participants yet'),
+                              tr('il_e051442724'),
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 16,
@@ -852,15 +852,15 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                                     backgroundColor: Color(0xFF4caf50),
                                     child: Icon(Icons.person, color: Colors.white),
                                   ),
-                                  title: Text(I18n.inline('Завантаження...', 'Loading...'), style: const TextStyle(color: Colors.white)),
+                                  title: Text(tr('il_47d2a515ef'), style: const TextStyle(color: Colors.white)),
                                 );
                               }
 
                               final userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-                              final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? I18n.inline('Користувач', 'User');
+                              final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? tr('il_b512d97e7c');
                               final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
                               final rating = (userData['rating'] ?? 0.0).toDouble();
-                              final city = userData['city'] ?? I18n.inline('Невідоме місто', 'Unknown city');
+                              final city = userData['city'] ?? tr('il_2491fe94a7');
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -927,7 +927,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                                             borderRadius: BorderRadius.circular(8),
                                           ),
                                           child: Text(
-                                            I18n.inline('Творець', 'Creator'),
+                                            tr('il_88447b8309'),
                                             style: const TextStyle(
                                               color: Color(0xFF4caf50),
                                               fontSize: 10,
@@ -1011,14 +1011,14 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                 aspectRatio: 16 / 9,
                 borderRadius: 12,
                 topRight: hasVoted
-                    ? _badge(I18n.inline('Мій голос', 'My vote'),
+                    ? _badge(tr('il_24e6347ec5'),
                         color: const Color(0xFF4caf50).withOpacity(0.8))
                     : null,
               ),
               Row(
                 children: [
                   Text(
-                    I18n.inline('Ваша оцінка:', 'Your rating:'),
+                    tr('il_30b17903f7'),
                     style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 12,
@@ -1070,7 +1070,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                     ),
                     child: Text(
-                      hasVoted ? I18n.inline('Проголосовано', 'Voted') : I18n.inline('Голос', 'Vote'),
+                      hasVoted ? tr('il_9cf238dedb') : tr('il_cd5588db6f'),
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -1140,7 +1140,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       if (submissionUserId == currentUser.uid) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(I18n.inline('❌ Не можна голосувати за себе!', '❌ Cannot vote for yourself!')),
+            content: Text(tr('il_2c08f46d5a')),
             backgroundColor: Colors.red,
           ),
         );
@@ -1205,14 +1205,14 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('✅ Ваша оцінка ${rating.toStringAsFixed(1)} збережена!', '✅ Your rating ${rating.toStringAsFixed(1)} saved!')),
+          content: Text(tr('il_5acb71c66c')),
           backgroundColor: const Color(0xFF4caf50),
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(I18n.inline('❌ Помилка збереження оцінки', '❌ Error saving rating')),
+          content: Text(tr('il_53594cb961')),
           backgroundColor: Colors.red,
         ),
       );
@@ -1222,7 +1222,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   void _playVideo(String videoUrl, String title, String videoId, String userId, {String? thumbnailUrl}) {
     if (videoUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.inline('❌ Відео недоступне', '❌ Video unavailable'))),
+        SnackBar(content: Text(tr('il_fc512c458e'))),
       );
       return;
     }
@@ -1303,13 +1303,13 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
   void _shareVideo(String videoId) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(I18n.inline('🔗 Посилання скопійовано', '🔗 Link copied'))),
+      SnackBar(content: Text(tr('il_68d6f33dd6'))),
     );
   }
 
   void _saveVideo(String videoId) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(I18n.inline('💾 Відео збережено', '💾 Video saved'))),
+      SnackBar(content: Text(tr('il_f2d73b37cf'))),
     );
   }
 
