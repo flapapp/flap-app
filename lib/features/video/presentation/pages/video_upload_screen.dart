@@ -1,16 +1,15 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../router/app_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import '../constants/video_categories.dart';
-import '../core/di/injection.dart';
-import '../features/challenges/domain/repositories/challenges_repository.dart';
-import '../services/thumbnail_service.dart';
-import '../utils/i18n.dart';
+import '../../../../constants/video_categories.dart';
+import '../../../../core/di/injection.dart';
+import '../../../challenges/domain/repositories/challenges_repository.dart';
+import '../../../../services/thumbnail_service.dart';
+import '../../../../utils/i18n.dart';
 
 @RoutePage()
 class VideoUploadScreen extends StatefulWidget {

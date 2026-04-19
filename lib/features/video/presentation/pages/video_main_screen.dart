@@ -1,22 +1,21 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../core/di/injection.dart';
-import '../features/ratings/domain/repositories/ratings_repository.dart';
-import '../router/app_router.dart';
+import '../../../../core/di/injection.dart';
+import '../../../ratings/domain/repositories/ratings_repository.dart';
+import '../../../../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import '../constants/video_categories.dart';
-import '../models/challenge.dart';
-import '../widgets/rating_display.dart';
-import '../widgets/video_preview_box.dart';
-import '../services/notification_service.dart';
-import '../utils/i18n.dart';
-import '../widgets/player_avatar_button.dart';
-import '../widgets/mode_speed_dial.dart';
-import '../widgets/city_autocomplete_field.dart';
-import '../utils/city_catalog.dart';
+import '../../../../constants/video_categories.dart';
+import '../../../challenges/data/models/challenge.dart';
+import '../../../../widgets/rating_display.dart';
+import '../../../../widgets/video_preview_box.dart';
+import '../../../notifications/domain/repositories/notifications_repository.dart';
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/player_avatar_button.dart';
+import '../../../../widgets/mode_speed_dial.dart';
+import '../../../../widgets/city_autocomplete_field.dart';
 
 @RoutePage()
 class VideoMainScreen extends StatefulWidget {
@@ -30,7 +29,7 @@ class VideoMainScreen extends StatefulWidget {
 }
 
 class _VideoMainScreenState extends State<VideoMainScreen> {
-  final NotificationService _notificationService = NotificationService();
+  NotificationsRepository get _notificationsRepo => sl<NotificationsRepository>();
 
   RatingsRepository get _ratingRepo => sl<RatingsRepository>();
   String _selectedCity = '';
@@ -355,7 +354,7 @@ Widget build(BuildContext context) {
 
         // Notifications
         StreamBuilder<int>(
-          stream: _notificationService.getUnreadCount(),
+          stream: _notificationsRepo.getUnreadCount(),
           builder: (context, snapshot) {
             final unreadCount = snapshot.data ?? 0;
             return Stack(

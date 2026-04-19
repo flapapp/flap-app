@@ -1,20 +1,16 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../core/di/injection.dart';
-import '../features/friends/domain/repositories/friends_repository.dart';
-import '../router/app_router.dart';
+import '../../../../core/di/injection.dart';
+import '../../../friends/domain/repositories/friends_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:video_player/video_player.dart';
-import 'video_upload_screen.dart';
 import 'video_player_screen.dart';
-import '../widgets/rating_display.dart';
-import '../widgets/user_chip.dart';
-import '../services/notification_service.dart';
-import '../models/friend_request.dart' show Friend;
-import '../utils/i18n.dart';
-import '../widgets/video_preview_box.dart';
+import '../../../../widgets/user_chip.dart';
+import '../../../../services/notification_service.dart';
+import '../../../friends/data/models/friend_request.dart' show Friend;
+import '../../../../utils/i18n.dart';
+import '../../../../widgets/video_preview_box.dart';
 
 @RoutePage()
 class VideosScreen extends StatefulWidget {
@@ -509,7 +505,7 @@ class _VideosScreenState extends State<VideosScreen> {
                 onPressed: selected.isEmpty ? null : () async {
                   final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
                   final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач').toString();
-                  await NotificationService().sendRatingRequest(
+                  await sl<NotificationService>().sendRatingRequest(
                     toUserIds: selected.toList(),
                     fromUserName: myName,
                     videoIds: [videoId],

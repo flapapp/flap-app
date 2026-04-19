@@ -5,9 +5,9 @@ import '../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/notification_service.dart';
-import 'videos_screen.dart';
+import '../features/video/presentation/pages/videos_screen.dart';
 import '../features/challenges/presentation/pages/challenges_screen.dart';
-import 'video_upload_screen.dart';
+import '../features/video/presentation/pages/video_upload_screen.dart';
 import '../features/challenges/presentation/pages/challenge_create_screen.dart';
 import '../utils/i18n.dart';
 

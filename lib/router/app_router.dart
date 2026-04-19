@@ -35,10 +35,10 @@ import '../features/subscriptions/presentation/pages/subscription_screen.dart';
 import '../features/teams/presentation/pages/team_create_screen.dart';
 import '../features/teams/presentation/pages/team_details_screen.dart';
 import '../features/teams/presentation/pages/team_hub_screen.dart';
-import '../screens/video_main_screen.dart';
-import '../screens/video_player_screen.dart';
-import '../screens/video_upload_screen.dart';
-import '../screens/videos_screen.dart';
+import '../features/video/presentation/pages/video_main_screen.dart';
+import '../features/video/presentation/pages/video_player_screen.dart';
+import '../features/video/presentation/pages/video_upload_screen.dart';
+import '../features/video/presentation/pages/videos_screen.dart';
 import '../screens/welcome_screen.dart';
 
 part 'app_router.gr.dart';
