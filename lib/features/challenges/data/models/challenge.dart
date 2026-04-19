@@ -1,99 +1,76 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/i18n.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-enum ChallengeType {
-  goal,
-  shotPower,
-  pass,
-  longPass,
-  dribbling,
-  tackle,
-  penalty,
-  save,
-  wall,
-  strategy,
-  trick,
-  other,
+import '../../../../utils/i18n.dart';
+import '../../domain/entities/challenge_entity.dart';
+
+export '../../domain/entities/challenge_entity.dart';
+
+part 'challenge.g.dart';
+
+ChallengeType _challengeTypeFromJson(Object? json) =>
+    parseChallengeType(json as String?);
+
+String _challengeTypeToJson(ChallengeType v) => challengeTypeToSlug(v);
+
+ChallengeAudience _challengeAudienceFromJson(Object? json) {
+  final v = json?.toString() ?? 'city';
+  return ChallengeAudience.values.firstWhere(
+    (e) => e.name == v,
+    orElse: () => ChallengeAudience.city,
+  );
 }
 
-enum ChallengeAudience {
-  friends,      // Моїм друзям
-  city,         // Моєму місту
-  country,      // Моїй країні
-  world         // Усьому світу
+String _challengeAudienceToJson(ChallengeAudience v) => v.name;
+
+ChallengeStatus _challengeStatusFromJson(Object? raw) {
+  final s = raw?.toString() ?? 'recruiting';
+  final normalized = s == 'finished' ? 'completed' : s;
+  return ChallengeStatus.values.firstWhere(
+    (e) => e.name == normalized,
+    orElse: () => ChallengeStatus.recruiting,
+  );
 }
 
-enum ChallengeStatus {
-  recruiting,   // Збір учасників (7 днів)
-  submission,   // Подання відео (7 днів)
-  voting,       // Голосування (5 днів)
-  completed     // Завершено
-}
+String _challengeStatusToJson(ChallengeStatus s) => s.name;
 
-class Challenge {
-  final String id;
-  final String title;
-  final String description;
-  final ChallengeType type;
-  final ChallengeAudience audience;
-  final String creatorId;
-  final String creatorName;
-  final String? creatorVideoUrl; // URL відео творця челенджу
-  final String city;
-  final int entryFee;
-  final int duration;
-  final DateTime createdAt;
-  final DateTime startDate;
-  final DateTime submissionDeadline;
-  final DateTime votingDeadline;
-  final DateTime endDate;
-  final ChallengeStatus status;
-  final int maxParticipants;
-  final int currentParticipants;
-  final double prizePool;
-  final List<String> participants;
-  final List<String> submissions;
-  final Map<String, double> votes; // userId -> rating
-  final Map<String, Map<String, double>> detailedVotes; // userId -> {criteria -> rating}
-  final List<String> winners; // [1st, 2nd, 3rd]
-  final Map<String, double> finalScores; // userId -> final score
-  final Map<String, int> winnerPrizes; // userId -> coins won
-  final bool isActive;
-  final String? imageUrl;
-  final List<String> tags;
-
+@JsonSerializable(explicitToJson: true)
+class Challenge extends ChallengeEntity {
   Challenge({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.type,
-    required this.audience,
-    required this.creatorId,
-    required this.creatorName,
-    this.creatorVideoUrl,
-    required this.city,
-    required this.entryFee,
-    required this.duration,
-    required this.createdAt,
-    required this.startDate,
-    required this.submissionDeadline,
-    required this.votingDeadline,
-    required this.endDate,
-    required this.status,
-    required this.maxParticipants,
-    required this.currentParticipants,
-    required this.prizePool,
-    required this.participants,
-    required this.submissions,
-    required this.votes,
-    required this.detailedVotes,
-    required this.winners,
-    required this.finalScores,
-    Map<String, int>? winnerPrizes,
-    required this.isActive,
-    this.imageUrl,
-    required this.tags,
-  }) : winnerPrizes = winnerPrizes ?? const {};
+    required super.id,
+    required super.title,
+    required super.description,
+    @JsonKey(fromJson: _challengeTypeFromJson, toJson: _challengeTypeToJson)
+    required super.type,
+    @JsonKey(fromJson: _challengeAudienceFromJson, toJson: _challengeAudienceToJson)
+    required super.audience,
+    required super.creatorId,
+    required super.creatorName,
+    super.creatorVideoUrl,
+    required super.city,
+    required super.entryFee,
+    required super.duration,
+    required super.createdAt,
+    required super.startDate,
+    required super.submissionDeadline,
+    required super.votingDeadline,
+    required super.endDate,
+    @JsonKey(fromJson: _challengeStatusFromJson, toJson: _challengeStatusToJson)
+    required super.status,
+    required super.maxParticipants,
+    required super.currentParticipants,
+    required super.prizePool,
+    required super.participants,
+    required super.submissions,
+    required super.votes,
+    required super.detailedVotes,
+    required super.winners,
+    required super.finalScores,
+    super.winnerPrizes,
+    required super.isActive,
+    super.imageUrl,
+    required super.tags,
+  });
 
   // Конструктор з Firestore
   factory Challenge.fromFirestore(DocumentSnapshot doc) {
@@ -144,6 +121,11 @@ class Challenge {
     );
   }
 
+  factory Challenge.fromJson(Map<String, dynamic> json) =>
+      _$ChallengeFromJson(json);
+
+  Map<String, dynamic> toJson() => _$ChallengeToJson(this);
+
   // Конвертація в Map для Firestore
   Map<String, dynamic> toFirestore() {
     return {
@@ -185,10 +167,13 @@ class Challenge {
     String? title,
     String? description,
     ChallengeType? type,
+    ChallengeAudience? audience,
     String? creatorId,
     String? creatorName,
     String? creatorVideoUrl,
     String? city,
+    int? entryFee,
+    int? duration,
     DateTime? createdAt,
     DateTime? startDate,
     DateTime? submissionDeadline,

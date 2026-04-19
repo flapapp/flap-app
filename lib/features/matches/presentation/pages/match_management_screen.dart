@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/matches_repository.dart';
-import '../../../../models/match.dart';
+import '../../data/models/match.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/player_avatar_button.dart';
@@ -91,11 +91,11 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
 
   Future<_ClubInfo> _getClubInfo(
     String? teamId,
-    Team? fallback, {
+    MatchTeamEntity? fallback, {
     required String fallbackLabel,
   }) async {
     final effectiveLabel =
-        (fallback?.name?.isNotEmpty ?? false) ? fallback!.name : fallbackLabel;
+        (fallback != null && fallback.name.isNotEmpty) ? fallback.name : fallbackLabel;
 
     if (teamId == null || teamId.isEmpty) {
       return _ClubInfo.fromTeam(fallback, fallbackLabel: effectiveLabel);
@@ -2802,9 +2802,9 @@ class _ClubInfo {
     this.rating,
   });
 
-  factory _ClubInfo.fromTeam(Team? team, {required String fallbackLabel}) {
+  factory _ClubInfo.fromTeam(MatchTeamEntity? team, {required String fallbackLabel}) {
     return _ClubInfo(
-      name: team?.name?.isNotEmpty == true ? team!.name : fallbackLabel,
+      name: team != null && team.name.isNotEmpty ? team.name : fallbackLabel,
       logoUrl: null,
       rating: team?.averageRating,
     );

@@ -1,24 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-enum TeamInviteStatus { pending, accepted, declined }
+import '../../domain/entities/team_invite_entity.dart';
 
-class TeamInvite {
-  final String id;
-  final String teamId;
-  final String teamName;
-  final String userId;
-  final String invitedBy;
-  final TeamInviteStatus status;
-  final DateTime createdAt;
+export '../../domain/entities/team_invite_entity.dart';
 
+part 'team_invite.g.dart';
+
+@JsonSerializable(explicitToJson: true)
+class TeamInvite extends TeamInviteEntity {
   const TeamInvite({
-    required this.id,
-    required this.teamId,
-    required this.teamName,
-    required this.userId,
-    required this.invitedBy,
-    required this.status,
-    required this.createdAt,
+    required super.id,
+    required super.teamId,
+    required super.teamName,
+    required super.userId,
+    required super.invitedBy,
+    required super.status,
+    required super.createdAt,
   });
 
   factory TeamInvite.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -33,6 +31,11 @@ class TeamInvite {
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
+
+  factory TeamInvite.fromJson(Map<String, dynamic> json) =>
+      _$TeamInviteFromJson(json);
+
+  Map<String, dynamic> toJson() => _$TeamInviteToJson(this);
 
   Map<String, dynamic> toFirestore() {
     return {

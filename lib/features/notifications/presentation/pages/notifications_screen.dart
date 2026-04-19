@@ -3,9 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/di/injection.dart';
-import '../../../../models/challenge.dart';
-import '../../../../models/match.dart';
-import '../../../../models/notification.dart';
+import '../../../challenges/data/models/challenge.dart';
+import '../../../matches/data/models/match.dart';
+import '../../data/models/notification.dart';
 import '../../../../router/app_router.dart';
 import '../../../../utils/i18n.dart';
 import '../../domain/repositories/notifications_repository.dart';

@@ -1,8 +1,8 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 
-import '../models/challenge.dart';
-import '../models/match.dart';
+import '../features/challenges/data/models/challenge.dart';
+import '../features/matches/data/models/match.dart';
 import '../core/di/injection.dart';
 import 'guards/auth_guard.dart';
 import 'guards/guest_guard.dart';

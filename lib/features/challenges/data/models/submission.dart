@@ -1,36 +1,29 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-class Submission {
-  final String id;
-  final String challengeId;
-  final String userId;
-  final String userName;
-  final String userAvatar;
-  final String videoUrl;
-  final String? thumbnailUrl;
-  final String title;
-  final String? description;
-  final DateTime submittedAt;
-  final Map<String, double> votes; // voterId -> rating (0.0-5.0)
-  final double averageRating;
-  final int totalVotes;
-  final bool isActive;
+import '../../domain/entities/submission_entity.dart';
 
-  Submission({
-    required this.id,
-    required this.challengeId,
-    required this.userId,
-    required this.userName,
-    required this.userAvatar,
-    required this.videoUrl,
-    this.thumbnailUrl,
-    required this.title,
-    this.description,
-    required this.submittedAt,
-    required this.votes,
-    required this.averageRating,
-    required this.totalVotes,
-    this.isActive = true,
+export '../../domain/entities/submission_entity.dart';
+
+part 'submission.g.dart';
+
+@JsonSerializable(explicitToJson: true)
+class Submission extends SubmissionEntity {
+  const Submission({
+    required super.id,
+    required super.challengeId,
+    required super.userId,
+    required super.userName,
+    required super.userAvatar,
+    required super.videoUrl,
+    super.thumbnailUrl,
+    required super.title,
+    super.description,
+    required super.submittedAt,
+    required super.votes,
+    required super.averageRating,
+    required super.totalVotes,
+    super.isActive = true,
   });
 
   // Factory constructor from Firestore
@@ -60,6 +53,11 @@ class Submission {
       isActive: data['isActive'] ?? true,
     );
   }
+
+  factory Submission.fromJson(Map<String, dynamic> json) =>
+      _$SubmissionFromJson(json);
+
+  Map<String, dynamic> toJson() => _$SubmissionToJson(this);
 
   // Convert to Map for Firestore
   Map<String, dynamic> toFirestore() {

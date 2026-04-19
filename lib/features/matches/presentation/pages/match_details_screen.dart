@@ -10,8 +10,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/matches_repository.dart';
-import '../../../../models/app_team.dart';
-import '../../../../models/match.dart';
+import '../../../teams/data/models/app_team.dart';
+import '../../data/models/match.dart';
 import '../../../../services/notification_service.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';
@@ -2545,7 +2545,7 @@ String _getStatusText(MatchStatus status, {Match? match}) {
     );
   }
 
-  Widget _buildMultiTeamFinishedSection(List<Team> teams) {
+  Widget _buildMultiTeamFinishedSection(List<MatchTeamEntity> teams) {
     final palette = [
       const Color(0xFF4CAF50),
       const Color(0xFF42A5F5),
@@ -2774,7 +2774,7 @@ String _getStatusText(MatchStatus status, {Match? match}) {
   }
 
   Widget _buildMultiTeamTeamCard(
-    Team team,
+    MatchTeamEntity team,
     int index,
     Map<String, dynamic>? stat,
     Color accent,

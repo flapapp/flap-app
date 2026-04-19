@@ -1,4 +1,4 @@
-import '../../../../models/badge.dart';
+import '../../data/models/badge.dart';
 
 /// Badge catalog, ownership, purchases, and activity awards (domain).
 abstract class BadgesRepository {

@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/di/injection.dart';
-import '../../../../models/subscription.dart';
+import '../../data/models/subscription.dart';
 import '../../../../utils/i18n.dart';
 import '../../domain/repositories/subscriptions_repository.dart';
 

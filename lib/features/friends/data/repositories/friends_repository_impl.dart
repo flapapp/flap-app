@@ -1,4 +1,4 @@
-import '../../../../models/friend_request.dart';
+import '../models/friend_request.dart';
 import '../../../../services/friends_service.dart';
 import '../../domain/repositories/friends_repository.dart';
 

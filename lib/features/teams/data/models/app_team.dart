@@ -1,44 +1,33 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-class AppTeam {
-  final String id;
-  final String name;
-  final String description;
-  final String captainId;
-  final List<String> viceCaptainIds;
-  final List<String> memberIds;
-  final bool isPublic;
-  final String? logoUrl;
-  final String? city;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  final int wins;
-  final int losses;
-  final int draws;
-  final int goalsFor;
-  final int goalsAgainst;
-  final Map<String, int> playerGoals;
-  final List<Map<String, dynamic>> recentMatches;
+import '../../domain/entities/app_team_entity.dart';
 
+export '../../domain/entities/app_team_entity.dart';
+
+part 'app_team.g.dart';
+
+@JsonSerializable(explicitToJson: true)
+class AppTeam extends AppTeamEntity {
   const AppTeam({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.captainId,
-    required this.viceCaptainIds,
-    required this.memberIds,
-    required this.isPublic,
-    required this.createdAt,
-    required this.updatedAt,
-    this.logoUrl,
-    this.city,
-    this.wins = 0,
-    this.losses = 0,
-    this.draws = 0,
-    this.goalsFor = 0,
-    this.goalsAgainst = 0,
-    this.playerGoals = const {},
-    this.recentMatches = const [],
+    required super.id,
+    required super.name,
+    required super.description,
+    required super.captainId,
+    required super.viceCaptainIds,
+    required super.memberIds,
+    required super.isPublic,
+    required super.createdAt,
+    required super.updatedAt,
+    super.logoUrl,
+    super.city,
+    super.wins = 0,
+    super.losses = 0,
+    super.draws = 0,
+    super.goalsFor = 0,
+    super.goalsAgainst = 0,
+    super.playerGoals = const {},
+    super.recentMatches = const [],
   });
 
   factory AppTeam.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -73,6 +62,10 @@ class AppTeam {
           .toList(),
     );
   }
+
+  factory AppTeam.fromJson(Map<String, dynamic> json) => _$AppTeamFromJson(json);
+
+  Map<String, dynamic> toJson() => _$AppTeamToJson(this);
 
   Map<String, dynamic> toFirestore() {
     return {

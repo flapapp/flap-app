@@ -4,11 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
-import '../models/app_team.dart';
-import '../models/team_invite.dart';
-import '../models/team_join_request.dart';
-import '../models/team_match_request.dart';
-import '../models/notification.dart';
+import '../features/teams/data/models/app_team.dart';
+import '../features/teams/data/models/team_invite.dart';
+import '../features/teams/data/models/team_join_request.dart';
+import '../features/teams/data/models/team_match_request.dart';
+import '../features/notifications/data/models/notification.dart';
 import 'notification_service.dart';
 import '../utils/i18n.dart';
 

@@ -1,4 +1,4 @@
-import '../../../../models/challenge.dart';
+import '../../data/models/challenge.dart';
 
 /// Challenge discovery, creation, participation, and lifecycle (domain).
 abstract class ChallengesRepository {

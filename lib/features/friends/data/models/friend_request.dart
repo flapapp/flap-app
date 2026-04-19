@@ -1,38 +1,27 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/i18n.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-enum FriendRequestStatus {
-  pending,
-  accepted,
-  declined,
-  cancelled,
-}
+import '../../../../utils/i18n.dart';
+import '../../domain/entities/friend_request_entity.dart';
 
-class FriendRequest {
-  final String id;
-  final String fromUserId;
-  final String fromUserName;
-  final String fromUserAvatar;
-  final String toUserId;
-  final String toUserName;
-  final String toUserAvatar;
-  final FriendRequestStatus status;
-  final DateTime createdAt;
-  final DateTime? respondedAt;
-  final String? message;
+export '../../domain/entities/friend_request_entity.dart';
 
-  FriendRequest({
-    required this.id,
-    required this.fromUserId,
-    required this.fromUserName,
-    required this.fromUserAvatar,
-    required this.toUserId,
-    required this.toUserName,
-    required this.toUserAvatar,
-    required this.status,
-    required this.createdAt,
-    this.respondedAt,
-    this.message,
+part 'friend_request.g.dart';
+
+@JsonSerializable(explicitToJson: true)
+class FriendRequest extends FriendRequestEntity {
+  const FriendRequest({
+    required super.id,
+    required super.fromUserId,
+    required super.fromUserName,
+    required super.fromUserAvatar,
+    required super.toUserId,
+    required super.toUserName,
+    required super.toUserAvatar,
+    required super.status,
+    required super.createdAt,
+    super.respondedAt,
+    super.message,
   });
 
   // Factory constructor from Firestore
@@ -58,6 +47,11 @@ class FriendRequest {
       message: data['message'],
     );
   }
+
+  factory FriendRequest.fromJson(Map<String, dynamic> json) =>
+      _$FriendRequestFromJson(json);
+
+  Map<String, dynamic> toJson() => _$FriendRequestToJson(this);
 
   // Convert to Map for Firestore
   Map<String, dynamic> toFirestore() {
@@ -157,28 +151,24 @@ class FriendRequest {
   }
 }
 
-class Friend {
-  final String userId;
-  final String name;
-  final String avatar;
-  final double rating;
-  final String city;
-  final String position;
-  final DateTime friendsSince;
-  final bool isOnline;
-  final DateTime? lastSeen;
-
-  Friend({
-    required this.userId,
-    required this.name,
-    required this.avatar,
-    required this.rating,
-    required this.city,
-    required this.position,
-    required this.friendsSince,
-    this.isOnline = false,
-    this.lastSeen,
+@JsonSerializable(explicitToJson: true)
+class Friend extends FriendEntity {
+  const Friend({
+    required super.userId,
+    required super.name,
+    required super.avatar,
+    required super.rating,
+    required super.city,
+    required super.position,
+    required super.friendsSince,
+    super.isOnline = false,
+    super.lastSeen,
   });
+
+  factory Friend.fromJson(Map<String, dynamic> json) =>
+      _$FriendFromJson(json);
+
+  Map<String, dynamic> toJson() => _$FriendToJson(this);
 
   // Factory constructor from user data
   factory Friend.fromUserData(Map<String, dynamic> userData, DateTime friendsSince) {

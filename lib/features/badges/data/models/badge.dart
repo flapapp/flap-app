@@ -1,25 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/i18n.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-class Badge {
-  final String id;
-  final String name;
-  final String emoji;
-  final String description;
-  final int price;
-  final String category;
-  final bool isAvailable;
-  final DateTime? releaseDate;
+import '../../../../utils/i18n.dart';
+import '../../domain/entities/badge_entity.dart';
 
-  Badge({
-    required this.id,
-    required this.name,
-    required this.emoji,
-    required this.description,
-    required this.price,
-    required this.category,
-    this.isAvailable = true,
-    this.releaseDate,
+export '../../domain/entities/badge_entity.dart';
+
+part 'badge.g.dart';
+
+@JsonSerializable(explicitToJson: true)
+class Badge extends BadgeEntity {
+  const Badge({
+    required super.id,
+    required super.name,
+    required super.emoji,
+    required super.description,
+    required super.price,
+    required super.category,
+    super.isAvailable = true,
+    super.releaseDate,
   });
 
   // Factory constructor from Firestore
@@ -39,6 +38,10 @@ class Badge {
           : null,
     );
   }
+
+  factory Badge.fromJson(Map<String, dynamic> json) => _$BadgeFromJson(json);
+
+  Map<String, dynamic> toJson() => _$BadgeToJson(this);
 
   // Convert to Map for Firestore
   Map<String, dynamic> toFirestore() {

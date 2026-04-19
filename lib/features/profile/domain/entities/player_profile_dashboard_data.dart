@@ -1,5 +1,5 @@
-import '../../../../models/app_team.dart';
-import '../../../../models/badge.dart' as app_badge;
+import '../../../teams/data/models/app_team.dart';
+import '../../../badges/data/models/badge.dart' as app_badge;
 import 'user_profile.dart';
 
 /// Initial payload for the public player profile screen.

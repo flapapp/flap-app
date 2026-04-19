@@ -6,8 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../core/di/injection.dart';
-import '../../../../models/app_team.dart';
-import '../../../../models/badge.dart' as app_badge;
+import '../../../teams/data/models/app_team.dart';
+import '../../../badges/data/models/badge.dart' as app_badge;
 import '../../../../utils/i18n.dart';
 import '../../../auth/domain/repositories/auth_session_repository.dart';
 import '../../domain/repositories/current_user_profile_avatar_repository.dart';
@@ -21,7 +21,7 @@ import '../../domain/repositories/team_stats_repository.dart';
 import '../../domain/usecases/commit_profile_avatar_urls_usecase.dart';
 import '../../domain/usecases/load_player_profile_dashboard_usecase.dart';
 import '../../../teams/presentation/pages/team_details_screen.dart';
-import '../../../../screens/video_player_screen.dart';
+import '../../../video/presentation/pages/video_player_screen.dart';
 import '../../../../widgets/video_preview_box.dart';
 
 @RoutePage()

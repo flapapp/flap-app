@@ -17,11 +17,11 @@ import '../../../../features/profile/domain/repositories/team_stats_repository.d
 import '../../domain/repositories/teams_repository.dart';
 import '../../../../router/app_router.dart';
 
-import '../../../../models/app_team.dart';
-import '../../../../models/team_match_request.dart';
-import '../../../../models/team_stats.dart';
-import '../../../../models/friend_request.dart';
-import '../../../../models/team_join_request.dart';
+import '../../data/models/app_team.dart';
+import '../../data/models/team_match_request.dart';
+import '../../data/models/team_stats.dart';
+import '../../../friends/data/models/friend_request.dart';
+import '../../data/models/team_join_request.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/player_avatar_button.dart';

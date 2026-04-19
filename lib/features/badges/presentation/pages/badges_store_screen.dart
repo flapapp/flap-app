@@ -6,7 +6,7 @@ import '../../domain/repositories/badges_repository.dart';
 import '../../../../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../../models/badge.dart' as app_badge;
+import '../../data/models/badge.dart' as app_badge;
 import '../../../../utils/i18n.dart';
 
 @RoutePage()

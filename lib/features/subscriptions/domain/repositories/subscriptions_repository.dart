@@ -1,4 +1,4 @@
-import '../../../../models/subscription.dart';
+import '../../data/models/subscription.dart';
 
 /// User subscription plans, trials, limits, and Firestore-backed state.
 abstract class SubscriptionsRepository {

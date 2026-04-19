@@ -5,7 +5,7 @@ import '../../../../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/challenges_repository.dart';
-import '../../../../models/challenge.dart';
+import '../../data/models/challenge.dart';
 import 'challenge_create_screen.dart';
 import 'challenge_details_screen.dart';
 import '../../../../utils/i18n.dart';

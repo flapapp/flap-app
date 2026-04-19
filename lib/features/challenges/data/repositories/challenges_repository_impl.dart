@@ -1,4 +1,4 @@
-import '../../../../models/challenge.dart';
+import '../models/challenge.dart';
 import '../../../../services/challenge_service.dart';
 import '../../domain/repositories/challenges_repository.dart';
 

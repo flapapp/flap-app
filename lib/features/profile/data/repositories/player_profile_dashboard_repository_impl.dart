@@ -1,5 +1,5 @@
-import '../../../../models/app_team.dart';
-import '../../../../models/badge.dart' as app_badge;
+import '../../../teams/data/models/app_team.dart';
+import '../../../badges/data/models/badge.dart' as app_badge;
 import '../../domain/entities/player_profile_dashboard_data.dart';
 import '../../domain/repositories/match_participation_stats_repository.dart';
 import '../../domain/repositories/player_profile_dashboard_repository.dart';

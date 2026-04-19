@@ -1,28 +1,25 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-class TeamStats {
-  final String teamId;
-  final String teamName;
-  final int wins;
-  final int draws;
-  final int losses;
-  final int goalsFor;
-  final int goalsAgainst;
-  final Map<String, int> playerGoals;
-  final List<Map<String, dynamic>> recentMatches;
-  final DateTime? updatedAt;
+import '../../domain/entities/team_stats_entity.dart';
 
+export '../../domain/entities/team_stats_entity.dart';
+
+part 'team_stats.g.dart';
+
+@JsonSerializable(explicitToJson: true)
+class TeamStats extends TeamStatsEntity {
   const TeamStats({
-    required this.teamId,
-    required this.teamName,
-    this.wins = 0,
-    this.draws = 0,
-    this.losses = 0,
-    this.goalsFor = 0,
-    this.goalsAgainst = 0,
-    this.playerGoals = const {},
-    this.recentMatches = const [],
-    this.updatedAt,
+    required super.teamId,
+    required super.teamName,
+    super.wins = 0,
+    super.draws = 0,
+    super.losses = 0,
+    super.goalsFor = 0,
+    super.goalsAgainst = 0,
+    super.playerGoals = const {},
+    super.recentMatches = const [],
+    super.updatedAt,
   });
 
   factory TeamStats.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -62,6 +59,11 @@ class TeamStats {
   static TeamStats empty(String teamId, {String name = ''}) {
     return TeamStats(teamId: teamId, teamName: name);
   }
+
+  factory TeamStats.fromJson(Map<String, dynamic> json) =>
+      _$TeamStatsFromJson(json);
+
+  Map<String, dynamic> toJson() => _$TeamStatsToJson(this);
 
   int get matches => wins + draws + losses;
   int get points => wins * 3 + draws;

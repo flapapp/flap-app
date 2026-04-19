@@ -1,4 +1,4 @@
-import '../../../../models/notification.dart';
+import '../../data/models/notification.dart';
 
 /// In-app notification inbox and read-state (backed by [NotificationService]).
 abstract class NotificationsRepository {

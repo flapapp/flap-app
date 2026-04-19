@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../../models/match.dart';
-import '../../../../models/app_team.dart';
+import '../../data/models/match.dart';
+import '../../../teams/data/models/app_team.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../../../../features/teams/domain/repositories/teams_repository.dart';
 import '../../../../services/notification_service.dart';
-import '../../../../models/notification.dart';
+import '../../../notifications/data/models/notification.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/team_logo_button.dart';

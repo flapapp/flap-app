@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../router/app_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../../models/challenge.dart';
+import '../../data/models/challenge.dart';
 import '../../../../utils/i18n.dart';
 
 @RoutePage()

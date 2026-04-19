@@ -1,4 +1,4 @@
-import '../../../../models/badge.dart';
+import '../models/badge.dart';
 import '../../../../services/badge_service.dart';
 import '../../domain/repositories/badges_repository.dart';
 

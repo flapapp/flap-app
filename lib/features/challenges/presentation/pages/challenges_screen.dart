@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/challenges_repository.dart';
-import '../../../../models/challenge.dart';
+import '../../data/models/challenge.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/video_preview_box.dart';

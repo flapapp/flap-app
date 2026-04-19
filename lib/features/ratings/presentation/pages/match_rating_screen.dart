@@ -6,7 +6,7 @@ import '../../domain/repositories/ratings_repository.dart';
 import '../../../../router/app_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../../models/match.dart';
+import '../../../matches/data/models/match.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../utils/i18n.dart';
 
@@ -107,7 +107,7 @@ final allTeams = widget.match.allTeams;
 List<String> basePlayers = [];
 
 if (currentUserId != null && allTeams.isNotEmpty) {
-  Team? myTeam;
+  MatchTeamEntity? myTeam;
   try {
     myTeam = allTeams.firstWhere((team) => team.playerIds.contains(currentUserId));
   } catch (_) {

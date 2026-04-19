@@ -8,8 +8,8 @@ import '../../../../features/profile/domain/repositories/profile_team_membership
 import '../../domain/repositories/teams_repository.dart';
 import '../../../../router/app_router.dart';
 
-import '../../../../models/app_team.dart';
-import '../../../../models/team_stats.dart';
+import '../../data/models/app_team.dart';
+import '../../data/models/team_stats.dart';
 import '../../../../utils/i18n.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/player_avatar_button.dart';

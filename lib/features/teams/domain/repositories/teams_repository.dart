@@ -1,10 +1,10 @@
 import 'dart:typed_data';
 
-import '../../../../models/app_team.dart';
-import '../../../../models/team_invite.dart';
-import '../../../../models/team_join_request.dart';
-import '../../../../models/team_match_request.dart';
-import '../../../../models/team_stats.dart';
+import '../../data/models/app_team.dart';
+import '../../data/models/team_invite.dart';
+import '../../data/models/team_join_request.dart';
+import '../../data/models/team_match_request.dart';
+import '../../data/models/team_stats.dart';
 
 /// Teams: reads (leaderboard, stats), lifecycle (create), and operations (join, invites, match requests).
 abstract class TeamsRepository {

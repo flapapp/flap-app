@@ -1,5 +1,5 @@
-import '../../../../models/app_team.dart';
-import '../../../../models/match.dart' as app_match;
+import '../../../teams/data/models/app_team.dart';
+import '../../data/models/match.dart' as app_match;
 
 /// Match lifecycle, queries, and organizer/player actions (domain).
 abstract class MatchesRepository {

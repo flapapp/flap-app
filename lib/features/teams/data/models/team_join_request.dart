@@ -1,24 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-enum TeamJoinRequestStatus { pending, accepted, declined }
+import '../../domain/entities/team_join_request_entity.dart';
 
-class TeamJoinRequest {
-  final String id;
-  final String teamId;
-  final String teamName;
-  final String userId;
-  final String userName;
-  final TeamJoinRequestStatus status;
-  final DateTime createdAt;
+export '../../domain/entities/team_join_request_entity.dart';
 
+part 'team_join_request.g.dart';
+
+@JsonSerializable(explicitToJson: true)
+class TeamJoinRequest extends TeamJoinRequestEntity {
   const TeamJoinRequest({
-    required this.id,
-    required this.teamId,
-    required this.teamName,
-    required this.userId,
-    required this.userName,
-    required this.status,
-    required this.createdAt,
+    required super.id,
+    required super.teamId,
+    required super.teamName,
+    required super.userId,
+    required super.userName,
+    required super.status,
+    required super.createdAt,
   });
 
   factory TeamJoinRequest.fromDoc(
@@ -34,6 +32,11 @@ class TeamJoinRequest {
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
+
+  factory TeamJoinRequest.fromJson(Map<String, dynamic> json) =>
+      _$TeamJoinRequestFromJson(json);
+
+  Map<String, dynamic> toJson() => _$TeamJoinRequestToJson(this);
 
   Map<String, dynamic> toFirestore() {
     return {

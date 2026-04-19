@@ -1,5 +1,5 @@
-import '../../../../models/app_team.dart';
-import '../../../../models/team_invite.dart';
+import '../../../teams/data/models/app_team.dart';
+import '../../../teams/data/models/team_invite.dart';
 import '../../../teams/domain/repositories/teams_repository.dart';
 import '../../domain/repositories/profile_team_membership_repository.dart';
 

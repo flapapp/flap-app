@@ -1,5 +1,5 @@
-import '../../../../models/app_team.dart';
-import '../../../../models/team_invite.dart';
+import '../../../teams/data/models/app_team.dart';
+import '../../../teams/data/models/team_invite.dart';
 
 /// Current user's teams, invites, and team document reads (domain).
 abstract class ProfileTeamMembershipRepository {

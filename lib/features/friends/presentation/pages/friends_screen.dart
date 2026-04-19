@@ -6,7 +6,7 @@ import '../../domain/repositories/friends_repository.dart';
 import '../../../../router/app_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../../models/friend_request.dart';
+import '../../data/models/friend_request.dart';
 import 'dart:async';
 import '../../../../utils/i18n.dart';
 

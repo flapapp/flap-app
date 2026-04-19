@@ -1,4 +1,4 @@
-import '../../../../models/friend_request.dart';
+import '../../../friends/data/models/friend_request.dart';
 
 /// Friend relationship actions for viewing another player (domain).
 abstract class PlayerSocialRepository {

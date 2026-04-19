@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import '../models/notification.dart';
+import '../features/notifications/data/models/notification.dart';
 import 'package:flutter/foundation.dart';
-import '../models/match.dart' as app_models;
+import '../features/matches/data/models/match.dart' as app_models;
 import '../router/app_router.dart';
 import '../utils/i18n.dart';
 import 'user_settings_service.dart';

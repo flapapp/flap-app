@@ -1,44 +1,27 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/i18n.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-enum SubscriptionType {
-  free,
-  europa,
-  champions,
-}
+import '../../../../utils/i18n.dart';
+import '../../domain/entities/subscription_entity.dart';
 
-enum SubscriptionStatus {
-  active,
-  expired,
-  cancelled,
-  trial,
-}
+export '../../domain/entities/subscription_entity.dart';
 
-class Subscription {
-  final String id;
-  final String userId;
-  final SubscriptionType type;
-  final SubscriptionStatus status;
-  final DateTime startDate;
-  final DateTime endDate;
-  final int price; // В гривнях
-  final bool isActive;
-  final DateTime? trialEndDate;
-  final bool autoRenew;
-  final Map<String, dynamic> features;
+part 'subscription.g.dart';
 
-  Subscription({
-    required this.id,
-    required this.userId,
-    required this.type,
-    required this.status,
-    required this.startDate,
-    required this.endDate,
-    required this.price,
-    this.isActive = true,
-    this.trialEndDate,
-    this.autoRenew = false,
-    required this.features,
+@JsonSerializable(explicitToJson: true)
+class Subscription extends SubscriptionEntity {
+  const Subscription({
+    required super.id,
+    required super.userId,
+    required super.type,
+    required super.status,
+    required super.startDate,
+    required super.endDate,
+    required super.price,
+    super.isActive = true,
+    super.trialEndDate,
+    super.autoRenew = false,
+    required super.features,
   });
 
   // Factory constructor from Firestore
@@ -71,6 +54,11 @@ class Subscription {
       features: Map<String, dynamic>.from(data['features'] ?? {}),
     );
   }
+
+  factory Subscription.fromJson(Map<String, dynamic> json) =>
+      _$SubscriptionFromJson(json);
+
+  Map<String, dynamic> toJson() => _$SubscriptionToJson(this);
 
   // Convert to Map for Firestore
   Map<String, dynamic> toFirestore() {

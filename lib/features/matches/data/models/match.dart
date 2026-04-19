@@ -3,234 +3,81 @@ import 'dart:collection';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-// Статус матчу
-enum MatchStatus {
-  open,       // Відкрито для участі
-  full,       // Заповнено
-  inProgress, // В процесі
-  finished,   // Завершено
-  cancelled   // Скасовано
-}
+import '../../../../core/json/json_converters.dart';
+import '../../domain/entities/match_enums.dart';
+import '../../domain/entities/match_entity.dart';
+import '../../domain/entities/match_team_entity.dart';
+import '../../domain/entities/player_rating_entity.dart';
+import 'match_converters.dart';
+import 'player_rating_model.dart';
+import 'team_model.dart';
 
-// Рівень складності
-enum MatchLevel {
-  beginner,   // Початковий
-  intermediate, // Середній
-  advanced,   // Високий
-  professional // Професійний
-}
+export '../../domain/entities/match_enums.dart';
+export '../../domain/entities/match_entity.dart';
+export '../../domain/entities/match_team_entity.dart';
+export '../../domain/entities/player_rating_entity.dart';
+export 'player_rating_model.dart';
+export 'team_model.dart';
 
-// Результат матчу
-enum MatchResult {
-  teamAWins,  // Перемога команди А
-  teamBWins,  // Перемога команди Б
-  draw        // Нічия
-}
-
-// Клас команди
-class Team {
-  final String name;
-  final List<String> playerIds;
-  final double averageRating;
-  final Map<String, double> playerRatings;
-
-  Team({
-    required this.name,
-    required this.playerIds,
-    this.averageRating = 0.0,
-    this.playerRatings = const {},
-  });
-
-  // Створення з Firestore
-  factory Team.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return Team(
-      name: data['name'] ?? '',
-      playerIds: List<String>.from(data['playerIds'] ?? []),
-      averageRating: (data['averageRating'] ?? 0.0).toDouble(),
-      playerRatings: Map<String, double>.from(data['playerRatings'] ?? {}),
-    );
-  }
-
-  // Конвертація в Map для Firestore
-  Map<String, dynamic> toFirestore() {
-    return {
-      'name': name,
-      'playerIds': playerIds,
-      'averageRating': averageRating,
-      'playerRatings': playerRatings,
-    };
-  }
-
-  // Копіювання з змінами
-  Team copyWith({
-    String? name,
-    List<String>? playerIds,
-    double? averageRating,
-    Map<String, double>? playerRatings,
-  }) {
-    return Team(
-      name: name ?? this.name,
-      playerIds: playerIds ?? this.playerIds,
-      averageRating: averageRating ?? this.averageRating,
-      playerRatings: playerRatings ?? this.playerRatings,
-    );
-  }
-}
-
-// Оцінка гравця
-class PlayerRating {
-  final String playerId;
-  final String ratedBy;
-  final double rating;
-  final DateTime ratedAt;
-  final Map<String, double> criteria; // техніка, фізика, тактика, командна гра
-
-  PlayerRating({
-    required this.playerId,
-    required this.ratedBy,
-    required this.rating,
-    required this.ratedAt,
-    this.criteria = const {},
-  });
-
-  // Створення з Firestore
-  factory PlayerRating.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return PlayerRating(
-      playerId: data['playerId'] ?? '',
-      ratedBy: data['ratedBy'] ?? '',
-      rating: (data['rating'] ?? 0.0).toDouble(),
-      ratedAt: (data['ratedAt'] as Timestamp).toDate(),
-      criteria: Map<String, double>.from(data['criteria'] ?? {}),
-    );
-  }
-
-  // Конвертація в Map для Firestore
-  Map<String, dynamic> toFirestore() {
-    return {
-      'playerId': playerId,
-      'ratedBy': ratedBy,
-      'rating': rating,
-      'ratedAt': Timestamp.fromDate(ratedAt),
-      'criteria': criteria,
-    };
-  }
-}
+part 'match.g.dart';
 
 // Основний клас матчу
-class Match {
-  final String id;
-  final String title;
-  final String description;
-  final String organizerId;
-  final String organizerName;
-  
-  // Час та місце
-  final DateTime date;
-  final String time;
-  final String location;
-  final String city;
-  final GeoPoint? coordinates;
-  
-  // Учасники
-  final int currentPlayers;
-  final int maxPlayers;
-  final List<String> participants;
-  final List<String> pendingApplications;
-  final List<String> rejectedApplications;
-  
-  // Налаштування
-  final MatchLevel level;
-  final double cost;
-  final bool autoBalance;
-  final bool isPrivate;
-  final List<String> invitedFriends;
-  
-  // Статус
-  final MatchStatus status;
-  
-  // Команди
-  final Team? teamA;
-  final Team? teamB;
-  final List<Team> teams;
-  final int? teamCount;
-  final List<Map<String, dynamic>> multiTeamStats;
-  final bool isTeamMatch;
-  final String? teamAId;
-  final String? teamBId;
-  final String? teamAStatus;
-  final String? teamBStatus;
-  final Map<String, List<String>> teamRosters;
-  final Map<String, Map<String, String>> teamRosterStatus;
-  final Map<String, int> goalsByPlayer;
-  final bool teamsReadyNotified;
-  final DateTime? teamsReadyNotifiedAt;
-  final String? coverPhotoUrl;
-  final DateTime? coverPhotoUpdatedAt;
- 
-  // Результат
-  final MatchResult? result;
-  final int? teamAScore;
-  final int? teamBScore;
-  final List<PlayerRating> playerRatings;
-  
-  // Метадані
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  final DateTime? startedAt;
-  final DateTime? finishedAt;
-
+@JsonSerializable(explicitToJson: true)
+class Match extends MatchEntity {
   Match({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.organizerId,
-    required this.organizerName,
-    required this.date,
-    required this.time,
-    required this.location,
-    required this.city,
-    this.coordinates,
-    required this.currentPlayers,
-    required this.maxPlayers,
-    required this.participants,
-    this.pendingApplications = const [],
-    this.rejectedApplications = const [],
-    required this.level,
-    required this.cost,
-    required this.autoBalance,
-    required this.isPrivate,
-    this.invitedFriends = const [],
-    required this.status,
-    this.teamA,
-    this.teamB,
-    this.teams = const [],
-
-    this.teamCount,
-    this.multiTeamStats = const [],
-    this.isTeamMatch = false,
-    this.teamAId,
-    this.teamBId,
-    this.teamAStatus,
-    this.teamBStatus,
-    this.teamRosters = const {},
-    this.teamRosterStatus = const {},
-    this.goalsByPlayer = const {},
-    this.teamsReadyNotified = false,
-    this.teamsReadyNotifiedAt,
-    this.coverPhotoUrl,
-    this.coverPhotoUpdatedAt,
-    this.result,
-    this.teamAScore,
-    this.teamBScore,
-    this.playerRatings = const [],
-    required this.createdAt,
-    required this.updatedAt,
-    this.startedAt,
-    this.finishedAt,
+    required super.id,
+    required super.title,
+    required super.description,
+    required super.organizerId,
+    required super.organizerName,
+    required super.date,
+    required super.time,
+    required super.location,
+    required super.city,
+    super.coordinates,
+    required super.currentPlayers,
+    required super.maxPlayers,
+    required super.participants,
+    super.pendingApplications = const [],
+    super.rejectedApplications = const [],
+    required super.level,
+    required super.cost,
+    required super.autoBalance,
+    required super.isPrivate,
+    super.invitedFriends = const [],
+    required super.status,
+    super.teamA,
+    super.teamB,
+    super.teams = const [],
+    super.teamCount,
+    super.multiTeamStats = const [],
+    super.isTeamMatch = false,
+    super.teamAId,
+    super.teamBId,
+    super.teamAStatus,
+    super.teamBStatus,
+    super.teamRosters = const {},
+    super.teamRosterStatus = const {},
+    super.goalsByPlayer = const {},
+    super.teamsReadyNotified = false,
+    super.teamsReadyNotifiedAt,
+    super.coverPhotoUrl,
+    super.coverPhotoUpdatedAt,
+    super.result,
+    super.teamAScore,
+    super.teamBScore,
+    super.playerRatings = const [],
+    required super.createdAt,
+    required super.updatedAt,
+    super.startedAt,
+    super.finishedAt,
   });
+
+  factory Match.fromJson(Map<String, dynamic> json) => _$MatchFromJson(json);
+
+  Map<String, dynamic> toJson() => _$MatchToJson(this);
 
   // Створення з Firestore
   factory Match.fromFirestore(DocumentSnapshot doc) {
@@ -283,7 +130,7 @@ class Match {
           (data['teamB']['playerRatings'] ?? const <String, num>{})
             .map((k, v) => MapEntry(k, (v as num).toDouble())),
         ),
-) : null,
+      ) : null,
       multiTeamStats: ((data['multiTeamStats'] as List?) ?? const [])
           .whereType<Map<String, dynamic>>()
           .toList(),
@@ -320,21 +167,23 @@ class Match {
       coverPhotoUrl: data['coverPhotoUrl'] as String?,
       coverPhotoUpdatedAt:
           (data['coverPhotoUpdatedAt'] as Timestamp?)?.toDate(),
-teams: ((data['teams'] as List?) ?? const [])
-    .whereType<Map<String, dynamic>>()
-    .map((t) => Team(
-          name: (t['name'] ?? '') as String,
-          playerIds: List<String>.from(t['playerIds'] ?? const []),
-          averageRating: ((t['averageRating'] ?? 0.0) as num).toDouble(),
-        ))
-    .toList(),
-teamCount: (data['teamCount'] as num?)?.toInt()
-  ?? (data['teams'] is List ? (data['teams'] as List).length : null),
-result: data['result'] != null ? MatchResult.values.firstWhere(
-  (e) => e.toString().split('.').last == data['result'],
-  orElse: () => MatchResult.draw,
-) : null,
-teamAScore: data['teamAScore'],
+      teams: ((data['teams'] as List?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map((t) => Team(
+                name: (t['name'] ?? '') as String,
+                playerIds: List<String>.from(t['playerIds'] ?? const []),
+                averageRating: ((t['averageRating'] ?? 0.0) as num).toDouble(),
+              ))
+          .toList(),
+      teamCount: (data['teamCount'] as num?)?.toInt() ??
+          (data['teams'] is List ? (data['teams'] as List).length : null),
+      result: data['result'] != null
+          ? MatchResult.values.firstWhere(
+              (e) => e.toString().split('.').last == data['result'],
+              orElse: () => MatchResult.draw,
+            )
+          : null,
+      teamAScore: data['teamAScore'],
       teamBScore: data['teamBScore'],
       playerRatings: ((data['playerRatings'] as List?) ?? [])
           .whereType<Map<String, dynamic>>()
@@ -351,10 +200,10 @@ teamAScore: data['teamAScore'],
                 ),
               ))
           .toList(),
-createdAt: (createdAtTs ?? Timestamp.now()).toDate(),
-updatedAt: (updatedAtTs ?? Timestamp.now()).toDate(),
-startedAt: (data['startedAt'] as Timestamp?)?.toDate(),
-finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
+      createdAt: (createdAtTs ?? Timestamp.now()).toDate(),
+      updatedAt: (updatedAtTs ?? Timestamp.now()).toDate(),
+      startedAt: (data['startedAt'] as Timestamp?)?.toDate(),
+      finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -381,9 +230,9 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
       'isPrivate': isPrivate,
       'invitedFriends': invitedFriends,
       'status': status.toString().split('.').last,
-      'teamA': teamA?.toFirestore(),
-      'teamB': teamB?.toFirestore(),
-      'teams': teams.map((t) => t.toFirestore()).toList(),
+      'teamA': (teamA as Team?)?.toFirestore(),
+      'teamB': (teamB as Team?)?.toFirestore(),
+      'teams': teams.map((t) => (t as Team).toFirestore()).toList(),
       'teamCount': teamCount,
       'multiTeamStats': multiTeamStats,
       'teamMatch': isTeamMatch,
@@ -405,7 +254,9 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
       'result': result?.toString().split('.').last,
       'teamAScore': teamAScore,
       'teamBScore': teamBScore,
-      'playerRatings': playerRatings.map((rating) => rating.toFirestore()).toList(),
+      'playerRatings': playerRatings
+          .map((rating) => (rating as PlayerRating).toFirestore())
+          .toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'startedAt': startedAt != null ? Timestamp.fromDate(startedAt!) : null,
@@ -436,9 +287,9 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
     bool? isPrivate,
     List<String>? invitedFriends,
     MatchStatus? status,
-    Team? teamA,
-    Team? teamB,
-    List<Team>? teams,
+    MatchTeamEntity? teamA,
+    MatchTeamEntity? teamB,
+    List<MatchTeamEntity>? teams,
     int? teamCount,
     List<Map<String, dynamic>>? multiTeamStats,
     bool? isTeamMatch,
@@ -456,7 +307,7 @@ finishedAt: (data['finishedAt'] as Timestamp?)?.toDate(),
     MatchResult? result,
     int? teamAScore,
     int? teamBScore,
-    List<PlayerRating>? playerRatings,
+    List<PlayerRatingEntity>? playerRatings,
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? startedAt,
@@ -615,13 +466,13 @@ bool get isUnplayedByTimeout {
   // Перевірка чи є команди
   bool get hasTeams => teamA != null && teamB != null;
 
-  List<Team> get allTeams {
-  if (teams.isNotEmpty) return teams;
-  final result = <Team>[];
-  if (teamA != null) result.add(teamA!);
-  if (teamB != null) result.add(teamB!);
-  return result;
-}
+  List<MatchTeamEntity> get allTeams {
+    if (teams.isNotEmpty) return teams;
+    final result = <MatchTeamEntity>[];
+    if (teamA != null) result.add(teamA!);
+    if (teamB != null) result.add(teamB!);
+    return result;
+  }
   
   // Статус для конкретного користувача
   String getUserStatus(String userId) {
@@ -691,15 +542,6 @@ bool get isUnplayedByTimeout {
   String toString() {
     return 'Match(id: $id, title: $title, status: $status)';
   }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is Match && other.id == id;
-  }
-
-  @override
-  int get hashCode => id.hashCode;
 }
 
 // Утиліти для роботи з матчами

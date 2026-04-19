@@ -1,10 +1,10 @@
 import 'dart:typed_data';
 
-import '../../../../models/app_team.dart';
-import '../../../../models/team_invite.dart';
-import '../../../../models/team_join_request.dart';
-import '../../../../models/team_match_request.dart';
-import '../../../../models/team_stats.dart';
+import '../models/app_team.dart';
+import '../models/team_invite.dart';
+import '../models/team_join_request.dart';
+import '../models/team_match_request.dart';
+import '../models/team_stats.dart';
 import '../../../../services/team_service.dart';
 import '../../domain/repositories/teams_repository.dart';
 import '../datasources/teams_remote_datasource.dart';

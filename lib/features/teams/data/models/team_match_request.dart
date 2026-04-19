@@ -1,28 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-enum TeamMatchRequestStatus { pending, accepted, declined }
+import '../../domain/entities/team_match_request_entity.dart';
 
-class TeamMatchRequest {
-  final String id;
-  final String matchId;
-  final String teamId;
-  final String opponentTeamId;
-  final String opponentName;
-  final String createdBy;
-  final TeamMatchRequestStatus status;
-  final DateTime createdAt;
-  final List<String> proposedRoster;
+export '../../domain/entities/team_match_request_entity.dart';
 
+part 'team_match_request.g.dart';
+
+@JsonSerializable(explicitToJson: true)
+class TeamMatchRequest extends TeamMatchRequestEntity {
   const TeamMatchRequest({
-    required this.id,
-    required this.matchId,
-    required this.teamId,
-    required this.opponentTeamId,
-    required this.opponentName,
-    required this.createdBy,
-    required this.status,
-    required this.createdAt,
-    this.proposedRoster = const [],
+    required super.id,
+    required super.matchId,
+    required super.teamId,
+    required super.opponentTeamId,
+    required super.opponentName,
+    required super.createdBy,
+    required super.status,
+    required super.createdAt,
+    super.proposedRoster = const [],
   });
 
   factory TeamMatchRequest.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -39,6 +35,11 @@ class TeamMatchRequest {
       proposedRoster: List<String>.from(data['proposedRoster'] ?? const []),
     );
   }
+
+  factory TeamMatchRequest.fromJson(Map<String, dynamic> json) =>
+      _$TeamMatchRequestFromJson(json);
+
+  Map<String, dynamic> toJson() => _$TeamMatchRequestToJson(this);
 
   Map<String, dynamic> toFirestore() {
     return {

@@ -1,51 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/i18n.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-enum NotificationType {
-  friendRequest,
-  friendAccepted,
-  challengeInvitation,
-  challengeUpdate,
-  challengeResult,
-  challengeCompleted,
-  videoVote,
-  matchInvite,
-  matchFinished,
-  badgeEarned,
-  badgeEndorsed,
-  coinsEarned,
-  ratingRequest,
-  ratingChanged,
-  teamInvite,
-  teamMatchRequest,
-  teamMatchReady,
-  teamRosterInvite,
-  teamJoinRequest,
-}
+import '../../../../utils/i18n.dart';
+import '../../domain/entities/app_notification_entity.dart';
 
-class AppNotification {
-  final String id;
-  final String userId;
-  final NotificationType type;
-  final String title;
-  final String message;
-  final Map<String, dynamic> data;
-  final DateTime createdAt;
-  final bool isRead;
-  final String? imageUrl;
-  final String? actionUrl;
+export '../../domain/entities/app_notification_entity.dart';
 
-  AppNotification({
-    required this.id,
-    required this.userId,
-    required this.type,
-    required this.title,
-    required this.message,
-    required this.data,
-    required this.createdAt,
-    this.isRead = false,
-    this.imageUrl,
-    this.actionUrl,
+part 'notification.g.dart';
+
+@JsonSerializable(explicitToJson: true)
+class AppNotification extends AppNotificationEntity {
+  const AppNotification({
+    required super.id,
+    required super.userId,
+    required super.type,
+    required super.title,
+    required super.message,
+    required super.data,
+    required super.createdAt,
+    super.isRead = false,
+    super.imageUrl,
+    super.actionUrl,
   });
 
   // Factory constructor from Firestore
@@ -68,6 +43,11 @@ class AppNotification {
       actionUrl: data['actionUrl'],
     );
   }
+
+  factory AppNotification.fromJson(Map<String, dynamic> json) =>
+      _$AppNotificationFromJson(json);
+
+  Map<String, dynamic> toJson() => _$AppNotificationToJson(this);
 
   // Convert to Map for Firestore
   Map<String, dynamic> toFirestore() {

@@ -1,4 +1,4 @@
-import '../../../../models/friend_request.dart';
+import '../../data/models/friend_request.dart';
 
 /// Friend requests, search, and friend list operations (domain).
 abstract class FriendsRepository {

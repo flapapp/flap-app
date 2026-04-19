@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/friend_request.dart';
+import '../features/friends/data/models/friend_request.dart';
 import '../services/notification_service.dart';
 import '../utils/i18n.dart';
 

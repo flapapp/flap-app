@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/match.dart';
-import '../models/app_team.dart';
+import '../features/matches/data/models/match.dart';
+import '../features/teams/data/models/app_team.dart';
 import 'notification_service.dart';
 
 class MatchService {

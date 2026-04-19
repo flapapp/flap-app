@@ -10,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 // Removed dart:io to support web build
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/challenges_repository.dart';
-import '../../../../models/challenge.dart';
+import '../../data/models/challenge.dart';
 import '../../../../services/notification_service.dart';
 import '../../../../services/thumbnail_service.dart';
 import '../../../../utils/i18n.dart';
