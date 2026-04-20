@@ -6,11 +6,10 @@ import 'package:flap_app/app_locale_access.dart';
 import '../../../../core/di/injection.dart';
 import '../../../ratings/domain/repositories/ratings_repository.dart';
 import '../../../../router/app_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_app_storage.dart';
+import '../../../../core/supabase/supabase_date.dart';
 import '../../../../constants/video_categories.dart';
 import '../../../challenges/data/models/challenge.dart';
 import '../../../../widgets/rating_display.dart';
@@ -33,6 +32,7 @@ class VideoMainScreen extends StatefulWidget {
 }
 
 class _VideoMainScreenState extends State<VideoMainScreen> {
+  final SupabaseClient _sb = Supabase.instance.client;
   NotificationsRepository get _notificationsRepo => sl<NotificationsRepository>();
 
   RatingsRepository get _ratingRepo => sl<RatingsRepository>();
@@ -56,7 +56,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   final Set<String> _challengeMetaDenied = {};
   final Map<String, String?> _challengeCreatorThumbCache = {};
   final Set<String> _challengeCreatorThumbLoading = {};
-  late Stream<QuerySnapshot> _videosStream;
+  late Stream<List<Map<String, dynamic>>> _videosStream;
   bool _didInitFromRouteArgs = false;
   
 
@@ -104,40 +104,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         videoCategoryLabel(_selectedCategory);
   }
 
-int _compareVideoDocs(
-  QueryDocumentSnapshot<Object?> a,
-  QueryDocumentSnapshot<Object?> b,
-) {
-  final dataA = a.data() as Map<String, dynamic>? ?? const {};
-  final dataB = b.data() as Map<String, dynamic>? ?? const {};
-    if (_selectedSort == 'my_city' && _currentUserCity.trim().isNotEmpty) {
-      final cityA = _normalizeCity((dataA['city'] ?? '').toString());
-      final cityB = _normalizeCity((dataB['city'] ?? '').toString());
-      final myCity = _normalizeCity(_currentUserCity);
-      final aMine = cityA == myCity;
-      final bMine = cityB == myCity;
-      if (aMine != bMine) {
-        return bMine ? 1 : -1;
-      }
-    }
-    if (_selectedSort == 'rating_asc' || _selectedSort == 'rating_desc') {
-      final ratingA = _extractVideoRating(dataA);
-      final ratingB = _extractVideoRating(dataB);
-      final cmp = _selectedSort == 'rating_asc'
-          ? ratingA.compareTo(ratingB)
-          : ratingB.compareTo(ratingA);
-      if (cmp != 0) return cmp;
-    } else if (_selectedTab == 'trending' && !_showOnlyMyVideos) {
-      final viewsA = (dataA['views'] ?? 0) as num;
-      final viewsB = (dataB['views'] ?? 0) as num;
-      final cmp = viewsB.compareTo(viewsA);
-      if (cmp != 0) return cmp;
-    }
-    final tsA = _extractCreatedAtMillis(dataA);
-    final tsB = _extractCreatedAtMillis(dataB);
-    return tsB.compareTo(tsA);
-  }
-
   double _extractVideoRating(Map<String, dynamic> data) {
     final raw = data['rating'] ?? data['averageRating'] ?? data['voteAverage'] ?? 0.0;
     if (raw is num) return raw.toDouble();
@@ -147,7 +113,7 @@ int _compareVideoDocs(
   int _extractCreatedAtMillis(Map<String, dynamic> data) {
     final ts =
         data['createdAt'] ?? data['uploadedAt'] ?? data['timestamp'] ?? data['updatedAt'];
-    if (ts is Timestamp) return ts.millisecondsSinceEpoch;
+    if (ts is String) return DateTime.tryParse(ts)?.millisecondsSinceEpoch ?? 0;
     if (ts is DateTime) return ts.millisecondsSinceEpoch;
     if (ts is int) return ts;
     return 0;
@@ -235,26 +201,25 @@ int _compareVideoDocs(
     _challengeCreatorThumbLoading.add(challengeId);
     try {
       String? thumbUrl;
-      final directDoc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .collection('submissions')
-          .doc(creatorId)
-          .get();
-      final directData = directDoc.data();
-      thumbUrl = (directData?['thumbnailUrl'] ?? '').toString().trim();
+      final directData = await _sb
+          .from('challenge_submissions')
+          .select('thumbnail_url')
+          .eq('challenge_id', challengeId)
+          .eq('user_id', creatorId)
+          .maybeSingle();
+      thumbUrl = (directData?['thumbnail_url'] ?? '').toString().trim();
 
       if (thumbUrl.isEmpty) {
-        final fallback = await FirebaseFirestore.instance
-            .collection('challenges')
-            .doc(challengeId)
-            .collection('submissions')
-            .where('isCreatorVideo', isEqualTo: true)
-            .limit(1)
-            .get();
-        if (fallback.docs.isNotEmpty) {
-          thumbUrl =
-              (fallback.docs.first.data()['thumbnailUrl'] ?? '').toString().trim();
+        final fallback = await _sb
+            .from('challenge_submissions')
+            .select('thumbnail_url')
+            .eq('challenge_id', challengeId)
+            .limit(1);
+        final rows = fallback as List<dynamic>;
+        if (rows.isNotEmpty) {
+          thumbUrl = (((rows.first as Map<String, dynamic>)['thumbnail_url']) ?? '')
+              .toString()
+              .trim();
         }
       }
 
@@ -285,8 +250,12 @@ void dispose() {
     final uid = AppAuth.currentUserId;
     if (uid == null) return;
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final city = (doc.data()?['city'] ?? '').toString();
+      final row = await _sb
+          .from('profiles')
+          .select('city')
+          .eq('id', uid)
+          .maybeSingle();
+      final city = (row?['city'] ?? '').toString();
       if (!mounted) return;
       setState(() {
         _currentUserCity = city;
@@ -399,24 +368,25 @@ Widget build(BuildContext context) {
         ),
 
         // Profile button with avatar
-        StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(AppAuth.currentUserId)
-              .snapshots(),
+        StreamBuilder<List<Map<String, dynamic>>>(
+          stream: _sb
+              .from('profiles')
+              .stream(primaryKey: ['id'])
+              .eq('id', AppAuth.currentUserId ?? ''),
           builder: (context, snapshot) {
-            if (!snapshot.hasData || !snapshot.data!.exists) {
+            final userData = snapshot.data?.isNotEmpty == true
+                ? snapshot.data!.first
+                : null;
+            if (userData == null) {
               return IconButton(
                 icon: const Icon(Icons.person, color: Colors.white),
                 onPressed: () => _showProfile(context),
               );
             }
 
-            final userData = snapshot.data!.data() as Map<String, dynamic>;
-            final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-            final userName = userData['displayName'] ??
-                userData['name'] ??
-                userData['email']?.split('@')[0] ??
+            final avatarUrl = userData['avatar_url'] ?? '';
+            final userName = userData['display_name'] ??
+                userData['email']?.toString().split('@')[0] ??
                 'User';
 
             return IconButton(
@@ -841,19 +811,19 @@ Widget build(BuildContext context) {
     }
     _videoRatingLoading.add(videoId);
     try {
-      final votesSnap = await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .collection('votes')
-          .get();
+      final votesSnap = await _sb
+          .from('video_ratings')
+          .select('overall_rating')
+          .eq('video_id', videoId);
+      final rows = votesSnap as List<dynamic>;
       double sum = 0.0;
-      for (final doc in votesSnap.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        sum += (data['rating'] ?? 0.0).toDouble();
+      for (final raw in rows) {
+        final data = raw as Map<String, dynamic>;
+        sum += ((data['overall_rating'] ?? 0.0) as num).toDouble();
       }
-      final avg = votesSnap.docs.isEmpty
+      final avg = rows.isEmpty
           ? 0.0
-          : double.parse((sum / votesSnap.docs.length).toStringAsFixed(2));
+          : double.parse((sum / rows.length).toStringAsFixed(2));
       if (mounted) {
         setState(() {
           _videoRatingCache[videoId] = avg;
@@ -873,13 +843,11 @@ Widget build(BuildContext context) {
     }
     _commentCountLoading.add(videoId);
     try {
-      final aggregate = await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .collection('comments')
-          .count()
-          .get();
-      final count = aggregate.count ?? 0;
+      final rows = await _sb
+          .from('video_comments')
+          .select('id')
+          .eq('video_id', videoId);
+      final count = (rows as List<dynamic>).length;
       if (mounted) {
         setState(() {
           _commentCountCache[videoId] = count;
@@ -900,15 +868,18 @@ Widget build(BuildContext context) {
     }
     _loadingUserProfiles.add(userId);
     try {
-      final doc =
-          await FirebaseFirestore.instance.collection('users').doc(userId).get();
-      final data = doc.data() ?? const <String, dynamic>{};
-      final resolvedName = (data['displayName'] ??
-              data['name'] ??
-              '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim())
+      final data = await _sb
+              .from('profiles')
+              .select('display_name,first_name,last_name,avatar_url,city,email')
+              .eq('id', userId)
+              .maybeSingle() ??
+          const <String, dynamic>{};
+      final resolvedName = (data['display_name'] ??
+              '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'.trim() ??
+              data['email']?.toString().split('@').first)
           .toString()
           .trim();
-      final avatar = (data['avatarUrl'] ?? data['avatar'] ?? '').toString();
+      final avatar = (data['avatar_url'] ?? '').toString();
       final profileCity = (data['city'] ?? '').toString();
       if (mounted) {
         setState(() {
@@ -936,21 +907,23 @@ Widget build(BuildContext context) {
     }
     _challengeMetaLoading.add(videoId);
     try {
-      final submissions = await FirebaseFirestore.instance
-          .collectionGroup('submissions')
-          .where('videoId', isEqualTo: videoId)
-          .limit(1)
-          .get();
-      if (submissions.docs.isEmpty) return;
-      final doc = submissions.docs.first;
-      final challengeRef = doc.reference.parent.parent;
-      if (challengeRef == null) return;
-      final challengeSnap = await challengeRef.get();
-      if (!challengeSnap.exists) return;
-      final challengeData =
-          challengeSnap.data() as Map<String, dynamic>? ?? const {};
+      final submissions = await _sb
+          .from('challenge_submissions')
+          .select('challenge_id')
+          .eq('video_id', videoId)
+          .limit(1);
+      final subRows = submissions as List<dynamic>;
+      if (subRows.isEmpty) return;
+      final challengeId =
+          ((subRows.first as Map<String, dynamic>)['challenge_id'] ?? '').toString();
+      if (challengeId.isEmpty) return;
+      final challengeData = await _sb
+          .from('challenges')
+          .select('title')
+          .eq('id', challengeId)
+          .maybeSingle();
+      if (challengeData == null) return;
       final title = (challengeData['title'] ?? '').toString();
-      final challengeId = challengeRef.id;
       if (mounted) {
         setState(() {
           _challengeMetaCache[videoId] = _CachedChallengeMeta(
@@ -959,20 +932,14 @@ Widget build(BuildContext context) {
           );
         });
       }
-    } on FirebaseException catch (e) {
-  if (e.code == 'permission-denied') {
-    _challengeMetaDenied.add(videoId);
-    // блокуємо повторні запити для цього videoId, щоб не було "спаму" у логах
-    _challengeMetaCache[videoId] = const _CachedChallengeMeta(
-      challengeId: '',
-      title: '',
-    );
-    return;
-  }
-  debugPrint('Error prefetching challenge meta for video $videoId: $e');
-} catch (e) {
-  debugPrint('Error prefetching challenge meta for video $videoId: $e');
-} finally {
+    } catch (e) {
+      _challengeMetaDenied.add(videoId);
+      _challengeMetaCache[videoId] = const _CachedChallengeMeta(
+        challengeId: '',
+        title: '',
+      );
+      debugPrint('Error prefetching challenge meta for video $videoId: $e');
+    } finally {
       _challengeMetaLoading.remove(videoId);
     }
   }
@@ -992,13 +959,13 @@ Widget build(BuildContext context) {
     }
 
     try {
-      final existingVote = await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .collection('votes')
-          .doc(currentUser.id)
-          .get();
-      if (existingVote.exists) {
+      final existingVote = await _sb
+          .from('video_ratings')
+          .select('id')
+          .eq('video_id', videoId)
+          .eq('rated_by', currentUser.id)
+          .maybeSingle();
+      if (existingVote != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr('il_908b4d0670')),
@@ -1471,18 +1438,18 @@ Widget build(BuildContext context) {
   }
 }
 
-  List<QueryDocumentSnapshot> _filterAndSortVideoDocs(
-    Iterable<QueryDocumentSnapshot> source, {
+  List<Map<String, dynamic>> _filterAndSortVideoDocs(
+    Iterable<Map<String, dynamic>> source, {
     bool excludeChallengeVideos = true,
   }) {
-    final docs = source.where((d) {
-      final data = d.data() as Map<String, dynamic>;
+    final docs = source.where((data) {
+      final id = (data['id'] ?? '').toString();
 
       if (excludeChallengeVideos && _isChallengeVideoData(data)) return false;
 
       if (_selectedRating.isNotEmpty) {
         final minRating = double.tryParse(_selectedRating.replaceAll('+', '')) ?? 0.0;
-        final ratingRaw = _videoRatingCache[d.id] ?? _extractVideoRating(data);
+        final ratingRaw = _videoRatingCache[id] ?? _extractVideoRating(data);
         if (ratingRaw < minRating) return false;
       }
 
@@ -1501,12 +1468,14 @@ Widget build(BuildContext context) {
     }).toList();
 
     docs.sort((a, b) {
-      final dataA = a.data() as Map<String, dynamic>? ?? const {};
-      final dataB = b.data() as Map<String, dynamic>? ?? const {};
+      final dataA = a;
+      final dataB = b;
+      final idA = (dataA['id'] ?? '').toString();
+      final idB = (dataB['id'] ?? '').toString();
 
       if (_selectedSort == 'rating_asc' || _selectedSort == 'rating_desc') {
-        final ratingA = _videoRatingCache[a.id] ?? _extractVideoRating(dataA);
-        final ratingB = _videoRatingCache[b.id] ?? _extractVideoRating(dataB);
+        final ratingA = _videoRatingCache[idA] ?? _extractVideoRating(dataA);
+        final ratingB = _videoRatingCache[idB] ?? _extractVideoRating(dataB);
         final cmp = _selectedSort == 'rating_asc'
             ? ratingA.compareTo(ratingB)
             : ratingB.compareTo(ratingA);
@@ -1535,7 +1504,7 @@ Widget build(BuildContext context) {
   }
 
   Widget _buildVideosList() {
-    return StreamBuilder<QuerySnapshot>(
+    return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _videosStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1555,7 +1524,7 @@ Widget build(BuildContext context) {
           );
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1601,7 +1570,7 @@ Widget build(BuildContext context) {
           );
         }
 
-        final docs = _filterAndSortVideoDocs(snapshot.data!.docs);
+        final docs = _filterAndSortVideoDocs(snapshot.data!);
 
         return ListView.builder(
           key: PageStorageKey<String>(
@@ -1610,29 +1579,47 @@ Widget build(BuildContext context) {
           padding: const EdgeInsets.all(20),
           itemCount: docs.length,
           itemBuilder: (context, index) {
-            final video = docs[index];
-            final data = video.data() as Map<String, dynamic>;
-            return _buildVideoCard(data, video.id);
+            final data = docs[index];
+            return _buildVideoCard(data, (data['id'] ?? '').toString());
           },
         );
       },
     );
   }
 
-  Stream<QuerySnapshot> _createVideosStream() {
-    Query query = FirebaseFirestore.instance.collection('videos');
-    final filteringOwnVideos = _showOnlyMyVideos;
-    
-    if (filteringOwnVideos) {
-      final uid = AppAuth.currentUserId;
-      if (uid != null) query = query.where('userId', isEqualTo: uid);
-    }
-    
-    // Remove city and category filters from Firestore query to avoid composite index issues
-    // These will be applied on the client side in _buildVideosList()
-    
-    // All sorting/filtering is handled client-side for consistency.
-    return query.limit(400).snapshots();
+  Stream<List<Map<String, dynamic>>> _createVideosStream() {
+    final uid = _showOnlyMyVideos ? AppAuth.currentUserId : null;
+    return _sb
+        .from('videos')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
+        .limit(400)
+        .map((rows) => rows
+            .where((row) => uid == null || (row['user_id'] ?? '').toString() == uid)
+            .map(_mapVideoRow)
+            .toList());
+  }
+
+  Map<String, dynamic> _mapVideoRow(Map<String, dynamic> row) {
+    return <String, dynamic>{
+      'id': row['id']?.toString() ?? '',
+      'title': row['title'],
+      'description': row['description'],
+      'category': row['category'] ?? row['category_code'] ?? '',
+      'rating': row['rating'] ?? row['average_rating'],
+      'views': row['views'] ?? 0,
+      'likes': row['likes'] ?? 0,
+      'comments': row['comments'] ?? row['comments_count'] ?? 0,
+      'authorName': row['author_name'],
+      'userId': row['user_id']?.toString() ?? '',
+      'city': row['city'] ?? '',
+      'createdAt': row['created_at'],
+      'videoUrl': row['video_url'],
+      'thumbnailUrl': row['thumbnail_url'],
+      'duration': row['duration'],
+      'challengeId': row['challenge_id'],
+      'challengeTitle': row['challenge_title'],
+    };
   }
 
   Widget _buildVideoCard(Map<String, dynamic> data, String videoId) {
@@ -1691,7 +1678,7 @@ Widget build(BuildContext context) {
           ? fallbackCity
           : tr('il_b764cdc0ea');
     }
-    final createdAt = data['createdAt'] as Timestamp?;
+    final createdAt = asDateTimeOrNull(data['createdAt']);
     final isLiked = data['isLikedByCurrentUser'] == true;
     final videoUrl = (data['videoUrl'] ?? '').toString();
     final thumbnailUrl = data['thumbnailUrl']?.toString();
@@ -2053,10 +2040,10 @@ Widget build(BuildContext context) {
     bool autoRate = false,
   }) async {
     try {
-      await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .update({'views': FieldValue.increment(1)});
+      await _sb.from('video_views').insert({
+        'video_id': videoId,
+        'viewer_user_id': AppAuth.currentUserId,
+      });
     } catch (_) {}
     if (!mounted) return;
     final result = await context.router.push(
@@ -2078,16 +2065,17 @@ Widget build(BuildContext context) {
 
   Future<void> _openChallenge(String challengeId, String title) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .get();
-      if (!doc.exists) {
+      final row = await _sb
+          .from('challenges')
+          .select()
+          .eq('id', challengeId)
+          .maybeSingle();
+      if (row == null) {
         throw Exception('Challenge not found');
       }
-      final challenge = Challenge.fromFirestore(doc);
+      final challenge = _mapChallengeRow(row);
       if (!mounted) return;
-      context.router.push(ChallengeDetailsRoute(challenge: challenge));
+      _viewChallengeDetails(challengeId, challenge);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2104,11 +2092,11 @@ Widget build(BuildContext context) {
     }
   }
 
-  String _formatDate(Timestamp? timestamp) {
+  String _formatDate(DateTime? timestamp) {
     if (timestamp == null) return tr('il_f81ae5034f');
     
     final now = DateTime.now();
-    final date = timestamp.toDate();
+    final date = timestamp;
     final difference = now.difference(date);
     
     if (difference.inDays > 0) {
@@ -2142,155 +2130,7 @@ Widget build(BuildContext context) {
   }
 
   Widget _buildProfileSheet() {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.8,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-      ),
-      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(AppAuth.currentUserId)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData || !snapshot.data!.exists) {
-            return Center(child: Text(tr('profile_not_found')));
-          }
-
-                     final userData = snapshot.data!.data()!;
-           final displayName = userData['authorName'] ?? userData['displayName'] ?? 'Невідомий';
-           final avatarUrl = userData['avatarUrl'] as String?;
-           final email = userData['email'] ?? '';
-
-          return Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF6a1b9a), Color(0xFF9c27b0)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    // Avatar
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(50),
-                        border: Border.all(color: Colors.white, width: 4),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(50),
-                        child: avatarUrl != null && avatarUrl.isNotEmpty
-                            ? Image.network(
-                                avatarUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.person,
-                                  size: 50,
-                                  color: Color(0xFF6a1b9a),
-                                ),
-                              )
-                            : const Icon(
-                                Icons.person,
-                                size: 50,
-                                color: Color(0xFF6a1b9a),
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    Text(
-                      displayName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      email,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Profile options
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(20),
-                  children: [
-                                         _buildProfileOption(
-                       icon: Icons.edit,
-                       title: 'Редагувати профіль',
-                       onTap: () {
-                         Navigator.pop(context);
-                         context.router.push(const ProfileRoute());
-                       },
-                     ),
-                    _buildProfileOption(
-                      icon: Icons.video_library,
-                      title: 'Мої відео',
-                      onTap: () {
-                        Navigator.pop(context);
-                        // TODO: Show user's videos
-                      },
-                    ),
-                    _buildProfileOption(
-                      icon: Icons.favorite,
-                      title: 'Улюблені',
-                      onTap: () {
-                        Navigator.pop(context);
-                        // TODO: Show liked videos
-                      },
-                    ),
-                    _buildProfileOption(
-                      icon: Icons.settings,
-                      title: 'Налаштування',
-                      onTap: () {
-                        Navigator.pop(context);
-                        // TODO: Navigate to settings
-                      },
-                    ),
-                    const Divider(height: 30),
-                    _buildProfileOption(
-                      icon: Icons.logout,
-                      title: 'Вийти',
-                      onTap: () async {
-                        await AppAuth.signOut();
-                        Navigator.pop(context);
-                        context.router.replace(const LoginRoute());
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
+    return const SizedBox.shrink();
   }
 
   Widget _buildProfileOption({
@@ -2314,19 +2154,18 @@ Widget build(BuildContext context) {
 
   // Список челенджів
   Widget _buildChallengesList() {
-    return StreamBuilder<QuerySnapshot>(
+    return StreamBuilder<List<Map<String, dynamic>>>(
       stream: (() {
-        Query q = FirebaseFirestore.instance.collection('challenges');
-        if (_showOnlyMyChallenges) {
-          final uid = AppAuth.currentUserId;
-          if (uid != null) {
-            q = q.where('creatorId', isEqualTo: uid);
-          }
-          q = q.limit(20);
-        } else {
-          q = q.orderBy('createdAt', descending: true).limit(20);
-        }
-        return q.snapshots();
+        final uid = _showOnlyMyChallenges ? AppAuth.currentUserId : null;
+        return _sb
+            .from('challenges')
+            .stream(primaryKey: ['id'])
+            .order('created_at', ascending: false)
+            .limit(20)
+            .map((rows) => rows
+                .where((row) => uid == null || (row['creator_id'] ?? '').toString() == uid)
+                .map(_mapChallengeRow)
+                .toList());
       })(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -2341,7 +2180,7 @@ Widget build(BuildContext context) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final challenges = snapshot.data?.docs ?? [];
+        final challenges = snapshot.data ?? const <Map<String, dynamic>>[];
 
         if (challenges.isEmpty) {
           return Center(
@@ -2395,12 +2234,43 @@ Widget build(BuildContext context) {
           padding: const EdgeInsets.all(20),
           itemCount: challenges.length,
           itemBuilder: (context, index) {
-            final challenge = challenges[index].data() as Map<String, dynamic>;
-            return _buildChallengeCard(challenge, challenges[index].id);
+            final challenge = challenges[index];
+            return _buildChallengeCard(challenge, (challenge['id'] ?? '').toString());
           },
         );
       },
     );
+  }
+
+  Map<String, dynamic> _mapChallengeRow(Map<String, dynamic> row) {
+    return <String, dynamic>{
+      'id': row['id']?.toString() ?? '',
+      'title': row['title'],
+      'description': row['description'],
+      'type': row['type'] ?? row['challenge_type'] ?? 'goal',
+      'audience': row['audience'] ?? 'city',
+      'status': row['status'] ?? 'recruiting',
+      'creatorId': row['creator_id']?.toString() ?? '',
+      'creatorName': row['creator_name'] ?? '',
+      'city': row['city'] ?? '',
+      'entryFee': row['entry_fee'] ?? 0,
+      'duration': row['duration'] ?? 7,
+      'createdAt': row['created_at'],
+      'startDate': row['start_date'],
+      'submissionDeadline': row['submission_deadline'],
+      'votingDeadline': row['voting_deadline'],
+      'endDate': row['end_date'],
+      'maxParticipants': row['max_participants'] ?? 50,
+      'currentParticipants': row['current_participants'] ?? 0,
+      'prizePool': row['prize_pool'] ?? 0.0,
+      'participants': row['participants'] ?? const <String>[],
+      'creatorVideoUrl': row['creator_video_url'],
+      'creatorThumbnailUrl': row['creator_thumbnail_url'],
+      'thumbnailUrl': row['thumbnail_url'],
+      'imageUrl': row['image_url'],
+      'isActive': row['is_active'] ?? true,
+      'tags': row['tags'] ?? const <String>[],
+    };
   }
 
   // Картка челенджу
@@ -2433,11 +2303,11 @@ Widget build(BuildContext context) {
     final participants =
         List<String>.from(challenge['participants'] ?? const []);
     final now = DateTime.now();
-    final createdAtTs = challenge['createdAt'] as Timestamp?;
-    final votingDeadlineTs = challenge['votingDeadline'] as Timestamp?;
-    final endDateTs = challenge['endDate'] as Timestamp?;
-    final votingDeadline = votingDeadlineTs?.toDate() ?? endDateTs?.toDate();
-    final createdAt = createdAtTs?.toDate() ?? now;
+    final createdAtTs = asDateTimeOrNull(challenge['createdAt']);
+    final votingDeadlineTs = asDateTimeOrNull(challenge['votingDeadline']);
+    final endDateTs = asDateTimeOrNull(challenge['endDate']);
+    final votingDeadline = votingDeadlineTs ?? endDateTs;
+    final createdAt = createdAtTs ?? now;
     final isCompletedByDate =
         votingDeadline != null && now.isAfter(votingDeadline);
     final isCompleted = status == 'completed' || isCompletedByDate;
@@ -2964,19 +2834,20 @@ Widget build(BuildContext context) {
         child: const Icon(Icons.person, color: Colors.white70),
       );
     }
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future:
-          FirebaseFirestore.instance.collection('users').doc(userId).get(),
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _sb
+          .from('profiles')
+          .select('display_name, avatar_url, email')
+          .eq('id', userId)
+          .maybeSingle(),
       builder: (context, snapshot) {
-        final data = snapshot.data?.data();
-        final resolvedName = (data?['displayName'] ??
-                data?['name'] ??
-                data?['authorName'] ??
+        final data = snapshot.data;
+        final resolvedName = (data?['display_name'] ??
+                data?['email']?.toString().split('@').first ??
                 name ??
                 tr('il_64aee8c6cb'))
             .toString();
-        final avatarUrl =
-            (data?['avatarUrl'] ?? data?['avatar'] ?? '').toString();
+        final avatarUrl = (data?['avatar_url'] ?? '').toString();
         return PlayerAvatarButton(
           userId: userId,
           displayName: resolvedName,
@@ -3043,11 +2914,13 @@ Widget build(BuildContext context) {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return const SizedBox.shrink();
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('videos')
-          .where('userId', isEqualTo: currentUser.id)
-          .snapshots(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _sb
+          .from('videos')
+          .stream(primaryKey: ['id'])
+          .eq('user_id', currentUser.id)
+          .order('created_at', ascending: false)
+          .map((rows) => rows.map(_mapVideoRow).toList()),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -3061,7 +2934,7 @@ Widget build(BuildContext context) {
           );
                   }
 
-        final videos = _filterAndSortVideoDocs(snapshot.data?.docs ?? const []);
+        final videos = _filterAndSortVideoDocs(snapshot.data ?? const []);
 
         if (videos.isEmpty) {
           return Center(
@@ -3114,8 +2987,8 @@ Widget build(BuildContext context) {
           padding: const EdgeInsets.all(20),
           itemCount: videos.length,
           itemBuilder: (context, index) {
-            final video = videos[index].data() as Map<String, dynamic>;
-            final videoId = videos[index].id;
+            final video = videos[index];
+            final videoId = (video['id'] ?? '').toString();
             return Dismissible(
               key: ValueKey('my-video-$videoId'),
               direction: DismissDirection.endToStart,
@@ -3170,7 +3043,7 @@ Widget build(BuildContext context) {
 
   Future<void> _deleteVideo(String videoId, Map<String, dynamic> data) async {
     try {
-      await FirebaseFirestore.instance.collection('videos').doc(videoId).delete();
+      await _sb.from('videos').delete().eq('id', videoId);
 
       final urls = <String>[
         (data['videoUrl'] ?? '').toString(),
@@ -3201,7 +3074,7 @@ Widget build(BuildContext context) {
 
   // Трендові відео
   Widget _buildTrendingVideos() {
-    return StreamBuilder<QuerySnapshot>(
+    return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _videosStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -3216,7 +3089,7 @@ Widget build(BuildContext context) {
           );
         }
 
-        final videos = _filterAndSortVideoDocs(snapshot.data?.docs ?? const []);
+        final videos = _filterAndSortVideoDocs(snapshot.data ?? const []);
 
         if (videos.isEmpty) {
           return Center(
@@ -3247,8 +3120,8 @@ Widget build(BuildContext context) {
           padding: const EdgeInsets.all(20),
           itemCount: videos.length,
           itemBuilder: (context, index) {
-            final video = videos[index].data() as Map<String, dynamic>;
-            return _buildVideoCard(video, videos[index].id);
+            final video = videos[index];
+            return _buildVideoCard(video, (video['id'] ?? '').toString());
           },
         );
       },
@@ -3260,8 +3133,8 @@ Widget build(BuildContext context) {
     // Перевірити чи користувач вже учасник
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
-    final votingDeadline = (challenge['votingDeadline'] as Timestamp?)?.toDate();
-    final endDate = (challenge['endDate'] as Timestamp?)?.toDate();
+    final votingDeadline = asDateTimeOrNull(challenge['votingDeadline']);
+    final endDate = asDateTimeOrNull(challenge['endDate']);
     final isCompletedByDate = (votingDeadline != null &&
             DateTime.now().isAfter(votingDeadline)) ||
         (endDate != null && DateTime.now().isAfter(endDate));
@@ -3320,12 +3193,12 @@ Widget build(BuildContext context) {
               
               // Спочатку додаємо користувача в учасники
               try {
-                await FirebaseFirestore.instance
-                    .collection('challenges')
-                    .doc(challengeId)
-                    .update({
-                  'participants': FieldValue.arrayUnion([currentUser.id]),
-                  'currentParticipants': FieldValue.increment(1),
+                await _sb
+                    .from('challenge_participants')
+                    .upsert(<String, dynamic>{
+                  'challenge_id': challengeId,
+                  'user_id': currentUser.id,
+                  'status': 'joined',
                 });
                 
                 // Тепер переходимо до завантаження відео
@@ -3368,11 +3241,13 @@ Widget build(BuildContext context) {
       city: challengeData['city'] ?? '',
       entryFee: challengeData['entryFee'] ?? 10,
       duration: challengeData['duration'] ?? 7,
-      createdAt: (challengeData['createdAt'] as Timestamp).toDate(),
-      startDate: (challengeData['startDate'] as Timestamp).toDate(),
-      submissionDeadline: (challengeData['submissionDeadline'] as Timestamp).toDate(),
-      votingDeadline: (challengeData['votingDeadline'] as Timestamp).toDate(),
-      endDate: (challengeData['endDate'] as Timestamp).toDate(),
+      createdAt: asDateTimeOrNull(challengeData['createdAt']) ?? DateTime.now(),
+      startDate: asDateTimeOrNull(challengeData['startDate']) ?? DateTime.now(),
+      submissionDeadline:
+          asDateTimeOrNull(challengeData['submissionDeadline']) ?? DateTime.now(),
+      votingDeadline:
+          asDateTimeOrNull(challengeData['votingDeadline']) ?? DateTime.now(),
+      endDate: asDateTimeOrNull(challengeData['endDate']) ?? DateTime.now(),
       status: ChallengeStatus.values.firstWhere(
         (e) => e.toString() == 'ChallengeStatus.${challengeData['status']}',
         orElse: () => ChallengeStatus.recruiting,
@@ -3400,23 +3275,17 @@ Widget build(BuildContext context) {
     final uid = AppAuth.currentUserId;
     if (uid == null) return;
     try {
-      final likeRef = FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .collection('likes')
-          .doc(uid);
       if (isCurrentlyLiked) {
-        await likeRef.delete();
-        await FirebaseFirestore.instance
-            .collection('videos')
-            .doc(videoId)
-            .update({'likes': FieldValue.increment(-1)});
+        await _sb
+            .from('video_likes')
+            .delete()
+            .eq('video_id', videoId)
+            .eq('user_id', uid);
       } else {
-        await likeRef.set({'userId': uid, 'createdAt': FieldValue.serverTimestamp()});
-        await FirebaseFirestore.instance
-            .collection('videos')
-            .doc(videoId)
-            .update({'likes': FieldValue.increment(1)});
+        await _sb.from('video_likes').upsert({
+          'video_id': videoId,
+          'user_id': uid,
+        });
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3484,13 +3353,12 @@ Widget build(BuildContext context) {
             const SizedBox(height: 20),
             // Comments list
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('videos')
-                    .doc(videoId)
-                    .collection('comments')
-                    .orderBy('createdAt', descending: true)
-                    .snapshots(),
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: _sb
+                    .from('video_comments')
+                    .stream(primaryKey: ['id'])
+                    .eq('video_id', videoId)
+                    .order('created_at', ascending: false),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
@@ -3498,7 +3366,7 @@ Widget build(BuildContext context) {
                     );
                   }
 
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -3531,98 +3399,85 @@ Widget build(BuildContext context) {
 
                   return ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: snapshot.data!.docs.length,
+                    itemCount: snapshot.data!.length,
                     itemBuilder: (context, index) {
-                      final comment = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-                      final userId = (comment['userId'] ?? '').toString();
+                      final comment = snapshot.data![index];
+                      final userId = (comment['user_id'] ?? '').toString();
                       final commentText =
-                          (comment['comment'] ?? comment['text'] ?? '').toString();
-                      final timestamp = comment['createdAt'] as Timestamp?;
-
-                      return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                        future: userId.isEmpty
-                            ? null
-                            : FirebaseFirestore.instance.collection('users').doc(userId).get(),
-                        builder: (context, userSnapshot) {
-                          final userData = userSnapshot.data?.data() ?? const <String, dynamic>{};
-                          final authorName = (userData['displayName'] ??
-                                  userData['name'] ??
-                                  userData['authorName'] ??
-                                  'Користувач')
+                          (comment['comment'] ?? comment['text'] ?? comment['body'] ?? '')
                               .toString();
-                          final avatarUrl =
-                              (userData['avatarUrl'] ?? userData['photoUrl'] ?? '').toString();
+                      final timestamp = comment['created_at'];
+                      final authorName = (comment['author_name'] ?? tr('il_b764cdc0ea'))
+                          .toString();
 
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.12),
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            PlayerAvatarButton(
+                              userId: userId,
+                              displayName: authorName,
+                              avatarUrl: null,
+                              size: 38,
+                              backgroundColor: const Color(0xFF4caf50),
+                              borderColor: Colors.white.withValues(alpha: 0.25),
+                              borderWidth: 1,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  GestureDetector(
+                                    onTap: () {
+                                      if (userId.isEmpty) return;
+                                      context.router.push(
+                                        PlayerProfileRoute(
+                                          playerId: userId,
+                                          playerName: authorName,
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      authorName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    commentText,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.9),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  if (timestamp != null)
+                                    Text(
+                                      _formatTimestamp(timestamp),
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.5),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                PlayerAvatarButton(
-                                  userId: userId,
-                                  displayName: authorName,
-                                  avatarUrl: avatarUrl,
-                                  size: 38,
-                                  backgroundColor: const Color(0xFF4caf50),
-                                  borderColor: Colors.white.withValues(alpha: 0.25),
-                                  borderWidth: 1,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      GestureDetector(
-                                        onTap: () {
-                                          if (userId.isEmpty) return;
-                                          context.router.push(
-                                            PlayerProfileRoute(
-                                              playerId: userId,
-                                              playerName: authorName,
-                                            ),
-                                          );
-                                        },
-                                        child: Text(
-                                          authorName,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        commentText,
-                                        style: TextStyle(
-                                          color: Colors.white.withValues(alpha: 0.9),
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      if (timestamp != null)
-                                        Text(
-                                          _formatTimestamp(timestamp),
-                                          style: TextStyle(
-                                            color: Colors.white.withValues(alpha: 0.5),
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                          ],
+                        ),
                       );
                     },
                   );
@@ -3706,9 +3561,10 @@ Widget build(BuildContext context) {
     );
   }
 
-  String _formatTimestamp(Timestamp timestamp) {
+  String _formatTimestamp(dynamic timestamp) {
+    final commentTime = asDateTimeOrNull(timestamp);
+    if (commentTime == null) return tr('il_66f53417d3');
     final now = DateTime.now();
-    final commentTime = timestamp.toDate();
     final difference = now.difference(commentTime);
 
     if (difference.inDays > 0) {
@@ -3749,22 +3605,10 @@ Widget build(BuildContext context) {
 
     try {
       // Додати коментар
-      await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .collection('comments')
-          .add({
-        'userId': currentUser.id,
-        'comment': comment,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      // Оновити лічильник коментарів
-      await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .update({
-        'comments': FieldValue.increment(1),
+      await _sb.from('video_comments').insert({
+        'video_id': videoId,
+        'user_id': currentUser.id,
+        'body': comment,
       });
 
       _commentCountCache.remove(videoId);
@@ -3791,82 +3635,92 @@ Widget build(BuildContext context) {
 
   // User chips with coins and rating
   Widget _buildUserChips() {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(AppAuth.currentUserId)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
-          return const SizedBox.shrink();
-        }
-
-        final userData = snapshot.data!.data() as Map<String, dynamic>;
-        final coins = userData['coins'] ?? 0;
-        final rating = (userData['rating'] ?? 0.0).toDouble();
-
-        return Padding(
-          padding: const EdgeInsets.only(right: 8.0),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              InkWell(
-                onTap: () => _showCoinsHistory(coins),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFffc107).withValues(alpha: 0.2),
+    final uid = AppAuth.currentUserId;
+    if (uid == null) return const SizedBox.shrink();
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _sb
+          .from('coin_transactions')
+          .stream(primaryKey: ['id'])
+          .eq('user_id', uid),
+      builder: (context, txSnapshot) {
+        final rows = txSnapshot.data ?? const <Map<String, dynamic>>[];
+        final coins = rows.fold<int>(
+          0,
+          (sum, r) => sum + (((r['amount'] as num?) ?? 0).toInt()),
+        );
+        return FutureBuilder<Map<String, dynamic>?>(
+          future: _sb
+              .from('profiles')
+              .select('rating')
+              .eq('id', uid)
+              .maybeSingle(),
+          builder: (context, profileSnap) {
+            final rating =
+                ((profileSnap.data?['rating'] as num?) ?? 0).toDouble();
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: () => _showCoinsHistory(coins),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFffc107), width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.monetization_on, color: Color(0xFFffc107), size: 16),
-                      const SizedBox(width: 4),
-                      Text(
-                        coins.toString(),
-                        style: const TextStyle(
-                          color: Color(0xFFffc107),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFffc107).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFffc107), width: 1),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.monetization_on, color: Color(0xFFffc107), size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            coins.toString(),
+                            style: const TextStyle(
+                              color: Color(0xFFffc107),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: () => _showRatingHistory(userData),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4caf50).withValues(alpha: 0.2),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => _showRatingHistory(rating),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF4caf50), width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
-                      const SizedBox(width: 4),
-                      Text(
-                        rating.toStringAsFixed(2),
-                        style: const TextStyle(
-                          color: Color(0xFF4caf50),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4caf50).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF4caf50), width: 1),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            rating.toStringAsFixed(2),
+                            style: const TextStyle(
+                              color: Color(0xFF4caf50),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -3918,12 +3772,11 @@ Widget build(BuildContext context) {
               ),
               const Divider(color: Colors.white12),
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('transactions')
-                      .where('userId', isEqualTo: uid)
-                      .limit(50)
-                      .snapshots(),
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: _sb
+                      .from('coin_transactions')
+                      .stream(primaryKey: ['id'])
+                      .eq('user_id', uid),
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return Center(
@@ -3937,12 +3790,10 @@ Widget build(BuildContext context) {
                       return const Center(
                           child: CircularProgressIndicator(color: Color(0xFFFFD700)));
                     }
-                    final docs = snapshot.data!.docs.toList()
+                    final docs = (snapshot.data ?? const <Map<String, dynamic>>[])
                       ..sort((a, b) {
-                        final ad = a.data() as Map<String, dynamic>;
-                        final bd = b.data() as Map<String, dynamic>;
-                        final at = ad['timestamp'] as Timestamp?;
-                        final bt = bd['timestamp'] as Timestamp?;
+                        final at = asDateTimeOrNull(a['created_at']);
+                        final bt = asDateTimeOrNull(b['created_at']);
                         if (at == null && bt == null) return 0;
                         if (at == null) return 1;
                         if (bt == null) return -1;
@@ -3960,10 +3811,10 @@ Widget build(BuildContext context) {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       itemCount: docs.length,
                       itemBuilder: (context, index) {
-                        final data = docs[index].data() as Map<String, dynamic>;
+                        final data = docs[index];
                         final amount = (data['amount'] ?? 0) as num;
                         final description = (data['description'] ?? '').toString();
-                        final ts = data['timestamp'] as Timestamp?;
+                        final ts = data['created_at'];
                         final timestampText = ts != null
                             ? _formatTimestamp(ts)
                             : tr('il_f81ae5034f');
@@ -4029,10 +3880,9 @@ Widget build(BuildContext context) {
     );
   }
 
-  void _showRatingHistory(Map<String, dynamic> userData) {
+  void _showRatingHistory(double currentRating) {
     final uid = AppAuth.currentUserId;
     if (uid == null) return;
-    final currentRating = ((userData['rating'] ?? 0.0) as num).toDouble();
 
     showModalBottomSheet(
       context: context,
@@ -4086,12 +3936,13 @@ Widget build(BuildContext context) {
               ),
               const Divider(color: Colors.white10),
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('rating_history')
-                      .where('userId', isEqualTo: uid)
-                      .limit(50)
-                      .snapshots(),
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: _sb
+                      .from('user_rating_snapshots')
+                      .stream(primaryKey: ['id'])
+                      .eq('user_id', uid)
+                      .order('created_at', ascending: false)
+                      .limit(50),
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return Center(
@@ -4107,17 +3958,7 @@ Widget build(BuildContext context) {
                       );
                     }
 
-                    final docs = snapshot.data!.docs.toList()
-                      ..sort((a, b) {
-                        final ad = a.data() as Map<String, dynamic>;
-                        final bd = b.data() as Map<String, dynamic>;
-                        final at = ad['timestamp'] as Timestamp?;
-                        final bt = bd['timestamp'] as Timestamp?;
-                        if (at == null && bt == null) return 0;
-                        if (at == null) return 1;
-                        if (bt == null) return -1;
-                        return bt.compareTo(at);
-                      });
+                    final docs = snapshot.data ?? const <Map<String, dynamic>>[];
 
                     if (docs.isEmpty) {
                       return Center(
@@ -4132,15 +3973,15 @@ Widget build(BuildContext context) {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       itemCount: docs.length,
                       itemBuilder: (context, index) {
-                        final entry = docs[index].data() as Map<String, dynamic>;
-                        final delta = (entry['change'] ?? 0.0).toDouble();
-                        final oldRating = (entry['oldRating'] ?? 0.0).toDouble();
-                        final newRating = (entry['newRating'] ?? 0.0).toDouble();
+                        final entry = docs[index];
+                        final delta = 0.0;
+                        final oldRating = (entry['rating_value'] ?? 0.0).toDouble();
+                        final newRating = (entry['rating_value'] ?? 0.0).toDouble();
                         final reason = (entry['reason'] ?? '').toString();
                         final challengeTitle =
                             (entry['challengeTitle'] ?? '').toString();
                         final voterName = (entry['voterName'] ?? '').toString();
-                        final timestamp = entry['timestamp'] as Timestamp?;
+                        final timestamp = entry['created_at'];
                         final deltaSign = delta >= 0 ? '+' : '';
 
                         return Container(

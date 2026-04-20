@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 import '../../domain/entities/submission_entity.dart';
@@ -26,9 +25,23 @@ class Submission extends SubmissionEntity {
     super.isActive = true,
   });
 
-  // Factory constructor from Firestore
-  factory Submission.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  static DateTime _readDate(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+    try {
+      final dynamic v = value;
+      final date = v?.toDate();
+      if (date is DateTime) return date;
+    } catch (_) {}
+    return DateTime.now();
+  }
+
+  // Factory constructor from Firestore / remote-like docs
+  factory Submission.fromFirestore(dynamic doc) {
+    final raw = doc.data();
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     
     final votes = Map<String, double>.from(data['votes'] ?? {});
     final totalVotes = votes.length;
@@ -37,7 +50,7 @@ class Submission extends SubmissionEntity {
         : 0.0;
 
     return Submission(
-      id: doc.id,
+      id: (doc.id ?? '').toString(),
       challengeId: data['challengeId'] ?? '',
       userId: data['userId'] ?? '',
       userName: data['userName'] ?? '',
@@ -46,7 +59,7 @@ class Submission extends SubmissionEntity {
       thumbnailUrl: data['thumbnailUrl'],
       title: data['title'] ?? '',
       description: data['description'],
-      submittedAt: (data['submittedAt'] as Timestamp).toDate(),
+      submittedAt: _readDate(data['submittedAt']),
       votes: votes,
       averageRating: averageRating,
       totalVotes: totalVotes,
@@ -59,7 +72,7 @@ class Submission extends SubmissionEntity {
 
   Map<String, dynamic> toJson() => _$SubmissionToJson(this);
 
-  // Convert to Map for Firestore
+  // Convert to Map for Firestore-like clients
   Map<String, dynamic> toFirestore() {
     return {
       'challengeId': challengeId,
@@ -70,7 +83,7 @@ class Submission extends SubmissionEntity {
       'thumbnailUrl': thumbnailUrl,
       'title': title,
       'description': description,
-      'submittedAt': Timestamp.fromDate(submittedAt),
+      'submittedAt': submittedAt,
       'votes': votes,
       'averageRating': averageRating,
       'totalVotes': totalVotes,

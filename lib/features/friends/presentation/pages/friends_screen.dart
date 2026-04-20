@@ -7,8 +7,7 @@ import 'package:flap_app/city_localization.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/friends_repository.dart';
 import '../../../../router/app_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/models/friend_request.dart';
 import 'dart:async';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -21,8 +20,8 @@ class FriendsScreen extends StatefulWidget {
 
 class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateMixin {
   FriendsRepository get _friendsRepo => sl<FriendsRepository>();
+  final SupabaseClient _sb = Supabase.instance.client;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   late TabController _tabController;
   
   List<Friend> _friends = [];
@@ -782,22 +781,23 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       print('🔍 Starting search for: "$query"');
       
       // Спочатку перевіримо чи є користувачі взагалі
-      final allUsers = await FirebaseFirestore.instance
-          .collection('users')
-          .limit(5)
-          .get();
+      final allUsers = await _sb
+          .from('profiles')
+          .select('id, display_name, email')
+          .limit(5);
       
-      print('📊 Total users in database: ${allUsers.docs.length}');
+      final rows = allUsers as List<dynamic>;
+      print('📊 Total users in database: ${rows.length}');
       
-      if (allUsers.docs.isEmpty) {
+      if (rows.isEmpty) {
         print('❌ No users found in database!');
         return [];
       }
       
       // Показуємо перших кілька користувачів для діагностики
-      for (var doc in allUsers.docs.take(3)) {
-        final data = doc.data();
-        print('👤 User sample: ${doc.id} -> name: "${data['name']}", displayName: "${data['displayName']}", email: "${data['email']}"');
+      for (final raw in rows.take(3)) {
+        final data = raw as Map<String, dynamic>;
+        print('👤 User sample: ${data['id']} -> displayName: "${data['display_name']}", email: "${data['email']}"');
       }
       
       final results = await _friendsRepo.searchUsers(query.trim());
@@ -941,86 +941,15 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;
 
-      // Перевіряємо чи є інші користувачі крім поточного
-      final existingUsers = await FirebaseFirestore.instance
-          .collection('users')
-          .limit(5)
-          .get();
-
-      final otherUsers = existingUsers.docs
-          .where((doc) => doc.id != currentUser.id)
-          .toList();
-
-      if (otherUsers.length < 3) {
-        // Створюємо тестових користувачів
-        final batch = FirebaseFirestore.instance.batch();
-        
-        final testUsers = [
-          {
-            'name': 'Leo',
-            'displayName': 'Leo Messi',
-            'firstName': 'Leo',
-            'lastName': 'Messi',
-            'email': 'leo.messi@example.com',
-            'city': 'Kyiv',
-            'country': 'Ukraine',
-            'position': 'Forward',
-            'rating': 4.8,
-            'coins': 250,
-            'avatarUrl': '',
-            'createdAt': FieldValue.serverTimestamp(),
-          },
-          {
-            'name': 'Vinnie Jr',
-            'displayName': 'Vinnie Jr',
-            'firstName': 'Vinnie',
-            'lastName': 'Jr',
-            'email': 'vinnie.jr@example.com',
-            'city': 'Lviv',
-            'country': 'Ukraine',
-            'position': 'Midfielder',
-            'rating': 4.2,
-            'coins': 180,
-            'avatarUrl': '',
-            'createdAt': FieldValue.serverTimestamp(),
-          },
-          {
-            'name': 'Cristiano',
-            'displayName': 'Cristiano Ronaldo',
-            'firstName': 'Cristiano',
-            'lastName': 'Ronaldo',
-            'email': 'cristiano@example.com',
-            'city': 'Odesa',
-            'country': 'Ukraine',
-            'position': 'Forward',
-            'rating': 4.9,
-            'coins': 320,
-            'avatarUrl': '',
-            'createdAt': FieldValue.serverTimestamp(),
-          },
-          {
-            'name': 'Neymar',
-            'displayName': 'Neymar Jr',
-            'firstName': 'Neymar',
-            'lastName': 'Jr',
-            'email': 'neymar@example.com',
-            'city': 'Kharkiv',
-            'country': 'Ukraine',
-            'position': 'Winger',
-            'rating': 4.3,
-            'coins': 200,
-            'avatarUrl': '',
-            'createdAt': FieldValue.serverTimestamp(),
-          },
-        ];
-
-        for (final userData in testUsers) {
-          final docRef = FirebaseFirestore.instance.collection('users').doc();
-          batch.set(docRef, userData);
-        }
-
-        await batch.commit();
-        print('✅ Test users created for friend search');
+      // Supabase profiles are tied to auth.users; don't seed fake profile rows here.
+      final existingUsers = await _sb
+          .from('profiles')
+          .select('id')
+          .neq('id', currentUser.id)
+          .limit(5);
+      final otherUsersCount = (existingUsers as List<dynamic>).length;
+      if (otherUsersCount < 3) {
+        print('ℹ️ Not enough users for rich search demo; skipping local test-user seeding.');
       }
     } catch (e) {
       print('❌ Error creating test users: $e');

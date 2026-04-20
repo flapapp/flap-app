@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,27 +6,17 @@ import '../../../../core/supabase/coin_ledger.dart';
 import '../../data/models/subscription.dart';
 
 class SubscriptionService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  // Collection references
-  CollectionReference get _subscriptionsCollection =>
-      _firestore.collection('subscriptions');
+  final SupabaseClient _client = Supabase.instance.client;
 
   // Get user's current subscription
   Future<Subscription?> getUserSubscription(String userId) async {
     try {
-      final subscriptionDoc = await _subscriptionsCollection
-          .where('userId', isEqualTo: userId)
-          .where('isActive', isEqualTo: true)
-          .limit(1)
-          .get();
-
-      if (subscriptionDoc.docs.isEmpty) {
+      final row = await _activeSubscriptionRow(userId);
+      if (row == null) {
         // Create default free subscription
         return await _createFreeSubscription(userId);
       }
-
-      return Subscription.fromFirestore(subscriptionDoc.docs.first);
+      return _toSubscription(row);
     } catch (e) {
       print('Error getting user subscription: $e');
       return await _createFreeSubscription(userId);
@@ -36,16 +25,19 @@ class SubscriptionService {
 
   // Get user subscription stream
   Stream<Subscription?> getUserSubscriptionStream(String userId) {
-    return _subscriptionsCollection
-        .where('userId', isEqualTo: userId)
-        .where('isActive', isEqualTo: true)
-        .limit(1)
-        .snapshots()
-        .map((snapshot) {
-          if (snapshot.docs.isEmpty) {
+    return _client
+        .from('subscriptions')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
+        .order('starts_at', ascending: false)
+        .map((rows) {
+          final active = rows
+              .where((row) => row['status'] == 'trial' || row['status'] == 'active')
+              .toList(growable: false);
+          if (active.isEmpty) {
             return null;
           }
-          return Subscription.fromFirestore(snapshot.docs.first);
+          return _toSubscription(active.first);
         });
   }
 
@@ -71,6 +63,7 @@ class SubscriptionService {
 
   // Create free subscription for new users
   Future<Subscription> _createFreeSubscription(String userId) async {
+    final planId = await _resolvePlanId(SubscriptionType.free);
     final now = DateTime.now();
     final subscription = Subscription(
       id: '',
@@ -84,8 +77,12 @@ class SubscriptionService {
       features: {},
     );
 
-    final docRef = await _subscriptionsCollection.add(subscription.toFirestore());
-    return subscription.copyWith(id: docRef.id);
+    final inserted = await _client
+        .from('subscriptions')
+        .insert(subscription.toSupabase(planId))
+        .select('id')
+        .single();
+    return subscription.copyWith(id: inserted['id'].toString());
   }
 
   // Start Champions League trial
@@ -97,20 +94,22 @@ class SubscriptionService {
       }
 
       // Check if user already had trial
-      final existingSubscriptions = await _subscriptionsCollection
-          .where('userId', isEqualTo: currentUser.id)
-          .where('type', isEqualTo: 'champions')
-          .get();
+      final existingSubscriptions = await _client
+          .from('subscriptions')
+          .select('trial_ends_at, subscription_plans!inner(code)')
+          .eq('user_id', currentUser.id)
+          .eq('subscription_plans.code', 'champions');
 
-      for (final doc in existingSubscriptions.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        if (data['trialEndDate'] != null) {
+      for (final row in existingSubscriptions as List<dynamic>) {
+        final map = row as Map<String, dynamic>;
+        if (map['trial_ends_at'] != null) {
           throw Exception('Ви вже використали пробний період');
         }
       }
 
       // Deactivate current subscription
       await _deactivateCurrentSubscription(currentUser.id);
+      final planId = await _resolvePlanId(SubscriptionType.champions);
 
       // Create trial subscription
       final now = DateTime.now();
@@ -129,8 +128,12 @@ class SubscriptionService {
         features: {},
       );
 
-      final docRef = await _subscriptionsCollection.add(subscription.toFirestore());
-      final newSubscription = subscription.copyWith(id: docRef.id);
+      final inserted = await _client
+          .from('subscriptions')
+          .insert(subscription.toSupabase(planId))
+          .select('id')
+          .single();
+      final newSubscription = subscription.copyWith(id: inserted['id'].toString());
 
       // Award trial coins
       await _awardMonthlyCoins(currentUser.id, SubscriptionType.champions);
@@ -152,6 +155,7 @@ class SubscriptionService {
 
       // Deactivate current subscription
       await _deactivateCurrentSubscription(currentUser.id);
+      final planId = await _resolvePlanId(type);
 
       // Create new subscription
       final now = DateTime.now();
@@ -170,8 +174,12 @@ class SubscriptionService {
         features: {},
       );
 
-      final docRef = await _subscriptionsCollection.add(subscription.toFirestore());
-      final newSubscription = subscription.copyWith(id: docRef.id);
+      final inserted = await _client
+          .from('subscriptions')
+          .insert(subscription.toSupabase(planId))
+          .select('id')
+          .single();
+      final newSubscription = subscription.copyWith(id: inserted['id'].toString());
 
       // Award monthly coins
       await _awardMonthlyCoins(currentUser.id, type);
@@ -185,14 +193,11 @@ class SubscriptionService {
 
   // Deactivate current subscription
   Future<void> _deactivateCurrentSubscription(String userId) async {
-    final activeSubscriptions = await _subscriptionsCollection
-        .where('userId', isEqualTo: userId)
-        .where('isActive', isEqualTo: true)
-        .get();
-
-    for (final doc in activeSubscriptions.docs) {
-      await doc.reference.update({'isActive': false});
-    }
+    await _client
+        .from('subscriptions')
+        .update({'status': 'expired'})
+        .eq('user_id', userId)
+        .inFilter('status', ['trial', 'active']);
   }
 
   // Award monthly coins based on subscription type
@@ -235,10 +240,14 @@ class SubscriptionService {
       }
 
       // Update subscription status
-      await _subscriptionsCollection.doc(subscription.id).update({
-        'status': 'cancelled',
-        'autoRenew': false,
-      });
+      await _client
+          .from('subscriptions')
+          .update({
+            'status': 'cancelled',
+            'auto_renew': false,
+            'cancelled_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', subscription.id);
 
       // Create free subscription
       await _createFreeSubscription(currentUser.id);
@@ -285,13 +294,13 @@ class SubscriptionService {
     final now = DateTime.now();
     final monthStart = DateTime(now.year, now.month, 1);
     
-    final challengesCount = await _firestore.collection('challenges')
-        .where('creatorId', isEqualTo: userId)
-        .where('createdAt', isGreaterThan: Timestamp.fromDate(monthStart))
-        .count()
-        .get();
+    final rows = await _client
+        .from('challenges')
+        .select('id')
+        .eq('creator_id', userId)
+        .gte('created_at', monthStart.toUtc().toIso8601String());
 
-    return challengesCount.count! < limit;
+    return (rows as List<dynamic>).length < limit;
   }
 
   // Get subscription benefits text
@@ -327,5 +336,61 @@ class SubscriptionService {
     final userId = AppAuth.currentUserId;
     if (userId == null) return null;
     return getUserSubscription(userId);
+  }
+
+  Future<Map<String, dynamic>?> _activeSubscriptionRow(String userId) async {
+    return await _client
+        .from('subscriptions')
+        .select('*, subscription_plans(code, price_monthly)')
+        .eq('user_id', userId)
+        .inFilter('status', ['trial', 'active'])
+        .order('starts_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+  }
+
+  Subscription _toSubscription(Map<String, dynamic> row) {
+    final plan = row['subscription_plans'] as Map<String, dynamic>?;
+    final code = (plan?['code'] ?? 'free').toString();
+    return Subscription.fromSupabase(row: row, planCode: _normalizePlanCode(code));
+  }
+
+  String _normalizePlanCode(String code) {
+    if (code == 'champions_league') return 'champions';
+    return code;
+  }
+
+  String _planCodeForType(SubscriptionType type) {
+    switch (type) {
+      case SubscriptionType.champions:
+        return 'champions';
+      case SubscriptionType.europa:
+        return 'europa';
+      case SubscriptionType.free:
+        return 'free';
+    }
+  }
+
+  Future<String> _resolvePlanId(SubscriptionType type) async {
+    final code = _planCodeForType(type);
+    final row = await _client
+        .from('subscription_plans')
+        .select('id, code')
+        .eq('code', code)
+        .maybeSingle();
+    if (row != null) {
+      return row['id'].toString();
+    }
+    if (type == SubscriptionType.champions) {
+      final alt = await _client
+          .from('subscription_plans')
+          .select('id, code')
+          .eq('code', 'champions_league')
+          .maybeSingle();
+      if (alt != null) {
+        return alt['id'].toString();
+      }
+    }
+    throw Exception('Subscription plan "$code" not found');
   }
 }

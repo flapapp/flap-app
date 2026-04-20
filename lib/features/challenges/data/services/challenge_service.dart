@@ -1,82 +1,96 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../data/models/challenge.dart';
-import '../../../notifications/data/services/notification_service.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
-import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/auth/app_auth.dart';
+import '../../../../core/supabase/coin_ledger.dart';
+import '../../../notifications/data/services/notification_service.dart';
+import '../../data/models/challenge.dart';
 
 class ChallengeService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final SupabaseClient _sb = Supabase.instance.client;
   final NotificationService _notificationService = NotificationService();
 
-  // Колекція челенджів
-  CollectionReference get _challengesCollection => 
-      _firestore.collection('challenges');
-
-  // Отримати всі активні челенджі
   Stream<List<Challenge>> getActiveChallenges() {
-    return _challengesCollection
-        .where('isActive', isEqualTo: true)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Challenge.fromFirestore(doc))
-            .toList());
+    return _sb
+        .from('challenges')
+        .stream(primaryKey: ['id'])
+        .asyncMap((rows) async {
+      final out = <Challenge>[];
+      for (final raw in rows as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        if ((row['status'] ?? '') == 'completed') continue;
+        final c = await _loadChallenge((row['id'] ?? '').toString());
+        if (c != null) out.add(c);
+      }
+      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return out;
+    });
   }
 
-  // Отримати челенджі за статусом
   Stream<List<Challenge>> getChallengesByStatus(ChallengeStatus status) {
-    return _challengesCollection
-        .where('isActive', isEqualTo: true)
-        .where('status', isEqualTo: status.toString().split('.').last)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Challenge.fromFirestore(doc))
-            .toList());
+    return _sb
+        .from('challenges')
+        .stream(primaryKey: ['id'])
+        .asyncMap((rows) async {
+      final out = <Challenge>[];
+      for (final raw in rows as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        final rowStatus = (row['status'] ?? '').toString();
+        if (rowStatus != status.name) continue;
+        final c = await _loadChallenge((row['id'] ?? '').toString());
+        if (c != null) out.add(c);
+      }
+      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return out;
+    });
   }
 
-  // Отримати челенджі за містом
   Stream<List<Challenge>> getChallengesByCity(String city) {
-    return _challengesCollection
-        .where('isActive', isEqualTo: true)
-        .where('city', isEqualTo: city)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Challenge.fromFirestore(doc))
-            .toList());
+    return _sb
+        .from('challenges')
+        .stream(primaryKey: ['id'])
+        .asyncMap((rows) async {
+      final out = <Challenge>[];
+      for (final raw in rows as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        if ((row['city'] ?? '').toString() != city) continue;
+        if ((row['status'] ?? '').toString() == 'completed') continue;
+        final c = await _loadChallenge((row['id'] ?? '').toString());
+        if (c != null) out.add(c);
+      }
+      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return out;
+    });
   }
 
-  // Отримати челенджі за типом
   Stream<List<Challenge>> getChallengesByType(ChallengeType type) {
-    return _challengesCollection
-        .where('isActive', isEqualTo: true)
-        .where('type', isEqualTo: challengeTypeToSlug(type))
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Challenge.fromFirestore(doc))
-            .toList());
+    final slug = challengeTypeToSlug(type);
+    return _sb
+        .from('challenges')
+        .stream(primaryKey: ['id'])
+        .asyncMap((rows) async {
+      final out = <Challenge>[];
+      for (final raw in rows as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        final typeCode = await _typeCode((row['challenge_type_id'] ?? '').toString());
+        if (typeCode != slug) continue;
+        final c = await _loadChallenge((row['id'] ?? '').toString());
+        if (c != null) out.add(c);
+      }
+      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return out;
+    });
   }
 
-  // Отримати конкретний челендж
   Future<Challenge?> getChallenge(String challengeId) async {
     try {
-      final doc = await _challengesCollection.doc(challengeId).get();
-      if (doc.exists) {
-        return Challenge.fromFirestore(doc);
-      }
-      return null;
+      return await _loadChallenge(challengeId);
     } catch (e) {
       print('Error getting challenge: $e');
       return null;
     }
   }
 
-  // Створити новий челендж
   Future<String?> createChallenge(Challenge challenge) async {
     try {
       final currentUser = AppAuth.currentUser;
@@ -84,61 +98,62 @@ class ChallengeService {
         throw Exception('Користувач не авторизований');
       }
 
-      // Перевірка ліміту челенджів для користувача
-      final userDoc = await _firestore.collection('users').doc(currentUser.id).get();
-      final userData = userDoc.data() as Map<String, dynamic>?;
-      final maxChallenges = userData?['maxChallengesPerMonth'] ?? 1;
-      final isSubscriptionActive = userData?['subscriptionActive'] ?? false;
-      
-      if (!isSubscriptionActive) {
-        final userChallenges = await _challengesCollection
-            .where('creatorId', isEqualTo: currentUser.id)
-            .get();
-        final recentChallenges = userChallenges.docs.where((doc) {
-          final c = Challenge.fromFirestore(doc);
-          return c.createdAt.isAfter(DateTime.now().subtract(const Duration(days: 30)));
-        }).toList();
-        if (recentChallenges.length >= maxChallenges) {
-          throw Exception('Ліміт: $maxChallenges челендж на місяць. Оформіть підписку для необмежених челенджів!');
-        }
+      final allowed = await _canCreateBySubscription(currentUser.id);
+      if (!allowed) {
+        throw Exception(
+          'Ліміт челенджів на місяць вичерпано. Оформіть підписку для необмежених челенджів!',
+        );
       }
 
-      // Списуємо вступну плату з творця і формуємо стартовий банк
       final entryFee = challenge.entryFee;
-      await _firestore.runTransaction((tx) async {
-        final userRef = _firestore.collection('users').doc(currentUser.id);
-        final userSnap = await tx.get(userRef);
-        final coins = (userSnap.data()?['coins'] ?? 0) as int;
-        if (coins < entryFee) {
-          throw Exception('Недостатньо монет для створення челенджу');
-        }
-        tx.update(userRef, {'coins': FieldValue.increment(-entryFee)});
+      final coins = await coinBalance(_sb, currentUser.id);
+      if (coins < entryFee) {
+        throw Exception('Недостатньо монет для створення челенджу');
+      }
+      if (entryFee > 0) {
+        await insertCoinTransaction(
+          _sb,
+          currentUser.id,
+          'challenge_create_fee',
+          -entryFee,
+          'Challenge creation fee: ${challenge.title}',
+        );
+      }
+
+      final typeId = await _resolveChallengeTypeId(challenge.type);
+      final audienceId = await _resolveChallengeAudienceId(challenge.audience);
+
+      final inserted = await _sb
+          .from('challenges')
+          .insert(<String, dynamic>{
+            'creator_id': currentUser.id,
+            'title': challenge.title,
+            'description': challenge.description,
+            'challenge_type_id': typeId,
+            'audience_id': audienceId,
+            'city': challenge.city,
+            'entry_fee': entryFee,
+            'max_participants': challenge.maxParticipants,
+            'status': challenge.status.name,
+            'starts_at': challenge.startDate.toUtc().toIso8601String(),
+            'submission_deadline':
+                challenge.submissionDeadline.toUtc().toIso8601String(),
+            'voting_deadline':
+                challenge.votingDeadline.toUtc().toIso8601String(),
+            'ends_at': challenge.endDate.toUtc().toIso8601String(),
+            'image_url': challenge.imageUrl,
+          })
+          .select('id')
+          .single();
+      final challengeId = inserted['id'].toString();
+
+      await _sb.from('challenge_participants').upsert(<String, dynamic>{
+        'challenge_id': challengeId,
+        'user_id': currentUser.id,
+        'joined_at': DateTime.now().toUtc().toIso8601String(),
       });
 
-      // Створюємо челендж зі стартовим prizePool = entryFee (внесок творця)
-      final docRef = await _challengesCollection.add({
-        ...challenge.toFirestore(),
-        'prizePool': entryFee.toDouble(),
-      });
-      final challengeId = docRef.id;
-
-      // Записуємо транзакцію списання для творця
-      await _firestore.collection('transactions').add({
-        'userId': currentUser.id,
-        'type': 'challenge_create_fee',
-        'amount': -entryFee,
-        'challengeId': challengeId,
-        'challengeTitle': challenge.title,
-        'timestamp': FieldValue.serverTimestamp(),
-        'description': bilingual(
-  'Плата за створення челенджу: ${challenge.title}',
-  'Challenge creation fee: ${challenge.title}',
-),
-      });
-
-      // Відправити нотифікації залежно від аудиторії
       await _sendChallengeInvitations(challengeId, challenge);
-
       return challengeId;
     } catch (e) {
       print('Error creating challenge: $e');
@@ -146,78 +161,41 @@ class ChallengeService {
     }
   }
 
-  // Приєднатися до челенджу
   Future<bool> joinChallenge(String challengeId) async {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
-
-      final challengeRef = _challengesCollection.doc(challengeId);
-      
-      // Перевірка чи можна приєднатися
-      final challengeDoc = await challengeRef.get();
-      if (!challengeDoc.exists) {
-        throw Exception('Челендж не знайдено');
-      }
-
-      final challenge = Challenge.fromFirestore(challengeDoc);
-      if (!challenge.canJoin) {
-        throw Exception('Не можна приєднатися до цього челенджу');
-      }
-
-      // Перевірка чи користувач вже учасник
+      final challenge = await _loadChallenge(challengeId);
+      if (challenge == null) throw Exception('Челендж не знайдено');
+      if (!challenge.canJoin) throw Exception('Не можна приєднатися до цього челенджу');
       if (challenge.participants.contains(currentUser.id)) {
         throw Exception('Ви вже учасник цього челенджу');
       }
 
-      // Перевірити чи достатньо монет
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.id)
-          .get();
-      
-      if (!userDoc.exists) {
-        throw Exception('Дані користувача не знайдено');
+      final coins = await coinBalance(_sb, currentUser.id);
+      if (coins < challenge.entryFee) {
+        throw Exception(
+          'Недостатньо монет! Потрібно: ${challenge.entryFee}, у вас: $coins',
+        );
       }
 
-      final userData = userDoc.data() as Map<String, dynamic>;
-      final userCoins = userData['coins'] ?? 0;
-
-      if (userCoins < challenge.entryFee) {
-        throw Exception('Недостатньо монет! Потрібно: ${challenge.entryFee}, у вас: $userCoins');
-      }
-
-      // Виконати транзакцію
-      await _firestore.runTransaction((transaction) async {
-        // Додати учасника
-        transaction.update(challengeRef, {
-          'participants': FieldValue.arrayUnion([currentUser.id]),
-          'currentParticipants': FieldValue.increment(1),
-          'prizePool': FieldValue.increment(challenge.entryFee), // Додаємо до банку
-        });
-
-        // Віднімаємо монети за участь
-        transaction.update(_firestore.collection('users').doc(currentUser.id), {
-          'coins': FieldValue.increment(-challenge.entryFee),
-        });
-
-        // Записуємо транзакцію в історію
-        transaction.set(_firestore.collection('transactions').doc(), {
-          'userId': currentUser.id,
-          'type': 'challenge_entry_fee',
-          'amount': -challenge.entryFee,
-          'challengeId': challengeId,
-          'challengeTitle': challenge.title,
-          'timestamp': FieldValue.serverTimestamp(),
-          'description': bilingual(
-  'Вступна плата за челендж: ${challenge.title}',
-  'Challenge entry fee: ${challenge.title}',
-),
-        });
+      await _sb.from('challenge_participants').upsert(<String, dynamic>{
+        'challenge_id': challengeId,
+        'user_id': currentUser.id,
+        'joined_at': DateTime.now().toUtc().toIso8601String(),
       });
 
+      if (challenge.entryFee > 0) {
+        await insertCoinTransaction(
+          _sb,
+          currentUser.id,
+          'challenge_entry_fee',
+          -challenge.entryFee,
+          'Challenge entry fee: ${challenge.title}',
+        );
+      }
       return true;
     } catch (e) {
       print('Error joining challenge: $e');
@@ -225,42 +203,47 @@ class ChallengeService {
     }
   }
 
-  // Подати відео на челендж
   Future<bool> submitVideo(String challengeId, String videoUrl) async {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
-
-      final challengeRef = _challengesCollection.doc(challengeId);
-      
-      // Перевірка чи можна подати відео
-      final challengeDoc = await challengeRef.get();
-      if (!challengeDoc.exists) {
-        throw Exception('Челендж не знайдено');
-      }
-
-      final challenge = Challenge.fromFirestore(challengeDoc);
+      final challenge = await _loadChallenge(challengeId);
+      if (challenge == null) throw Exception('Челендж не знайдено');
       if (!challenge.canSubmit) {
         throw Exception('Не можна подати відео на цей челендж');
       }
-
-      // Перевірка чи користувач учасник
       if (!challenge.participants.contains(currentUser.id)) {
         throw Exception('Ви не учасник цього челенджу');
       }
-
-      // Перевірка чи вже подано відео
       if (challenge.submissions.contains(currentUser.id)) {
         throw Exception('Ви вже подали відео на цей челендж');
       }
 
-      // Додати відео
-      await challengeRef.update({
-        'submissions': FieldValue.arrayUnion([currentUser.id]),
+      final profile = await _sb
+          .from('profiles')
+          .select('display_name, avatar_url')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+      await _sb.from('challenge_submissions').insert(<String, dynamic>{
+        'challenge_id': challengeId,
+        'user_id': currentUser.id,
+        'video_url': videoUrl,
+        'title': challenge.title,
+        'description': challenge.description,
+        'thumbnail_url': null,
       });
 
+      final creatorId = challenge.creatorId;
+      if (creatorId.isNotEmpty && creatorId != currentUser.id) {
+        await _notificationService.sendChallengeSubmission(
+          toUserId: creatorId,
+          challengeId: challengeId,
+          challengeTitle: challenge.title,
+          participantName: (profile?['display_name'] ?? currentUser.id).toString(),
+        );
+      }
       return true;
     } catch (e) {
       print('Error submitting video: $e');
@@ -268,62 +251,52 @@ class ChallengeService {
     }
   }
 
-  // Проголосувати за відео
-  Future<bool> voteForVideo(String challengeId, String userId, Map<String, double> criteria) async {
+  Future<bool> voteForVideo(
+    String challengeId,
+    String userId,
+    Map<String, double> criteria,
+  ) async {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
+      if (currentUser.id == userId) throw Exception('Не можна голосувати за себе');
 
-      // Перевірка чи користувач не голосує за себе
-      if (currentUser.id == userId) {
-        throw Exception('Не можна голосувати за себе');
-      }
-
-      final challengeRef = _challengesCollection.doc(challengeId);
-      
-      // Перевірка чи можна голосувати
-      final challengeDoc = await challengeRef.get();
-      if (!challengeDoc.exists) {
-        throw Exception('Челендж не знайдено');
-      }
-
-      final challenge = Challenge.fromFirestore(challengeDoc);
-      if (!challenge.canVote) {
-        throw Exception('Голосування не відкрите');
-      }
-
-      // Перевірка чи користувач вже голосував
+      final challenge = await _loadChallenge(challengeId);
+      if (challenge == null) throw Exception('Челендж не знайдено');
+      if (!challenge.canVote) throw Exception('Голосування не відкрите');
       if (challenge.votes.containsKey(currentUser.id)) {
         throw Exception('Ви вже голосували за це відео');
       }
 
-      // Розрахунок загальної оцінки за критеріями
-      final totalRating = (criteria['technical'] ?? 0) * 0.4 +
-                          (criteria['creativity'] ?? 0) * 0.3 +
-                          (criteria['difficulty'] ?? 0) * 0.2 +
-                          (criteria['quality'] ?? 0) * 0.1;
+      final submission = await _sb
+          .from('challenge_submissions')
+          .select('id')
+          .eq('challenge_id', challengeId)
+          .eq('user_id', userId)
+          .maybeSingle();
+      if (submission == null) throw Exception('Submission not found');
 
-      // Зберегти голос
-      await challengeRef.update({
-        'votes.${currentUser.id}': totalRating,
-        'detailedVotes.${currentUser.id}': criteria,
+      final totalRating = ((criteria['technical'] ?? 0) * 0.4 +
+              (criteria['creativity'] ?? 0) * 0.3 +
+              (criteria['difficulty'] ?? 0) * 0.2 +
+              (criteria['quality'] ?? 0) * 0.1) *
+          2.0;
+
+      await _sb.from('challenge_submission_ratings').insert(<String, dynamic>{
+        'challenge_submission_id': submission['id'],
+        'voter_user_id': currentUser.id,
+        'overall_rating': totalRating.clamp(0, 10),
       });
 
-      // Нарахувати монети за голос (+1 монета)
-      await _addCoinsToUser(currentUser.id, 1);
-      
-      // Записати транзакцію за голосування
-      await _firestore.collection('transactions').add({
-        'userId': currentUser.id,
-        'type': 'voting_reward',
-        'amount': 1,
-        'challengeId': challengeId,
-        'timestamp': FieldValue.serverTimestamp(),
-        'description': tr('il_e461fc9a2d'),
-      });
-
+      await insertCoinTransaction(
+        _sb,
+        currentUser.id,
+        'voting_reward',
+        1,
+        tr('il_e461fc9a2d'),
+      );
       return true;
     } catch (e) {
       print('Error voting for video: $e');
@@ -331,36 +304,23 @@ class ChallengeService {
     }
   }
 
-  // Завершити челендж та визначити переможців
   Future<bool> completeChallenge(String challengeId) async {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
-
-      final challengeRef = _challengesCollection.doc(challengeId);
-      final challengeDoc = await challengeRef.get();
-      if (!challengeDoc.exists) {
-        throw Exception('Челендж не знайдено');
-      }
-
-      final challenge = Challenge.fromFirestore(challengeDoc);
+      final challenge = await _loadChallenge(challengeId);
+      if (challenge == null) throw Exception('Челендж не знайдено');
       if (challenge.creatorId != currentUser.id) {
         throw Exception('Тільки створювач може завершити челендж');
       }
-
       if (challenge.status == ChallengeStatus.completed) {
         throw Exception('Челендж вже завершено');
       }
 
-      if (challenge.status != ChallengeStatus.voting) {
-        throw Exception('Челендж не в стадії голосування');
-      }
-
       final result = await _finalizeChallenge(challenge);
       await _notifyParticipantsAboutCompletion(challenge, result);
-
       return true;
     } catch (e) {
       print('Error completing challenge: $e');
@@ -368,47 +328,54 @@ class ChallengeService {
     }
   }
 
-  // Отримати челенджі користувача
   Stream<List<Challenge>> getUserChallenges(String userId) {
-    return _challengesCollection
-        .where('participants', arrayContains: userId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Challenge.fromFirestore(doc))
-            .toList());
+    return _sb
+        .from('challenge_participants')
+        .stream(primaryKey: ['challenge_id', 'user_id'])
+        .asyncMap((rows) async {
+      final ids = (rows as List<dynamic>)
+          .where((raw) => (raw as Map<String, dynamic>)['user_id'] == userId)
+          .map((raw) => (raw as Map<String, dynamic>)['challenge_id'].toString())
+          .toSet();
+      final out = <Challenge>[];
+      for (final id in ids) {
+        final c = await _loadChallenge(id);
+        if (c != null) out.add(c);
+      }
+      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return out;
+    });
   }
 
-  // Отримати створені користувачем челенджі
   Stream<List<Challenge>> getCreatedChallenges(String userId) {
-    return _challengesCollection
-        .where('creatorId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Challenge.fromFirestore(doc))
-            .toList());
+    return _sb
+        .from('challenges')
+        .stream(primaryKey: ['id'])
+        .asyncMap((rows) async {
+      final out = <Challenge>[];
+      for (final raw in rows as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        if ((row['creator_id'] ?? '').toString() != userId) continue;
+        final c = await _loadChallenge((row['id'] ?? '').toString());
+        if (c != null) out.add(c);
+      }
+      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return out;
+    });
   }
 
-  // Видалити челендж (тільки створювач)
   Future<bool> deleteChallenge(String challengeId) async {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Користувач не авторизований');
       }
-
-      final challengeDoc = await _challengesCollection.doc(challengeId).get();
-      if (!challengeDoc.exists) {
-        throw Exception('Челендж не знайдено');
-      }
-
-      final challenge = Challenge.fromFirestore(challengeDoc);
+      final challenge = await _loadChallenge(challengeId);
+      if (challenge == null) throw Exception('Челендж не знайдено');
       if (challenge.creatorId != currentUser.id) {
         throw Exception('Тільки створювач може видалити челендж');
       }
-
-      await _challengesCollection.doc(challengeId).delete();
+      await _sb.from('challenges').delete().eq('id', challengeId);
       return true;
     } catch (e) {
       print('Error deleting challenge: $e');
@@ -416,79 +383,42 @@ class ChallengeService {
     }
   }
 
-  // Приватний метод для додавання монет користувачу
-  Future<void> _addCoinsToUser(String userId, int coins) async {
-    try {
-      final userRef = _firestore.collection('users').doc(userId);
-      await userRef.update({
-        'coins': FieldValue.increment(coins),
-      });
-    } catch (e) {
-      print('Error adding coins to user: $e');
-    }
-  }
-
-  // Отримати статистику челенджів
   Future<Map<String, dynamic>> getChallengeStats() async {
     try {
-      final totalChallenges = await _challengesCollection.count().get();
-      final activeChallenges = await _challengesCollection
-          .where('isActive', isEqualTo: true)
-          .count()
-          .get();
-      final completedChallenges = await _challengesCollection
-          .where('status', isEqualTo: ChallengeStatus.completed.toString().split('.').last)
-          .count()
-          .get();
-
-      return {
-        'total': totalChallenges.count,
-        'active': activeChallenges.count,
-        'completed': completedChallenges.count,
-      };
+      final rows = await _sb.from('challenges').select('id, status');
+      final list = rows as List<dynamic>;
+      final total = list.length;
+      final completed = list
+          .where((r) => (r as Map<String, dynamic>)['status'] == 'completed')
+          .length;
+      final active = total - completed;
+      return {'total': total, 'active': active, 'completed': completed};
     } catch (e) {
       print('Error getting challenge stats: $e');
       return {'total': 0, 'active': 0, 'completed': 0};
     }
   }
 
-  // Додати відео до челенджу
   Future<bool> addVideoToChallenge(String challengeId, String userId) async {
     try {
-      final currentUser = AppAuth.currentUser;
-      if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
-      }
-
-      final challengeRef = _challengesCollection.doc(challengeId);
-      final challengeDoc = await challengeRef.get();
-      
-      if (!challengeDoc.exists) {
-        throw Exception('Челендж не знайдено');
-      }
-
-      final challenge = Challenge.fromFirestore(challengeDoc);
-      
-      // Додаємо користувача як учасника, якщо він ще не є учасником
-      if (!challenge.participants.contains(userId)) {
-        await challengeRef.update({
-          'participants': FieldValue.arrayUnion([userId]),
-          'currentParticipants': FieldValue.increment(1),
-        });
-      }
-
-      // Перевірка, чи челендж активний
-      final data = challengeDoc.data() as Map<String, dynamic>?;
-      final isActive = data?['isActive'] as bool? ?? true;
-      if (!isActive) {
+      final challenge = await _loadChallenge(challengeId);
+      if (challenge == null) throw Exception('Челендж не знайдено');
+      if (challenge.status == ChallengeStatus.completed) {
         throw Exception('Челендж неактивний. Не можна додавати відео.');
       }
 
-      // Додаємо відео до челенджу
-      await challengeRef.update({
-        'submissions': FieldValue.arrayUnion([currentUser.id]),
+      await _sb.from('challenge_participants').upsert(<String, dynamic>{
+        'challenge_id': challengeId,
+        'user_id': userId,
+        'joined_at': DateTime.now().toUtc().toIso8601String(),
       });
 
+      await _sb.from('challenge_submissions').upsert(<String, dynamic>{
+        'challenge_id': challengeId,
+        'user_id': userId,
+        'title': challenge.title,
+        'description': challenge.description,
+      });
       return true;
     } catch (e) {
       print('Error adding video to challenge: $e');
@@ -496,94 +426,80 @@ class ChallengeService {
     }
   }
 
-  // Відправити запрошення на челендж
-  Future<void> _sendChallengeInvitations(String challengeId, Challenge challenge) async {
+  Future<void> _sendChallengeInvitations(
+    String challengeId,
+    Challenge challenge,
+  ) async {
     try {
-      List<String> targetUserIds = [];
+      final targetUserIds = <String>{};
 
       switch (challenge.audience) {
         case ChallengeAudience.friends:
-          // Отримати друзів створювача
-          final friendsSnapshot = await _firestore
-              .collection('users')
-              .doc(challenge.creatorId)
-              .collection('friends')
-              .get();
-          targetUserIds = friendsSnapshot.docs.map((doc) => doc.id).toList();
+          final f1 = await _sb
+              .from('friendships')
+              .select('friend_user_id')
+              .eq('user_id', challenge.creatorId);
+          for (final raw in f1 as List<dynamic>) {
+            targetUserIds.add((raw as Map<String, dynamic>)['friend_user_id'].toString());
+          }
           break;
-
         case ChallengeAudience.city:
-          // Отримати користувачів з того ж міста
-          final cityUsersSnapshot = await _firestore
-              .collection('users')
-              .where('city', isEqualTo: challenge.city)
-              .limit(50) // Обмежуємо кількість
-              .get();
-          targetUserIds = cityUsersSnapshot.docs
-              .map((doc) => doc.id)
-              .where((id) => id != challenge.creatorId) // Виключаємо створювача
-              .toList();
+          final cityUsers = await _sb
+              .from('profiles')
+              .select('id')
+              .eq('city', challenge.city)
+              .limit(50);
+          for (final raw in cityUsers as List<dynamic>) {
+            targetUserIds.add((raw as Map<String, dynamic>)['id'].toString());
+          }
           break;
-
         case ChallengeAudience.country:
-          // Отримати користувачів з України (або країни створювача)
-          final countryUsersSnapshot = await _firestore
-              .collection('users')
-              .where('country', isEqualTo: 'Україна')
-              .limit(100) // Обмежуємо кількість
-              .get();
-          targetUserIds = countryUsersSnapshot.docs
-              .map((doc) => doc.id)
-              .where((id) => id != challenge.creatorId) // Виключаємо створювача
-              .toList();
+          final countryUsers = await _sb
+              .from('profiles')
+              .select('id')
+              .eq('country', 'Україна')
+              .limit(100);
+          for (final raw in countryUsers as List<dynamic>) {
+            targetUserIds.add((raw as Map<String, dynamic>)['id'].toString());
+          }
           break;
-
         case ChallengeAudience.world:
-          // Отримати випадкових користувачів зі всього світу
-          final worldUsersSnapshot = await _firestore
-              .collection('users')
-              .limit(200) // Обмежуємо кількість
-              .get();
-          targetUserIds = worldUsersSnapshot.docs
-              .map((doc) => doc.id)
-              .where((id) => id != challenge.creatorId) // Виключаємо створювача
-              .toList();
+          final worldUsers = await _sb.from('profiles').select('id').limit(200);
+          for (final raw in worldUsers as List<dynamic>) {
+            targetUserIds.add((raw as Map<String, dynamic>)['id'].toString());
+          }
           break;
       }
 
-      // Відправити нотифікації
-      if (targetUserIds.isNotEmpty) {
-        await _notificationService.sendBulkChallengeInvitations(
-          userIds: targetUserIds,
-          challengeId: challengeId,
-          challengeTitle: challenge.title,
-          creatorName: challenge.creatorName,
-          challengeType: challengeTypeToSlug(challenge.type),
-        );
-        print('Sent ${targetUserIds.length} challenge invitations for ${challenge.title}');
-      }
+      targetUserIds.remove(challenge.creatorId);
+      if (targetUserIds.isEmpty) return;
+
+      await _notificationService.sendBulkChallengeInvitations(
+        userIds: targetUserIds.toList(growable: false),
+        challengeId: challengeId,
+        challengeTitle: challenge.title,
+        creatorName: challenge.creatorName,
+        challengeType: challengeTypeToSlug(challenge.type),
+      );
     } catch (e) {
       print('Error sending challenge invitations: $e');
-      // Не кидаємо помилку, щоб не зупинити створення челенджу
     }
   }
 
-  // Автоматичне завершення челенджів та відправка нотифікацій
   Future<void> checkAndFinishChallenges() async {
     try {
-      final now = DateTime.now();
+      final now = DateTime.now().toUtc().toIso8601String();
+      final rows = await _sb
+          .from('challenges')
+          .select('id')
+          .neq('status', 'completed')
+          .lte('ends_at', now)
+          .limit(25);
 
-      final expiredChallengesSnapshot = await _challengesCollection
-          .where('isActive', isEqualTo: true)
-          .where('endDate', isLessThan: Timestamp.fromDate(now))
-          .limit(25)
-          .get();
-
-      for (final doc in expiredChallengesSnapshot.docs) {
-        final challenge = Challenge.fromFirestore(doc);
-        if (challenge.status == ChallengeStatus.completed) {
-          continue;
-        }
+      for (final raw in rows as List<dynamic>) {
+        final id = (raw as Map<String, dynamic>)['id'].toString();
+        final challenge = await _loadChallenge(id);
+        if (challenge == null) continue;
         await _finishChallenge(challenge);
       }
     } catch (e) {
@@ -601,46 +517,52 @@ class ChallengeService {
     }
   }
 
-  // Видалення завершених челенджів через 2 дні
   Future<void> deleteOldFinishedChallenges() async {
     try {
-      final twoDaysAgo = DateTime.now().subtract(const Duration(days: 2));
-      
-      final oldChallengesSnapshot = await _challengesCollection
-          .where('status', isEqualTo: 'completed')
-          .where('completedAt', isLessThan: Timestamp.fromDate(twoDaysAgo))
-          .get();
-      
-      for (final doc in oldChallengesSnapshot.docs) {
-        // Видаляємо submissions
-        final submissionsSnapshot = await doc.reference.collection('submissions').get();
-        for (final subDoc in submissionsSnapshot.docs) {
-          await subDoc.reference.delete();
-        }
-        
-        // Видаляємо votes
-        final votesSnapshot = await doc.reference.collection('votes').get();
-        for (final voteDoc in votesSnapshot.docs) {
-          await voteDoc.reference.delete();
-        }
-        
-        // Видаляємо сам челендж
-        await doc.reference.delete();
-        print('Deleted old challenge: ${doc.id}');
+      final twoDaysAgo =
+          DateTime.now().subtract(const Duration(days: 2)).toUtc().toIso8601String();
+      final rows = await _sb
+          .from('challenges')
+          .select('id')
+          .eq('status', 'completed')
+          .lte('updated_at', twoDaysAgo);
+      for (final raw in rows as List<dynamic>) {
+        final id = (raw as Map<String, dynamic>)['id'].toString();
+        await _sb.from('challenges').delete().eq('id', id);
       }
     } catch (e) {
       print('Error deleting old challenges: $e');
     }
   }
 
-  Future<_ChallengeWinnersPayload> _finalizeChallenge(
-    Challenge challenge,
-  ) async {
-    final challengeRef = _challengesCollection.doc(challenge.id);
-    final submissionsSnapshot = await challengeRef
-        .collection('submissions')
-        .orderBy('averageRating', descending: true)
-        .get();
+  Future<_ChallengeWinnersPayload> _finalizeChallenge(Challenge challenge) async {
+    final submissions = await _sb
+        .from('challenge_submissions')
+        .select('id, user_id')
+        .eq('challenge_id', challenge.id);
+
+    final scored = <({String userId, double score})>[];
+    for (final raw in submissions as List<dynamic>) {
+      final row = raw as Map<String, dynamic>;
+      final sid = row['id'].toString();
+      final uid = row['user_id'].toString();
+      final ratings = await _sb
+          .from('challenge_submission_ratings')
+          .select('overall_rating')
+          .eq('challenge_submission_id', sid);
+      double avg = 0;
+      final list = ratings as List<dynamic>;
+      if (list.isNotEmpty) {
+        final sum = list.fold<double>(
+          0,
+          (p, e) => p + ((e as Map<String, dynamic>)['overall_rating'] as num).toDouble(),
+        );
+        avg = sum / list.length;
+      }
+      scored.add((userId: uid, score: avg));
+    }
+
+    scored.sort((a, b) => b.score.compareTo(a.score));
 
     final winners = <String>[];
     final finalScores = <String, double>{};
@@ -648,53 +570,46 @@ class ChallengeService {
     final prizePool = _effectivePrizePool(challenge);
     final prizes = _prizeBreakdown(prizePool);
 
-    for (int i = 0; i < submissionsSnapshot.docs.length && i < 3; i++) {
-      final data = submissionsSnapshot.docs[i].data();
-      final winnerId = (data['userId'] ?? '').toString();
-      if (winnerId.isEmpty) {
-        continue;
-      }
-
-      final rating =
-          ((data['averageRating'] ?? data['rating'] ?? 0.0) as num).toDouble();
+    for (int i = 0; i < scored.length && i < 3; i++) {
+      final winnerId = scored[i].userId;
+      final score = scored[i].score;
       final prize = prizes[i];
-
       winners.add(winnerId);
-      finalScores[winnerId] = rating;
+      finalScores[winnerId] = score;
       winnerPrizes[winnerId] = prize;
 
+      await _sb.from('challenge_prize_places').upsert(<String, dynamic>{
+        'challenge_id': challenge.id,
+        'place': i + 1,
+        'prize_amount': prize,
+        'winner_user_id': winnerId,
+      });
+
       if (prize > 0) {
-        await _addCoinsToUser(winnerId, prize);
-        await _firestore.collection('transactions').add({
-          'userId': winnerId,
-          'type': 'challenge_prize',
-          'amount': prize,
-          'challengeId': challenge.id,
-          'challengeTitle': challenge.title,
-          'position': i + 1,
-          'timestamp': FieldValue.serverTimestamp(),
-          'description': bilingual(
-            'Приз за ${i + 1}-е місце в челенджі "${challenge.title}"',
-            'Prize for place ${i + 1} in "${challenge.title}"',
-          ),
-        });
-        await _notificationService.sendChallengeResultNotification(
-          toUserId: winnerId,
-          challengeTitle: challenge.title,
-          challengeId: challenge.id,
-          position: i + 1,
-          coinsWon: prize,
+        await insertCoinTransaction(
+          _sb,
+          winnerId,
+          'challenge_prize',
+          prize,
+          'Prize for place ${i + 1} in "${challenge.title}"',
         );
       }
+      await _notificationService.sendChallengeResultNotification(
+        toUserId: winnerId,
+        challengeTitle: challenge.title,
+        challengeId: challenge.id,
+        position: i + 1,
+        coinsWon: prize,
+      );
     }
 
-    await challengeRef.update({
-      'status': ChallengeStatus.completed.toString().split('.').last,
-      'winners': winners,
-      'finalScores': finalScores,
-      'winnerPrizes': winnerPrizes,
-      'isActive': false,
-      'completedAt': FieldValue.serverTimestamp(),
+    await _sb.from('challenges').update(<String, dynamic>{
+      'status': ChallengeStatus.completed.name,
+    }).eq('id', challenge.id);
+    await _sb.from('challenge_completions').upsert(<String, dynamic>{
+      'challenge_id': challenge.id,
+      'completed_by': AppAuth.currentUserId,
+      'completed_at': DateTime.now().toUtc().toIso8601String(),
     });
 
     return _ChallengeWinnersPayload(
@@ -741,6 +656,173 @@ class ChallengeService {
     final remaining = total - first - second;
     final third = remaining < 0 ? 0 : remaining;
     return [first, second, third];
+  }
+
+  Future<Challenge?> _loadChallenge(String challengeId) async {
+    if (challengeId.isEmpty) return null;
+    final row = await _sb
+        .from('challenges')
+        .select('*, challenge_types(code), challenge_audiences(code)')
+        .eq('id', challengeId)
+        .maybeSingle();
+    if (row == null) return null;
+
+    final participantsRows = await _sb
+        .from('challenge_participants')
+        .select('user_id')
+        .eq('challenge_id', challengeId);
+    final submissionsRows = await _sb
+        .from('challenge_submissions')
+        .select('user_id')
+        .eq('challenge_id', challengeId);
+
+    final participants = (participantsRows as List<dynamic>)
+        .map((r) => (r as Map<String, dynamic>)['user_id'].toString())
+        .toList(growable: false);
+    final submissions = (submissionsRows as List<dynamic>)
+        .map((r) => (r as Map<String, dynamic>)['user_id'].toString())
+        .toList(growable: false);
+
+    final creator = await _sb
+        .from('profiles')
+        .select('display_name,nickname')
+        .eq('id', row['creator_id'])
+        .maybeSingle();
+    final creatorName =
+        (creator?['display_name'] ?? creator?['nickname'] ?? '').toString();
+
+    final typeCode =
+        ((row['challenge_types'] as Map<String, dynamic>?)?['code'] ?? 'goal')
+            .toString();
+    final audienceCode =
+        ((row['challenge_audiences'] as Map<String, dynamic>?)?['code'] ?? 'city')
+            .toString();
+
+    final prizeRows = await _sb
+        .from('challenge_prize_places')
+        .select('winner_user_id, prize_amount')
+        .eq('challenge_id', challengeId);
+    final winnerPrizes = <String, int>{};
+    for (final raw in prizeRows as List<dynamic>) {
+      final r = raw as Map<String, dynamic>;
+      final uid = (r['winner_user_id'] ?? '').toString();
+      if (uid.isEmpty) continue;
+      winnerPrizes[uid] = ((r['prize_amount'] as num?)?.toDouble() ?? 0).round();
+    }
+
+    return Challenge(
+      id: challengeId,
+      title: (row['title'] ?? '').toString(),
+      description: (row['description'] ?? '').toString(),
+      type: parseChallengeType(typeCode),
+      audience: ChallengeAudience.values.firstWhere(
+        (e) => e.name == audienceCode,
+        orElse: () => ChallengeAudience.city,
+      ),
+      creatorId: (row['creator_id'] ?? '').toString(),
+      creatorName: creatorName,
+      creatorVideoUrl: null,
+      city: (row['city'] ?? '').toString(),
+      entryFee: (row['entry_fee'] as num?)?.toInt() ?? 0,
+      duration: 7,
+      createdAt: _parseDate(row['created_at']),
+      startDate: _parseDate(row['starts_at']),
+      submissionDeadline: _parseDate(row['submission_deadline']),
+      votingDeadline: _parseDate(row['voting_deadline']),
+      endDate: _parseDate(row['ends_at']),
+      status: _statusFromString((row['status'] ?? 'recruiting').toString()),
+      maxParticipants: (row['max_participants'] as num?)?.toInt() ?? 50,
+      currentParticipants: participants.length,
+      prizePool: (participants.length * ((row['entry_fee'] as num?)?.toInt() ?? 0))
+          .toDouble(),
+      participants: participants,
+      submissions: submissions,
+      votes: const <String, double>{},
+      detailedVotes: const <String, Map<String, double>>{},
+      winners: winnerPrizes.keys.toList(growable: false),
+      finalScores: const <String, double>{},
+      winnerPrizes: winnerPrizes,
+      isActive: (row['status'] ?? '').toString() != 'completed',
+      imageUrl: row['image_url']?.toString(),
+      tags: const <String>[],
+    );
+  }
+
+  Future<bool> _canCreateBySubscription(String userId) async {
+    final planRow = await _sb
+        .from('subscriptions')
+        .select('subscription_plans(code)')
+        .eq('user_id', userId)
+        .inFilter('status', ['trial', 'active'])
+        .order('starts_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    var limit = 1;
+    if (planRow != null) {
+      final code = ((planRow['subscription_plans'] as Map<String, dynamic>?)?['code'] ??
+              'free')
+          .toString();
+      if (code == 'champions' || code == 'champions_league') {
+        return true;
+      }
+      if (code == 'europa') {
+        limit = 5;
+      }
+    }
+
+    final monthStart = DateTime(DateTime.now().year, DateTime.now().month, 1)
+        .toUtc()
+        .toIso8601String();
+    final rows = await _sb
+        .from('challenges')
+        .select('id')
+        .eq('creator_id', userId)
+        .gte('created_at', monthStart);
+    return (rows as List<dynamic>).length < limit;
+  }
+
+  Future<String?> _resolveChallengeTypeId(ChallengeType type) async {
+    final code = challengeTypeToSlug(type);
+    final row = await _sb
+        .from('challenge_types')
+        .select('id')
+        .eq('code', code)
+        .maybeSingle();
+    return row?['id']?.toString();
+  }
+
+  Future<String?> _resolveChallengeAudienceId(ChallengeAudience audience) async {
+    final row = await _sb
+        .from('challenge_audiences')
+        .select('id')
+        .eq('code', audience.name)
+        .maybeSingle();
+    return row?['id']?.toString();
+  }
+
+  Future<String> _typeCode(String challengeTypeId) async {
+    if (challengeTypeId.isEmpty) return 'goal';
+    final row = await _sb
+        .from('challenge_types')
+        .select('code')
+        .eq('id', challengeTypeId)
+        .maybeSingle();
+    return (row?['code'] ?? 'goal').toString();
+  }
+
+  DateTime _parseDate(dynamic value) {
+    if (value is DateTime) return value;
+    final parsed = DateTime.tryParse((value ?? '').toString());
+    return parsed ?? DateTime.now();
+  }
+
+  ChallengeStatus _statusFromString(String value) {
+    final normalized = value == 'finished' ? 'completed' : value;
+    return ChallengeStatus.values.firstWhere(
+      (e) => e.name == normalized,
+      orElse: () => ChallengeStatus.recruiting,
+    );
   }
 }
 

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:easy_localization/easy_localization.dart';
 
@@ -24,34 +23,46 @@ class Subscription extends SubscriptionEntity {
     required super.features,
   });
 
-  // Factory constructor from Firestore
-  factory Subscription.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    
+  factory Subscription.fromSupabase({
+    required Map<String, dynamic> row,
+    required String planCode,
+  }) {
+    DateTime parseDate(String key) {
+      final raw = row[key];
+      if (raw == null) return DateTime.now();
+      if (raw is DateTime) return raw;
+      return DateTime.tryParse(raw.toString()) ?? DateTime.now();
+    }
+
+    DateTime? parseNullableDate(String key) {
+      final raw = row[key];
+      if (raw == null) return null;
+      if (raw is DateTime) return raw;
+      return DateTime.tryParse(raw.toString());
+    }
+
     return Subscription(
-      id: doc.id,
-      userId: data['userId'] ?? '',
+      id: (row['id'] ?? '').toString(),
+      userId: (row['user_id'] ?? '').toString(),
       type: SubscriptionType.values.firstWhere(
-        (e) => e.toString().split('.').last == data['type'],
+        (e) => e.toString().split('.').last == planCode,
         orElse: () => SubscriptionType.free,
       ),
       status: SubscriptionStatus.values.firstWhere(
-        (e) => e.toString().split('.').last == data['status'],
+        (e) => e.toString().split('.').last == (row['status'] ?? 'expired'),
         orElse: () => SubscriptionStatus.expired,
       ),
-      startDate: data['startDate'] != null 
-          ? (data['startDate'] as Timestamp).toDate() 
-          : DateTime.now(),
-      endDate: data['endDate'] != null 
-          ? (data['endDate'] as Timestamp).toDate() 
-          : DateTime.now(),
-      price: data['price'] ?? 0,
-      isActive: data['isActive'] ?? false,
-      trialEndDate: data['trialEndDate'] != null 
-          ? (data['trialEndDate'] as Timestamp).toDate() 
-          : null,
-      autoRenew: data['autoRenew'] ?? false,
-      features: Map<String, dynamic>.from(data['features'] ?? {}),
+      startDate: parseDate('starts_at'),
+      endDate: parseDate('ends_at'),
+      price: ((row['subscription_plans'] as Map<String, dynamic>?)?['price_monthly']
+                  as num?)
+              ?.toInt() ??
+          0,
+      isActive: ((row['status'] ?? '').toString() == 'active') ||
+          ((row['status'] ?? '').toString() == 'trial'),
+      trialEndDate: parseNullableDate('trial_ends_at'),
+      autoRenew: row['auto_renew'] == true,
+      features: const <String, dynamic>{},
     );
   }
 
@@ -60,21 +71,16 @@ class Subscription extends SubscriptionEntity {
 
   Map<String, dynamic> toJson() => _$SubscriptionToJson(this);
 
-  // Convert to Map for Firestore
-  Map<String, dynamic> toFirestore() {
+  // Convert to Map for Supabase subscriptions table
+  Map<String, dynamic> toSupabase(String planId) {
     return {
-      'userId': userId,
-      'type': type.toString().split('.').last,
+      'user_id': userId,
+      'plan_id': planId,
       'status': status.toString().split('.').last,
-      'startDate': Timestamp.fromDate(startDate),
-      'endDate': Timestamp.fromDate(endDate),
-      'price': price,
-      'isActive': isActive,
-      'trialEndDate': trialEndDate != null 
-          ? Timestamp.fromDate(trialEndDate!) 
-          : null,
-      'autoRenew': autoRenew,
-      'features': features,
+      'starts_at': startDate.toUtc().toIso8601String(),
+      'ends_at': endDate.toUtc().toIso8601String(),
+      'trial_ends_at': trialEndDate?.toUtc().toIso8601String(),
+      'auto_renew': autoRenew,
     };
   }
 

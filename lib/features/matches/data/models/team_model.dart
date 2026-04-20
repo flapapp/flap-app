@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 import '../../domain/entities/match_team_entity.dart';
@@ -16,8 +15,11 @@ class Team extends MatchTeamEntity {
     super.playerRatings = const {},
   });
 
-  factory Team.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory Team.fromFirestore(dynamic doc) {
+    final raw = doc.data();
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return Team(
       name: data['name'] ?? '',
       playerIds: List<String>.from(data['playerIds'] ?? []),

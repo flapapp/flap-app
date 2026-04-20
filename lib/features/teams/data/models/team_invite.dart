@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 import '../../domain/entities/team_invite_entity.dart';
@@ -19,16 +18,25 @@ class TeamInvite extends TeamInviteEntity {
     required super.createdAt,
   });
 
-  factory TeamInvite.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
+  factory TeamInvite.fromDoc(dynamic doc) {
+    final id = (doc.id ?? '').toString();
+    final raw = doc.data();
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map? ?? const {});
+    DateTime parseDate(dynamic v) {
+      if (v is DateTime) return v;
+      final parsed = DateTime.tryParse((v ?? '').toString());
+      return parsed ?? DateTime.now();
+    }
     return TeamInvite(
-      id: doc.id,
+      id: id,
       teamId: (data['teamId'] ?? '').toString(),
       teamName: (data['teamName'] ?? '').toString(),
       userId: (data['userId'] ?? '').toString(),
       invitedBy: (data['invitedBy'] ?? '').toString(),
       status: _statusFromString((data['status'] ?? 'pending').toString()),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: parseDate(data['createdAt']),
     );
   }
 
@@ -44,7 +52,7 @@ class TeamInvite extends TeamInviteEntity {
       'userId': userId,
       'invitedBy': invitedBy,
       'status': status.name,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt.toIso8601String(),
     };
   }
 

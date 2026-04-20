@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
 
-import '../../../../router/app_router.dart';
 import 'package:flutter/foundation.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_app_storage.dart';
@@ -27,6 +24,7 @@ class ChallengeCreateScreen extends StatefulWidget {
 }
 
 class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
+  final SupabaseClient _sb = Supabase.instance.client;
   static const int _maxVideoBytes = 25 * 1024 * 1024;
   static const Duration _maxVideoDuration = Duration(seconds: 10);
   final _formKey = GlobalKey<FormState>();
@@ -47,31 +45,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   
   ChallengesRepository get _challengesRepo => sl<ChallengesRepository>();
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final Set<String> _selectedInviteFriendIds = <String>{};
-
-  final List<String> _cities = [
-    tr('kyiv_city'),
-    tr('kharkiv_city'),
-    tr('odesa_city'),
-    tr('dnipro_city'),
-    tr('lviv_city'),
-    tr('zaporizhzhia'),
-    tr('kryvyi_rih'),
-    tr('mykolaiv'),
-    tr('vinnytsia'),
-    tr('poltava'),
-    tr('cherkasy'),
-    tr('il_2aada3499c'),
-    tr('il_7502cd8bc2'),
-    tr('il_48cf95a721'),
-    tr('il_2fd080c8a4'),
-    tr('il_f29d5e9865'),
-    tr('il_1d884deb01'),
-    tr('il_f839a71bb2'),
-    tr('il_39fb989cf7'),
-    tr('il_3837cdaef9'),
-  ];
 
   final List<int> _entryFees = [5, 10, 15, 20, 25];
   List<Map<String, dynamic>> get _durations => [
@@ -756,18 +730,27 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     try {
       final me = AppAuth.currentUser;
       if (me == null) return [];
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.id).get();
-      final ids = List<String>.from(userDoc.data()?['friends'] ?? []);
+      final rows = await _sb
+          .from('friendships')
+          .select('friend_user_id')
+          .eq('user_id', me.id);
+      final ids = (rows as List<dynamic>)
+          .map((r) => (r as Map<String, dynamic>)['friend_user_id'].toString())
+          .where((id) => id.isNotEmpty)
+          .toList();
       if (ids.isEmpty) return [];
-      final result = <Map<String, dynamic>>[];
-      for (final id in ids.take(50)) {
-        final d = await FirebaseFirestore.instance.collection('users').doc(id).get();
-        if (d.exists) {
-          final data = d.data() as Map<String, dynamic>;
-          data['id'] = id;
-          result.add(data);
-        }
-      }
+      final profiles = await _sb
+          .from('profiles')
+          .select('id, display_name, avatar_url')
+          .inFilter('id', ids.take(50).toList());
+      final result = (profiles as List<dynamic>).map((raw) {
+        final data = raw as Map<String, dynamic>;
+        return <String, dynamic>{
+          'id': data['id'],
+          'displayName': data['display_name'],
+          'avatarUrl': data['avatar_url'],
+        };
+      }).toList();
       result.sort((a, b) => (a['displayName'] ?? a['name'] ?? '').toString().compareTo((b['displayName'] ?? b['name'] ?? '').toString()));
       return result;
     } catch (_) {
@@ -1171,18 +1154,19 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       }
 
       // Отримати дані користувача
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.id)
-          .get();
-      
-      if (!userDoc.exists) {
+      final userData = await _sb
+          .from('profiles')
+          .select('display_name,city,email')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+      if (userData == null) {
         throw Exception(tr('il_9ea4a0bb3d'));
       }
-
-      final userData = userDoc.data()!;
-      final userName = userData['displayName'] ?? userData['name'] ?? tr('il_b764cdc0ea');
-      final userCity = userData['city'] ?? _selectedCity;
+      final userName = (userData['display_name'] ??
+              userData['email']?.toString().split('@').first ??
+              tr('il_b764cdc0ea'))
+          .toString();
+      final userCity = (userData['city'] ?? _selectedCity).toString();
 
       // Розрахунок дат з окремими тривалостями
       final now = DateTime.now();
@@ -1229,13 +1213,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       final challengeId = await _challengesRepo.createChallenge(challenge);
       
       if (challengeId != null) {
-        // Додаємо створювача як учасника (статус вже правильний)
-        await FirebaseFirestore.instance
-            .collection('challenges')
-            .doc(challengeId)
-            .update({
-          'participants': FieldValue.arrayUnion([currentUser.id]),
-          'currentParticipants': FieldValue.increment(1),
+        // Додаємо створювача як учасника.
+        await _sb.from('challenge_participants').upsert({
+          'challenge_id': challengeId,
+          'user_id': currentUser.id,
+          'status': 'joined',
         });
 
         // Надсилаємо інвайти обраним друзям (якщо обрали)
@@ -1260,12 +1242,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               print('Creator video upload completed successfully with URL: $creatorVideoUrl');
               
               // Оновлюємо челендж з URL відео творця
-              await FirebaseFirestore.instance
-                  .collection('challenges')
-                  .doc(challengeId)
-                  .update({
-                'creatorVideoUrl': creatorVideoUrl,
-              });
+              await _sb.from('challenges').update({
+                'creator_video_url': creatorVideoUrl,
+              }).eq('id', challengeId);
               print('Updated challenge $challengeId with creatorVideoUrl: $creatorVideoUrl');
               
             } else {
@@ -1500,74 +1479,44 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       // Створюємо запис у колекції videos, щоб мати єдиний шлях голосів і агрегатів
       String createdVideoDocId = '';
       try {
-        final videoDoc = await FirebaseFirestore.instance.collection('videos').add({
-          'userId': userId,
-          'authorId': userId,
-          'authorName': authorName,
+        final videoDoc = await _sb
+            .from('videos')
+            .insert({
+              'user_id': userId,
+              'title': _titleController.text.trim().isNotEmpty
+                  ? _titleController.text.trim()
+                  : tr('il_b51a6ac57e'),
+              'description': _descriptionController.text.trim().isNotEmpty
+                  ? _descriptionController.text.trim()
+                  : tr('il_4c92b02f91'),
+              'video_url': videoUrl,
+              'thumbnail_url': null,
+            })
+            .select('id')
+            .single();
+        createdVideoDocId = (videoDoc['id'] ?? '').toString();
+      } catch (_) {}
+
+      // Зберігаємо відео створювача в submissions.
+      print('Saving creator video to submissions collection...');
+      try {
+        await _sb.from('challenge_submissions').upsert({
+          'challenge_id': challengeId,
+          'user_id': userId,
+          'video_id': createdVideoDocId.isEmpty ? null : createdVideoDocId,
           'title': _titleController.text.trim().isNotEmpty
               ? _titleController.text.trim()
               : tr('il_b51a6ac57e'),
           'description': _descriptionController.text.trim().isNotEmpty
               ? _descriptionController.text.trim()
               : tr('il_4c92b02f91'),
-          'category': 'Інше',
-          'difficulty': null,
-          'videoUrl': videoUrl,
-          'challengeId': challengeId,
-          'challengeTitle': _titleController.text.trim(),
-          'isChallengeVideo': true,
-          'createdAt': FieldValue.serverTimestamp(),
-          'likes': 0,
-          'rating': 0.0,
-          'views': 0,
-          'thumbnailUrl': null,
-          'thumbnailGenerated': false,
-        });
-        createdVideoDocId = videoDoc.id;
-      } catch (_) {}
-
-      // Зберігаємо відео створювача в submissions і помічаємо як головне
-      print('Saving creator video to submissions collection...');
-      try {
-        await FirebaseFirestore.instance
-            .collection('challenges')
-            .doc(challengeId)
-            .collection('submissions')
-            .doc(userId)
-            .set({
-          'userId': userId,
-          'authorName': authorName,
-          'title': _titleController.text.trim().isNotEmpty
-              ? _titleController.text.trim()
-              : tr('il_b51a6ac57e'),
-          'videoUrl': videoUrl,
-          'videoId': createdVideoDocId,
-          'isCreatorVideo': true,
-          'createdAt': FieldValue.serverTimestamp(),
-          'averageRating': 0.0,
-          'voteCount': 0,
-          'votes': <String, dynamic>{},
-          'thumbnailUrl': null, // Буде оновлено після генерації
+          'video_url': videoUrl,
+          'thumbnail_url': null,
         });
         print('Creator video saved to submissions collection');
       } catch (e) {
         print('ERROR saving to submissions collection: $e');
         throw Exception('Помилка збереження в submissions: $e');
-      }
-      
-      // Додаємо до списку submissions
-      print('Updating challenge document with submissions...');
-      try {
-        await FirebaseFirestore.instance
-            .collection('challenges')
-            .doc(challengeId)
-            .update({
-          'submissions': FieldValue.arrayUnion([userId]),
-        });
-        print('Challenge document updated successfully');
-      } catch (e) {
-        print('ERROR updating challenge document: $e');
-        throw Exception('Помилка оновлення челенджу: $e');
       }
       
       print('Successfully uploaded creator video: $videoUrl');
@@ -1602,16 +1551,18 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         
         final thumbnailService = ThumbnailService();
         // Спочатку генеруємо thumbnail для основного відео документа
-        final videoDoc = await FirebaseFirestore.instance
-            .collection('videos')
-            .where('userId', isEqualTo: userId)
-            .where('videoUrl', isEqualTo: videoUrl)
-            .limit(1)
-            .get();
+        final videoDoc = await _sb
+            .from('videos')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('video_url', videoUrl)
+            .limit(1);
         
         String? videoDocId;
-        if (videoDoc.docs.isNotEmpty) {
-          videoDocId = videoDoc.docs.first.id;
+        final videoRows = videoDoc as List<dynamic>;
+        if (videoRows.isNotEmpty) {
+          videoDocId =
+              ((videoRows.first as Map<String, dynamic>)['id'] ?? '').toString();
           final thumbnailUrl = await thumbnailService.generateAndUploadThumbnail(
             videoUrl: videoUrl,
             videoId: videoDocId,
@@ -1620,22 +1571,20 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           
           if (thumbnailUrl != null) {
             // Оновлюємо submission з thumbnailUrl
-            await FirebaseFirestore.instance
-                .collection('challenges')
-                .doc(challengeId)
-                .collection('submissions')
-                .doc(userId)
+            await _sb
+                .from('challenge_submissions')
                 .update({
-              'thumbnailUrl': thumbnailUrl,
-              'thumbnailGenerated': true,
-            });
-            await FirebaseFirestore.instance
-                .collection('challenges')
-                .doc(challengeId)
+                  'thumbnail_url': thumbnailUrl,
+                })
+                .eq('challenge_id', challengeId)
+                .eq('user_id', userId);
+            await _sb
+                .from('challenges')
                 .update({
-              'creatorThumbnailUrl': thumbnailUrl,
-              'thumbnailUrl': thumbnailUrl,
-            });
+                  'creator_thumbnail_url': thumbnailUrl,
+                  'thumbnail_url': thumbnailUrl,
+                })
+                .eq('id', challengeId);
             print('✅ Creator video thumbnail generated: $thumbnailUrl');
           }
         } else {
@@ -1647,13 +1596,13 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             userId: userId,
           );
           if (thumbnailUrl != null) {
-            await FirebaseFirestore.instance
-                .collection('challenges')
-                .doc(challengeId)
+            await _sb
+                .from('challenges')
                 .update({
-              'creatorThumbnailUrl': thumbnailUrl,
-              'thumbnailUrl': thumbnailUrl,
-            });
+                  'creator_thumbnail_url': thumbnailUrl,
+                  'thumbnail_url': thumbnailUrl,
+                })
+                .eq('id', challengeId);
             print('✅ Creator submission thumbnail generated: $thumbnailUrl');
           }
         }

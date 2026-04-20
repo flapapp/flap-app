@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 import '../../domain/entities/player_rating_entity.dart';
@@ -17,13 +16,27 @@ class PlayerRating extends PlayerRatingEntity {
     super.criteria = const {},
   });
 
-  factory PlayerRating.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  static DateTime _readDate(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+    try {
+      final dynamic v = value;
+      final date = v?.toDate();
+      if (date is DateTime) return date;
+    } catch (_) {}
+    return DateTime.now();
+  }
+
+  factory PlayerRating.fromFirestore(dynamic doc) {
+    final raw = doc.data();
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return PlayerRating(
       playerId: data['playerId'] ?? '',
       ratedBy: data['ratedBy'] ?? '',
       rating: (data['rating'] ?? 0.0).toDouble(),
-      ratedAt: (data['ratedAt'] as Timestamp).toDate(),
+      ratedAt: _readDate(data['ratedAt']),
       criteria: Map<String, double>.from(data['criteria'] ?? {}),
     );
   }
@@ -33,7 +46,7 @@ class PlayerRating extends PlayerRatingEntity {
       'playerId': playerId,
       'ratedBy': ratedBy,
       'rating': rating,
-      'ratedAt': Timestamp.fromDate(ratedAt),
+      'ratedAt': ratedAt,
       'criteria': criteria,
     };
   }

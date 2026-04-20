@@ -3,7 +3,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
 
 import 'package:auto_route/auto_route.dart';
-import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -1021,8 +1020,14 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     final result = (match['result'] ?? 'draw').toString();
     final playedRaw = match['playedAt'];
     DateTime? playedAt;
-    if (playedRaw is Timestamp) {
-      playedAt = playedRaw.toDate();
+    if (playedRaw is DateTime) playedAt = playedRaw;
+    if (playedAt == null && playedRaw is String) playedAt = DateTime.tryParse(playedRaw);
+    if (playedAt == null) {
+      try {
+        final dynamic raw = playedRaw;
+        final date = raw?.toDate();
+        if (date is DateTime) playedAt = date;
+      } catch (_) {}
     }
     final label = playedAt != null
         ? DateFormat('d MMM').format(playedAt)

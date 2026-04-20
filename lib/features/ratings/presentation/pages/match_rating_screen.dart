@@ -4,11 +4,8 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/ratings_repository.dart';
-import '../../../../router/app_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../matches/data/models/match.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
 enum RatingMode { simple, advanced }
@@ -28,6 +25,7 @@ class MatchRatingScreen extends StatefulWidget {
 
 class _MatchRatingScreenState extends State<MatchRatingScreen> {
   RatingsRepository get _ratingRepo => sl<RatingsRepository>();
+  final SupabaseClient _sb = Supabase.instance.client;
   
   // Оцінки для кожного гравця
   Map<String, Map<String, double>> _playerRatings = {};
@@ -60,17 +58,17 @@ Future<Map<String, String>> _getUserProfile(String userId) async {
     return _userCache[userId]!;
   }
   try {
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .get();
-    if (!snap.exists) {
+    final row = await _sb
+        .from('profiles')
+        .select('display_name, avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+    if (row == null) {
       _userCache[userId] = const {};
       return const {};
     }
-    final data = (snap.data() as Map<String, dynamic>? ?? const {});
-final String displayName = (data['displayName'] as String?)?.trim() ?? '';
-final String avatarUrl = ((data['avatarUrl'] ?? data['photoUrl']) as String?)?.trim() ?? '';
+final String displayName = (row['display_name'] as String?)?.trim() ?? '';
+final String avatarUrl = (row['avatar_url'] as String?)?.trim() ?? '';
 final profile = <String, String>{
   'displayName': displayName,
   'avatarUrl': avatarUrl,
@@ -135,14 +133,13 @@ final sanitizedPlayers = playersToRate.where((id) =>
 ).toList();
 
 // виключаємо тих, кого ви вже оцінювали
-final existingSnap = await FirebaseFirestore.instance
-    .collection('matches')
-    .doc(widget.match.id)
-    .collection('playerRatings')
-    .where('ratedBy', isEqualTo: currentUserId)
-    .get();
-final alreadyRatedIds = existingSnap.docs
-    .map((d) => (d.data()['playerId'] as String?) ?? '')
+final existingRows = await _sb
+    .from('match_player_ratings')
+    .select('player_id')
+    .eq('match_id', widget.match.id)
+    .eq('rated_by', currentUserId ?? '');
+final alreadyRatedIds = (existingRows as List<dynamic>)
+    .map((d) => ((d as Map<String, dynamic>)['player_id'] as String?) ?? '')
     .toSet();
     print('RATING DEBUG matchId=${widget.match.id}');
     print('RATING DEBUG participants=${widget.match.participants.length}');

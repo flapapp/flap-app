@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:easy_localization/easy_localization.dart';
 
@@ -72,15 +71,29 @@ class Challenge extends ChallengeEntity {
     required super.tags,
   });
 
-  // Конструктор з Firestore
-  factory Challenge.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  static DateTime _readDate(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+    try {
+      final dynamic v = value;
+      final date = v?.toDate();
+      if (date is DateTime) return date;
+    } catch (_) {}
+    return DateTime.now();
+  }
+
+  // Конструктор з Firestore / remote-like documents
+  factory Challenge.fromFirestore(dynamic doc) {
+    final raw = doc.data();
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     
     final rawStatus = (data['status'] ?? 'recruiting').toString();
     final normalizedStatus = rawStatus == 'finished' ? 'completed' : rawStatus;
 
     return Challenge(
-      id: doc.id,
+      id: (doc.id ?? '').toString(),
       title: data['title'] ?? '',
       description: data['description'] ?? '',
       type: parseChallengeType(data['type'] as String?),
@@ -94,11 +107,11 @@ class Challenge extends ChallengeEntity {
       city: data['city'] ?? '',
       entryFee: data['entryFee'] ?? 10,
       duration: data['duration'] ?? 7,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      startDate: (data['startDate'] as Timestamp).toDate(),
-      submissionDeadline: (data['submissionDeadline'] as Timestamp).toDate(),
-      votingDeadline: (data['votingDeadline'] as Timestamp).toDate(),
-      endDate: (data['endDate'] as Timestamp).toDate(),
+      createdAt: _readDate(data['createdAt']),
+      startDate: _readDate(data['startDate']),
+      submissionDeadline: _readDate(data['submissionDeadline']),
+      votingDeadline: _readDate(data['votingDeadline']),
+      endDate: _readDate(data['endDate']),
       status: ChallengeStatus.values.firstWhere(
         (e) => e.toString().split('.').last == normalizedStatus,
         orElse: () => ChallengeStatus.recruiting,
@@ -126,7 +139,7 @@ class Challenge extends ChallengeEntity {
 
   Map<String, dynamic> toJson() => _$ChallengeToJson(this);
 
-  // Конвертація в Map для Firestore
+  // Конвертація в Map для Firestore-like clients
   Map<String, dynamic> toFirestore() {
     return {
       'title': title,
@@ -139,11 +152,11 @@ class Challenge extends ChallengeEntity {
       'city': city,
       'entryFee': entryFee,
       'duration': duration,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'startDate': Timestamp.fromDate(startDate),
-      'submissionDeadline': Timestamp.fromDate(submissionDeadline),
-      'votingDeadline': Timestamp.fromDate(votingDeadline),
-      'endDate': Timestamp.fromDate(endDate),
+      'createdAt': createdAt,
+      'startDate': startDate,
+      'submissionDeadline': submissionDeadline,
+      'votingDeadline': votingDeadline,
+      'endDate': endDate,
       'status': status.toString().split('.').last,
       'maxParticipants': maxParticipants,
       'currentParticipants': currentParticipants,

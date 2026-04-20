@@ -4,9 +4,6 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/ratings_repository.dart';
-import '../../../../router/app_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../profile/presentation/pages/player_profile_page.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 

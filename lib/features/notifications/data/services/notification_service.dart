@@ -1,7 +1,3 @@
-import 'dart:io' show Platform;
-
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/models/notification.dart';
@@ -16,12 +12,6 @@ import 'package:flap_app/core/config/supabase_env.dart';
 import 'package:flap_app/core/supabase/supabase_lookups.dart';
 
 class NotificationService {
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  static const String _webVapidKey = String.fromEnvironment(
-    'FIREBASE_WEB_PUSH_CERT_KEY',
-    defaultValue: '',
-  );
-
   SupabaseClient get _sb => Supabase.instance.client;
 
   bool get _hasSb =>
@@ -53,48 +43,14 @@ class NotificationService {
       }
 
       print('Initializing NotificationService...');
-
-      // Request permission for notifications
-      await _messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-
-      // Get FCM token
-      final token = await _getCurrentMessagingToken();
-      if (token != null) {
-        print('FCM token obtained: ${token.substring(0, 20)}...');
-        await _saveFCMToken(token);
-      } else {
-        print('Failed to get FCM token');
-      }
-
-      // Listen for token refresh
-      _messaging.onTokenRefresh.listen(_saveFCMToken);
       AppAuth.onAuthStateChange.listen((state) async {
         final u = state.session?.user;
         if (u != null) {
-          if (await UserSettingsService().isNotificationsEnabled()) {
-            final token = await _getCurrentMessagingToken();
-            if (token != null) {
-              await _saveFCMToken(token);
-            }
-          } else {
+          if (!await UserSettingsService().isNotificationsEnabled()) {
             await _clearNotificationTokens(u.id);
           }
         }
       });
-
-      // Handle foreground messages
-      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-      // Handle notification taps
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
-      final initial = await FirebaseMessaging.instance.getInitialMessage();
-if (initial != null) {
-  _handleNotificationTap(initial);
-}
 
       print('NotificationService initialized successfully');
     } catch (e) {
@@ -102,25 +58,8 @@ if (initial != null) {
     }
   }
 
-  Future<String?> _getCurrentMessagingToken() async {
-    if (!kIsWeb) {
-      return _messaging.getToken();
-    }
-    if (_webVapidKey.isNotEmpty) {
-      return _messaging.getToken(vapidKey: _webVapidKey);
-    }
-    return _messaging.getToken();
-  }
-
   Future<void> syncCurrentUserToken() async {
-    if (!await UserSettingsService().isNotificationsEnabled()) {
-      await _clearNotificationTokens();
-      return;
-    }
-    final token = await _getCurrentMessagingToken();
-    if (token != null) {
-      await _saveFCMToken(token);
-    }
+    await _clearNotificationTokens();
   }
 
   Future<void> _saveFCMToken(String token) async {
@@ -130,9 +69,7 @@ if (initial != null) {
       await _clearNotificationTokens(currentUser.id);
       return;
     }
-    final platform = kIsWeb
-        ? 'web'
-        : (Platform.isIOS ? 'ios' : 'android');
+    const platform = 'disabled';
     await _sb.from('push_tokens').upsert(
       <String, dynamic>{
         'user_id': currentUser.id,
@@ -153,14 +90,14 @@ if (initial != null) {
   }
 
   // Handle foreground messages
-  void _handleForegroundMessage(RemoteMessage message) {
-    print('Received foreground message: ${message.notification?.title}');
+  void _handleForegroundMessage(Map<String, dynamic> message) {
+    print('Received foreground message: ${message['title']}');
     // Show in-app notification or update UI
   }
 
   // Handle notification tap
-  void _handleNotificationTap(RemoteMessage message) {
-  _navigateFromData(message.data);
+  void _handleNotificationTap(Map<String, dynamic> message) {
+  _navigateFromData(message);
 }
 
 Future<void> _navigateFromData(Map<String, dynamic> data) async {

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_app_storage.dart';
@@ -32,6 +31,7 @@ class MatchDetailsScreen extends StatefulWidget {
 
 class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   MatchesRepository get _matchRepo => sl<MatchesRepository>();
+  final SupabaseClient _sb = Supabase.instance.client;
 
   final NotificationService _notificationService = NotificationService();
   bool _isJoining = false;
@@ -44,17 +44,26 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   final Map<String, String> _playerNameCache = {};
   bool _isProcessingRosterAction = false;
 
+  Stream<Match?> _liveMatchStream() {
+    return _sb
+        .from('matches')
+        .stream(primaryKey: ['id'])
+        .asyncMap((_) => _matchRepo.fetchMatchById(widget.match.id));
+  }
+
   Future<Map<String, dynamic>> _fetchUserProfile(String userId) async {
     if (_profileCache.containsKey(userId)) return _profileCache[userId]!;
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-      final data = snap.data() as Map<String, dynamic>? ?? const {};
+      final data =
+          await _sb.from('profiles').select().eq('id', userId).maybeSingle() ??
+              const <String, dynamic>{};
       final profile = <String, dynamic>{
-        'displayName': (data['displayName'] ?? data['authorName'] ?? tr('player')).toString(),
-        'avatarUrl': (data['avatarUrl'] ?? '').toString(),
+        'displayName': (data['display_name'] ??
+                data['first_name'] ??
+                data['author_name'] ??
+                tr('player'))
+            .toString(),
+        'avatarUrl': (data['avatar_url'] ?? '').toString(),
       };
       _profileCache[userId] = profile;
       return profile;
@@ -182,19 +191,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildCoverPhotoSection() {
-    final currentUser = AppAuth.currentUser;
     final bool isOrganizer =
         AppAuth.currentUserId == widget.match.organizerId;
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('matches')
-          .doc(widget.match.id)
-          .snapshots(),
+    return StreamBuilder<Match?>(
+      stream: _liveMatchStream(),
       builder: (context, snapshot) {
-        Match? liveMatch;
-        if (snapshot.hasData && snapshot.data?.data() != null) {
-          liveMatch = Match.fromFirestore(snapshot.data!);
-        }
+        final liveMatch = snapshot.data;
         final photoUrl = liveMatch?.coverPhotoUrl ?? widget.match.coverPhotoUrl;
         final status = liveMatch?.status ?? widget.match.status;
         final bool showUploadCta =
@@ -220,7 +222,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                         fit: StackFit.expand,
                         children: [
                           Image.network(
-                            photoUrl!,
+                            photoUrl,
                             fit: BoxFit.cover,
                             loadingBuilder: (context, child, progress) {
                               if (progress == null) return child;
@@ -642,16 +644,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       return const SizedBox.shrink();
     }
 
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('matches')
-          .doc(widget.match.id)
-          .snapshots(),
+    return StreamBuilder<Match?>(
+      stream: _liveMatchStream(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
+        if (!snapshot.hasData || snapshot.data == null) {
           return const SizedBox.shrink();
         }
-        final liveMatch = Match.fromFirestore(snapshot.data!);
+        final liveMatch = snapshot.data!;
         final sections = <Widget>[];
 
         final teamASection =
@@ -911,30 +910,20 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     if (currentUser == null) {
       return const SizedBox.shrink();
     }
-    return StreamBuilder<
-        DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('matches')
-          .doc(widget.match.id)
-          .snapshots(),
+    return StreamBuilder<Match?>(
+      stream: _liveMatchStream(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
+        if (!snapshot.hasData || snapshot.data == null) {
           return const SizedBox.shrink();
         }
-        final data = snapshot.data!.data();
-        if (data == null) {
-          return const SizedBox.shrink();
-        }
-        final rawStatus = data['teamRosterStatus'];
-        if (rawStatus is! Map) {
-          return const SizedBox.shrink();
-        }
+        final match = snapshot.data!;
+        final rawStatus = match.teamRosterStatus;
 
         String? teamKey;
         String playerStatus = '';
         rawStatus.forEach((key, value) {
           if (teamKey != null) return;
-          if (value is Map && value.containsKey(currentUser.id)) {
+          if (value.containsKey(currentUser.id)) {
             teamKey = key.toString();
             playerStatus = value[currentUser.id]?.toString() ?? '';
           }
@@ -945,10 +934,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         }
 
         final teamName = teamKey == 'teamA'
-            ? (data['teamA']?['name']?.toString() ??
-                tr('il_e18d322f14'))
-            : (data['teamB']?['name']?.toString() ??
-                tr('il_aceaf5d9ac'));
+            ? (match.teamA?.name ?? tr('il_e18d322f14'))
+            : (match.teamB?.name ?? tr('il_aceaf5d9ac'));
         final isPending = playerStatus.isEmpty || playerStatus == 'pending';
         final headline = isPending
             ? tr('il_a23b1c12bb')
@@ -1226,12 +1213,39 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
   Future<AppTeam?> _getTeam(String teamId) async {
     if (_teamCache.containsKey(teamId)) return _teamCache[teamId];
-    final snap = await FirebaseFirestore.instance
-        .collection('teams')
-        .doc(teamId)
-        .get();
-    if (!snap.exists) return null;
-    final team = AppTeam.fromDoc(snap);
+    final teamRow = await _sb.from('teams').select().eq('id', teamId).maybeSingle();
+    if (teamRow == null) return null;
+    final members = await _sb
+        .from('team_members')
+        .select('user_id, role')
+        .eq('team_id', teamId);
+    String captainId = '';
+    final viceCaptainIds = <String>[];
+    final memberIds = <String>[];
+    for (final raw in members as List<dynamic>) {
+      final member = raw as Map<String, dynamic>;
+      final uid = (member['user_id'] ?? '').toString();
+      if (uid.isEmpty) continue;
+      memberIds.add(uid);
+      final role = (member['role'] ?? '').toString();
+      if (role == 'captain') {
+        captainId = uid;
+      } else if (role == 'vice_captain') {
+        viceCaptainIds.add(uid);
+      }
+    }
+    final team = AppTeam.fromRemoteMap(teamId, <String, dynamic>{
+      'name': teamRow['name'] ?? '',
+      'description': teamRow['description'] ?? '',
+      'captainId': captainId,
+      'viceCaptainIds': viceCaptainIds,
+      'memberIds': memberIds,
+      'isPublic': teamRow['is_public'] ?? true,
+      'logoUrl': teamRow['logo_url'],
+      'city': teamRow['city'],
+      'createdAt': teamRow['created_at'],
+      'updatedAt': teamRow['updated_at'],
+    });
     _teamCache[teamId] = team;
     return team;
   }
@@ -1241,14 +1255,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       return _playerNameCache[userId]!;
     }
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-      final data = snap.data();
-      final name = (data?['displayName'] ??
-              data?['name'] ??
-              data?['authorName'] ??
+      final data =
+          await _sb.from('profiles').select().eq('id', userId).maybeSingle();
+      final name = (data?['display_name'] ??
+              data?['first_name'] ??
+              data?['author_name'] ??
               tr('player'))
           .toString();
       _playerNameCache[userId] = name;
@@ -1275,7 +1286,6 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       return;
     }
 
-    final limit = members.length;
     final previousSelection =
         Set<String>.from(liveMatch.teamRosters[teamKey] ?? const <String>[]);
 
@@ -1296,7 +1306,6 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         final selected = Set<String>.from(previousSelection);
         return StatefulBuilder(
           builder: (context, setSheetState) {
-            final atLimit = selected.length >= limit;
             return SafeArea(
               child: Padding(
                 padding: EdgeInsets.only(
@@ -1330,20 +1339,17 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       height: MediaQuery.of(context).size.height * 0.5,
                       child: ListView(
                         children: members.map((memberId) {
-                          final disabled = false;
                           return CheckboxListTile(
                             value: selected.contains(memberId),
-                            onChanged: disabled
-                                ? null
-                                : (value) {
-                                    setSheetState(() {
-                                      if (value == true) {
-                                        selected.add(memberId);
-                                      } else {
-                                        selected.remove(memberId);
-                                      }
-                                    });
-                                  },
+                            onChanged: (value) {
+                              setSheetState(() {
+                                if (value == true) {
+                                  selected.add(memberId);
+                                } else {
+                                  selected.remove(memberId);
+                                }
+                              });
+                            },
                             activeColor: const Color(0xFF4caf50),
                             title: Text(
                               memberNames[memberId] ?? tr('player'),
@@ -1659,25 +1665,25 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildParticipantCard(String participantId) {
-  return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-    future: FirebaseFirestore.instance
-        .collection('users')
-        .doc(participantId)
-        .get(),
+  return FutureBuilder<Map<String, dynamic>?>(
+    future: _sb.from('profiles').select().eq('id', participantId).maybeSingle(),
     builder: (context, snapshot) {
-      if (!snapshot.hasData || !snapshot.data!.exists) {
+      if (!snapshot.hasData || snapshot.data == null) {
         return _buildParticipantCardPlaceholder(participantId);
       }
 
-      final userData = snapshot.data!.data()!;
+      final userData = snapshot.data!;
       final positionLabel = _localizedPosition(userData['position'] as String?);
       final cityLabel = _localizedCity(userData['city'] as String?);
       final isOrganizer = participantId == widget.match.organizerId;
       final displayName =
-          (userData['displayName'] ?? userData['authorName'] ?? tr('player'))
+          (userData['display_name'] ??
+                  userData['first_name'] ??
+                  userData['author_name'] ??
+                  tr('player'))
               .toString()
               .trim();
-      final avatarUrl = (userData['avatarUrl'] ?? '').toString();
+      final avatarUrl = (userData['avatar_url'] ?? '').toString();
       final ratingValue = (userData['rating'] is num)
           ? (userData['rating'] as num).toDouble()
           : 0.0;
@@ -2335,8 +2341,6 @@ return Row(
         return tr('il_9f088dbebd');
       case MatchLevel.professional:
         return tr('professional');
-      default:
-        return tr('unknown');
     }
   }
 
@@ -2355,8 +2359,6 @@ return Row(
       return Colors.grey;
     case MatchStatus.cancelled:
       return Colors.red;
-    default:
-      return Colors.grey;
   }
 }
 
@@ -2375,26 +2377,22 @@ String _getStatusText(MatchStatus status, {Match? match}) {
       return tr('il_7804f7a79a');
     case MatchStatus.cancelled:
       return tr('il_d353a99eb4');
-    default:
-      return tr('il_b764cdc0ea');
   }
 }
   Future<double> _getMyMatchAverageRating(String matchId, String userId) async {
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('matches')
-          .doc(matchId)
-          .collection('playerRatings')
-          .where('playerId', isEqualTo: userId)
-          .get();
-      if (snap.docs.isEmpty) return 0.0;
+      final rows = await _sb
+          .from('match_player_ratings')
+          .select('rating')
+          .eq('match_id', matchId)
+          .eq('player_id', userId);
+      if (rows.isEmpty) return 0.0;
       double sum = 0.0;
-      for (final d in snap.docs) {
-        final m = d.data();
+      for (final m in rows) {
         final r = (m['rating'] is num) ? (m['rating'] as num).toDouble() : 0.0;
         sum += r;
       }
-      return sum / snap.docs.length;
+      return sum / rows.length;
     } catch (_) {
       return 0.0;
     }
@@ -2409,10 +2407,10 @@ String _getStatusText(MatchStatus status, {Match? match}) {
       return _buildMultiTeamFinishedSection(allTeams);
     }
 
-    final aName = (widget.match.teamA?.name?.isNotEmpty == true)
+    final aName = (widget.match.teamA?.name.isNotEmpty == true)
         ? widget.match.teamA!.name
         : 'Команда A';
-    final bName = (widget.match.teamB?.name?.isNotEmpty == true)
+    final bName = (widget.match.teamB?.name.isNotEmpty == true)
         ? widget.match.teamB!.name
         : 'Команда B';
     // Якщо команди відсутні або порожні, показуємо всіх учасників, розбитих навпіл,

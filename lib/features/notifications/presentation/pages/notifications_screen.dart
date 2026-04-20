@@ -1,8 +1,8 @@
 import 'package:auto_route/auto_route.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../challenges/data/models/challenge.dart';
@@ -21,6 +21,7 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   NotificationsRepository get _notificationsRepo => sl<NotificationsRepository>();
+  final SupabaseClient _sb = Supabase.instance.client;
   
   @override
   Widget build(BuildContext context) {
@@ -484,15 +485,34 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _openChallengeById(String challengeId) async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('challenges').doc(challengeId).get();
-      if (!doc.exists) {
+      final row = await _sb.from('challenges').select().eq('id', challengeId).maybeSingle();
+      if (row == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('il_a29799fa76'))),
         );
         return;
       }
-      final challenge = Challenge.fromFirestore(doc);
+      final challenge = Challenge.fromFirestore(_MapDoc(challengeId, <String, dynamic>{
+        'title': row['title'],
+        'description': row['description'],
+        'type': '',
+        'status': row['status'],
+        'entryFee': row['entry_fee'] ?? 0,
+        'maxParticipants': row['max_participants'] ?? 0,
+        'participants': const <String>[],
+        'prizePool': 0,
+        'startDate': row['starts_at'],
+        'endDate': row['ends_at'],
+        'createdAt': row['created_at'],
+        'createdBy': row['creator_id'],
+        'city': row['city'],
+        'isTeamChallenge': false,
+        'creatorVideoUrl': '',
+        'creatorThumbnailUrl': row['image_url'],
+        'submissionDeadline': row['submission_deadline'],
+        'votingDeadline': row['voting_deadline'],
+      }));
       if (!mounted) return;
       context.router.push(ChallengeDetailsRoute(challenge: challenge));
     } catch (e) {
@@ -505,15 +525,28 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     Future<void> _openMatchRatingById(String matchId) async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('matches').doc(matchId).get();
-      if (!doc.exists) {
+      final row = await _sb.from('matches').select().eq('id', matchId).maybeSingle();
+      if (row == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('il_6b539d4234'))),
         );
         return;
       }
-      final match = Match.fromFirestore(doc);
+      final match = Match.fromFirestore(_MapDoc(matchId, <String, dynamic>{
+        'title': row['title'],
+        'description': row['description'],
+        'location': row['location_name'] ?? row['city'],
+        'city': row['city'],
+        'date': row['start_time'],
+        'maxPlayers': row['max_players'],
+        'currentPlayers': 0,
+        'participants': const <String>[],
+        'isActive': row['status'] == 'scheduled' || row['status'] == 'open',
+        'createdBy': row['organizer_id'],
+        'createdAt': row['created_at'],
+        'status': row['status'],
+      }));
       if (!mounted) return;
       context.router.push(MatchRatingRoute(match: match));
     } catch (e) {
@@ -528,16 +561,29 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     Future<void> _openMatchById(String matchId) async {
     print('🔍 NOTIFICATION: Opening match with ID: $matchId');
     try {
-      final doc = await FirebaseFirestore.instance.collection('matches').doc(matchId).get();
-      print('🔍 NOTIFICATION: Match doc exists: ${doc.exists}');
-      if (!doc.exists) {
+      final row = await _sb.from('matches').select().eq('id', matchId).maybeSingle();
+      print('🔍 NOTIFICATION: Match doc exists: ${row != null}');
+      if (row == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('il_6b539d4234'))),
         );
         return;
       }
-      final match = Match.fromFirestore(doc);
+      final match = Match.fromFirestore(_MapDoc(matchId, <String, dynamic>{
+        'title': row['title'],
+        'description': row['description'],
+        'location': row['location_name'] ?? row['city'],
+        'city': row['city'],
+        'date': row['start_time'],
+        'maxPlayers': row['max_players'],
+        'currentPlayers': 0,
+        'participants': const <String>[],
+        'isActive': row['status'] == 'scheduled' || row['status'] == 'open',
+        'createdBy': row['organizer_id'],
+        'createdAt': row['created_at'],
+        'status': row['status'],
+      }));
       print('🔍 NOTIFICATION: Match loaded: ${match.title}');
       if (!mounted) return;
       print('🔍 NOTIFICATION: Navigating to match-details...');
@@ -580,16 +626,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _openVideoById(String videoId) async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('videos').doc(videoId).get();
-      if (!doc.exists) {
+      final data = await _sb.from('videos').select().eq('id', videoId).maybeSingle();
+      if (data == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('il_e861519b9c'))),
         );
         return;
       }
-      final data = doc.data() as Map<String, dynamic>;
-      final videoUrl = (data['videoUrl'] ?? '').toString();
+      final videoUrl = (data['video_url'] ?? data['videoUrl'] ?? '').toString();
       final title = (data['title'] ?? tr('il_d534be829e')).toString();
       if (videoUrl.isEmpty) {
         if (!mounted) return;
@@ -648,6 +693,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       );
     }
   }
+}
+
+class _MapDoc {
+  _MapDoc(this.id, this._data);
+  final String id;
+  final Map<String, dynamic> _data;
+  Map<String, dynamic> data() => _data;
 }
 
 

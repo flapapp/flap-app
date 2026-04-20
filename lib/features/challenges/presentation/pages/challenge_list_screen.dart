@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../router/app_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
@@ -20,8 +19,6 @@ class ChallengeListScreen extends StatefulWidget {
 
 class _ChallengeListScreenState extends State<ChallengeListScreen> {
   ChallengesRepository get _challengesRepo => sl<ChallengesRepository>();
-
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   
   String _selectedStatus = 'all';
   String _selectedType = 'all';

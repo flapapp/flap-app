@@ -1,8 +1,6 @@
 import 'dart:typed_data';
 import 'package:easy_localization/easy_localization.dart';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_app_storage.dart';
@@ -19,38 +17,89 @@ class TeamService {
   static final TeamService _instance = TeamService._();
   factory TeamService() => _instance;
 
-  final _firestore = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
+  SupabaseClient get _sb => Supabase.instance.client;
 
-  CollectionReference<Map<String, dynamic>> get _teamsCollection =>
-    _firestore.collection('teams');
-  CollectionReference<Map<String, dynamic>> get _invitesCollection =>
-      _firestore.collection('teamInvites');
-  CollectionReference<Map<String, dynamic>> get _matchRequestsCollection =>
-      _firestore.collection('teamMatchRequests');
-  CollectionReference<Map<String, dynamic>> get _joinRequestsCollection =>
-      _firestore.collection('teamJoinRequests');
-  CollectionReference<Map<String, dynamic>> get _activityFeedCollection =>
-      _firestore.collection('activityFeed');
+  Future<AppTeam?> _loadTeam(String teamId) async {
+    final teamRow = await _sb.from('teams').select().eq('id', teamId).maybeSingle();
+    if (teamRow == null) return null;
+
+    final members = await _sb
+        .from('team_members')
+        .select('user_id, role')
+        .eq('team_id', teamId);
+
+    String captainId = '';
+    final viceCaptainIds = <String>[];
+    final memberIds = <String>[];
+    for (final raw in members as List<dynamic>) {
+      final m = raw as Map<String, dynamic>;
+      final uid = (m['user_id'] ?? '').toString();
+      if (uid.isEmpty) continue;
+      memberIds.add(uid);
+      final role = (m['role'] ?? 'member').toString();
+      if (role == 'captain') {
+        captainId = uid;
+      } else if (role == 'vice_captain') {
+        viceCaptainIds.add(uid);
+      }
+    }
+
+    return AppTeam.fromRemoteMap(teamId, <String, dynamic>{
+      'name': teamRow['name'],
+      'description': teamRow['description'] ?? '',
+      'captainId': captainId,
+      'viceCaptainIds': viceCaptainIds,
+      'memberIds': memberIds,
+      'isPublic': teamRow['is_public'] ?? true,
+      'logoUrl': teamRow['logo_url'],
+      'city': teamRow['city'],
+      'createdAt': teamRow['created_at'],
+      'updatedAt': teamRow['updated_at'],
+      'wins': 0,
+      'losses': 0,
+      'draws': 0,
+      'goalsFor': 0,
+      'goalsAgainst': 0,
+      'playerGoals': const <String, int>{},
+      'recentMatches': const <Map<String, dynamic>>[],
+    });
+  }
 
   Stream<List<AppTeam>> watchUserTeams(String userId) {
-    return _teamsCollection
-        .where('memberIds', arrayContains: userId)
-        .snapshots()
-        .map((snap) => snap.docs.map(AppTeam.fromDoc).toList());
+    return _sb
+        .from('team_members')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
+        .asyncMap((rows) async {
+      final ids = (rows as List<dynamic>)
+          .map((r) => (r as Map<String, dynamic>)['team_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      final teams = <AppTeam>[];
+      for (final id in ids) {
+        final t = await _loadTeam(id);
+        if (t != null) teams.add(t);
+      }
+      return teams;
+    });
   }
 
   Future<List<AppTeam>> fetchUserTeams(String userId) async {
-    final snap = await _teamsCollection
-        .where('memberIds', arrayContains: userId)
-        .get();
-    return snap.docs.map(AppTeam.fromDoc).toList();
+    final rows = await _sb.from('team_members').select('team_id').eq('user_id', userId);
+    final ids = (rows as List<dynamic>)
+        .map((r) => (r as Map<String, dynamic>)['team_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final teams = <AppTeam>[];
+    for (final id in ids) {
+      final t = await _loadTeam(id);
+      if (t != null) teams.add(t);
+    }
+    return teams;
   }
 
   Future<AppTeam?> getTeam(String teamId) async {
-    final doc = await _teamsCollection.doc(teamId).get();
-    if (!doc.exists) return null;
-    return AppTeam.fromDoc(doc);
+    return _loadTeam(teamId);
   }
 
   Future<String> createTeam({
@@ -65,55 +114,41 @@ class TeamService {
       throw Exception('Користувач не авторизований');
     }
 
-    final userRef = _firestore.collection('users').doc(user.id);
-    final now = DateTime.now();
-    final teamRef = _teamsCollection.doc();
+    final existingMemberships = await _sb
+        .from('team_members')
+        .select('id')
+        .eq('user_id', user.id);
+    if ((existingMemberships as List<dynamic>).length >= 3) {
+      throw Exception('Максимум 3 команди на гравця');
+    }
 
-    await _firestore.runTransaction((transaction) async {
-      final userSnap = await transaction.get(userRef);
-      final existingTeams =
-          List<String>.from(userSnap.data()?['teamIds'] ?? const []);
-      if (existingTeams.length >= 3) {
-        throw Exception('Максимум 3 команди на гравця');
-      }
+    final inserted = await _sb
+        .from('teams')
+        .insert(<String, dynamic>{
+          'name': name,
+          'description': description,
+          'city': city,
+          'is_public': isPublic,
+          'created_by': user.id,
+        })
+        .select('id')
+        .single();
+    final teamId = inserted['id'].toString();
 
-      transaction.set(teamRef, {
-        'name': name,
-        'nameLower': name.toLowerCase(),
-        'description': description,
-        'captainId': user.id,
-        'viceCaptainIds': <String>[],
-        'memberIds': [user.id],
-        'isPublic': isPublic,
-        'logoUrl': null,
-        'city': city,
-        'wins': 0,
-        'losses': 0,
-        'draws': 0,
-        'goalsFor': 0,
-        'goalsAgainst': 0,
-        'playerGoals': <String, int>{},
-        'recentMatches': <Map<String, dynamic>>[],
-        'createdAt': Timestamp.fromDate(now),
-        'updatedAt': Timestamp.fromDate(now),
-      });
-
-      transaction.set(
-        userRef,
-        {
-          'teamIds': FieldValue.arrayUnion([teamRef.id]),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+    await _sb.from('team_members').insert(<String, dynamic>{
+      'team_id': teamId,
+      'user_id': user.id,
+      'role': 'captain',
     });
 
     if (logoBytes != null) {
-      final logoUrl = await _uploadTeamLogo(teamRef.id, logoBytes);
-      await teamRef.update({'logoUrl': logoUrl});
+      final logoUrl = await _uploadTeamLogo(teamId, logoBytes);
+      await _sb.from('teams').update(<String, dynamic>{
+        'logo_url': logoUrl,
+      }).eq('id', teamId);
     }
 
-    return teamRef.id;
+    return teamId;
   }
 
   Future<String> _uploadTeamLogo(String teamId, Uint8List bytes) async {
@@ -137,12 +172,20 @@ class TeamService {
     required String memberId,
     required bool addAsVice,
   }) async {
-    await _teamsCollection.doc(teamId).update({
-      'viceCaptainIds': addAsVice
-          ? FieldValue.arrayUnion([memberId])
-          : FieldValue.arrayRemove([memberId]),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    if (addAsVice) {
+      await _sb.from('team_members').upsert(<String, dynamic>{
+        'team_id': teamId,
+        'user_id': memberId,
+        'role': 'vice_captain',
+      });
+    } else {
+      await _sb
+          .from('team_members')
+          .update(<String, dynamic>{'role': 'member'})
+          .eq('team_id', teamId)
+          .eq('user_id', memberId)
+          .eq('role', 'vice_captain');
+    }
   }
 
   Future<void> updateTeamInfo({
@@ -152,17 +195,14 @@ class TeamService {
     String? city,
     bool? isPublic,
   }) async {
-    final updates = <String, dynamic>{
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    if (name != null) {
-      updates['name'] = name;
-      updates['nameLower'] = name.toLowerCase();
-    }
+    final updates = <String, dynamic>{};
+    if (name != null) updates['name'] = name;
     if (description != null) updates['description'] = description;
     if (city != null) updates['city'] = city;
-    if (isPublic != null) updates['isPublic'] = isPublic;
-    await _teamsCollection.doc(teamId).update(updates);
+    if (isPublic != null) updates['is_public'] = isPublic;
+    if (updates.isNotEmpty) {
+      await _sb.from('teams').update(updates).eq('id', teamId);
+    }
   }
 
   Future<void> invitePlayers({
@@ -172,20 +212,16 @@ class TeamService {
   }) async {
     final user = AppAuth.currentUser;
     if (user == null) return;
-    final batch = _firestore.batch();
+    final now = DateTime.now().toUtc().toIso8601String();
     for (final targetId in userIds) {
-      final doc = _invitesCollection.doc();
-      batch.set(doc, TeamInvite(
-        id: doc.id,
-        teamId: teamId,
-        teamName: teamName,
-        userId: targetId,
-        invitedBy: user.id,
-        status: TeamInviteStatus.pending,
-        createdAt: DateTime.now(),
-      ).toFirestore());
+      await _sb.from('team_invites').insert(<String, dynamic>{
+        'team_id': teamId,
+        'user_id': targetId,
+        'invited_by': user.id,
+        'status': 'pending',
+        'created_at': now,
+      });
     }
-    await batch.commit();
     for (final uid in userIds) {
       await NotificationService().sendNotification(
         AppNotification.teamInvite(
@@ -198,11 +234,29 @@ class TeamService {
   }
 
   Stream<List<TeamInvite>> watchInvites(String userId) {
-    return _invitesCollection
-        .where('userId', isEqualTo: userId)
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .map((snap) => snap.docs.map(TeamInvite.fromDoc).toList());
+    return _sb
+        .from('team_invites')
+        .stream(primaryKey: ['id'])
+        .asyncMap((rows) async {
+      final invites = <TeamInvite>[];
+      for (final raw in rows as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        if ((row['user_id'] ?? '').toString() != userId) continue;
+        if ((row['status'] ?? '').toString() != 'pending') continue;
+        final teamId = (row['team_id'] ?? '').toString();
+        final team = await _sb.from('teams').select('name').eq('id', teamId).maybeSingle();
+        invites.add(TeamInvite.fromJson(<String, dynamic>{
+          'id': row['id'],
+          'teamId': teamId,
+          'teamName': (team?['name'] ?? '').toString(),
+          'userId': row['user_id'],
+          'invitedBy': row['invited_by'],
+          'status': row['status'],
+          'createdAt': row['created_at'],
+        }));
+      }
+      return invites;
+    });
   }
 
   Future<void> respondToInvite({
@@ -213,38 +267,28 @@ class TeamService {
     if (accept && userTeams.length >= 3) {
       throw Exception('Максимум 3 команди на гравця');
     }
-    final batch = _firestore.batch();
-    final inviteRef = _invitesCollection.doc(invite.id);
-    final teamRef = _teamsCollection.doc(invite.teamId);
-    final userRef = _firestore.collection('users').doc(invite.userId);
-
-    batch.update(inviteRef, {
+    await _sb.from('team_invites').update(<String, dynamic>{
       'status': accept ? 'accepted' : 'declined',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+      'responded_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', invite.id);
 
     if (accept) {
-      batch.update(teamRef, {
-        'memberIds': FieldValue.arrayUnion([invite.userId]),
-        'updatedAt': FieldValue.serverTimestamp(),
+      await _sb.from('team_members').upsert(<String, dynamic>{
+        'team_id': invite.teamId,
+        'user_id': invite.userId,
+        'role': 'member',
       });
-      batch.set(
-        userRef,
-        {
-          'teamIds': FieldValue.arrayUnion([invite.teamId]),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
     }
 
-    await batch.commit();
-
     if (accept) {
-      final userDoc = await _firestore.collection('users').doc(invite.userId).get();
-      final userName = (userDoc.data()?['displayName'] ??
-              userDoc.data()?['name'] ??
-              userDoc.data()?['authorName'] ??
+      final userRow = await _sb
+          .from('profiles')
+          .select('display_name, nickname, first_name, last_name')
+          .eq('id', invite.userId)
+          .maybeSingle();
+      final userName = (userRow?['display_name'] ??
+              userRow?['nickname'] ??
+              '${userRow?['first_name'] ?? ''} ${userRow?['last_name'] ?? ''}'.trim() ??
               'Player')
           .toString();
       await _publishTeamMovementNews(
@@ -258,23 +302,35 @@ class TeamService {
   }
 
   Stream<List<TeamJoinRequest>> watchJoinRequests(String teamId) {
-    return _joinRequestsCollection
-        .where('teamId', isEqualTo: teamId)
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .map((snap) => snap.docs.map(TeamJoinRequest.fromDoc).toList());
+    return _sb
+        .from('team_join_requests')
+        .stream(primaryKey: ['id'])
+        .asyncMap((rows) {
+      final filtered = (rows as List<dynamic>).where((raw) {
+        final row = raw as Map<String, dynamic>;
+        return (row['team_id'] ?? '').toString() == teamId &&
+            (row['status'] ?? '').toString() == 'pending';
+      }).toList();
+      return _mapJoinRequests(filtered);
+    });
   }
 
   Stream<TeamJoinRequest?> watchMyJoinRequest(
       String teamId, String userId) {
-    return _joinRequestsCollection
-        .where('teamId', isEqualTo: teamId)
-        .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .limit(1)
-        .snapshots()
-        .map((snap) =>
-            snap.docs.isEmpty ? null : TeamJoinRequest.fromDoc(snap.docs.first));
+    return _sb
+        .from('team_join_requests')
+        .stream(primaryKey: ['id'])
+        .asyncMap((rows) async {
+      final filtered = (rows as List<dynamic>).where((raw) {
+        final row = raw as Map<String, dynamic>;
+        return (row['team_id'] ?? '').toString() == teamId &&
+            (row['user_id'] ?? '').toString() == userId;
+      }).toList();
+      final mapped = await _mapJoinRequests(filtered);
+      if (mapped.isEmpty) return null;
+      mapped.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return mapped.first;
+    });
   }
 
   Future<void> requestToJoinTeam({
@@ -285,23 +341,21 @@ class TeamService {
     if (user == null) {
       throw Exception('Потрібна авторизація');
     }
-    final teamDoc = await _teamsCollection.doc(teamId).get();
-    if (!teamDoc.exists) {
+    final team = await _loadTeam(teamId);
+    if (team == null) {
       throw Exception('Команду не знайдено');
     }
-    final memberIds =
-        List<String>.from(teamDoc.data()?['memberIds'] ?? const []);
-    if (memberIds.contains(user.id)) {
+    if (team.memberIds.contains(user.id)) {
       throw Exception('Ви вже у цій команді');
     }
 
-    final pendingExisting = await _joinRequestsCollection
-        .where('teamId', isEqualTo: teamId)
-        .where('userId', isEqualTo: user.id)
-        .where('status', isEqualTo: 'pending')
-        .limit(1)
-        .get();
-    if (pendingExisting.docs.isNotEmpty) {
+    final pendingExisting = await _sb
+        .from('team_join_requests')
+        .select('id')
+        .eq('team_id', teamId)
+        .eq('user_id', user.id)
+        .eq('status', 'pending');
+    if ((pendingExisting as List).isNotEmpty) {
       throw Exception('Запит вже надіслано');
     }
 
@@ -309,20 +363,17 @@ class TeamService {
         (user.userMetadata?['full_name'] as String?)?.trim().isNotEmpty == true
             ? (user.userMetadata!['full_name'] as String).trim()
             : (user.email?.split('@').first ?? 'Player');
-    final reqRef = await _joinRequestsCollection.add({
-      'teamId': teamId,
-      'teamName': teamName,
-      'userId': user.id,
-      'userName': requesterName,
+    final reqRef = await _sb.from('team_join_requests').insert(<String, dynamic>{
+      'team_id': teamId,
+      'user_id': user.id,
       'status': 'pending',
-      'createdAt': Timestamp.fromDate(DateTime.now()),
-    });
+      'message': requesterName,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+    }).select('id').single();
 
     try {
-      final data = teamDoc.data() ?? {};
-      final captainId = (data['captainId'] ?? '').toString();
-      final viceIds =
-          List<String>.from(data['viceCaptainIds'] ?? const <String>[]);
+      final captainId = team.captainId;
+      final viceIds = team.viceCaptainIds;
       final recipients = {
         if (captainId.isNotEmpty) captainId,
         ...viceIds.where((id) => id.isNotEmpty),
@@ -330,14 +381,14 @@ class TeamService {
       if (recipients.isNotEmpty) {
         final notifier = NotificationService();
         final resolvedTeamName =
-            teamName.isNotEmpty ? teamName : (data['name'] ?? 'Team').toString();
+            teamName.isNotEmpty ? teamName : team.name;
         for (final target in recipients) {
           await notifier.sendTeamJoinRequestNotification(
             toUserId: target,
             teamId: teamId,
             teamName: resolvedTeamName,
             requesterName: requesterName,
-            requestId: reqRef.id,
+            requestId: reqRef['id'].toString(),
           );
         }
       }
@@ -350,43 +401,30 @@ class TeamService {
   }) async {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
-    final teamDoc = await _teamsCollection.doc(request.teamId).get();
-    if (!teamDoc.exists) {
+    final team = await _loadTeam(request.teamId);
+    if (team == null) {
       throw Exception('Команду не знайдено');
     }
-    final data = teamDoc.data() ?? {};
-    final captainId = (data['captainId'] ?? '').toString();
-    final viceIds =
-        List<String>.from(data['viceCaptainIds'] ?? const <String>[]);
+    final captainId = team.captainId;
+    final viceIds = team.viceCaptainIds;
     final canManage =
         captainId == currentUser.id || viceIds.contains(currentUser.id);
     if (!canManage) {
       throw Exception('Недостатньо прав');
     }
 
-    final batch = _firestore.batch();
-    final reqRef = _joinRequestsCollection.doc(request.id);
-    batch.update(reqRef, {
+    await _sb.from('team_join_requests').update({
       'status': accept ? 'accepted' : 'declined',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+      'responded_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', request.id);
 
     if (accept) {
-      batch.update(_teamsCollection.doc(request.teamId), {
-        'memberIds': FieldValue.arrayUnion([request.userId]),
-        'updatedAt': FieldValue.serverTimestamp(),
+      await _sb.from('team_members').upsert(<String, dynamic>{
+        'team_id': request.teamId,
+        'user_id': request.userId,
+        'role': 'member',
       });
-      batch.set(
-        _firestore.collection('users').doc(request.userId),
-        {
-          'teamIds': FieldValue.arrayUnion([request.teamId]),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
     }
-
-    await batch.commit();
 
     if (accept) {
       await _publishTeamMovementNews(
@@ -400,11 +438,17 @@ class TeamService {
   }
 
   Stream<List<TeamMatchRequest>> watchMatchRequests(String teamId) {
-    return _matchRequestsCollection
-        .where('teamId', isEqualTo: teamId)
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .map((snap) => snap.docs.map(TeamMatchRequest.fromDoc).toList());
+    return _sb
+        .from('team_match_requests')
+        .stream(primaryKey: ['id'])
+        .asyncMap((rows) {
+      final filtered = (rows as List<dynamic>).where((raw) {
+        final row = raw as Map<String, dynamic>;
+        return (row['requesting_team_id'] ?? '').toString() == teamId &&
+            (row['status'] ?? '').toString() == 'pending';
+      }).toList();
+      return _mapMatchRequests(filtered);
+    });
   }
 
   Future<void> sendMatchRequest({
@@ -416,27 +460,29 @@ class TeamService {
   }) async {
     final user = AppAuth.currentUser;
     if (user == null) return;
-    final docRef = await _matchRequestsCollection.add(TeamMatchRequest(
-      id: '',
-      matchId: matchId,
-      teamId: teamId,
-      opponentTeamId: opponentTeamId,
-      opponentName: opponentName,
-      createdBy: user.id,
-      status: TeamMatchRequestStatus.pending,
-      createdAt: DateTime.now(),
-      proposedRoster: proposedRoster,
-    ).toFirestore());
+    final docRef = await _sb.from('team_match_requests').insert(<String, dynamic>{
+      'match_id': matchId,
+      'requesting_team_id': teamId,
+      'target_team_id': opponentTeamId,
+      'created_by': user.id,
+      'status': 'pending',
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+    }).select('id').single();
+    for (final playerId in proposedRoster) {
+      await _sb.from('team_match_request_players').upsert(<String, dynamic>{
+        'team_match_request_id': docRef['id'],
+        'player_id': playerId,
+      });
+    }
     try {
-      final teamDoc = await _teamsCollection.doc(teamId).get();
-      if (teamDoc.exists) {
-        final data = teamDoc.data() ?? {};
-        final captainId = data['captainId'] as String?;
-        final viceCaptainIds = List<String>.from(data['viceCaptainIds'] ?? const []);
+      final team = await _loadTeam(teamId);
+      if (team != null) {
+        final captainId = team.captainId;
+        final viceCaptainIds = team.viceCaptainIds;
         final recipients = {
-          if (captainId != null) captainId,
+          captainId,
           ...viceCaptainIds,
-        }.whereType<String>().toSet();
+        }.where((id) => id.isNotEmpty).toSet();
 
         for (final recipient in recipients) {
           await NotificationService().sendNotification(
@@ -456,69 +502,27 @@ class TeamService {
     required bool accept,
     List<String> confirmedRoster = const [],
   }) async {
-    final batch = _firestore.batch();
-    final reqRef = _matchRequestsCollection.doc(request.id);
-    batch.update(reqRef, {
+    await _sb.from('team_match_requests').update({
       'status': accept ? 'accepted' : 'declined',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+      'responded_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', request.id);
 
     String? assignedTeamKey;
 
     if (accept) {
-      final matchRef = _firestore.collection('matches').doc(request.matchId);
-      final matchSnap = await matchRef.get();
-      final matchData = matchSnap.data() ?? {};
-      assignedTeamKey =
-          (matchData['teamAId'] == request.teamId) ? 'teamA' : 'teamB';
-      final teamDoc = await _teamsCollection.doc(request.teamId).get();
-      final teamName = (teamDoc.data()?['name'] ?? 'Team') as String;
-      final rosterStatus = {
-        for (final uid in confirmedRoster) uid: 'pending',
-      };
-      final statusField =
-          assignedTeamKey == 'teamA' ? 'teamAStatus' : 'teamBStatus';
-      final teamField = assignedTeamKey!;
-      final updateData = <String, dynamic>{
-        'participants': FieldValue.arrayUnion(confirmedRoster),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'teamRosters.$teamField': confirmedRoster,
-        'teamRosterStatus.$teamField': rosterStatus,
-        statusField: 'pending',
-      };
-      updateData[teamField] = {
-        'name': teamName,
-        'playerIds': confirmedRoster,
-        'averageRating': 0.0,
-      };
-      if (teamField == 'teamA') {
-        updateData['teamAId'] = request.teamId;
-      } else {
-        updateData['teamBId'] = request.teamId;
-      }
-      batch.update(matchRef, updateData);
-    } else {
-      final matchRef = _firestore.collection('matches').doc(request.matchId);
-      final matchSnap = await matchRef.get();
-      final matchData = matchSnap.data() ?? {};
-      final isHost = (matchData['teamAId'] == request.teamId);
-      batch.update(matchRef, {
-        isHost ? 'teamAStatus' : 'teamBStatus': 'declined',
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      assignedTeamKey = 'team';
     }
-    await batch.commit();
 
     if (accept && assignedTeamKey != null && confirmedRoster.isNotEmpty) {
-      final teamDoc = await _teamsCollection.doc(request.teamId).get();
-      final teamName = (teamDoc.data()?['name'] ?? 'Team') as String;
+      final team = await _loadTeam(request.teamId);
+      final teamName = team?.name ?? 'Team';
       final notif = NotificationService();
       for (final playerId in confirmedRoster) {
         await notif.sendTeamRosterInvite(
           toUserId: playerId,
           matchId: request.matchId,
           teamName: teamName,
-          teamKey: assignedTeamKey!,
+          teamKey: assignedTeamKey,
         );
       }
     }
@@ -527,15 +531,16 @@ class TeamService {
   Future<List<AppTeam>> searchTeams(String query, {int limit = 10}) async {
     final trimmed = query.trim().toLowerCase();
     if (trimmed.isEmpty) return [];
-    final snap = await _teamsCollection.limit(200).get();
+    final snap = await _sb.from('teams').select().limit(200);
     final matches = <AppTeam>[];
-    for (final doc in snap.docs) {
-      final data = doc.data();
+    for (final raw in snap as List<dynamic>) {
+      final data = raw as Map<String, dynamic>;
       final name = (data['name'] ?? '').toString();
       final city = (data['city'] ?? '').toString();
       if (name.toLowerCase().contains(trimmed) ||
           city.toLowerCase().contains(trimmed)) {
-        matches.add(AppTeam.fromDoc(doc));
+        final t = await _loadTeam((data['id'] ?? '').toString());
+        if (t != null) matches.add(t);
       }
     }
     matches.sort((a, b) => a.name.compareTo(b.name));
@@ -547,17 +552,17 @@ class TeamService {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return [];
     final lower = trimmed.toLowerCase();
-    final snap = await _firestore.collection('users').limit(200).get();
+    final snap = await _sb.from('profiles').select().limit(200);
     final results = <Map<String, dynamic>>[];
 
-    for (final doc in snap.docs) {
-      final data = doc.data();
+    for (final raw in snap as List<dynamic>) {
+      final data = raw as Map<String, dynamic>;
       final displayNameRaw =
-          (data['displayName'] ?? data['name'] ?? data['authorName'] ?? '')
+          (data['display_name'] ?? data['nickname'] ?? '')
               .toString()
               .trim();
-      final firstName = (data['firstName'] ?? '').toString().trim();
-      final lastName = (data['lastName'] ?? '').toString().trim();
+      final firstName = (data['first_name'] ?? '').toString().trim();
+      final lastName = (data['last_name'] ?? '').toString().trim();
       final nickName = (data['nickname'] ?? '').toString().trim();
       final email = (data['email'] ?? '').toString().trim();
 
@@ -570,12 +575,7 @@ class TeamService {
         email.toLowerCase(),
       ];
 
-      final keywords = (data['searchKeywords'] is List)
-          ? (data['searchKeywords'] as List)
-              .whereType<String>()
-              .map((e) => e.toLowerCase())
-              .toList()
-          : const <String>[];
+      final keywords = const <String>[];
       searchFields.addAll(keywords);
 
       bool matches = false;
@@ -589,10 +589,10 @@ class TeamService {
 
       if (matches) {
         results.add({
-          'id': doc.id,
+          'id': data['id'],
           'displayName':
               displayNameRaw.isNotEmpty ? displayNameRaw : tr('il_64aee8c6cb'),
-          'avatarUrl': (data['avatarUrl'] ?? data['avatar'] ?? '').toString(),
+          'avatarUrl': (data['avatar_url'] ?? '').toString(),
           'firstName': firstName,
           'lastName': lastName,
           'email': email,
@@ -624,26 +624,14 @@ class TeamService {
   required String teamId,
   required String userId,
 }) async {
-  final teamRef = _teamsCollection.doc(teamId);
-  final userRef = _firestore.collection('users').doc(userId);
-
-  // Потрібно для стрічки новин після транзакції
-  String teamNameForFeed = 'Team';
-  final teamSnapForFeed = await teamRef.get();
-  if (teamSnapForFeed.exists) {
-    teamNameForFeed = (teamSnapForFeed.data()?['name'] ?? 'Team').toString();
+  final team = await _loadTeam(teamId);
+  if (team == null) {
+    throw Exception(tr('il_34d918824a'));
   }
-
-  await _firestore.runTransaction((tx) async {
-    final teamSnap = await tx.get(teamRef);
-    if (!teamSnap.exists) {
-      throw Exception(tr('il_34d918824a'));
-    }
-
-    final data = teamSnap.data() ?? {};
-    final memberIds = List<String>.from(data['memberIds'] ?? const <String>[]);
-    final viceIds = List<String>.from(data['viceCaptainIds'] ?? const <String>[]);
-    final captainId = (data['captainId'] ?? '').toString();
+  final teamNameForFeed = team.name;
+  final memberIds = List<String>.from(team.memberIds);
+  final viceIds = List<String>.from(team.viceCaptainIds);
+  final captainId = team.captainId;
 
     if (!memberIds.contains(userId)) {
       throw Exception(
@@ -661,12 +649,6 @@ class TeamService {
     final updatedMembers = List<String>.from(memberIds)..remove(userId);
     final updatedVice = List<String>.from(viceIds)..remove(userId);
 
-    final updates = <String, dynamic>{
-      'memberIds': updatedMembers,
-      'viceCaptainIds': updatedVice,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
     // Якщо виходить капітан — передаємо капітанство іншому учаснику
     if (captainId == userId) {
       String? nextCaptain;
@@ -681,29 +663,33 @@ class TeamService {
           tr('il_11f6a422ec'),
         );
       }
-
-      updates['captainId'] = nextCaptain;
-      // Новий капітан не має одночасно бути віце
-      updates['viceCaptainIds'] = List<String>.from(updatedVice)..remove(nextCaptain);
+      await _sb
+          .from('team_members')
+          .update({'role': 'captain'})
+          .eq('team_id', teamId)
+          .eq('user_id', nextCaptain);
+      await _sb
+          .from('team_members')
+          .update({'role': 'member'})
+          .eq('team_id', teamId)
+          .eq('user_id', nextCaptain)
+          .eq('role', 'vice_captain');
     }
-
-    tx.update(teamRef, updates);
-
-    tx.set(
-      userRef,
-      {
-        'teamIds': FieldValue.arrayRemove([teamId]),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-  });
+  await _sb
+      .from('team_members')
+      .delete()
+      .eq('team_id', teamId)
+      .eq('user_id', userId);
 
   // Після успішного виходу — новина в activity feed
-  final userDoc = await userRef.get();
-  final userName = (userDoc.data()?['displayName'] ??
-          userDoc.data()?['name'] ??
-          userDoc.data()?['authorName'] ??
+  final userRow = await _sb
+      .from('profiles')
+      .select('display_name,nickname,first_name,last_name')
+      .eq('id', userId)
+      .maybeSingle();
+  final userName = (userRow?['display_name'] ??
+          userRow?['nickname'] ??
+          '${userRow?['first_name'] ?? ''} ${userRow?['last_name'] ?? ''}'.trim() ??
           'Player')
       .toString();
 
@@ -722,18 +708,71 @@ class TeamService {
     required String userId,
     required String userName,
   }) async {
-    try {
-      await _activityFeedCollection.add({
-        'type': action,
+    // Activity feed table was a Firestore-only artifact.
+    // Keep as a no-op while Firebase is being removed.
+    return;
+  }
+
+  Future<List<TeamJoinRequest>> _mapJoinRequests(List<dynamic> rows) async {
+    final out = <TeamJoinRequest>[];
+    for (final raw in rows) {
+      final row = raw as Map<String, dynamic>;
+      final teamId = (row['team_id'] ?? '').toString();
+      final userId = (row['user_id'] ?? '').toString();
+      final team = await _sb.from('teams').select('name').eq('id', teamId).maybeSingle();
+      final profile = await _sb
+          .from('profiles')
+          .select('display_name,nickname,first_name,last_name')
+          .eq('id', userId)
+          .maybeSingle();
+      final userName = (profile?['display_name'] ??
+              profile?['nickname'] ??
+              '${profile?['first_name'] ?? ''} ${profile?['last_name'] ?? ''}'.trim() ??
+              'Player')
+          .toString();
+      out.add(TeamJoinRequest.fromJson(<String, dynamic>{
+        'id': row['id'],
         'teamId': teamId,
-        'teamName': teamName,
+        'teamName': (team?['name'] ?? '').toString(),
         'userId': userId,
         'userName': userName,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    } catch (_) {
-      // best-effort feed
+        'status': row['status'],
+        'createdAt': row['created_at'],
+      }));
     }
+    return out;
+  }
+
+  Future<List<TeamMatchRequest>> _mapMatchRequests(List<dynamic> rows) async {
+    final out = <TeamMatchRequest>[];
+    for (final raw in rows) {
+      final row = raw as Map<String, dynamic>;
+      final requestId = row['id'].toString();
+      final targetTeamId = (row['target_team_id'] ?? '').toString();
+      final targetTeam = await _sb
+          .from('teams')
+          .select('name')
+          .eq('id', targetTeamId)
+          .maybeSingle();
+      final rosterRows = await _sb
+          .from('team_match_request_players')
+          .select('player_id')
+          .eq('team_match_request_id', requestId);
+      out.add(TeamMatchRequest.fromJson(<String, dynamic>{
+        'id': requestId,
+        'matchId': row['match_id'],
+        'teamId': row['requesting_team_id'],
+        'opponentTeamId': targetTeamId,
+        'opponentName': (targetTeam?['name'] ?? '').toString(),
+        'createdBy': row['created_by'],
+        'status': row['status'],
+        'createdAt': row['created_at'],
+        'proposedRoster': (rosterRows as List<dynamic>)
+            .map((r) => (r as Map<String, dynamic>)['player_id'].toString())
+            .toList(),
+      }));
+    }
+    return out;
   }
 }
 

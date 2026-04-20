@@ -1,145 +1,143 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/supabase/coin_ledger.dart';
 import 'package:flap_app/app_locale_access.dart';
-import 'package:flap_app/core/auth/app_auth.dart';
 
 class ChallengeCompletionService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseClient _sb = Supabase.instance.client;
 
-  // Завершити челендж та розподілити призи
   Future<void> completeChallengeAndDistributePrizes(String challengeId) async {
     try {
-      final challengeDoc = await _firestore.collection('challenges').doc(challengeId).get();
-      if (!challengeDoc.exists) return;
+      final challenge = await _sb
+          .from('challenges')
+          .select('id, entry_fee')
+          .eq('id', challengeId)
+          .maybeSingle();
+      if (challenge == null) return;
 
-      final challengeData = challengeDoc.data() as Map<String, dynamic>;
-      final prizePool = (challengeData['prizePool'] ?? 0.0).toDouble();
-      
-      // Отримуємо всі submission з оцінками
-      final submissionsSnapshot = await _firestore
-          .collection('challenges')
-          .doc(challengeId)
-          .collection('submissions')
-          .orderBy('averageRating', descending: true)
-          .get();
+      final submissionRows = await _sb
+          .from('challenge_submissions')
+          .select('id, user_id')
+          .eq('challenge_id', challengeId);
+      final submissions = submissionRows as List<dynamic>;
 
-      final submissions = submissionsSnapshot.docs;
-      
       if (submissions.length < 2) {
-        // Якщо менше 2 учасників - повертаємо гроші
-        await _refundChallenge(challengeId, challengeData);
+        await _refundChallenge(challengeId, (challenge['entry_fee'] as num?)?.toInt() ?? 0);
         return;
       }
 
-      // Розподіл призів: 1-е: 50%, 2-е: 30%, 3-є: 20%
-      final prizes = [
-        (prizePool * 0.5).round(), // 1-е місце
-        (prizePool * 0.3).round(), // 2-е місце  
-        (prizePool * 0.2).round(), // 3-є місце
+      final scored = <Map<String, dynamic>>[];
+      for (final raw in submissions) {
+        final s = raw as Map<String, dynamic>;
+        final ratings = await _sb
+            .from('challenge_submission_ratings')
+            .select('overall_rating')
+            .eq('challenge_submission_id', s['id']);
+        final values = <double>[];
+        for (final r in ratings as List<dynamic>) {
+          values.add(((r as Map<String, dynamic>)['overall_rating'] as num).toDouble());
+        }
+        final avg = values.isEmpty ? 0.0 : values.reduce((a, b) => a + b) / values.length;
+        scored.add(<String, dynamic>{
+          'submission_id': s['id'].toString(),
+          'user_id': s['user_id'].toString(),
+          'avg': avg,
+        });
+      }
+      scored.sort((a, b) => (b['avg'] as double).compareTo(a['avg'] as double));
+
+      var prizePool = 0;
+      for (final _ in await _sb
+          .from('challenge_participants')
+          .select('user_id')
+          .eq('challenge_id', challengeId) as List<dynamic>) {
+        prizePool += (challenge['entry_fee'] as num?)?.toInt() ?? 0;
+      }
+      final prizes = <int>[
+        (prizePool * 0.5).round(),
+        (prizePool * 0.3).round(),
+        (prizePool * 0.2).round(),
       ];
 
-      final winners = <String>[];
-      final finalScores = <String, double>{};
-
-      // Нараховуємо призи переможцям
-      for (int i = 0; i < submissions.length && i < 3; i++) {
-        final submissionData = submissions[i].data() as Map<String, dynamic>;
-        final winnerId = submissionData['userId'];
-        final rating = (submissionData['averageRating'] ?? 0.0).toDouble();
-        
-        winners.add(winnerId);
-        finalScores[winnerId] = rating;
-        
-        if (i < prizes.length && prizes[i] > 0) {
-          // Нараховуємо монети переможцю
-          await _firestore.collection('users').doc(winnerId).update({
-            'coins': FieldValue.increment(prizes[i]),
-          });
-
-          // Записуємо транзакцію
-          await _firestore.collection('transactions').add({
-            'userId': winnerId,
-            'type': 'challenge_prize',
-            'amount': prizes[i],
-            'challengeId': challengeId,
-            'place': i + 1,
-            'timestamp': FieldValue.serverTimestamp(),
-            'description': bilingual(
-  'Приз за ${i + 1}-е місце в челенджі: ${prizes[i]} монет',
-  'Prize for ${i + 1} place in the challenge: ${prizes[i]} coins',
-),
-          });
+      for (var i = 0; i < scored.length && i < 3; i++) {
+        final winnerId = scored[i]['user_id'].toString();
+        final amount = i < prizes.length ? prizes[i] : 0;
+        await _sb.from('challenge_prize_places').upsert(<String, dynamic>{
+          'challenge_id': challengeId,
+          'place': i + 1,
+          'prize_amount': amount,
+          'winner_user_id': winnerId,
+        });
+        if (amount > 0) {
+          await insertCoinTransaction(
+            _sb,
+            winnerId,
+            'challenge_prize',
+            amount,
+            bilingual(
+              'Приз за ${i + 1}-е місце в челенджі: $amount монет',
+              'Prize for ${i + 1} place in the challenge: $amount coins',
+            ),
+          );
         }
       }
 
-      // Оновлюємо челендж
-      await _firestore.collection('challenges').doc(challengeId).update({
+      await _sb.from('challenges').update(<String, dynamic>{
         'status': 'completed',
-        'winners': winners,
-        'finalScores': finalScores,
-        'completedAt': FieldValue.serverTimestamp(),
+        'ends_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', challengeId);
+      await _sb.from('challenge_completions').upsert(<String, dynamic>{
+        'challenge_id': challengeId,
+        'completed_by': null,
       });
-
-      print('Challenge $challengeId completed successfully');
     } catch (e) {
       print('Error completing challenge: $e');
     }
   }
 
-  // Повернути гроші учасникам якщо недостатньо учасників
-  Future<void> _refundChallenge(String challengeId, Map<String, dynamic> challengeData) async {
+  Future<void> _refundChallenge(String challengeId, int entryFee) async {
     try {
-      final participants = List<String>.from(challengeData['participants'] ?? []);
-      final entryFee = challengeData['entryFee'] ?? 0;
-
-      // Повертаємо гроші всім учасникам
-      for (final participantId in participants) {
-        await _firestore.collection('users').doc(participantId).update({
-          'coins': FieldValue.increment(entryFee),
-        });
-
-        // Записуємо транзакцію
-        await _firestore.collection('transactions').add({
-          'userId': participantId,
-          'type': 'challenge_refund',
-          'amount': entryFee,
-          'challengeId': challengeId,
-          'timestamp': FieldValue.serverTimestamp(),
-          'description': tr('il_a81f02726f'),
-        });
+      final participants = await _sb
+          .from('challenge_participants')
+          .select('user_id')
+          .eq('challenge_id', challengeId);
+      for (final raw in participants as List<dynamic>) {
+        final uid = (raw as Map<String, dynamic>)['user_id'].toString();
+        await insertCoinTransaction(
+          _sb,
+          uid,
+          'challenge_refund',
+          entryFee,
+          tr('il_a81f02726f'),
+        );
       }
-
-      // Позначаємо челендж як скасований
-      await _firestore.collection('challenges').doc(challengeId).update({
+      await _sb.from('challenges').update(<String, dynamic>{
         'status': 'cancelled',
-        'cancelledAt': FieldValue.serverTimestamp(),
-        'cancelReason': 'Недостатньо учасників',
-      });
+        'cancelled_at': DateTime.now().toUtc().toIso8601String(),
+        'cancellation_reason': 'Недостатньо учасників',
+      }).eq('id', challengeId);
     } catch (e) {
       print('Error refunding challenge: $e');
     }
   }
 
-  // Автоматичне завершення челенджів за розкладом
   Future<void> checkAndCompleteExpiredChallenges() async {
     try {
-      final now = DateTime.now();
-      
-      // Знаходимо челенджі що мають завершитися
-      final expiredChallenges = await _firestore
-          .collection('challenges')
-          .where('status', whereIn: ['voting', 'submission'])
-          .where('endDate', isLessThan: Timestamp.fromDate(now))
-          .limit(10)
-          .get();
-
-      for (final doc in expiredChallenges.docs) {
-        await completeChallengeAndDistributePrizes(doc.id);
+      final now = DateTime.now().toUtc().toIso8601String();
+      final rows = await _sb
+          .from('challenges')
+          .select('id')
+          .inFilter('status', <String>['voting', 'submission'])
+          .lte('ends_at', now)
+          .limit(10);
+      for (final raw in rows as List<dynamic>) {
+        final id = (raw as Map<String, dynamic>)['id'].toString();
+        if (id.isEmpty) continue;
+        await completeChallengeAndDistributePrizes(id);
       }
     } catch (e) {
       print('Error checking expired challenges: $e');
     }
   }
 }
-

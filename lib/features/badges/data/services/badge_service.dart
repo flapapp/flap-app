@@ -1,131 +1,118 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/supabase/coin_ledger.dart';
 import '../../data/models/badge.dart';
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
 class BadgeService {
   static Future<void>? _initializationFuture;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  CollectionReference get _badgesCollection =>
-      _firestore.collection('badges');
-  CollectionReference get _usersCollection =>
-      _firestore.collection('users');
+  final SupabaseClient _sb = Supabase.instance.client;
 
   Stream<List<Badge>> getAvailableBadges() {
-    return _badgesCollection
-        .where('isAvailable', isEqualTo: true)
-        .orderBy('price')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) {
-              final badge = Badge.fromFirestore(doc);
-              return badge.copyWith(price: _resolveEffectiveBadgePrice(badge));
-            })
-            .toList());
+    return _sb
+        .from('badges')
+        .stream(primaryKey: ['id'])
+        .order('price')
+        .map((rows) => rows
+            .where((r) => r['is_available'] == true)
+            .map(_badgeFromRow)
+            .map((b) => b.copyWith(price: _resolveEffectiveBadgePrice(b)))
+            .toList(growable: false));
   }
 
   Stream<List<Badge>> getBadgesByCategory(String category) {
-    return _badgesCollection
-        .where('category', isEqualTo: category)
-        .where('isAvailable', isEqualTo: true)
-        .orderBy('price')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) {
-              final badge = Badge.fromFirestore(doc);
-              return badge.copyWith(price: _resolveEffectiveBadgePrice(badge));
-            })
-            .toList());
+    return _sb
+        .from('badges')
+        .stream(primaryKey: ['id'])
+        .order('price')
+        .map((rows) => rows
+            .where((r) => r['is_available'] == true)
+            .where((r) => (r['category'] ?? '').toString() == category)
+            .map(_badgeFromRow)
+            .map((b) => b.copyWith(price: _resolveEffectiveBadgePrice(b)))
+            .toList(growable: false));
   }
 
   Future<List<String>> getUserBadges(String userId) async {
     try {
-      final userDoc = await _usersCollection.doc(userId).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
-        return List<String>.from(userData['badges'] ?? []);
+      final rows = await _sb
+          .from('user_badges')
+          .select('badge_id, badges:badge_id(code)')
+          .eq('user_id', userId);
+      final out = <String>[];
+      for (final raw in rows as List<dynamic>) {
+        final m = raw as Map<String, dynamic>;
+        final nested = m['badges'] as Map<String, dynamic>?;
+        final code = (nested?['code'] ?? '').toString();
+        if (code.isNotEmpty) {
+          out.add(code);
+        } else {
+          out.add((m['badge_id'] ?? '').toString());
+        }
       }
-      return [];
+      return out;
     } catch (e) {
       print('Error getting user badges: $e');
-      return [];
+      return <String>[];
     }
   }
 
   Future<bool> userOwnsBadge(String userId, String badgeId) async {
-    final userBadges = await getUserBadges(userId);
-    return userBadges.contains(badgeId);
+    final badge = await _badgeByCodeOrId(badgeId);
+    if (badge == null) return false;
+    final rows = await _sb
+        .from('user_badges')
+        .select('badge_id')
+        .eq('user_id', userId)
+        .eq('badge_id', badge['id'])
+        .limit(1);
+    return (rows as List<dynamic>).isNotEmpty;
   }
 
   Future<bool> purchaseBadge(String badgeId) async {
-    try {
-      final currentUser = AppAuth.currentUser;
-      if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
-      }
-
-      final badgeDoc = await _badgesCollection.doc(badgeId).get();
-      if (!badgeDoc.exists) {
-        throw Exception('Бейдж не знайдено');
-      }
-
-      final firestoreBadge = Badge.fromFirestore(badgeDoc);
-      final badge = firestoreBadge.copyWith(
-        price: _resolveEffectiveBadgePrice(firestoreBadge),
-      );
-      if (!badge.isAvailable) {
-        throw Exception('Цей бейдж недоступний для покупки');
-      }
-
-      final alreadyOwned = await userOwnsBadge(currentUser.id, badgeId);
-      if (alreadyOwned) {
-        throw Exception('Ви вже маєте цей бейдж');
-      }
-
-      final userDoc = await _usersCollection.doc(currentUser.id).get();
-      if (!userDoc.exists) {
-        throw Exception('Дані користувача не знайдено');
-      }
-
-      final userData = userDoc.data() as Map<String, dynamic>;
-      final userCoins = userData['coins'] ?? 0;
-
-      final effectivePrice = _resolveEffectiveBadgePrice(badge);
-
-      if (userCoins < effectivePrice) {
-        throw Exception('Недостатньо монет. Потрібно: $effectivePrice, у вас: $userCoins');
-      }
-
-      await _firestore.runTransaction((transaction) async {
-        transaction.update(_usersCollection.doc(currentUser.id), {
-          'coins': FieldValue.increment(-effectivePrice),
-          'badges': FieldValue.arrayUnion([badgeId]),
-        });
-
-        final localizedBadgeName = badge.localizedName;
-        transaction.set(_firestore.collection('transactions').doc(), {
-          'userId': currentUser.id,
-          'type': 'badge_purchase',
-          'amount': -effectivePrice,
-          'badgeId': badgeId,
-          'badgeName': localizedBadgeName,
-          'timestamp': FieldValue.serverTimestamp(),
-          'description': bilingual(
-            'Покупка бейджу: $localizedBadgeName',
-            'Badge purchase: $localizedBadgeName',
-          ),
-        });
-      });
-
-      return true;
-    } catch (e) {
-      print('Error purchasing badge: $e');
-      rethrow;
+    final currentUser = AppAuth.currentUser;
+    if (currentUser == null) {
+      throw Exception('Користувач не авторизований');
     }
+
+    final badgeRow = await _badgeByCodeOrId(badgeId);
+    if (badgeRow == null) {
+      throw Exception('Бейдж не знайдено');
+    }
+    final badge = _badgeFromRow(badgeRow).copyWith(
+      price: _resolveEffectiveBadgePrice(_badgeFromRow(badgeRow)),
+    );
+    if (!badge.isAvailable) {
+      throw Exception('Цей бейдж недоступний для покупки');
+    }
+
+    final alreadyOwned = await userOwnsBadge(currentUser.id, badgeId);
+    if (alreadyOwned) {
+      throw Exception('Ви вже маєте цей бейдж');
+    }
+
+    final balance = await coinBalance(_sb, currentUser.id);
+    final effectivePrice = _resolveEffectiveBadgePrice(badge);
+    if (balance < effectivePrice) {
+      throw Exception('Недостатньо монет. Потрібно: $effectivePrice, у вас: $balance');
+    }
+
+    await _sb.from('user_badges').insert(<String, dynamic>{
+      'user_id': currentUser.id,
+      'badge_id': badgeRow['id'],
+      'source': 'purchase',
+    });
+
+    final localizedBadgeName = badge.localizedName;
+    await insertCoinTransaction(
+      _sb,
+      currentUser.id,
+      'badge_purchase',
+      -effectivePrice,
+      bilingual('Покупка бейджу: $localizedBadgeName', 'Badge purchase: $localizedBadgeName'),
+    );
+    return true;
   }
 
   Future<void> initializeDefaultBadges() async {
@@ -135,27 +122,25 @@ class BadgeService {
 
   Future<bool> awardBadge(String userId, String badgeId, String reason) async {
     try {
+      final badgeRow = await _badgeByCodeOrId(badgeId);
+      if (badgeRow == null) return false;
+
       final alreadyOwned = await userOwnsBadge(userId, badgeId);
-      if (alreadyOwned) {
-        return false;
-      }
+      if (alreadyOwned) return false;
 
-      await _usersCollection.doc(userId).update({
-        'badges': FieldValue.arrayUnion([badgeId]),
+      await _sb.from('user_badges').insert(<String, dynamic>{
+        'user_id': userId,
+        'badge_id': badgeRow['id'],
+        'source': 'award',
       });
 
-      await _firestore.collection('transactions').add({
-        'userId': userId,
-        'type': 'badge_awarded',
-        'amount': 0,
-        'badgeId': badgeId,
-        'timestamp': FieldValue.serverTimestamp(),
-        'description': bilingual(
-          'Отримано бейдж: $reason',
-          'Badge received: $reason',
-        ),
-      });
-
+      await insertCoinTransaction(
+        _sb,
+        userId,
+        'badge_awarded',
+        0,
+        bilingual('Отримано бейдж: $reason', 'Badge received: $reason'),
+      );
       return true;
     } catch (e) {
       print('Error awarding badge: $e');
@@ -165,12 +150,10 @@ class BadgeService {
 
   Future<Badge?> getBadge(String badgeId) async {
     try {
-      final doc = await _badgesCollection.doc(badgeId).get();
-      if (doc.exists) {
-        final badge = Badge.fromFirestore(doc);
-        return badge.copyWith(price: _resolveEffectiveBadgePrice(badge));
-      }
-      return null;
+      final row = await _badgeByCodeOrId(badgeId);
+      if (row == null) return null;
+      final badge = _badgeFromRow(row);
+      return badge.copyWith(price: _resolveEffectiveBadgePrice(badge));
     } catch (e) {
       print('Error getting badge: $e');
       return null;
@@ -179,25 +162,27 @@ class BadgeService {
 
   Future<List<Badge>> getUserBadgeObjects(String userId) async {
     try {
-      final badgeIds = await getUserBadges(userId);
-      final badges = <Badge>[];
-
-      for (final badgeId in badgeIds) {
-        final badge = await getBadge(badgeId);
-        if (badge != null) {
-          badges.add(badge);
+      final rows = await _sb
+          .from('user_badges')
+          .select('badges:badge_id(*)')
+          .eq('user_id', userId);
+      final out = <Badge>[];
+      for (final raw in rows as List<dynamic>) {
+        final badgeRow = (raw as Map<String, dynamic>)['badges'];
+        if (badgeRow is Map<String, dynamic>) {
+          final badge = _badgeFromRow(badgeRow);
+          out.add(badge.copyWith(price: _resolveEffectiveBadgePrice(badge)));
         }
       }
-
-      return badges;
+      return out;
     } catch (e) {
       print('Error getting user badge objects: $e');
-      return [];
+      return <Badge>[];
     }
   }
 
   List<String> getBadgeCategories() {
-    return ['starter', 'skill', 'achievement', 'legendary', 'special'];
+    return <String>['starter', 'skill', 'achievement', 'legendary', 'special'];
   }
 
   String getCategoryDisplayName(String category) {
@@ -219,31 +204,39 @@ class BadgeService {
 
   Future<void> checkAndAwardActivityBadges(String userId) async {
     try {
-      final userDoc = await _usersCollection.doc(userId).get();
-      if (!userDoc.exists) return;
-
-      final userData = userDoc.data() as Map<String, dynamic>;
-      final stats = userData['stats'] as Map<String, dynamic>? ?? {};
-
       if (!await userOwnsBadge(userId, 'rookie')) {
         await awardBadge(userId, 'rookie', 'Перший крок у FLAP');
       }
 
-      final friendsCount = (userData['friendsCount'] ?? 0) as int;
+      final friendsRows = await _sb.from('friendships').select('friend_user_id').eq('user_id', userId);
+      final friendsCount = (friendsRows as List<dynamic>).length;
       if (friendsCount >= 5 && !await userOwnsBadge(userId, 'social')) {
         await awardBadge(userId, 'social', '5+ друзів');
       }
 
-      final matchesPlayed = (stats['matchesPlayed'] ?? 0) as int;
+      final matchesRows =
+          await _sb.from('match_participants').select('id').eq('user_id', userId).eq('status', 'accepted');
+      final matchesPlayed = (matchesRows as List<dynamic>).length;
       if (matchesPlayed >= 50 && !await userOwnsBadge(userId, 'veteran')) {
         await awardBadge(userId, 'veteran', '50+ матчів');
       }
 
-      final avgVideoRating = (userData['avgVideoRating'] ?? 0.0) as double;
+      final ratings = await _sb
+          .from('video_ratings')
+          .select('overall_rating, videos:video_id(user_id)')
+          .eq('videos.user_id', userId);
+      double avgVideoRating = 0.0;
+      final rr = ratings as List<dynamic>;
+      if (rr.isNotEmpty) {
+        var sum = 0.0;
+        for (final raw in rr) {
+          sum += (((raw as Map<String, dynamic>)['overall_rating'] as num?) ?? 0).toDouble();
+        }
+        avgVideoRating = sum / rr.length;
+      }
       if (avgVideoRating >= 4.0 && !await userOwnsBadge(userId, 'skillful')) {
         await awardBadge(userId, 'skillful', 'Середня оцінка відео 4.0+');
       }
-
     } catch (e) {
       print('Error checking activity badges: $e');
     }
@@ -251,9 +244,7 @@ class BadgeService {
 
   int _resolveEffectiveBadgePrice(Badge badge) {
     for (final defaultBadge in Badge.getDefaultBadges()) {
-      if (defaultBadge.id == badge.id) {
-        return defaultBadge.price;
-      }
+      if (defaultBadge.id == badge.id) return defaultBadge.price;
     }
     return badge.price;
   }
@@ -262,15 +253,41 @@ class BadgeService {
     try {
       final defaultBadges = Badge.getDefaultBadges();
       for (final badge in defaultBadges) {
-        await _badgesCollection.doc(badge.id).set(
-          badge.toFirestore(),
-          SetOptions(merge: true),
-        );
+        await _sb.from('badges').upsert(<String, dynamic>{
+          'code': badge.id,
+          'name': badge.name,
+          'description': badge.description,
+          'category': badge.category,
+          'emoji': badge.emoji,
+          'price': badge.price,
+          'is_available': badge.isAvailable,
+        }, onConflict: 'code');
       }
     } catch (e) {
       print('Error initializing default badges: $e');
       _initializationFuture = null;
       rethrow;
     }
+  }
+
+  Badge _badgeFromRow(Map<String, dynamic> row) {
+    return Badge(
+      id: (row['code'] ?? row['id'] ?? '').toString(),
+      name: (row['name'] ?? '').toString(),
+      emoji: (row['emoji'] ?? '🏆').toString(),
+      description: (row['description'] ?? '').toString(),
+      price: ((row['price'] as num?) ?? 0).toInt(),
+      category: (row['category'] ?? 'general').toString(),
+      isAvailable: row['is_available'] != false,
+      releaseDate: row['created_at'] == null
+          ? null
+          : DateTime.tryParse(row['created_at'].toString()),
+    );
+  }
+
+  Future<Map<String, dynamic>?> _badgeByCodeOrId(String badgeId) async {
+    var row = await _sb.from('badges').select().eq('code', badgeId).maybeSingle();
+    row ??= await _sb.from('badges').select().eq('id', badgeId).maybeSingle();
+    return row;
   }
 }

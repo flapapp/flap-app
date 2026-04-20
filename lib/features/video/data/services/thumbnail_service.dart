@@ -1,7 +1,5 @@
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_app_storage.dart';
@@ -11,8 +9,6 @@ class ThumbnailService {
   static final ThumbnailService _instance = ThumbnailService._internal();
   factory ThumbnailService() => _instance;
   ThumbnailService._internal();
-
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   SupabaseClient get _sb => Supabase.instance.client;
 
@@ -122,14 +118,10 @@ class ThumbnailService {
   /// Оновлює документ відео з URL thumbnail
   Future<void> _updateVideoThumbnail(String videoId, String thumbnailUrl) async {
     try {
-      await _firestore
-          .collection('videos')
-          .doc(videoId)
-          .update({
-        'thumbnailUrl': thumbnailUrl,
-        'thumbnailGenerated': true,
-        'thumbnailUpdatedAt': FieldValue.serverTimestamp(),
-      });
+      await _sb.from('videos').update(<String, dynamic>{
+        'thumbnail_url': thumbnailUrl,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', videoId);
 
       print('✅ Video document updated with thumbnail URL');
     } catch (e) {
@@ -172,13 +164,10 @@ class ThumbnailService {
       );
 
       // Оновлюємо челендж з thumbnail
-      await _firestore
-          .collection('challenges')
-          .doc(challengeId)
-          .update({
-        'creatorThumbnailUrl': downloadUrl,
-        'thumbnailGenerated': true,
-      });
+      await _sb.from('challenges').update(<String, dynamic>{
+        'image_url': downloadUrl,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', challengeId);
 
       print('✅ Challenge thumbnail generated: $downloadUrl');
       return downloadUrl;
@@ -212,15 +201,9 @@ class ThumbnailService {
       );
 
       // Оновлюємо submission з thumbnail
-      await _firestore
-          .collection('challenges')
-          .doc(challengeId)
-          .collection('submissions')
-          .doc(submissionId)
-          .update({
-        'thumbnailUrl': downloadUrl,
-        'thumbnailGenerated': true,
-      });
+      await _sb.from('challenge_submissions').update(<String, dynamic>{
+        'thumbnail_url': downloadUrl,
+      }).eq('id', submissionId);
 
       print('✅ Submission thumbnail generated: $downloadUrl');
       return downloadUrl;
@@ -233,15 +216,13 @@ class ThumbnailService {
   /// Перевіряє чи потрібно генерувати thumbnail для відео
   Future<bool> needsThumbnail(String videoId) async {
     try {
-      final doc = await _firestore.collection('videos').doc(videoId).get();
-      if (!doc.exists) return false;
-
-      final data = doc.data() as Map<String, dynamic>;
-      final thumbnailUrl = data['thumbnailUrl'] as String?;
-      final thumbnailGenerated = data['thumbnailGenerated'] as bool? ?? false;
+      final row =
+          await _sb.from('videos').select('thumbnail_url').eq('id', videoId).maybeSingle();
+      if (row == null) return false;
+      final thumbnailUrl = row['thumbnail_url'] as String?;
 
       // Потрібен thumbnail якщо його немає або він не згенерований
-      return thumbnailUrl == null || thumbnailUrl.isEmpty || !thumbnailGenerated;
+      return thumbnailUrl == null || thumbnailUrl.isEmpty;
     } catch (e) {
       print('Error checking thumbnail status: $e');
       return true; // Якщо помилка, краще згенерувати
@@ -254,23 +235,25 @@ class ThumbnailService {
       print('🔄 Starting bulk thumbnail generation...');
       
       // Отримуємо відео без thumbnails
-      final videosQuery = await _firestore
-          .collection('videos')
-          .where('thumbnailGenerated', isEqualTo: false)
+      final videosQuery = await _sb
+          .from('videos')
+          .select('id,video_url,user_id,thumbnail_url')
+          .isFilter('thumbnail_url', null)
           .limit(10) // Обробляємо по 10 за раз
-          .get();
+          ;
 
-      print('📊 Found ${videosQuery.docs.length} videos without thumbnails');
+      final rows = videosQuery as List<dynamic>;
+      print('📊 Found ${rows.length} videos without thumbnails');
 
-      for (final doc in videosQuery.docs) {
-        final data = doc.data();
-        final videoUrl = data['videoUrl'] as String?;
-        final userId = data['userId'] as String?;
+      for (final doc in rows) {
+        final data = doc as Map<String, dynamic>;
+        final videoUrl = data['video_url'] as String?;
+        final userId = data['user_id'] as String?;
         
         if (videoUrl != null && userId != null) {
           await generateAndUploadThumbnail(
             videoUrl: videoUrl,
-            videoId: doc.id,
+            videoId: (data['id'] ?? '').toString(),
             userId: userId,
           );
           

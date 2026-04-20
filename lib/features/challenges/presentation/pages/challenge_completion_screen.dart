@@ -1,9 +1,8 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../router/app_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/models/challenge.dart';
 
 @RoutePage()
@@ -21,6 +20,7 @@ class ChallengeCompletionScreen extends StatefulWidget {
 
 class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
     with TickerProviderStateMixin {
+  final SupabaseClient _sb = Supabase.instance.client;
   late AnimationController _mainController;
   late AnimationController _winnerController;
   late AnimationController _rewardController;
@@ -101,14 +101,36 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
 
   Future<void> _loadChallengeData() async {
     try {
-      final challengeDoc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challengeId)
-          .get();
-      
-      if (challengeDoc.exists) {
+      final row = await _sb
+          .from('challenges')
+          .select()
+          .eq('id', widget.challengeId)
+          .maybeSingle();
+
+      if (row != null) {
         setState(() {
-          _challenge = Challenge.fromFirestore(challengeDoc);
+          _challenge = Challenge.fromFirestore(
+            _MapDoc(widget.challengeId, <String, dynamic>{
+              'title': row['title'],
+              'description': row['description'],
+              'type': '',
+              'status': row['status'],
+              'entryFee': row['entry_fee'] ?? 0,
+              'maxParticipants': row['max_participants'] ?? 0,
+              'participants': const <String>[],
+              'prizePool': 0,
+              'startDate': row['starts_at'],
+              'endDate': row['ends_at'],
+              'createdAt': row['created_at'],
+              'createdBy': row['creator_id'],
+              'city': row['city'],
+              'isTeamChallenge': false,
+              'creatorVideoUrl': '',
+              'creatorThumbnailUrl': row['image_url'],
+              'submissionDeadline': row['submission_deadline'],
+              'votingDeadline': row['voting_deadline'],
+            }),
+          );
           _isLoading = false;
         });
         
@@ -128,39 +150,59 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
 
   Future<void> _loadWinners() async {
     try {
-      final submissionsSnapshot = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challengeId)
-          .collection('submissions')
-          .orderBy('averageRating', descending: true)
-          .limit(3)
-          .get();
+      final submissionsRows = await _sb
+          .from('challenge_submissions')
+          .select('id, user_id')
+          .eq('challenge_id', widget.challengeId)
+          .limit(50);
+
+      final prizesRows = await _sb
+          .from('challenge_prize_places')
+          .select('place, prize_amount, winner_user_id')
+          .eq('challenge_id', widget.challengeId);
 
       final winners = <Map<String, dynamic>>[];
-      
-      final prizeOverrides = _challenge?.winnerPrizes ?? const <String, int>{};
 
-      for (int i = 0; i < submissionsSnapshot.docs.length; i++) {
-        final doc = submissionsSnapshot.docs[i];
-        final data = doc.data();
-        
-        // Отримуємо дані користувача
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(data['userId'])
-            .get();
-        
-        final userData = userDoc.data() ?? {};
-        final winnerId = data['userId'] as String? ?? '';
-        final override = prizeOverrides[winnerId];
-        final prize = (override ?? _calculatePrize(i + 1)).toDouble();
-        
+      final scored = <Map<String, dynamic>>[];
+      for (final raw in submissionsRows as List<dynamic>) {
+        final sub = raw as Map<String, dynamic>;
+        final sid = (sub['id'] ?? '').toString();
+        final uid = (sub['user_id'] ?? '').toString();
+        if (sid.isEmpty || uid.isEmpty) continue;
+        final ratings = await _sb
+            .from('challenge_submission_ratings')
+            .select('overall_rating')
+            .eq('challenge_submission_id', sid);
+        final vals = (ratings as List<dynamic>)
+            .map((r) => (((r as Map<String, dynamic>)['overall_rating'] as num?) ?? 0).toDouble())
+            .toList(growable: false);
+        final avg = vals.isEmpty ? 0.0 : vals.reduce((a, b) => a + b) / vals.length;
+        scored.add(<String, dynamic>{'user_id': uid, 'avg': avg});
+      }
+      scored.sort((a, b) => (b['avg'] as double).compareTo(a['avg'] as double));
+
+      final prizeByUser = <String, double>{};
+      for (final raw in prizesRows as List<dynamic>) {
+        final p = raw as Map<String, dynamic>;
+        final uid = (p['winner_user_id'] ?? '').toString();
+        if (uid.isEmpty) continue;
+        prizeByUser[uid] = ((p['prize_amount'] as num?) ?? 0).toDouble();
+      }
+
+      for (int i = 0; i < scored.length && i < 3; i++) {
+        final winnerId = (scored[i]['user_id'] ?? '').toString();
+        final profile = await _sb
+            .from('profiles')
+            .select('display_name, avatar_url')
+            .eq('id', winnerId)
+            .maybeSingle();
+        final prize = prizeByUser[winnerId] ?? _calculatePrize(i + 1);
         winners.add({
           'position': i + 1,
           'userId': winnerId,
-          'userName': userData['displayName'] ?? userData['name'] ?? tr('il_b764cdc0ea'),
-          'userAvatar': userData['avatarUrl'] ?? userData['photoUrl'] ?? '',
-          'rating': data['averageRating'] ?? 0.0,
+          'userName': profile?['display_name'] ?? tr('il_b764cdc0ea'),
+          'userAvatar': profile?['avatar_url'] ?? '',
+          'rating': (scored[i]['avg'] as double?) ?? 0.0,
           'prize': prize,
         });
       }
@@ -481,6 +523,13 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
       ),
     );
   }
+}
+
+class _MapDoc {
+  _MapDoc(this.id, this._data);
+  final String id;
+  final Map<String, dynamic> _data;
+  Map<String, dynamic> data() => _data;
 }
 
 

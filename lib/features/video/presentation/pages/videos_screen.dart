@@ -4,14 +4,13 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../friends/domain/repositories/friends_repository.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'video_player_screen.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../notifications/data/services/notification_service.dart';
-import '../../../friends/data/models/friend_request.dart' show Friend;
 import '../../../../widgets/video_preview_box.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+import '../../../../core/supabase/supabase_date.dart';
 
 @RoutePage()
 class VideosScreen extends StatefulWidget {
@@ -23,12 +22,11 @@ class VideosScreen extends StatefulWidget {
 }
 
 class _VideosScreenState extends State<VideosScreen> {
+  final SupabaseClient _sb = Supabase.instance.client;
   String _selectedCity = '';
-  String _selectedCategory = '';
   final Set<String> _selectedCategories = <String>{};
   String _selectedRating = '';
   String _selectedTab = 'all'; // all, trending, my
-  bool _showOnlyMyVideos = false;
   String _selectedSortKey = 'new'; // new, rating, views
 
   List<String> get _cities => [
@@ -184,7 +182,7 @@ class _VideosScreenState extends State<VideosScreen> {
 
           // Videos list
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
+            child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _getVideosStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -193,16 +191,15 @@ class _VideosScreenState extends State<VideosScreen> {
                   );
                 }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return _buildEmptyState();
                 }
 
                 final currentUser = AppAuth.currentUser;
-                final allDocs = snapshot.data!.docs;
+                final allRows = snapshot.data!;
 
                 // Клієнтська фільтрація для стабільності без індексів
-                var docs = allDocs.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
+                var rows = allRows.where((data) {
                   
                   // Виключаємо відео з челенджів
                   final title = (data['title'] ?? '').toString();
@@ -227,9 +224,7 @@ class _VideosScreenState extends State<VideosScreen> {
                 }).toList();
 
                 // Сортування
-                docs.sort((a, b) {
-                  final ad = a.data() as Map<String, dynamic>;
-                  final bd = b.data() as Map<String, dynamic>;
+                rows.sort((ad, bd) {
                   switch (_selectedSortKey) {
                     case 'rating':
                       final ar = (ad['rating'] ?? 0.0) as num;
@@ -241,19 +236,16 @@ class _VideosScreenState extends State<VideosScreen> {
                       return bv.compareTo(av);
                     case 'new':
                     default:
-                      final at = ad['createdAt'];
-                      final bt = bd['createdAt'];
-                      if (at is Timestamp && bt is Timestamp) {
-                        return bt.compareTo(at);
-                      }
-                      return 0;
+                      final at = asDateTimeOrNull(ad['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+                      final bt = asDateTimeOrNull(bd['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+                      return bt.compareTo(at);
                   }
                 });
 
                 if (_selectedTab == 'trending') {
-                  docs.sort((a, b) {
-                    final ad = a.data() as Map<String, dynamic>;
-                    final bd = b.data() as Map<String, dynamic>;
+                  rows.sort((a, b) {
+                    final ad = a;
+                    final bd = b;
                     final alikes = (ad['likes'] ?? 0) as int;
                     final blikes = (bd['likes'] ?? 0) as int;
                     return blikes.compareTo(alikes);
@@ -262,10 +254,9 @@ class _VideosScreenState extends State<VideosScreen> {
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: docs.length,
+                  itemCount: rows.length,
                   itemBuilder: (context, index) {
-                    final videoData = docs[index].data() as Map<String, dynamic>;
-                    videoData['id'] = docs[index].id;
+                    final videoData = rows[index];
                     return _buildVideoCard(videoData);
                   },
                 );
@@ -334,12 +325,31 @@ class _VideosScreenState extends State<VideosScreen> {
     );
   }
 
-  Stream<QuerySnapshot> _getVideosStream() {
-    // Щоб уникнути вимог до складених індексів, беремо останні відео без складних where/ordering
-    return FirebaseFirestore.instance
-        .collection('videos')
+  Stream<List<Map<String, dynamic>>> _getVideosStream() {
+    return _sb
+        .from('videos')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
         .limit(50)
-        .snapshots();
+        .map((rows) => rows.map(_mapVideoRow).toList());
+  }
+
+  Map<String, dynamic> _mapVideoRow(Map<String, dynamic> row) {
+    return <String, dynamic>{
+      'id': row['id']?.toString() ?? '',
+      'title': row['title'],
+      'description': row['description'],
+      'userId': row['user_id']?.toString() ?? '',
+      'videoUrl': row['video_url'],
+      'thumbnailUrl': row['thumbnail_url'],
+      'createdAt': row['created_at'],
+      'category': row['category'] ?? row['category_code'] ?? '',
+      'city': row['city'] ?? '',
+      'rating': (row['rating'] as num?)?.toDouble() ?? 0.0,
+      'likes': (row['likes'] as num?)?.toInt() ?? 0,
+      'views': (row['views'] as num?)?.toInt() ?? 0,
+      'duration': row['duration'],
+    };
   }
 
   Widget _buildEmptyState() {
@@ -382,30 +392,14 @@ class _VideosScreenState extends State<VideosScreen> {
     return '${minutes.toString().padLeft(1, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
-  String _formatTimestamp(Timestamp timestamp) {
-    final now = DateTime.now();
-    final videoTime = timestamp.toDate();
-    final difference = now.difference(videoTime);
-
-    if (difference.inDays > 0) {
-      return '${difference.inDays} днів тому';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours} годин тому';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} хвилин тому';
-    } else {
-      return 'Щойно';
-    }
-  }
-
   Future<void> _playVideo(String videoUrl, String title, String videoId, String userId) async {
     if (videoUrl.isNotEmpty) {
-      // Increment views before navigation (best-effort)
+      // Record a view before navigation (best-effort)
       try {
-        await FirebaseFirestore.instance
-            .collection('videos')
-            .doc(videoId)
-            .update({'views': FieldValue.increment(1)});
+        await _sb.from('video_views').insert({
+          'video_id': videoId,
+          'viewer_user_id': AppAuth.currentUserId,
+        });
       } catch (_) {}
 
       Navigator.push(
@@ -426,20 +420,24 @@ class _VideosScreenState extends State<VideosScreen> {
     final uid = AppAuth.currentUserId;
     if (uid == null) return;
     try {
-      final likeRef = FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .collection('likes')
-          .doc(uid);
-
-      final likeDoc = await likeRef.get();
-      final isLiked = likeDoc.exists;
+      final likeDoc = await _sb
+          .from('video_likes')
+          .select('video_id')
+          .eq('video_id', videoId)
+          .eq('user_id', uid)
+          .maybeSingle();
+      final isLiked = likeDoc != null;
       if (isLiked) {
-        await likeRef.delete();
-        await FirebaseFirestore.instance.collection('videos').doc(videoId).update({'likes': FieldValue.increment(-1)});
+        await _sb
+            .from('video_likes')
+            .delete()
+            .eq('video_id', videoId)
+            .eq('user_id', uid);
       } else {
-        await likeRef.set({'userId': uid, 'createdAt': FieldValue.serverTimestamp()});
-        await FirebaseFirestore.instance.collection('videos').doc(videoId).update({'likes': FieldValue.increment(1)});
+        await _sb.from('video_likes').upsert({
+          'video_id': videoId,
+          'user_id': uid,
+        });
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -486,7 +484,7 @@ class _VideosScreenState extends State<VideosScreen> {
                 shrinkWrap: true,
                 itemCount: friends.length,
                 itemBuilder: (context, index) {
-                  final f = friends[index] as Friend;
+                  final f = friends[index];
                   final friendId = f.userId;
                   final friendName = f.name;
                   final isSel = selected.contains(friendId);
@@ -504,8 +502,15 @@ class _VideosScreenState extends State<VideosScreen> {
               TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70))),
               ElevatedButton(
                 onPressed: selected.isEmpty ? null : () async {
-                  final meDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.id).get();
-                  final myName = (meDoc.data()?['displayName'] ?? meDoc.data()?['name'] ?? 'Користувач').toString();
+                  final meDoc = await _sb
+                      .from('profiles')
+                      .select('display_name,email')
+                      .eq('id', currentUser.id)
+                      .maybeSingle();
+                  final myName = (meDoc?['display_name'] ??
+                          meDoc?['email']?.toString().split('@').first ??
+                          'Користувач')
+                      .toString();
                   await sl<NotificationService>().sendRatingRequest(
                     toUserIds: selected.toList(),
                     fromUserName: myName,
@@ -576,19 +581,18 @@ class _VideosScreenState extends State<VideosScreen> {
               
               // Comments list
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('videos')
-                      .doc(videoId)
-                      .collection('comments')
-                      .orderBy('createdAt', descending: true)
-                      .snapshots(),
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: _sb
+                      .from('video_comments')
+                      .stream(primaryKey: ['id'])
+                      .eq('video_id', videoId)
+                      .order('created_at', ascending: false),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
                     }
                     
-                    final comments = snapshot.data!.docs;
+                    final comments = snapshot.data!;
                     
                     if (comments.isEmpty) {
                       return const Center(
@@ -614,7 +618,12 @@ class _VideosScreenState extends State<VideosScreen> {
                       padding: const EdgeInsets.all(16),
                       itemCount: comments.length,
                       itemBuilder: (context, index) {
-                        final commentData = comments[index].data() as Map<String, dynamic>;
+                        final raw = comments[index];
+                        final commentData = <String, dynamic>{
+                          'authorName': raw['author_name'] ?? tr('il_b764cdc0ea'),
+                          'text': raw['body'] ?? '',
+                          'createdAt': raw['created_at'],
+                        };
                         return _buildCommentItem(commentData);
                       },
                     );
@@ -677,8 +686,8 @@ class _VideosScreenState extends State<VideosScreen> {
   Widget _buildCommentItem(Map<String, dynamic> commentData) {
     final authorName = commentData['authorName'] ?? 'Користувач';
     final text = commentData['text'] ?? '';
-    final createdAt = commentData['createdAt'] as Timestamp?;
-    final timeAgo = createdAt != null ? _formatTimeAgo(createdAt.toDate()) : '';
+    final createdAt = asDateTimeOrNull(commentData['createdAt']);
+    final timeAgo = createdAt != null ? _formatTimeAgo(createdAt) : '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -767,19 +776,8 @@ class _VideosScreenState extends State<VideosScreen> {
     final userId = videoData['userId'] ?? '';
     final videoUrl = videoData['videoUrl'] ?? '';
     final thumbnailUrl = videoData['thumbnailUrl'];
-    final likes = videoData['likes'] ?? 0;
     final rating = (videoData['rating'] ?? 0.0).toDouble();
-    final createdAt = videoData['createdAt'] as Timestamp?;
     final category = videoData['category'] ?? '';
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .collection('comments')
-          .snapshots(),
-      builder: (context, commentSnapshot) {
-        final commentsCount = commentSnapshot.hasData ? commentSnapshot.data!.docs.length : 0;
 
     final durationSeconds = videoData['duration'] is int
         ? videoData['duration'] as int
@@ -866,55 +864,66 @@ class _VideosScreenState extends State<VideosScreen> {
                 // Stats and actions
                 Row(
                   children: [
-                    // Likes (live)
-                    StreamBuilder<DocumentSnapshot>(
-                      stream: FirebaseFirestore.instance.collection('videos').doc(videoId).snapshots(),
-                      builder: (context, docSnap) {
-                        final likeCount = docSnap.hasData && docSnap.data!.exists
-                            ? ((docSnap.data!.data() as Map<String, dynamic>)['likes'] ?? likes) as int
-                            : likes;
+                    StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: _sb
+                          .from('video_likes')
+                          .stream(primaryKey: ['video_id', 'user_id'])
+                          .eq('video_id', videoId),
+                      builder: (context, likeSnap) {
+                        final likeCount = likeSnap.data?.length ?? 0;
                         return Row(
-                      children: [
-                        const Icon(Icons.favorite, color: Colors.red, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
+                          children: [
+                            const Icon(Icons.favorite, color: Colors.red, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
                               likeCount.toString(),
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            ),
+                          ],
                         );
                       },
                     ),
                     const SizedBox(width: 16),
-                    // Comments - клікабельні з реальною кількістю
                     GestureDetector(
                       onTap: () => _showComments(videoId, title),
-                      child: Row(
-                      children: [
-                        const Icon(Icons.comment, color: Colors.blue, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                            commentsCount.toString(),
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ),
+                      child: StreamBuilder<List<Map<String, dynamic>>>(
+                        stream: _sb
+                            .from('video_comments')
+                            .stream(primaryKey: ['id'])
+                            .eq('video_id', videoId),
+                        builder: (context, commentSnap) {
+                          final commentsCount = commentSnap.data?.length ?? 0;
+                          return Row(
+                            children: [
+                              const Icon(Icons.comment, color: Colors.blue, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                commentsCount.toString(),
+                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
                     const Spacer(),
                     // Action buttons
                     Row(
                       children: [
-                        StreamBuilder<DocumentSnapshot>(
+                        StreamBuilder<List<Map<String, dynamic>>>(
                           stream: AppAuth.currentUser == null
                               ? null
-                              : FirebaseFirestore.instance
-                                  .collection('videos')
-                                  .doc(videoId)
-                                  .collection('likes')
-                                  .doc(AppAuth.currentUserId!)
-                                  .snapshots(),
+                              : _sb
+                                  .from('video_likes')
+                                  .stream(primaryKey: ['video_id', 'user_id'])
+                                  .eq('video_id', videoId)
+                                  .map((rows) => rows
+                                      .where((r) =>
+                                          (r['user_id'] ?? '').toString() ==
+                                          AppAuth.currentUserId!)
+                                      .toList()),
                           builder: (context, likeSnap) {
-                            final isLiked = likeSnap.hasData && likeSnap.data!.exists;
+                            final isLiked = (likeSnap.data?.isNotEmpty ?? false);
                             return IconButton(
                               onPressed: () => _toggleLike(videoId),
                               icon: Icon(
@@ -945,8 +954,6 @@ class _VideosScreenState extends State<VideosScreen> {
         ],
       ),
     );
-      },
-    );
   }
 
   Widget _buildChip({
@@ -973,24 +980,22 @@ class _VideosScreenState extends State<VideosScreen> {
   }
 
   Widget? _buildLiveRatingBadge(String videoId) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .collection('votes')
-          .snapshots(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _sb
+          .from('video_ratings')
+          .stream(primaryKey: ['id'])
+          .eq('video_id', videoId),
       builder: (context, snap) {
-        if (!snap.hasData || snap.data!.docs.isEmpty) {
+        if (!snap.hasData || snap.data!.isEmpty) {
           return const SizedBox.shrink();
         }
         double sum = 0;
-        for (final doc in snap.data!.docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          sum += (data['rating'] ?? 0.0).toDouble();
+        for (final data in snap.data!) {
+          sum += ((data['overall_rating'] as num?) ?? 0).toDouble();
         }
-        final avg = snap.data!.docs.isEmpty
+        final avg = snap.data!.isEmpty
             ? 0.0
-            : double.parse((sum / snap.data!.docs.length).toStringAsFixed(2));
+            : double.parse((sum / snap.data!.length).toStringAsFixed(2));
         if (avg <= 0) return const SizedBox.shrink();
         return _buildChip(
           label: '⭐ ${avg.toStringAsFixed(2)}',

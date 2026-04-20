@@ -1,11 +1,11 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../router/app_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/supabase/supabase_date.dart';
 import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
 import '../../../../widgets/user_chip.dart';
@@ -23,6 +23,7 @@ class ChallengesScreen extends StatefulWidget {
 }
 
 class _ChallengesScreenState extends State<ChallengesScreen> {
+  final SupabaseClient _sb = Supabase.instance.client;
   ChallengesRepository get _challengesRepo => sl<ChallengesRepository>();
 
   String _selectedFilter = 'all'; // all, active, my, completed
@@ -81,7 +82,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           
           // Challenges list
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
+            child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _getChallengesStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -90,14 +91,13 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                   );
                 }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return _buildEmptyState();
                 }
 
-                final all = snapshot.data!.docs;
+                final all = snapshot.data!;
                 final currentUser = AppAuth.currentUser;
-                final filtered = all.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
+                final filtered = all.where((data) {
                   switch (_selectedFilter) {
                     case 'active':
                       final status = (data['status'] ?? '').toString();
@@ -111,9 +111,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       return true;
                   }
                 }).toList()
-                ..sort((a, b) {
-                  final ad = a.data() as Map<String, dynamic>;
-                  final bd = b.data() as Map<String, dynamic>;
+                ..sort((ad, bd) {
                   switch (_selectedSort) {
                     case 'rating':
                       final ar = (ad['averageRating'] ?? 0.0) as num; // якщо є агрегований рейтинг
@@ -127,18 +125,16 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                     default:
                       final at = ad['createdAt'];
                       final bt = bd['createdAt'];
-                      if (at is Timestamp && bt is Timestamp) {
-                        return bt.compareTo(at);
-                      }
-                      return 0;
+                      final adt = asDateTimeOrNull(at) ?? DateTime.fromMillisecondsSinceEpoch(0);
+                      final bdt = asDateTimeOrNull(bt) ?? DateTime.fromMillisecondsSinceEpoch(0);
+                      return bdt.compareTo(adt);
                   }
                 });
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
-                    final challengeData = filtered[index].data() as Map<String, dynamic>;
-                    challengeData['id'] = filtered[index].id;
+                    final challengeData = filtered[index];
                     return _buildChallengeCard(challengeData);
                   },
                 );
@@ -175,13 +171,50 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     );
   }
 
-  Stream<QuerySnapshot> _getChallengesStream() {
-    // Базовий потік усіх челенджів, далі фільтр на клієнті для стабільності
-    return FirebaseFirestore.instance
-        .collection('challenges')
-        .orderBy('createdAt', descending: true)
+  Stream<List<Map<String, dynamic>>> _getChallengesStream() {
+    return _sb
+        .from('challenges')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
         .limit(50)
-        .snapshots();
+        .map((rows) => rows.map(_mapChallengeRow).toList());
+  }
+
+  Map<String, dynamic> _mapChallengeRow(Map<String, dynamic> row) {
+    return <String, dynamic>{
+      'id': row['id']?.toString() ?? '',
+      'title': row['title'],
+      'description': row['description'],
+      'creatorId': row['creator_id']?.toString() ?? '',
+      'creatorName': row['creator_name'] ?? '',
+      'creatorVideoUrl': row['creator_video_url'],
+      'creatorThumbnailUrl': row['creator_thumbnail_url'],
+      'thumbnailUrl': row['thumbnail_url'],
+      'participants': row['participants'] ?? const <String>[],
+      'submissions': row['submissions'] ?? const <String>[],
+      'entryFee': row['entry_fee'] ?? 10,
+      'status': row['status'] ?? 'recruiting',
+      'endDate': row['end_date'],
+      'votingDeadline': row['voting_deadline'],
+      'type': row['type'] ?? row['challenge_type'] ?? 'goal',
+      'audience': row['audience'] ?? 'city',
+      'city': row['city'] ?? '',
+      'duration': row['duration'] ?? 7,
+      'createdAt': row['created_at'],
+      'startDate': row['start_date'],
+      'submissionDeadline': row['submission_deadline'],
+      'maxParticipants': row['max_participants'] ?? 50,
+      'currentParticipants': row['current_participants'] ?? 0,
+      'prizePool': row['prize_pool'] ?? 0.0,
+      'votes': row['votes'] ?? const <String, dynamic>{},
+      'detailedVotes': row['detailed_votes'] ?? const <String, dynamic>{},
+      'winners': row['winners'] ?? const <String>[],
+      'finalScores': row['final_scores'] ?? const <String, dynamic>{},
+      'isActive': row['is_active'] ?? true,
+      'tags': row['tags'] ?? const <String>[],
+      'views': row['views'] ?? 0,
+      'averageRating': row['average_rating'] ?? row['rating'] ?? 0.0,
+    };
   }
 
   Widget _buildEmptyState() {
@@ -227,11 +260,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     final creatorThumbnailUrl = challengeData['creatorThumbnailUrl'] ?? challengeData['thumbnailUrl'];
     final participants = (challengeData['participants'] as List?)?.length ?? 0;
     final submissions = (challengeData['submissions'] as List?)?.length ?? 0;
-    final entryFee = challengeData['entryFee'] ?? 10;
-    final actualPrizePool = participants * entryFee; // Реальний призовий фонд
     final status = challengeData['status'] ?? 'recruiting';
-    final endDate = challengeData['endDate'] as Timestamp?;
-    final votingDeadline = challengeData['votingDeadline'] as Timestamp?;
     final creatorId = challengeData['creatorId'] ?? '';
     
     print('Challenge $challengeId: creatorVideoUrl = "$creatorVideoUrl"');
@@ -240,11 +269,6 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     print('Challenge $challengeId: participants = $participants');
     print('Challenge $challengeId: submissions = $submissions');
     
-    final now = DateTime.now();
-    final targetDate = (votingDeadline ?? endDate)?.toDate();
-    final daysLeft = targetDate != null
-        ? targetDate.difference(now).inDays.clamp(0, 999)
-        : 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -392,20 +416,23 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               const SizedBox(height: 8),
               SizedBox(
                 height: 60,
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('challenges')
-                      .doc(challengeId)
-                      .collection('submissions')
-                          .where('isCreatorVideo', isEqualTo: false)
-                          .limit(8)
-                      .snapshots(),
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: _sb
+                      .from('challenge_submissions')
+                      .stream(primaryKey: ['id'])
+                      .eq('challenge_id', challengeId)
+                      .order('submitted_at', ascending: false)
+                      .limit(8)
+                      .map((rows) => rows
+                          .where((r) =>
+                              (r['user_id'] ?? '').toString() != creatorId)
+                          .toList()),
                   builder: (context, submissionSnapshot) {
                     if (!submissionSnapshot.hasData) {
                           return const Center(child: CircularProgressIndicator(strokeWidth: 2));
                     }
                     
-                    final submissionDocs = submissionSnapshot.data!.docs;
+                    final submissionDocs = submissionSnapshot.data!;
                         
                         if (submissionDocs.isEmpty) {
                           return Container(
@@ -429,12 +456,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                           itemCount: submissionDocs.length + (submissionDocs.length < submissions ? 1 : 0), // +1 для показу кількості
                       itemBuilder: (context, index) {
                             if (index < submissionDocs.length) {
-                        final submissionData = submissionDocs[index].data() as Map<String, dynamic>;
-                              final authorName = submissionData['authorName'] ?? tr('participant');
-                              final submissionUserId = submissionData['userId'] ?? '';
-                              final videoUrl = submissionData['videoUrl'] ?? '';
-                              final submissionId = submissionDocs[index].id;
-                              final submissionThumb = (submissionData['thumbnailUrl'] ?? '').toString();
+                        final submissionData = submissionDocs[index];
+                              final authorName = submissionData['author_name'] ?? tr('participant');
+                              final submissionUserId = (submissionData['user_id'] ?? '').toString();
+                              final videoUrl = submissionData['video_url'] ?? '';
+                              final submissionId = (submissionData['id'] ?? '').toString();
+                              final submissionThumb = (submissionData['thumbnail_url'] ?? '').toString();
                               
                         return GestureDetector(
                           onTap: () => _playParticipantVideo(
@@ -453,18 +480,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                             borderRadius: BorderRadius.circular(8),
                                     border: Border.all(color: Colors.white.withOpacity(0.2)),
                                   ),
-                                  child: FutureBuilder<DocumentSnapshot>(
-                                    future: FirebaseFirestore.instance
-                                        .collection('users')
-                                        .doc(submissionUserId)
-                                        .get(),
-                                    builder: (context, userSnapshot) {
-                                      final userData = userSnapshot.hasData 
-                                          ? userSnapshot.data!.data() as Map<String, dynamic>? ?? {}
-                                          : <String, dynamic>{};
-                                      final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-                                      
-                                      return Column(
+                                  child: Column(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
                                           // Avatar clickable to profile
@@ -486,14 +502,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                               ),
                                               child: ClipRRect(
                                                 borderRadius: BorderRadius.circular(16),
-                                                child: avatarUrl.isNotEmpty
-                                                    ? Image.network(
-                                                        avatarUrl,
-                                                        fit: BoxFit.cover,
-                                                        errorBuilder: (context, error, stackTrace) =>
-                                                            _buildMiniAvatar(authorName),
-                                                      )
-                                                    : _buildMiniAvatar(authorName),
+                                                child: _buildMiniAvatar(authorName),
                                               ),
                                             ),
                                           ),
@@ -510,9 +519,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                             textAlign: TextAlign.center,
                                           ),
                                         ],
-                                      );
-                                    },
-                                  ),
+                                      ),
                                 ),
                         );
                             } else {
@@ -674,17 +681,16 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       if (currentUser == null) return;
 
       // Отримуємо дані челенджу для показу вартості
-      final challengeDoc = await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .get();
-      
-      if (!challengeDoc.exists) {
+      final challengeData = await _sb
+          .from('challenges')
+          .select('title, entry_fee')
+          .eq('id', challengeId)
+          .maybeSingle();
+      if (challengeData == null) {
         throw Exception(tr('il_a29799fa76'));
       }
-      
-      final challengeData = challengeDoc.data() as Map<String, dynamic>;
-      final entryFee = challengeData['entryFee'] ?? 10;
+
+      final entryFee = challengeData['entry_fee'] ?? 10;
       final challengeTitle = challengeData['title'] ?? tr('il_27cf1792f7');
 
       // Показуємо діалог підтвердження оплати
@@ -809,19 +815,22 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         entryFee: challengeData['entryFee'] ?? 10,
         duration: challengeData['duration'] ?? 7,
         createdAt: challengeData['createdAt'] != null
-            ? (challengeData['createdAt'] as Timestamp).toDate()
+            ? (asDateTimeOrNull(challengeData['createdAt']) ?? DateTime.now())
             : DateTime.now(),
         startDate: challengeData['startDate'] != null
-            ? (challengeData['startDate'] as Timestamp).toDate()
+            ? (asDateTimeOrNull(challengeData['startDate']) ?? DateTime.now())
             : DateTime.now(),
         submissionDeadline: challengeData['submissionDeadline'] != null
-            ? (challengeData['submissionDeadline'] as Timestamp).toDate()
+            ? (asDateTimeOrNull(challengeData['submissionDeadline']) ??
+                DateTime.now().add(const Duration(days: 7)))
             : DateTime.now().add(const Duration(days: 7)),
         votingDeadline: challengeData['votingDeadline'] != null
-            ? (challengeData['votingDeadline'] as Timestamp).toDate()
+            ? (asDateTimeOrNull(challengeData['votingDeadline']) ??
+                DateTime.now().add(const Duration(days: 14)))
             : DateTime.now().add(const Duration(days: 14)),
         endDate: challengeData['endDate'] != null
-            ? (challengeData['endDate'] as Timestamp).toDate()
+            ? (asDateTimeOrNull(challengeData['endDate']) ??
+                DateTime.now().add(const Duration(days: 19)))
             : DateTime.now().add(const Duration(days: 19)),
         status: ChallengeStatus.values.firstWhere(
           (e) => e.toString().split('.').last == challengeData['status'],
@@ -918,11 +927,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                         itemCount: participants.length,
                         itemBuilder: (context, index) {
                           final participantId = participants[index];
-                          return FutureBuilder<DocumentSnapshot>(
-                            future: FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(participantId)
-                                .get(),
+                          return FutureBuilder<Map<String, dynamic>?>(
+                            future: _sb
+                                .from('profiles')
+                                .select('display_name,avatar_url,rating,city,email')
+                                .eq('id', participantId)
+                                .maybeSingle(),
                             builder: (context, snapshot) {
                               if (!snapshot.hasData) {
                                 return ListTile(
@@ -934,9 +944,11 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                 );
                               }
 
-                              final userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-                              final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? 'Користувач';
-                              final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
+                              final userData = snapshot.data ?? {};
+                              final userName = userData['display_name'] ??
+                                  userData['email']?.toString().split('@')[0] ??
+                                  'Користувач';
+                              final avatarUrl = userData['avatar_url'] ?? '';
                               final rating = (userData['rating'] ?? 0.0).toDouble();
                               final city = userData['city'] ?? 'Невідоме місто';
 
@@ -1098,20 +1110,10 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
   }
 
   Widget _buildCreatorRatingBadge(String challengeId) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(challengeId)
-          .collection('submissions')
-          .where('isCreatorVideo', isEqualTo: true)
-          .limit(1)
-          .snapshots(),
+    return FutureBuilder<double>(
+      future: _creatorAvgRating(challengeId),
       builder: (context, snap) {
-        double avg = 0;
-        if (snap.hasData && snap.data!.docs.isNotEmpty) {
-          final data = snap.data!.docs.first.data() as Map<String, dynamic>;
-          avg = (data['averageRating'] ?? data['rating'] ?? 0.0).toDouble();
-        }
+        final avg = snap.data ?? 0.0;
         if (avg <= 0) return const SizedBox.shrink();
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1140,14 +1142,42 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     );
   }
 
+  Future<double> _creatorAvgRating(String challengeId) async {
+    final subs = await _sb
+        .from('challenge_submissions')
+        .select('id')
+        .eq('challenge_id', challengeId)
+        .order('submitted_at', ascending: true)
+        .limit(1);
+    final subRows = subs as List<dynamic>;
+    if (subRows.isEmpty) return 0.0;
+    final subId = ((subRows.first as Map<String, dynamic>)['id'] ?? '').toString();
+    if (subId.isEmpty) return 0.0;
+    final ratings = await _sb
+        .from('challenge_submission_ratings')
+        .select('overall_rating')
+        .eq('challenge_submission_id', subId);
+    final rows = ratings as List<dynamic>;
+    if (rows.isEmpty) return 0.0;
+    final total = rows.fold<double>(
+      0,
+      (p, e) => p + (((e as Map<String, dynamic>)['overall_rating'] as num?) ?? 0).toDouble(),
+    );
+    return total / rows.length;
+  }
+
   Future<void> _finishChallenge(String challengeId) async {
     try {
       final ok = await _challengesRepo.completeChallenge(challengeId);
       if (!ok) return;
 
       // Reload winners and show
-      final doc = await FirebaseFirestore.instance.collection('challenges').doc(challengeId).get();
-      final data = doc.data() as Map<String, dynamic>? ?? {};
+      final row = await _sb
+          .from('challenges')
+          .select('winners')
+          .eq('id', challengeId)
+          .maybeSingle();
+      final data = row ?? <String, dynamic>{};
       final winners = List<String>.from(data['winners'] ?? []);
 
       showModalBottomSheet(
@@ -1187,12 +1217,16 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
   }
 
   Widget _winnerTile(String userId, {required int place}) {
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _sb
+          .from('profiles')
+          .select('display_name,avatar_url,email')
+          .eq('id', userId)
+          .maybeSingle(),
       builder: (context, snap) {
-        final ud = snap.data?.data() as Map<String, dynamic>? ?? {};
-        final name = ud['displayName'] ?? ud['name'] ?? ud['email']?.split('@')[0] ?? 'Користувач';
-        final avatar = ud['avatarUrl'] ?? ud['avatar'] ?? '';
+        final ud = snap.data ?? {};
+        final name = ud['display_name'] ?? ud['email']?.toString().split('@')[0] ?? 'Користувач';
+        final avatar = ud['avatar_url'] ?? '';
         final medal = place == 1 ? '🥇' : place == 2 ? '🥈' : '🥉';
         return ListTile(
           onTap: () => context.router.push(

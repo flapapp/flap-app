@@ -4,7 +4,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
 
 import 'package:image_picker/image_picker.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_app_storage.dart';
@@ -525,43 +524,47 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       print('✅ Video uploaded successfully: $videoUrl');
 
       final videoData = <String, dynamic>{
-        'userId': user.id,
-        'authorId': user.id,
-        'authorName': user.email?.split('@').first ?? tr('il_b512d97e7c'),
-        'title': _titleController.text.trim(),
+        'user_id': user.id,
+        'title': _titleController.text.trim().isEmpty
+            ? (widget.challengeTitle ?? tr('il_d534be829e'))
+            : _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'category': normalizeVideoCategoryValue(_selectedCategoryId ?? 'other'),
-        'difficulty': _selectedDifficulty,
-        'videoUrl': videoUrl,
-        'createdAt': FieldValue.serverTimestamp(),
-        'likes': 0,
-        'rating': 0.0,
-        'views': 0,
-        'thumbnailUrl': null,
-        'thumbnailGenerated': false,
+        'video_url': videoUrl,
+        'thumbnail_url': null,
       };
 
-      if (widget.challengeId != null) {
-        videoData.addAll({
-          'challengeId': widget.challengeId,
-          'challengeTitle': widget.challengeTitle ?? '',
-          'isChallengeVideo': true,
-        });
+      final categoryCode = normalizeVideoCategoryValue(_selectedCategoryId ?? 'other');
+      if (widget.challengeId == null) {
+        final category = await client
+            .from('video_categories')
+            .select('id')
+            .eq('code', categoryCode)
+            .maybeSingle();
+        final difficulty = await client
+            .from('video_difficulties')
+            .select('id')
+            .eq('code', (_selectedDifficulty ?? '').toLowerCase())
+            .maybeSingle();
+        if (category != null) {
+          videoData['category_id'] = category['id'];
+        }
+        if (difficulty != null) {
+          videoData['difficulty_id'] = difficulty['id'];
+        }
       }
 
-      final videoDoc = await FirebaseFirestore.instance
-          .collection('videos')
-          .add(videoData);
+      final videoDoc = await client.from('videos').insert(videoData).select('id').single();
+      final videoId = (videoDoc['id'] ?? '').toString();
 
-      print('✅ Video document created: ${videoDoc.id}');
+      print('✅ Video document created: $videoId');
 
       // Якщо це відео для челенджу
       if (widget.challengeId != null) {
-        await _submitVideoToChallenge(videoDoc.id, videoUrl);
+        await _submitVideoToChallenge(videoId, videoUrl);
       }
 
       // Генеруємо thumbnail в фоновому режимі
-      _generateThumbnailInBackground(videoDoc.id, videoUrl, user.id);
+      _generateThumbnailInBackground(videoId, videoUrl, user.id);
 
       // Показуємо успішне повідомлення
       if (mounted) {
@@ -605,24 +608,14 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       await sl<ChallengesRepository>()
           .addVideoToChallenge(widget.challengeId!, user.id);
       
-      // Створюємо submission документ
-      await FirebaseFirestore.instance
-          .collection('challenges')
-          .doc(widget.challengeId!)
-          .collection('submissions')
-          .doc(user.id)
-          .set({
-        'userId': user.id,
-        'videoId': videoId,
-        'videoUrl': videoUrl,
+      await Supabase.instance.client.from('challenge_submissions').upsert({
+        'challenge_id': widget.challengeId!,
+        'user_id': user.id,
+        'video_id': videoId,
+        'video_url': videoUrl,
         'title': _titleController.text.trim(),
-        'authorName': user.email?.split('@').first ?? tr('il_b512d97e7c'),
-        'createdAt': FieldValue.serverTimestamp(),
-        'averageRating': 0.0,
-        'voteCount': 0,
-        'votes': <String, dynamic>{},
-        'thumbnailUrl': null, // Буде оновлено після генерації
-        'isCreatorVideo': false,
+        'description': _descriptionController.text.trim(),
+        'thumbnail_url': null,
       });
 
       print('✅ Video submitted to challenge: ${widget.challengeId}');
@@ -652,15 +645,13 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
           // Якщо це відео для челенджу, оновлюємо submission з thumbnailUrl
           if (widget.challengeId != null) {
             try {
-              await FirebaseFirestore.instance
-                  .collection('challenges')
-                  .doc(widget.challengeId!)
-                  .collection('submissions')
-                  .doc(userId)
+              await Supabase.instance.client
+                  .from('challenge_submissions')
                   .update({
-                'thumbnailUrl': thumbnailUrl,
-                'thumbnailGenerated': true,
-              });
+                'thumbnail_url': thumbnailUrl,
+              })
+                  .eq('challenge_id', widget.challengeId!)
+                  .eq('user_id', userId);
               print('✅ Submission thumbnail updated for challenge: ${widget.challengeId}');
             } catch (e) {
               print('⚠️ Failed to update submission thumbnail: $e');

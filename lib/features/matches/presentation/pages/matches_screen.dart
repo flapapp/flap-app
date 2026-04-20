@@ -2,10 +2,9 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../router/app_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/matches_repository.dart';
@@ -108,6 +107,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   MatchesRepository get _matchRepo => sl<MatchesRepository>();
 
   RatingsRepository get _ratingsRepo => sl<RatingsRepository>();
+  final SupabaseClient _sb = Supabase.instance.client;
   final NotificationService _notificationService = NotificationService();
   // Стан фільтрів рейтингів (замість ValueNotifier використовуємо звичайний state)
   String _ratingsSelectedCity = tr('all_cities');
@@ -154,8 +154,12 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
     final uid = AppAuth.currentUserId;
     if (uid == null) return;
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final city = (doc.data()?['city'] ?? '').toString();
+      final row = await _sb
+          .from('profiles')
+          .select('city')
+          .eq('id', uid)
+          .maybeSingle();
+      final city = (row?['city'] ?? '').toString();
       if (!mounted) return;
       setState(() {
         _currentUserCity = city;
@@ -511,15 +515,19 @@ void _resetFindFilters() {
         );
       },
           ),
-    StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('users').doc(AppAuth.currentUserId).snapshots(),
+    StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _sb
+          .from('profiles')
+          .stream(primaryKey: ['id'])
+          .eq('id', AppAuth.currentUserId ?? ''),
       builder: (context, snapshot) {
         String avatarUrl = '';
         String displayName = '';
-        if (snapshot.hasData && snapshot.data!.exists) {
-          final d = snapshot.data!.data()!;
-          avatarUrl = (d['avatarUrl'] ?? d['avatar'] ?? d['photoUrl'] ?? '').toString();
-          displayName = (d['displayName'] ?? d['name'] ?? d['authorName'] ?? d['email']?.toString().split('@').first ?? tr('il_a25513c7e0')).toString();
+        final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+        if (rows.isNotEmpty) {
+          final d = rows.first;
+          avatarUrl = (d['avatar_url'] ?? '').toString();
+          displayName = (d['display_name'] ?? d['email']?.toString().split('@').first ?? tr('il_a25513c7e0')).toString();
         }
         return IconButton(
           padding: EdgeInsets.zero,
@@ -676,14 +684,15 @@ void _resetFindFilters() {
                   children: [
                     const Icon(Icons.circle, size: 10, color: Color(0xFF4caf50)),
                     const SizedBox(width: 8),
-                    StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                      stream: FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(AppAuth.currentUserId)
-                          .snapshots(),
+                    StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: _sb
+                          .from('profiles')
+                          .stream(primaryKey: ['id'])
+                          .eq('id', AppAuth.currentUserId ?? ''),
                       builder: (context, snapshot) {
-                        final rating = snapshot.hasData && snapshot.data!.exists
-                            ? ((snapshot.data!.data()?['rating'] ?? 0.0) as num).toDouble()
+                        final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+                        final rating = rows.isNotEmpty
+                            ? ((rows.first['rating'] ?? 0.0) as num).toDouble()
                             : 0.0;
                         return RichText(
                           text: TextSpan(
@@ -800,22 +809,23 @@ void _resetFindFilters() {
                 const SizedBox(height: 24),
 
                 // Історія змін рейтингу (нове)
-StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-  stream: FirebaseFirestore.instance
-      .collection('users')
-      .doc(AppAuth.currentUserId)
-      .snapshots(),
+StreamBuilder<List<Map<String, dynamic>>>(
+  stream: _sb
+      .from('profiles')
+      .stream(primaryKey: ['id'])
+      .eq('id', AppAuth.currentUserId ?? ''),
   builder: (context, snap) {
-    if (!snap.hasData || !snap.data!.exists) return const SizedBox.shrink();
-    final data = snap.data!.data() ?? {};
+    final rows = snap.data ?? const <Map<String, dynamic>>[];
+    if (rows.isEmpty) return const SizedBox.shrink();
+    final data = rows.first;
     final List<Map<String, dynamic>> history =
         List<Map<String, dynamic>>.from(data['ratingHistory'] ?? []);
     if (history.isEmpty) return const SizedBox.shrink();
 
     // нові зверху
     history.sort((a, b) {
-      final ta = (a['timestamp'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final tb = (b['timestamp'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final ta = _readDate(a['timestamp']);
+      final tb = _readDate(b['timestamp']);
       return tb.compareTo(ta);
     });
 
@@ -823,7 +833,7 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       children: history.asMap().entries.map((e) {
         final i = e.key;
         final h = e.value;
-        final dt = (h['timestamp'] as Timestamp?)?.toDate();
+        final dt = _readDate(h['timestamp']);
         final overall = ((h['overallRating'] ?? 0) as num).toDouble();
         final prev = (i + 1 < history.length)
             ? ((history[i + 1]['overallRating'] ?? 0) as num).toDouble()
@@ -941,25 +951,19 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                 ),
               ),
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('transactions')
-                      .where('userId', isEqualTo: AppAuth.currentUserId)
-                      .limit(50)
-                      .snapshots(),
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: _sb
+                      .from('coin_transactions')
+                      .stream(primaryKey: ['id'])
+                      .eq('user_id', AppAuth.currentUserId ?? ''),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)));
                     }
-                    final txDocs = snapshot.data!.docs.toList();
+                    final txDocs = List<Map<String, dynamic>>.from(snapshot.data ?? const <Map<String, dynamic>>[]);
                     txDocs.sort((a, b) {
-                      final ad = a.data() as Map<String, dynamic>;
-                      final bd = b.data() as Map<String, dynamic>;
-                      final at = ad['timestamp'] as Timestamp?;
-                      final bt = bd['timestamp'] as Timestamp?;
-                      if (at == null && bt == null) return 0;
-                      if (at == null) return 1;
-                      if (bt == null) return -1;
+                      final at = _readDate(a['created_at']);
+                      final bt = _readDate(b['created_at']);
                       return bt.compareTo(at);
                     });
                     if (txDocs.isEmpty) {
@@ -972,10 +976,10 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: txDocs.length,
                       itemBuilder: (context, index) {
-                        final t = txDocs[index].data() as Map<String, dynamic>;
+                        final t = txDocs[index];
                         final amount = t['amount'] ?? 0;
                         final description = t['description'] ?? '';
-                        final timestamp = t['timestamp'] as Timestamp?;
+                        final timestamp = _readDate(t['created_at']);
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(12),
@@ -1001,10 +1005,9 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(description, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
-                                    if (timestamp != null)
-                                      Text(_formatTransactionTime(timestamp.toDate()),
-                                        style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
-                                      ),
+                                    Text(_formatTransactionTime(timestamp),
+                                      style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -1025,6 +1028,19 @@ StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         );
       },
     );
+  }
+
+  DateTime _readDate(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String) {
+      return DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    }
+    try {
+      final dynamic v = value;
+      final d = v?.toDate();
+      if (d is DateTime) return d;
+    } catch (_) {}
+    return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   String _formatTransactionTime(DateTime dateTime) {
@@ -3277,12 +3293,13 @@ Future<void> _onLeaveMatch(Match match) async {
     final names = <String, String>{};
     for (final id in ids) {
       try {
-        final doc =
-            await FirebaseFirestore.instance.collection('users').doc(id).get();
-        final data = doc.data();
-        names[id] = (data?['displayName'] ??
-                data?['name'] ??
-                data?['authorName'] ??
+        final row = await _sb
+            .from('profiles')
+            .select('display_name, email')
+            .eq('id', id)
+            .maybeSingle();
+        names[id] = (row?['display_name'] ??
+                row?['email']?.toString().split('@').first ??
                 tr('player'))
             .toString();
       } catch (_) {

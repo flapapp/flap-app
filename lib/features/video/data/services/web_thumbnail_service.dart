@@ -1,16 +1,12 @@
-import 'dart:typed_data';
-import 'dart:ui' as ui;
-import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class WebThumbnailService {
   static final WebThumbnailService _instance = WebThumbnailService._internal();
   factory WebThumbnailService() => _instance;
   WebThumbnailService._internal();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseClient _sb = Supabase.instance.client;
 
   /// Генерує thumbnail для веб-платформи використовуючи VideoPlayer
   Future<String?> generateWebThumbnail({
@@ -57,15 +53,10 @@ class WebThumbnailService {
   }) async {
     try {
       // Для веб: використовуємо саме відео як прев'ю, щоб браузер відобразив перший кадр
-      await _firestore
-          .collection('videos')
-          .doc(videoId)
-          .update({
-        'thumbnailUrl': videoUrl,
-        'thumbnailGenerated': true,
-        'thumbnailType': 'web_video_preview',
-        'thumbnailUpdatedAt': FieldValue.serverTimestamp(),
-      });
+      await _sb.from('videos').update(<String, dynamic>{
+        'thumbnail_url': videoUrl,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', videoId);
 
       print('✅ Web placeholder created for: $videoId');
       return videoUrl;
@@ -83,14 +74,10 @@ class WebThumbnailService {
   }) async {
     try {
       // Для челенджів також використовуємо відео URL
-      await _firestore
-          .collection('challenges')
-          .doc(challengeId)
-          .update({
-        'creatorThumbnailUrl': videoUrl,
-        'thumbnailGenerated': true,
-        'thumbnailType': 'web_video_preview',
-      });
+      await _sb.from('challenges').update(<String, dynamic>{
+        'image_url': videoUrl,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', challengeId);
 
       print('✅ Web challenge thumbnail created: $challengeId');
       return videoUrl;

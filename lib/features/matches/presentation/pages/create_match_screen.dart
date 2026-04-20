@@ -2,9 +2,8 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/models/match.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../../../../core/di/injection.dart';
@@ -26,6 +25,7 @@ class CreateMatchScreen extends StatefulWidget {
 }
 
 class CreateMatchScreenState extends State<CreateMatchScreen> {
+  final SupabaseClient _sb = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -693,17 +693,17 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
       if (currentUser == null) return;
 
       // NEW: resolve organizer name reliably
-final userSnap = await FirebaseFirestore.instance
-    .collection('users')
-    .doc(currentUser.id)
-    .get();
-final userData = userSnap.data() ?? {};
-final emailPrefix = currentUser.email?.split('@').first;
-final resolvedOrganizerName = (userData['displayName'] ??
-       userData['authorName'] ??
-       userData['name'] ??
-       emailPrefix ??
-       tr('il_b764cdc0ea')).toString();
+      final userData = await _sb
+              .from('profiles')
+              .select('display_name')
+              .eq('id', currentUser.id)
+              .maybeSingle() ??
+          <String, dynamic>{};
+      final emailPrefix = currentUser.email?.split('@').first;
+      final resolvedOrganizerName = (userData['display_name'] ??
+              emailPrefix ??
+              tr('il_b764cdc0ea'))
+          .toString();
       
       var participants = <String>[currentUser.id];
       var currentPlayers = 1;
@@ -1358,29 +1358,42 @@ final resolvedOrganizerName = (userData['displayName'] ??
   }
 
   Future<List<Map<String, dynamic>>> _loadMyFriends() async {
-  try {
-    final me = AppAuth.currentUser;
-    if (me == null) return [];
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(me.id).get();
-    final ids = List<String>.from(userDoc.data()?['friends'] ?? []);
-    if (ids.isEmpty) return [];
-    final result = <Map<String, dynamic>>[];
-    for (final id in ids.take(50)) {
-      final d = await FirebaseFirestore.instance.collection('users').doc(id).get();
-      if (d.exists) {
-        final data = d.data() as Map<String, dynamic>;
-        data['id'] = id;
-        result.add(data);
-      }
+    try {
+      final me = AppAuth.currentUser;
+      if (me == null) return [];
+      final rows = await _sb
+          .from('friendships')
+          .select('friend_user_id')
+          .eq('user_id', me.id);
+      final ids = (rows as List<dynamic>)
+          .map((r) => (r as Map<String, dynamic>)['friend_user_id'].toString())
+          .where((id) => id.isNotEmpty)
+          .take(50)
+          .toList();
+      if (ids.isEmpty) return [];
+      final profiles = await _sb
+          .from('profiles')
+          .select('id, display_name, avatar_url, city')
+          .inFilter('id', ids);
+      final result = (profiles as List<dynamic>)
+          .map((raw) {
+            final data = raw as Map<String, dynamic>;
+            return <String, dynamic>{
+              'id': data['id'],
+              'displayName': data['display_name'],
+              'avatarUrl': data['avatar_url'],
+              'city': data['city'],
+            };
+          })
+          .toList();
+      result.sort((a, b) => (a['displayName'] ?? a['name'] ?? '')
+          .toString()
+          .compareTo((b['displayName'] ?? b['name'] ?? '').toString()));
+      return result;
+    } catch (_) {
+      return [];
     }
-    result.sort((a, b) => (a['displayName'] ?? a['name'] ?? '')
-        .toString()
-        .compareTo((b['displayName'] ?? b['name'] ?? '').toString()));
-    return result;
-  } catch (_) {
-    return [];
   }
-}
 
   Future<void> _loadMyTeams() async {
     final currentUser = AppAuth.currentUser;
@@ -1412,14 +1425,19 @@ final resolvedOrganizerName = (userData['displayName'] ??
     try {
       final me = AppAuth.currentUser;
       if (me == null) return [];
-      final snap = await FirebaseFirestore.instance.collection('users').limit(100).get();
+      final snap = await _sb
+          .from('profiles')
+          .select('id, display_name, avatar_url, city')
+          .limit(100);
       final result = <Map<String, dynamic>>[];
-      for (final doc in snap.docs) {
-        if (doc.id == me.id) continue;
-        final data = doc.data();
+      for (final row in snap as List<dynamic>) {
+        final data = row as Map<String, dynamic>;
+        if ((data['id'] ?? '').toString() == me.id) continue;
         result.add({
-          'id': doc.id,
-          ...data,
+          'id': data['id'],
+          'displayName': data['display_name'],
+          'avatarUrl': data['avatar_url'],
+          'city': data['city'],
         });
       }
       result.sort((a, b) {
@@ -1612,10 +1630,6 @@ final resolvedOrganizerName = (userData['displayName'] ??
                           );
                         }
 
-                        await FirebaseFirestore.instance.collection('matches').doc(matchId).set({
-                          'invitedFriends': FieldValue.arrayUnion(selectedIds.toList()),
-                        }, SetOptions(merge: true));
-
                         if (context.mounted) Navigator.pop(ctx);
                       },
                 child: Text(tr('il_1fd9ae1607')),
@@ -1678,12 +1692,13 @@ final resolvedOrganizerName = (userData['displayName'] ??
     final map = <String, String>{};
     for (final id in ids) {
       try {
-        final doc =
-            await FirebaseFirestore.instance.collection('users').doc(id).get();
-        final data = doc.data();
-        map[id] = (data?['displayName'] ??
-                data?['name'] ??
-                data?['authorName'] ??
+        final data = await _sb
+            .from('profiles')
+            .select('display_name,email')
+            .eq('id', id)
+            .maybeSingle();
+        map[id] = (data?['display_name'] ??
+                data?['email']?.toString().split('@').first ??
                 tr('player'))
             .toString();
       } catch (_) {

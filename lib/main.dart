@@ -1,8 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -14,24 +11,15 @@ import 'core/config/supabase_env.dart';
 import 'core/supabase/supabase_bootstrap.dart';
 import 'core/di/injection.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart' hide AuthState;
-import 'firebase_options.dart';
 import 'router/app_router.dart';
 import 'features/badges/domain/repositories/badges_repository.dart';
 import 'features/subscriptions/domain/repositories/subscriptions_repository.dart';
 import 'features/notifications/data/services/notification_service.dart';
 import 'features/profile/data/services/user_settings_service.dart';
 
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-}
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
   await initializeSupabase();
   await configureDependencies();
   runApp(
@@ -73,39 +61,13 @@ Future<void> _bootstrapAppServices() async {
     }
   } catch (_) {}
 
-  if (!kIsWeb) {
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    await _initMessaging();
-  }
+  await _initMessaging();
 }
 
 Future<void> _initMessaging() async {
-  if (!await UserSettingsService().isNotificationsEnabled()) {
-    return;
-  }
-  final messaging = FirebaseMessaging.instance;
-  await messaging.requestPermission(alert: true, badge: true, sound: true);
-  final token = await messaging.getToken();
-  final uid = AppAuth.currentUserId;
-  if (uid != null &&
-      token != null &&
-      SupabaseEnv.url.isNotEmpty &&
-      SupabaseEnv.anonKey.isNotEmpty) {
-    final platform = kIsWeb
-        ? 'web'
-        : (Platform.isIOS ? 'ios' : 'android');
-    await Supabase.instance.client.from('push_tokens').upsert(
-      <String, dynamic>{
-        'user_id': uid,
-        'token': token,
-        'platform': platform,
-        'last_seen_at': DateTime.now().toUtc().toIso8601String(),
-      },
-      onConflict: 'token',
-    );
-  }
-
-  FirebaseMessaging.onMessage.listen((message) {});
+  // Push transport is intentionally disabled during Firebase removal.
+  if (kIsWeb || SupabaseEnv.url.isEmpty || SupabaseEnv.anonKey.isEmpty) return;
+  await UserSettingsService().isNotificationsEnabled();
 }
 
 class MyApp extends StatefulWidget {

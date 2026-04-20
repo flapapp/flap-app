@@ -1,13 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RatingTrackingService {
   static final RatingTrackingService _instance = RatingTrackingService._internal();
   factory RatingTrackingService() => _instance;
   RatingTrackingService._internal();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseClient _sb = Supabase.instance.client;
 
   /// Записує зміну рейтингу в історію
   Future<void> recordRatingChange({
@@ -23,17 +21,10 @@ class RatingTrackingService {
     try {
       final change = newRating - oldRating;
       
-      await _firestore.collection('rating_history').add({
-        'userId': userId,
-        'change': change,
-        'oldRating': oldRating,
-        'newRating': newRating,
-        'reason': reason,
-        'challengeTitle': challengeTitle ?? '',
-        'voterName': voterName ?? '',
-        'challengeId': challengeId ?? '',
-        'videoTitle': videoTitle ?? '',
-        'timestamp': FieldValue.serverTimestamp(),
+      await _sb.from('user_rating_snapshots').insert({
+        'user_id': userId,
+        'rating_scope': 'overall',
+        'rating_value': newRating,
       });
 
       print('✅ Rating change recorded: ${change > 0 ? '+' : ''}${change.toStringAsFixed(2)} ($reason)');
@@ -52,15 +43,7 @@ class RatingTrackingService {
     String? challengeId,
   }) async {
     try {
-      // Отримуємо поточний рейтинг
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      final userData = userDoc.data() as Map<String, dynamic>? ?? {};
-      final oldRating = (userData['rating'] ?? 0.0).toDouble();
-
-      // Оновлюємо рейтинг
-      await _firestore.collection('users').doc(userId).update({
-        'rating': newRating,
-      });
+      final oldRating = await _loadCurrentRating(userId);
 
       // Записуємо в історію
       await recordRatingChange(
@@ -77,5 +60,19 @@ class RatingTrackingService {
     } catch (e) {
       print('❌ Error updating user rating: $e');
     }
+  }
+
+  Future<double> _loadCurrentRating(String userId) async {
+    final row = await _sb
+        .from('user_rating_snapshots')
+        .select('rating_value')
+        .eq('user_id', userId)
+        .eq('rating_scope', 'overall')
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    if (row == null) return 0.0;
+    final value = row['rating_value'];
+    return (value is num) ? value.toDouble() : 0.0;
   }
 }

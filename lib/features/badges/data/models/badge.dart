@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart' as el;
 import 'package:json_annotation/json_annotation.dart';
 
@@ -23,20 +22,33 @@ class Badge extends BadgeEntity {
   });
 
   // Factory constructor from Firestore
-  factory Badge.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  static DateTime? _readDateOrNull(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    try {
+      final dynamic v = value;
+      final date = v?.toDate();
+      if (date is DateTime) return date;
+    } catch (_) {}
+    return null;
+  }
+
+  factory Badge.fromFirestore(dynamic doc) {
+    final raw = doc.data();
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     
     return Badge(
-      id: doc.id,
+      id: (doc.id ?? '').toString(),
       name: data['name'] ?? '',
       emoji: data['emoji'] ?? '🏆',
       description: data['description'] ?? '',
       price: data['price'] ?? 0,
       category: data['category'] ?? 'general',
       isAvailable: data['isAvailable'] ?? true,
-      releaseDate: data['releaseDate'] != null 
-          ? (data['releaseDate'] as Timestamp).toDate() 
-          : null,
+      releaseDate: _readDateOrNull(data['releaseDate']),
     );
   }
 
@@ -53,9 +65,7 @@ class Badge extends BadgeEntity {
       'price': price,
       'category': category,
       'isAvailable': isAvailable,
-      'releaseDate': releaseDate != null 
-          ? Timestamp.fromDate(releaseDate!) 
-          : null,
+      'releaseDate': releaseDate?.toIso8601String(),
     };
   }
 
