@@ -48,6 +48,25 @@ class AuthBootstrapRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [AvatarRequiredScreen]
+class AvatarRequiredRoute extends PageRouteInfo<void> {
+  const AvatarRequiredRoute({List<PageRouteInfo>? children})
+      : super(
+          AvatarRequiredRoute.name,
+          initialChildren: children,
+        );
+
+  static const String name = 'AvatarRequiredRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const AvatarRequiredScreen();
+    },
+  );
+}
+
+/// generated route for
 /// [BadgesStoreScreen]
 class BadgesStoreRoute extends PageRouteInfo<void> {
   const BadgesStoreRoute({List<PageRouteInfo>? children})

@@ -153,15 +153,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       registrationFailure: null,
     ));
     final result = await _registerNewUser(event.request);
-    result.when(
-      success: (user) => emit(state.copyWith(
-        registrationProgress: ProgressStatus.success,
-        lastAuthenticatedUser: user,
-      )),
-      failure: (f) => emit(state.copyWith(
-        registrationProgress: ProgressStatus.failure,
-        registrationFailure: f,
-      )),
+    await result.when(
+      success: (user) async {
+        try {
+          await _postLoginActions.onEmailPasswordSignInSuccess(user);
+        } catch (_) {}
+        emit(state.copyWith(
+          registrationProgress: ProgressStatus.success,
+          lastAuthenticatedUser: user,
+        ));
+      },
+      failure: (f) async {
+        emit(state.copyWith(
+          registrationProgress: ProgressStatus.failure,
+          registrationFailure: f,
+        ));
+      },
     );
   }
 

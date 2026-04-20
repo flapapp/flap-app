@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/progress/progress_status.dart';
 import '../../../../router/app_router.dart';
+import '../../../../router/post_auth_navigation.dart';
 import '../../domain/entities/startup_destination.dart';
 import '../bloc/auth_bloc.dart';
 
@@ -38,7 +39,10 @@ class _AuthBootstrapScreenState extends State<AuthBootstrapScreen> {
         final destination = state.bootstrapDestination!;
         switch (destination) {
           case StartupDestination.authenticated:
-            context.router.replaceAll([const ModeSelectionRoute()]);
+            resolvePostAuthInitialRoute().then((route) {
+              if (!context.mounted) return;
+              context.router.replaceAll([route]);
+            });
           case StartupDestination.guestWelcome:
             context.router.replaceAll([const WelcomeRoute()]);
           case StartupDestination.guestIntro:

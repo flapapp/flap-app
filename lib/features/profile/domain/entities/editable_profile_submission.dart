@@ -7,9 +7,8 @@ class EditableProfileSubmission {
     required this.firstName,
     required this.lastName,
     required this.city,
-    this.age,
+    this.dateOfBirth,
     this.position,
-    this.experience,
     this.avatarJpegBytes,
     this.isEditing = false,
   });
@@ -18,9 +17,9 @@ class EditableProfileSubmission {
   final String firstName;
   final String lastName;
   final String city;
-  final int? age;
+  /// Calendar date only (year, month, day); persisted as [profiles.dat_of_birth].
+  final DateTime? dateOfBirth;
   final String? position;
-  final String? experience;
   final Uint8List? avatarJpegBytes;
   final bool isEditing;
 }

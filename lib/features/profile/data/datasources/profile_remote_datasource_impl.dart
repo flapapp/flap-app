@@ -77,9 +77,11 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     if (patch['position'] is String) {
       row['position'] = patch['position'];
     }
-    if (patch['age'] is int) {
-      final y = DateTime.now().year - (patch['age'] as int);
-      row['dat_of_birth'] = DateTime(y, 1, 1).toIso8601String().split('T').first;
+    final dob = patch['dateOfBirth'];
+    if (dob is DateTime) {
+      final d = DateTime(dob.year, dob.month, dob.day);
+      row['dat_of_birth'] =
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
     }
     if (avatarUrl is String && avatarUrl.isNotEmpty) {
       row['avatar_url'] = avatarUrl;

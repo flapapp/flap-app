@@ -1,9 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 
 import '../../../../core/error/failure.dart';
-import '../../../../core/supabase/supabase_app_storage.dart';
 import '../../../../core/error/result.dart';
 import '../../../../core/supabase/coin_ledger.dart';
 import '../../domain/entities/auth_user.dart';
@@ -14,6 +11,13 @@ class AuthRepositoryImpl implements AuthRepository {
   AuthRepositoryImpl();
 
   SupabaseClient get _client => Supabase.instance.client;
+
+  String _displayNameFromEmail(String email) {
+    final t = email.trim();
+    final at = t.indexOf('@');
+    if (at > 0) return t.substring(0, at);
+    return t.isNotEmpty ? t : 'Player';
+  }
 
   @override
   Future<Result<AuthUser>> signInWithEmailAndPassword({
@@ -34,7 +38,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return Result.success(AuthUser(uid: uid));
     } on AuthException catch (e) {
       return Result.failure(
-        Failure.auth(code: e.message ?? 'auth', message: e.message),
+        Failure.auth(code: e.message, message: e.message),
       );
     } catch (e) {
       return Result.failure(Failure.unexpected(e.toString()));
@@ -56,34 +60,12 @@ class AuthRepositoryImpl implements AuthRepository {
       }
       final uid = user.id;
 
-      String? avatarUrl;
-      final bytes = r.avatarBytes;
-      if (bytes != null && bytes.isNotEmpty) {
-        try {
-          avatarUrl = await SupabaseAppStorage.uploadPublicBytes(
-            _client,
-            bucket: SupabaseAppStorage.avatars,
-            path: '$uid/avatar.jpg',
-            bytes: Uint8List.fromList(bytes),
-            contentType: 'image/jpeg',
-            upsert: true,
-          );
-        } catch (_) {}
-      }
-
-      final fullName = '${r.name.trim()} ${r.surname.trim()}'.trim();
-      final dob = DateTime(DateTime.now().year - r.age, 1, 1);
+      final displayName = _displayNameFromEmail(r.email);
 
       await _client.from('profiles').insert(<String, dynamic>{
         'id': uid,
         'email': r.email.trim(),
-        'display_name': fullName.isNotEmpty ? fullName : r.email.trim(),
-        'first_name': r.name.trim(),
-        'last_name': r.surname.trim(),
-        'city': r.city.trim(),
-        'position': r.position,
-        'avatar_url': avatarUrl,
-        'dat_of_birth': dob.toIso8601String().split('T').first,
+        'display_name': displayName,
       });
 
       await _client.from('user_settings').insert(<String, dynamic>{
@@ -104,7 +86,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return Result.success(AuthUser(uid: uid));
     } on AuthException catch (e) {
       return Result.failure(
-        Failure.auth(code: e.message ?? 'auth', message: e.message),
+        Failure.auth(code: e.message, message: e.message),
       );
     } catch (e) {
       return Result.failure(Failure.unexpected(e.toString()));

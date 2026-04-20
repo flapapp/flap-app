@@ -62,9 +62,8 @@ class ProfileRepositoryImpl implements ProfileRepository {
         'authorName': fullName,
         'displayName': fullName,
         'city': data.city.trim(),
-        'age': data.age,
+        'dateOfBirth': data.dateOfBirth,
         'position': data.position,
-        'experience': data.experience,
       };
       if (avatarUrl != null) {
         map['avatarUrl'] = avatarUrl;

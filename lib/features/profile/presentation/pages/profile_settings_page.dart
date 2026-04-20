@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../router/app_router.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../../core/progress/progress_status.dart';
-import 'profile_creation_page.dart';
 import '../cubit/profile_settings_cubit.dart';
 
 @RoutePage()
@@ -198,11 +198,7 @@ class _ProfileSettingsBody extends StatelessWidget {
   }
 
   Future<void> _openEditProfile(BuildContext context) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const ProfileCreationScreen(isEditing: true),
-      ),
-    );
+    await context.router.push(ProfileCreationRoute(isEditing: true));
   }
 
   Widget _buildSectionTitle(

@@ -5,6 +5,7 @@ import '../features/challenges/data/models/challenge.dart';
 import '../features/matches/data/models/match.dart';
 import '../core/di/injection.dart';
 import 'guards/auth_guard.dart';
+import 'guards/avatar_required_guard.dart';
 import 'guards/guest_guard.dart';
 import '../features/admin/presentation/pages/admin_screen.dart';
 import '../features/auth/presentation/pages/auth_bootstrap_page.dart';
@@ -30,6 +31,7 @@ import '../features/profile/presentation/pages/profile_screen.dart';
 import '../features/profile/presentation/pages/profile_settings_page.dart';
 import '../features/ratings/presentation/pages/ratings_screen.dart';
 import '../features/auth/presentation/pages/register_page.dart';
+import '../features/auth/presentation/pages/avatar_required_page.dart';
 import '../features/stats/presentation/pages/stats_screen.dart';
 import '../features/subscriptions/presentation/pages/subscription_screen.dart';
 import '../features/teams/presentation/pages/team_create_screen.dart';
@@ -46,6 +48,8 @@ part 'app_router.gr.dart';
 
 /// Lazy guards so [sl] is resolved after [configureDependencies] (not at import time).
 AuthGuard get appAuthGuard => AuthGuard(sl());
+AvatarRequiredGuard get appAvatarGuard =>
+    AvatarRequiredGuard(sl(), sl());
 GuestGuard get appGuestGuard => GuestGuard(sl());
 
 /// Global router instance for imperative navigation (e.g. push from services).
@@ -83,149 +87,154 @@ class AppRouter extends RootStackRouter {
           guards: [appGuestGuard],
         ),
         AutoRoute(
+          path: '/avatar-required',
+          page: AvatarRequiredRoute.page,
+          guards: [appAuthGuard],
+        ),
+        AutoRoute(
           path: '/profile',
           page: ProfileRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/settings',
           page: ProfileSettingsRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/profile-creation',
           page: ProfileCreationRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/mode',
           page: ModeSelectionRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/friends',
           page: FriendsRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/teams',
           page: TeamHubRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/video-upload',
           page: VideoUploadRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/video-main',
           page: VideoMainRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/challenge-list',
           page: ChallengeListRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/challenge-create',
           page: ChallengeCreateRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/challenge-details',
           page: ChallengeDetailsRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/matches',
           page: MatchesRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/ratings',
           page: RatingsRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/match_rating',
           page: MatchRatingRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/match-details',
           page: MatchDetailsRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/match_management',
           page: MatchManagementRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/create-match',
           page: CreateMatchRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/player-profile',
           page: PlayerProfileRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/notifications',
           page: NotificationsRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/admin',
           page: AdminRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/team-details',
           page: TeamDetailsRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/stats',
           page: StatsRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/subscription',
           page: SubscriptionRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/badges-store',
           page: BadgesStoreRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/video-player',
           page: VideoPlayerRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/challenge-video-player',
           page: ChallengeVideoPlayerRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/videos',
           page: VideosRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/team-create',
           page: TeamCreateRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
         AutoRoute(
           path: '/challenge-completion',
           page: ChallengeCompletionRoute.page,
-          guards: [appAuthGuard],
+          guards: [appAuthGuard, appAvatarGuard],
         ),
       ];
 }

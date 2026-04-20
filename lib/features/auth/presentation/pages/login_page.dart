@@ -7,6 +7,7 @@ import 'package:flap_app/app_locale_access.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/progress/progress_status.dart';
 import '../../../../router/app_router.dart';
+import '../../../../router/post_auth_navigation.dart';
 import '../bloc/auth_bloc.dart';
 
 String _loginErrorMessage(Failure failure) {
@@ -68,7 +69,10 @@ class _LoginScreenState extends State<LoginScreen> {
               c.loginProgress == ProgressStatus.failure),
       listener: (context, state) {
         if (state.loginProgress == ProgressStatus.success) {
-          context.router.replace(const ModeSelectionRoute());
+          resolvePostAuthInitialRoute().then((route) {
+            if (!context.mounted) return;
+            context.router.replaceAll([route]);
+          });
         } else if (state.loginProgress == ProgressStatus.failure &&
             state.loginFailure != null) {
           final failure = state.loginFailure!;

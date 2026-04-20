@@ -129,6 +129,9 @@ class ProfileDocumentLoader {
               ? 1
               : 0);
     }
+    final dateOfBirthIso = dob != null
+        ? '${dob.year.toString().padLeft(4, '0')}-${dob.month.toString().padLeft(2, '0')}-${dob.day.toString().padLeft(2, '0')}'
+        : '';
 
     final settingsMap = <String, dynamic>{
       'hideDonationPrompt': false,
@@ -142,6 +145,8 @@ class ProfileDocumentLoader {
     return <String, dynamic>{
       'id': userId,
       'email': profile['email'],
+      'firstName': firstName,
+      'lastName': lastName,
       'name': firstName.isNotEmpty ? firstName : displayName,
       'surname': lastName,
       'authorName': displayName,
@@ -149,9 +154,9 @@ class ProfileDocumentLoader {
       'phone': '',
       'city': profile['city'] ?? '',
       'country': profile['country'],
+      'dateOfBirth': dateOfBirthIso,
       'age': age,
       'position': profile['position'] ?? '',
-      'experience': '',
       'nickname': profile['nickname'],
       'avatarUrl': profile['avatar_url'],
       'avatar': profile['avatar_url'],

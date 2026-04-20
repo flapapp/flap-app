@@ -53,7 +53,7 @@ class ModeHeroPanel extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              tr('il_0a2d828e92'),
+              tr('il_0a2d828e92', args: [displayName]),
               textAlign: TextAlign.center,
               style: GoogleFonts.manrope(
                 color: Colors.white,
