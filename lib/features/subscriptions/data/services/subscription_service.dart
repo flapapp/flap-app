@@ -19,7 +19,12 @@ class SubscriptionService {
       return _toSubscription(row);
     } catch (e) {
       print('Error getting user subscription: $e');
-      return await _createFreeSubscription(userId);
+      try {
+        return await _createFreeSubscription(userId);
+      } catch (createError) {
+        print('Failed to create fallback free subscription: $createError');
+        return null;
+      }
     }
   }
 
@@ -325,11 +330,15 @@ class SubscriptionService {
   Future<void> grantChampionsTrialIfMissing() async {
     final userId = AppAuth.currentUserId;
     if (userId == null) return;
-    
-    final subscription = await getUserSubscription(userId);
-    if (subscription != null && subscription.type != SubscriptionType.free) return;
-    
-    await startChampionsTrialSubscription();
+
+    try {
+      final subscription = await getUserSubscription(userId);
+      if (subscription != null && subscription.type != SubscriptionType.free) return;
+
+      await startChampionsTrialSubscription();
+    } catch (e) {
+      print('Failed to grant champions trial during bootstrap: $e');
+    }
   }
 
   Future<Subscription?> getActiveSubscription() async {

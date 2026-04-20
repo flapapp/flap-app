@@ -263,6 +263,15 @@ class BadgeService {
           'is_available': badge.isAvailable,
         }, onConflict: 'code');
       }
+    } on PostgrestException catch (e) {
+      // Non-admin clients can hit RLS here in production; defaults are seeded via migrations.
+      if (e.code == '42501') {
+        print('Skipping badge bootstrap sync due to RLS: ${e.message}');
+        return;
+      }
+      print('Error initializing default badges: $e');
+      _initializationFuture = null;
+      rethrow;
     } catch (e) {
       print('Error initializing default badges: $e');
       _initializationFuture = null;
