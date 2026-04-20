@@ -206,7 +206,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                     : tr('il_f45e73c588'),
               ),
               _infoChip(Icons.calendar_month,
-                  tr('il_79f5cba540')),
+                  tr('il_79f5cba540', args: [DateFormat.yMMMd().format(team.createdAt)])),
               if (canManage)
                 _infoChip(Icons.security,
                     tr('il_54e8296ca4')),
@@ -388,7 +388,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(tr('il_e69e7edfdf')),
+                    content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
                     backgroundColor: Colors.redAccent,
                   ),
                 );
@@ -983,7 +983,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
           icon: Icons.star,
           title: tr('il_17d2ec06ae'),
           value: name,
-          caption: tr('il_63740ed7ec'),
+          caption: tr('il_63740ed7ec', args: ['${best.value}']),
         );
       },
     );
@@ -1117,7 +1117,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_fae55d5171')),
+          content: Text(tr('il_fae55d5171', namedArgs: {'e': e.toString()})),
         ),
       );
     }
@@ -1338,7 +1338,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          tr('il_ea317e322b'),
+                          tr('il_ea317e322b', args: ['${req.proposedRoster.length}']),
                           style: const TextStyle(color: Colors.white54, fontSize: 12),
                         ),
                         Text(

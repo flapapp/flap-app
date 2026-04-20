@@ -229,13 +229,13 @@ class Friend extends FriendEntity {
     
     if (difference.inDays > 0) {
       final days = difference.inDays;
-      return tr('il_e345f3fbc6');
+      return tr('il_e345f3fbc6', namedArgs: {'days': '$days'});
     } else if (difference.inHours > 0) {
       final hours = difference.inHours;
-      return tr('il_71260c47e0');
+      return tr('il_71260c47e0', namedArgs: {'hours': '$hours'});
     } else if (difference.inMinutes > 0) {
       final minutes = difference.inMinutes;
-      return tr('il_031a7ac35e');
+      return tr('il_031a7ac35e', namedArgs: {'minutes': '$minutes'});
     } else {
       return tr('il_66f53417d3');
     }

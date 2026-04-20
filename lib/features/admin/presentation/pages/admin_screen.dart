@@ -36,7 +36,9 @@ class _AdminScreenState extends State<AdminScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_0794914a98')),
+          content: Text(
+            tr('il_0794914a98', namedArgs: {'e': e.toString()}),
+          ),
           backgroundColor: Colors.red,
         ),
       );

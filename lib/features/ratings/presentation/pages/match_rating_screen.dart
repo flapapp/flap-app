@@ -468,7 +468,16 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
             const SizedBox(width: 12),
             // Імʼя гравця
             Text(
-              displayName.isNotEmpty ? displayName : tr('il_9e4608e723'),
+              displayName.isNotEmpty
+                  ? displayName
+                  : tr(
+                      'il_9e4608e723',
+                      args: [
+                        playerId.length > 8
+                            ? playerId.substring(0, 8)
+                            : playerId,
+                      ],
+                    ),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -619,7 +628,13 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
         if (!mounted) return;
         final String headline = successCount == 0
             ? tr('il_b43497d860')
-            : tr('il_7e27449e19');
+            : tr(
+                'il_7e27449e19',
+                namedArgs: {
+                  'successCount': '$successCount',
+                  'totalCount': '$totalCount',
+                },
+              );
         final String details = failureMessages.isNotEmpty ? '\n${failureMessages.first}' : '';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -633,7 +648,9 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
       print('Error submitting ratings: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_051ce3d417')),
+          content: Text(
+            tr('il_051ce3d417', namedArgs: {'e': e.toString()}),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -655,11 +672,11 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
     final difference = now.difference(date);
     
     if (difference.inDays > 0) {
-      return tr('il_adf8ee5f65');
+      return tr('il_adf8ee5f65', args: ['${difference.inDays}']);
     } else if (difference.inHours > 0) {
-      return tr('il_7634d1849f');
+      return tr('il_7634d1849f', args: ['${difference.inHours}']);
     } else if (difference.inMinutes > 0) {
-      return tr('il_e0b53645d6');
+      return tr('il_e0b53645d6', args: ['${difference.inMinutes}']);
     } else {
       return tr('il_66f53417d3');
     }

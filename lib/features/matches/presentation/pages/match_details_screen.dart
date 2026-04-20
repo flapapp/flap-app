@@ -735,7 +735,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      tr('il_9212d8dcc4'),
+                      tr('il_9212d8dcc4', args: [team.name]),
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -747,7 +747,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                    tr('il_e411803602'),
+                    tr('il_e411803602', args: ['${roster.length}']),
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.8),
                   fontSize: 13,
@@ -1327,7 +1327,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      tr('il_944478b5c4'),
+                      tr('il_944478b5c4', args: [team.name]),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -1602,7 +1602,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                tr('il_1610626016'),
+                tr('il_1610626016', args: ['${widget.match.participants.length}']),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -2011,7 +2011,7 @@ String _localizedCity(String? raw) {
                     Expanded(
                       child: Text(
                         value > 0
-                            ? tr('il_f45eec2ce1')
+                            ? tr('il_f45eec2ce1', args: [value.toStringAsFixed(1)])
                             : tr('il_41d1f1a079'),
                         style: const TextStyle(
                           color: Color(0xFF4CAF50),
@@ -2315,7 +2315,7 @@ return Row(
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(tr('il_e69e7edfdf')),
+        content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
         backgroundColor: Colors.red,
       ),
     );
@@ -2328,7 +2328,7 @@ return Row(
 
   void _shareMatch() {
     final url = 'https://flap.app/match/${widget.match.id}';
-    Share.share(tr('il_5f7bc7026d') + url);
+    Share.share('${tr('il_5f7bc7026d', args: [widget.match.title])}$url');
   }
 
   String _getLevelText(MatchLevel level) {
@@ -2735,7 +2735,7 @@ String _getStatusText(MatchStatus status, {Match? match}) {
     final goals = (stat?['goals'] ?? 0) as num;
     final label = team.name.isNotEmpty
         ? team.name
-        : tr('il_d040fd4027');
+        : tr('il_d040fd4027', args: ['${index + 1}']);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),

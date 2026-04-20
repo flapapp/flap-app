@@ -502,7 +502,12 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                       } catch (e) {
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(tr('il_e69e7edfdf'))),
+                          SnackBar(
+                            content: Text(
+                              tr('il_e69e7edfdf',
+                                  namedArgs: {'e': e.toString()}),
+                            ),
+                          ),
                         );
                       }
                     },
@@ -1419,7 +1424,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(tr('il_5fc81f7ab3')),
+            content: Text(tr('il_5fc81f7ab3', args: [badge.localizedName])),
             backgroundColor: Colors.green,
           ),
         );
@@ -1658,7 +1663,7 @@ class _TeamCardBody extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        tr('il_3ac75e6772'),
+                        tr('il_3ac75e6772', args: ['${team.memberIds.length}']),
                         style: const TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ],
@@ -1684,7 +1689,7 @@ class _TeamCardBody extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              tr('il_6eba3c021d'),
+              tr('il_6eba3c021d', namedArgs: {'winRate': winRate}),
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ],
@@ -1798,14 +1803,24 @@ class ProfileStatsPage extends StatelessWidget {
                     buildPerformanceStat(
                       tr('il_4be2547225'),
                       '${winRate.toStringAsFixed(0)}%',
-                      tr('il_0579245845'),
+                      tr(
+                        'il_0579245845',
+                        namedArgs: {
+                          'wins': wins,
+                          'draws': draws,
+                          'losses': losses,
+                        },
+                      ),
                       Icons.pie_chart_outline,
                       const Color(0xFF4CAF50),
                     ),
                     buildPerformanceStat(
                       tr('il_116cd3982a'),
                       goalsValue.toString(),
-                      tr('il_6aecd96fcb'),
+                      tr(
+                        'il_6aecd96fcb',
+                        namedArgs: {'goalsPerMatch': goalsPerMatch},
+                      ),
                       Icons.sports_soccer,
                       const Color(0xFFFF7043),
                     ),

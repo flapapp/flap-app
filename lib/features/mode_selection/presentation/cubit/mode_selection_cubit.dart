@@ -87,13 +87,28 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
             .toString()
         : tr('player');
 
+    var ratingStr = '0.00';
+    if (data != null) {
+      final r = data['rating'];
+      if (r is num) ratingStr = r.toDouble().toStringAsFixed(2);
+    }
+    var matchesStr = '0';
+    try {
+      final raw = await _matchStatsRepository.loadFinishedMatchStats(uid);
+      matchesStr =
+          '${ModeHeroStats.fromParticipationMap(raw).finishedMatchesPlayed}';
+    } catch (_) {}
+
     emit(
       state.copyWith(
         greetingText: bilingual(
           phrase.ua.replaceAll('{name}', name),
           phrase.en.replaceAll('{name}', name),
         ),
-        ratingLineText: tr('il_9ed771006a'),
+        ratingLineText: tr(
+          'il_9ed771006a',
+          namedArgs: {'rating': ratingStr, 'matches': matchesStr},
+        ),
       ),
     );
   }

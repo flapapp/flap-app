@@ -359,7 +359,10 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                             ),
                           ),
                           Text(
-                            tr('il_7bd5596886'),
+                            tr(
+                              'il_7bd5596886',
+                              namedArgs: {'currentCoins': '$currentCoins'},
+                            ),
                             style: const TextStyle(
                               color: Color(0xFFffc107),
                               fontSize: 14,
@@ -567,7 +570,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                             ),
                           ),
                           Text(
-                            tr('il_a763f1866c'),
+                            tr('il_a763f1866c', args: [currentRating.toStringAsFixed(2)]),
                             style: const TextStyle(
                               color: Color(0xFF4caf50),
                               fontSize: 14,
@@ -785,11 +788,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                      'лип', 'серп', 'вер', 'жовт', 'лист', 'груд'];
       return '${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}';
     } else if (difference.inDays > 0) {
-      return tr('il_adf8ee5f65');
+      return tr('il_adf8ee5f65', args: ['${difference.inDays}']);
     } else if (difference.inHours > 0) {
-      return tr('il_7634d1849f');
+      return tr('il_7634d1849f', args: ['${difference.inHours}']);
     } else if (difference.inMinutes > 0) {
-      return tr('il_e0b53645d6');
+      return tr('il_e0b53645d6', args: ['${difference.inMinutes}']);
     } else {
       return tr('il_66f53417d3');
     }
@@ -801,17 +804,39 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       case 'video_vote':
       case 'video_rating':
         if (voterName.isNotEmpty && challengeTitle.isNotEmpty) {
-          return tr('il_a97735a0aa');
+          return tr(
+            'il_a97735a0aa',
+            namedArgs: {
+              'voterName': voterName,
+              'challengeTitle': challengeTitle,
+            },
+          );
         }
-        if (voterName.isNotEmpty) return tr('il_b4ce1ec898');
-        if (challengeTitle.isNotEmpty) return tr('il_73abcbe250');
+        if (voterName.isNotEmpty) {
+          return tr('il_b4ce1ec898', namedArgs: {'voterName': voterName});
+        }
+        if (challengeTitle.isNotEmpty) {
+          return tr(
+            'il_73abcbe250',
+            namedArgs: {'challengeTitle': challengeTitle},
+          );
+        }
         return tr('il_e7a04f3648');
       case 'challenge_win':
-        return tr('il_f6317c6873');
+        return tr(
+          'il_f6317c6873',
+          namedArgs: {'challengeTitle': challengeTitle},
+        );
       case 'challenge_second':
-        return tr('il_90e7c87869');
+        return tr(
+          'il_90e7c87869',
+          namedArgs: {'challengeTitle': challengeTitle},
+        );
       case 'challenge_third':
-        return tr('il_414a7e49e3');
+        return tr(
+          'il_414a7e49e3',
+          namedArgs: {'challengeTitle': challengeTitle},
+        );
       case 'manual_recompute':
       case 'manual_recalculation':
       case 'system_recompute':

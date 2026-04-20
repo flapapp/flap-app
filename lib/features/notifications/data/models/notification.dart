@@ -496,7 +496,10 @@ class AppNotification extends AppNotificationEntity {
       userId: userId,
       type: NotificationType.teamRosterInvite,
       title: tr('il_61658c3091'),
-      message: tr('il_f59dcb7976'),
+      message: tr(
+        'il_f59dcb7976',
+        namedArgs: {'teamName': teamName},
+      ),
       data: {
         'type': 'team_roster_invite',
         'matchId': matchId,
@@ -546,7 +549,13 @@ class AppNotification extends AppNotificationEntity {
       userId: userId,
       type: NotificationType.teamMatchReady,
       title: tr('il_e30350b8a9'),
-      message: tr('il_0d03de8d63'),
+      message: tr(
+        'il_0d03de8d63',
+        namedArgs: {
+          'teamAName': teamAName,
+          'teamBName': teamBName,
+        },
+      ),
       data: {
         'type': 'team_match_ready',
         'matchId': matchId,

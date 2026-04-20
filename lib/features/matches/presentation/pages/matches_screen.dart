@@ -927,7 +927,10 @@ StreamBuilder<List<Map<String, dynamic>>>(
                             style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
                           ),
                           Text(
-                            tr('il_7bd5596886'),
+                            tr(
+                              'il_7bd5596886',
+                              namedArgs: {'currentCoins': '$currentCoins'},
+                            ),
                             style: const TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.w500),
                           ),
                         ],
@@ -1052,11 +1055,11 @@ StreamBuilder<List<Map<String, dynamic>>>(
           : ['січ', 'лют', 'бер', 'квіт', 'трав', 'черв', 'лип', 'серп', 'вер', 'жовт', 'лист', 'груд'];
       return '${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}';
     } else if (difference.inDays > 0) {
-      return tr('il_adf8ee5f65');
+      return tr('il_adf8ee5f65', args: ['${difference.inDays}']);
     } else if (difference.inHours > 0) {
-      return tr('il_7634d1849f');
+      return tr('il_7634d1849f', args: ['${difference.inHours}']);
     } else if (difference.inMinutes > 0) {
-      return tr('il_e0b53645d6');
+      return tr('il_e0b53645d6', args: ['${difference.inMinutes}']);
     } else {
       return tr('il_66f53417d3');
     }
@@ -1077,7 +1080,7 @@ StreamBuilder<List<Map<String, dynamic>>>(
               if (snapshot.hasError) {
                 return Center(
                   child: Text(
-                    tr('il_c64c77589a'),
+                    tr('il_c64c77589a', args: [snapshot.error?.toString() ?? '']),
                     style: const TextStyle(color: Colors.red),
                   ),
                 );
@@ -1140,7 +1143,7 @@ return Column(
               const Icon(Icons.filter_alt, color: Colors.white70, size: 18),
               const SizedBox(width: 8),
               Text(
-                tr('il_3a10c3ba9b'),
+                tr('il_3a10c3ba9b', args: ['${items.length}']),
                 style: const TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
@@ -1241,7 +1244,7 @@ return Column(
               if (snapshot.hasError) {
                 return Center(
                   child: Text(
-                    tr('il_c64c77589a'),
+                    tr('il_c64c77589a', args: [snapshot.error?.toString() ?? '']),
                     style: const TextStyle(color: Colors.red),
                   ),
                 );
@@ -1331,7 +1334,11 @@ return Column(
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
-              child: Text(tr('il_3a6e650bec'),
+              child: Text(
+                  tr(
+                    'il_3a6e650bec',
+                    args: [snapshot.error?.toString() ?? ''],
+                  ),
                   style: const TextStyle(color: Colors.red)));
         }
         if (!snapshot.hasData) {
@@ -2024,7 +2031,10 @@ Row(
         ),
         if (match.isTeamMatch)
           Text(
-            tr('il_83aab55000'),
+            tr(
+              'il_83aab55000',
+              namedArgs: {'confirmedCount': '$confirmedCount'},
+            ),
             style: TextStyle(color: Colors.white54, fontSize: 11),
           ),
       ],
@@ -3034,7 +3044,7 @@ Column(
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_e69e7edfdf')),
+          content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
           backgroundColor: Colors.red,
         ),
       );
@@ -3708,7 +3718,11 @@ Widget _buildRatingItem(Map<String, dynamic> p, int rank) {
                     const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
                     Text(city, style: const TextStyle(color: Colors.white54, fontSize: 12)),
                     const Text('•', style: TextStyle(color: Colors.white38, fontSize: 12)),
-                    Text(tr('il_1cbac19546'),
+                    Text(
+                      tr(
+                        'il_1cbac19546',
+                        namedArgs: {'matchesCount': '$matchesCount'},
+                      ),
                       style: const TextStyle(color: Colors.white54, fontSize: 12),
                     ),
                   ],

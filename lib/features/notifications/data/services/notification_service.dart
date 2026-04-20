@@ -763,7 +763,8 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   String? body,
 }) async {
   final localizedTitle = title ?? tr('il_bfaa223845');
-  final localizedBody = body ?? tr('il_2a17d067e3');
+  final localizedBody = body ??
+      tr('il_2a17d067e3', namedArgs: {'organizerName': organizerName});
   return sendNotification(AppNotification(
     id: '',
     userId: toUserId,

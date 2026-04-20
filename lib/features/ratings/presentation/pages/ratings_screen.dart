@@ -120,7 +120,11 @@ if (_selectedPosition != tr('il_0e333190c1')) {
     } catch (e) {
       print('Error loading ratings data: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_e4fdc41fe4'))),
+        SnackBar(
+          content: Text(
+            tr('il_e4fdc41fe4', namedArgs: {'e': e.toString()}),
+          ),
+        ),
       );
     } finally {
       setState(() {
@@ -141,7 +145,11 @@ if (_selectedPosition != tr('il_0e333190c1')) {
   } catch (e) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(tr('il_4cb10b7873'))),
+      SnackBar(
+        content: Text(
+          tr('il_4cb10b7873', namedArgs: {'e': e.toString()}),
+        ),
+      ),
     );
   }
 }
@@ -1013,7 +1021,9 @@ if (_selectedPosition != tr('il_0e333190c1')) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(tr('il_c487fc4cab')),
+            content: Text(
+              tr('il_c487fc4cab', namedArgs: {'e': e.toString()}),
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -1048,7 +1058,9 @@ if (_selectedPosition != tr('il_0e333190c1')) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(tr('il_c487fc4cab')),
+            content: Text(
+              tr('il_c487fc4cab', namedArgs: {'e': e.toString()}),
+            ),
             backgroundColor: Colors.red,
           ),
         );

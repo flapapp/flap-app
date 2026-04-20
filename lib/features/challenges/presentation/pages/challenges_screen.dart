@@ -217,6 +217,21 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     };
   }
 
+  int _daysLeftFromDeadline(Map<String, dynamic> challengeData) {
+    final raw =
+        challengeData['submissionDeadline'] ?? challengeData['endDate'];
+    if (raw == null) return 0;
+    DateTime? dt;
+    if (raw is String) {
+      dt = DateTime.tryParse(raw);
+    } else if (raw is DateTime) {
+      dt = raw;
+    }
+    if (dt == null) return 0;
+    final d = dt.toLocal().difference(DateTime.now()).inDays;
+    return d < 0 ? 0 : d;
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -262,6 +277,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     final submissions = (challengeData['submissions'] as List?)?.length ?? 0;
     final status = challengeData['status'] ?? 'recruiting';
     final creatorId = challengeData['creatorId'] ?? '';
+    final daysLeft = _daysLeftFromDeadline(challengeData);
+    final prizePool = challengeData['prizePool'];
+    final prizeLabel = prizePool is num ? prizePool.toStringAsFixed(0) : '$prizePool';
     
     print('Challenge $challengeId: creatorVideoUrl = "$creatorVideoUrl"');
     print('Challenge $challengeId: title = "$title"');
@@ -355,21 +373,30 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       children: [
                         const Icon(Icons.people, color: Colors.white, size: 12),
                         const SizedBox(width: 4),
-                        Text(tr('il_b1784e31d4'), style: const TextStyle(color: Colors.white, fontSize: 11)),
+                        Text(
+                          tr('il_b1784e31d4', args: ['$participants']),
+                          style: const TextStyle(color: Colors.white, fontSize: 11),
+                        ),
                       ],
                     ),
                     Row(
                       children: [
                         const Icon(Icons.access_time, color: Colors.white, size: 12),
                         const SizedBox(width: 4),
-                        Text(tr('il_fdd1d3357a'), style: const TextStyle(color: Colors.white, fontSize: 11)),
+                        Text(
+                          tr('il_fdd1d3357a', args: ['$daysLeft']),
+                          style: const TextStyle(color: Colors.white, fontSize: 11),
+                        ),
                       ],
                     ),
                     Row(
                       children: [
                         const Icon(Icons.emoji_events, color: Colors.amber, size: 12),
                         const SizedBox(width: 4),
-                        Text(tr('il_4fd5220eff'), style: const TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w600)),
+                        Text(
+                          tr('il_4fd5220eff', args: [prizeLabel]),
+                          style: const TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
                       ],
                     ),
                   ],
@@ -599,7 +626,10 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: Text(tr('il_1eb956dc4f'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    child: Text(
+                      tr('il_1eb956dc4f', args: ['$submissions']),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ),
                 if (AppAuth.currentUserId == creatorId && status == 'voting') ...[
@@ -657,7 +687,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       context.router.push(
         ChallengeVideoPlayerRoute(
           videoUrl: videoUrl,
-          title: tr('il_11349005b0'),
+          title: tr('il_11349005b0', namedArgs: {'title': title}),
           authorName: creatorName,
           challengeId: challengeId,
           submissionId: 'creator',
@@ -723,7 +753,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  tr('il_41831034ba'),
+                  tr('il_41831034ba', args: ['$entryFee']),
                   style: TextStyle(
                     color: Colors.amber,
                     fontSize: 18,
@@ -772,7 +802,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Expanded(child: Text(tr('il_94f66b2517'))),
+                Expanded(
+                  child: Text(tr('il_94f66b2517', args: ['$entryFee'])),
+                ),
               ],
             ),
             backgroundColor: const Color(0xFF4caf50),
@@ -1099,7 +1131,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        tr('il_a3b4c4cfcd'),
+        tr('il_a3b4c4cfcd', namedArgs: {'creatorName': creatorName}),
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -1211,7 +1243,11 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_4b0700b8b6'))),
+        SnackBar(
+          content: Text(
+            tr('il_4b0700b8b6', namedArgs: {'e': e.toString()}),
+          ),
+        ),
       );
     }
   }

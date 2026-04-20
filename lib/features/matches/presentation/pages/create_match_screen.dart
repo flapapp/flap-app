@@ -314,7 +314,9 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                     items: _playerOptions.map((players) => 
                       DropdownMenuItem(
                         value: players, 
-                        child: Text(tr('il_460cbf0720'))
+                        child: Text(
+                          tr('il_460cbf0720', namedArgs: {'players': '$players'}),
+                        ),
                       )
                     ).toList(),
                     onChanged: (value) {
@@ -872,7 +874,9 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
   SnackBar(
-    content: Text(tr('il_a25ff440b8')),
+    content: Text(
+      tr('il_a25ff440b8', namedArgs: {'e': e.toString()}),
+    ),
     backgroundColor: Colors.red,
   ),
 );
@@ -1234,7 +1238,13 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
           const SizedBox(height: 12),
           if (hostIsMine) ...[
             Text(
-              tr('il_39635064a3'),
+              tr(
+                'il_39635064a3',
+                args: [
+                  '${_selectedRoster.length}',
+                  '$rosterLimit',
+                ],
+              ),
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -1307,7 +1317,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(
-                tr('il_4d80ab83ac'),
+                tr('il_4d80ab83ac', args: [_opponentTeam!.name]),
                 style: const TextStyle(color: Colors.white),
               ),
               trailing: IconButton(

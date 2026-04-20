@@ -158,6 +158,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final subscription = _currentSubscription!;
     final isActive = subscription.isActive;
     final isInTrial = subscription.isInTrial;
+    final daysLeft = subscription.endDate.difference(DateTime.now()).inDays;
+    final daysLeftLabel = daysLeft < 0 ? 0 : daysLeft;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -235,7 +237,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 const Icon(Icons.schedule, color: Colors.white, size: 16),
                 const SizedBox(width: 6),
                 Text(
-                  tr('il_83e2b2a115'),
+                  tr('il_83e2b2a115', args: ['$daysLeftLabel']),
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                 ),
               ],
@@ -554,7 +556,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_7bdfebf56b')),
+          content: Text(tr('il_7bdfebf56b', args: [e.toString()])),
           backgroundColor: Colors.red,
         ),
       );
@@ -577,14 +579,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
       await _loadCurrentSubscription();
 
-      final subscription = Subscription(
-        id: '', userId: '', type: type, status: SubscriptionStatus.active,
-        startDate: DateTime.now(), endDate: DateTime.now(), price: 0, features: {},
-      );
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_34319363d3')),
+          content: Text(tr('il_34319363d3', args: [type.name])),
           backgroundColor: const Color(0xFF4caf50),
         ),
       );
@@ -593,7 +590,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_7bdfebf56b')),
+          content: Text(tr('il_7bdfebf56b', args: [e.toString()])),
           backgroundColor: Colors.red,
         ),
       );
@@ -654,7 +651,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(tr('il_7bdfebf56b')),
+            content: Text(tr('il_7bdfebf56b', args: [e.toString()])),
             backgroundColor: Colors.red,
           ),
         );

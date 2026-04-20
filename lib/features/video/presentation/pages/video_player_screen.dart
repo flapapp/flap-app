@@ -269,7 +269,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       print('Error submitting vote: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_d351acab39')),
+          content: Text(
+            tr('il_d351acab39', namedArgs: {'e': e.toString()}),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -308,7 +310,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           .maybeSingle();
       if (submission == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('il_a54a4740b5')), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(tr('il_8073f27473')),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
@@ -336,12 +341,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
       setState(() { _hasVoted = true; });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_c9bfcd4ac3'))),
+        SnackBar(
+          content: Text(
+            tr('il_c9bfcd4ac3', args: [weighted.toStringAsFixed(1)]),
+          ),
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-  content: Text(tr('il_a54a4740b5')),
+          content: Text(
+            tr('il_a54a4740b5', namedArgs: {'e': e.toString()}),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -561,11 +572,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       final difference = now.difference(date);
       
       if (difference.inDays > 0) {
-        return tr('il_adf8ee5f65');
+        return tr('il_adf8ee5f65', args: ['${difference.inDays}']);
       } else if (difference.inHours > 0) {
-        return tr('il_7634d1849f');
+        return tr('il_7634d1849f', args: ['${difference.inHours}']);
       } else if (difference.inMinutes > 0) {
-        return tr('il_e0b53645d6');
+        return tr('il_e0b53645d6', args: ['${difference.inMinutes}']);
       } else {
         return tr('il_66f53417d3');
       }

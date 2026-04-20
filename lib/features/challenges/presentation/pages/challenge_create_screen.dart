@@ -526,7 +526,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                       _selectedEntryFee = value!;
                     });
                   },
-                  itemBuilder: (fee) => Text(tr('il_eae716cab3')),
+                  itemBuilder: (fee) => Text(tr('il_eae716cab3', args: ['$fee'])),
                   icon: Icons.monetization_on,
                 ),
                 
@@ -703,12 +703,28 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                                                 tr('il_b288ca1f0f')
-                         + tr('il_82a07f2980')
-                         + tr('il_c96602cb3a')
-                         + tr('il_f1b4cbd59c')
-                         + tr('il_0b24b4d5e6')
-                         + tr('il_1f74dfdb89'),
+                        tr('il_b288ca1f0f') +
+                            tr('il_82a07f2980', args: ['$_selectedEntryFee']) +
+                            tr('il_c96602cb3a',
+                                args: ['${_selectedEntryFee * 20}']) +
+                            tr(
+                              'il_f1b4cbd59c',
+                              args: [
+                                '${(_selectedEntryFee * 20 * 0.5).toInt()}',
+                              ],
+                            ) +
+                            tr(
+                              'il_0b24b4d5e6',
+                              args: [
+                                '${(_selectedEntryFee * 20 * 0.3).toInt()}',
+                              ],
+                            ) +
+                            tr(
+                              'il_1f74dfdb89',
+                              args: [
+                                '${(_selectedEntryFee * 20 * 0.2).toInt()}',
+                              ],
+                            ),
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -1035,7 +1051,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             border: Border.all(color: color.withOpacity(0.5)),
           ),
           child: Text(
-            tr('il_ddf8cb0f4a'),
+            tr('il_ddf8cb0f4a', args: ['$coins']),
             style: TextStyle(
               color: color,
               fontSize: 14,
@@ -1110,7 +1126,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     if (hours == 24) return tr('il_fa665d95d2');
     if (hours == 72) return tr('il_360719440e');
     if (hours == 168) return tr('il_c8cc522340');
-    return tr('il_fc64c33206');
+    return tr('il_fc64c33206', args: ['$hours']);
   }
 
   Future<void> _createChallenge() async {
@@ -1260,7 +1276,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             print('ERROR: Creator video upload failed: $e');
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(tr('il_7fe2d5cb6e')),
+                content: Text(
+                  tr('il_7fe2d5cb6e', namedArgs: {'e': e.toString()}),
+                ),
                 backgroundColor: Colors.red,
               ),
             );
@@ -1345,7 +1363,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  tr('il_7bdfebf56b'),
+                  tr('il_7bdfebf56b', args: [e.toString()]),
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
@@ -1428,7 +1446,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       print('Error picking video: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_d1976cbb3b')),
+          content: Text(tr('il_d1976cbb3b', args: [e.toString()])),
           backgroundColor: Colors.red,
         ),
       );
@@ -1473,7 +1491,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         print('Video URL obtained: $videoUrl');
       } catch (e) {
         print('ERROR during upload: $e');
-        throw Exception(tr('il_cc3ca4e740'));
+        throw Exception(tr('il_cc3ca4e740', args: [e.toString()]));
       }
       
       // Створюємо запис у колекції videos, щоб мати єдиний шлях голосів і агрегатів

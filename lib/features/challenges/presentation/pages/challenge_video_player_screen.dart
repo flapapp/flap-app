@@ -623,7 +623,9 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
           .maybeSingle();
 
       if (submissionData == null) {
-        throw Exception(tr('il_01a804d574'));
+        throw Exception(
+          tr('il_01a804d574', args: [tr('il_e861519b9c')]),
+        );
       }
       final submissionUserId = (submissionData['user_id'] ?? '').toString();
       submissionVideoId = submissionData['video_id']?.toString();
@@ -714,7 +716,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(tr('il_acf6612bf4')),
+            content: Text(tr('il_acf6612bf4', args: [_rating.toStringAsFixed(1)])),
             backgroundColor: const Color(0xFF4caf50),
           ),
         );
@@ -727,7 +729,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(tr('il_01a804d574')),
+            content: Text(tr('il_01a804d574', args: [e.toString()])),
             backgroundColor: Colors.red,
           ),
         );

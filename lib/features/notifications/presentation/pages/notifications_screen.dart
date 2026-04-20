@@ -518,7 +518,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_f5d8bd3f0a'))),
+        SnackBar(
+          content: Text(tr('il_f5d8bd3f0a', namedArgs: {'e': e.toString()})),
+        ),
       );
     }
   }
@@ -529,7 +531,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (row == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('il_6b539d4234'))),
+          SnackBar(
+            content: Text(
+              tr('il_6b539d4234', namedArgs: {'matchId': matchId}),
+            ),
+          ),
         );
         return;
       }
@@ -552,7 +558,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_5eda94340a'))),
+        SnackBar(
+          content: Text(tr('il_5eda94340a', namedArgs: {'e': e.toString()})),
+        ),
       );
     }
   }
@@ -566,7 +574,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (row == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('il_6b539d4234'))),
+          SnackBar(
+            content: Text(
+              tr('il_6b539d4234', namedArgs: {'matchId': matchId}),
+            ),
+          ),
         );
         return;
       }
@@ -593,7 +605,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       print('❌ NOTIFICATION: Error opening match: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_80c7341273'))),
+        SnackBar(
+          content: Text(tr('il_80c7341273', namedArgs: {'e': e.toString()})),
+        ),
       );
     }
   }
@@ -655,7 +669,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_2e74389175'))),
+        SnackBar(
+          content: Text(tr('il_2e74389175', namedArgs: {'e': e.toString()})),
+        ),
       );
     }
   }

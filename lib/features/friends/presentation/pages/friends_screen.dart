@@ -119,14 +119,14 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             Tab(
               icon: const Icon(Icons.person_add, size: 20),
               child: Text(
-                tr('il_65f5f7f821'),
+                tr('il_65f5f7f821', args: ['${_incomingRequests.length}']),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             Tab(
               icon: const Icon(Icons.send, size: 20),
               child: Text(
-                tr('il_c50f88c7a6'),
+                tr('il_c50f88c7a6', args: ['${_outgoingRequests.length}']),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -688,7 +688,13 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  tr('il_cfa9991764'),
+                  tr(
+                    'il_cfa9991764',
+                    namedArgs: {
+                      'count': '${_searchResults.length}',
+                      'searching': '$_isSearching',
+                    },
+                  ),
                   style: const TextStyle(color: Colors.orange, fontSize: 10),
                 ),
                 const SizedBox(height: 8),
@@ -827,7 +833,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_e69e7edfdf'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}))),
       );
     }
   }
@@ -850,7 +856,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_e69e7edfdf'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}))),
       );
     }
   }
@@ -866,7 +872,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_e69e7edfdf'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}))),
       );
     }
   }
@@ -885,7 +891,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          tr('il_4b4bef8539'),
+          tr('il_4b4bef8539', args: [friend.name]),
         ),
       ),
     );
@@ -901,7 +907,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          tr('il_2bf3c2cda3'),
+          tr('il_2bf3c2cda3', args: [friend.name]),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -927,11 +933,11 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       _loadFriends(); // Refresh friends list
       
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_0e0331a717'))),
+        SnackBar(content: Text(tr('il_0e0331a717', args: [friend.name]))),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_e69e7edfdf'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}))),
       );
     }
   }

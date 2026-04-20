@@ -386,7 +386,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            tr('il_5d379b3bb6'),
+                            tr('il_5d379b3bb6', args: ['${team.memberIds.length}']),
                             style: const TextStyle(
                                 color: Colors.white54, fontSize: 12),
                           ),

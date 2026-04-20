@@ -64,7 +64,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_e69e7edfdf'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}))),
       );
     } finally {
       if (mounted) {

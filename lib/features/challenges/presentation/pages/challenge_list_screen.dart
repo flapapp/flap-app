@@ -246,7 +246,10 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              tr('il_24ffa7c8c5'),
+              tr(
+                'il_24ffa7c8c5',
+                args: [snapshot.error?.toString() ?? ''],
+              ),
               style: const TextStyle(color: Colors.white),
             ),
           );

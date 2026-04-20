@@ -180,7 +180,10 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_c487fc4cab')), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(tr('il_c487fc4cab', namedArgs: {'e': e.toString()})),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       setState(() => _isLoading = false);
@@ -211,7 +214,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  tr('il_359c2e5470'),
+                  tr('il_359c2e5470', args: ['${_pendingApplications.length}']),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -415,7 +418,7 @@ Widget _buildTeamsContent(Match m, bool isOrganizer) {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(12)),
                 child: Text(
-                  tr('il_ef2cc663e8'),
+                  tr('il_ef2cc663e8', args: ['${m.participants.length}']),
                   style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -451,7 +454,7 @@ Widget _buildTeamsContent(Match m, bool isOrganizer) {
       final value = index + 2;
       final enabled = m.participants.length >= value;
       return ChoiceChip(
-        label: Text(tr('il_7b7e87fdbe')),
+        label: Text(tr('il_7b7e87fdbe', namedArgs: {'value': '$value'})),
         selected: _teamCount == value,
         onSelected: enabled ? (selected) => setState(() => _teamCount = value) : null,
       );
@@ -882,7 +885,9 @@ Widget _buildResultsTable(Match m) {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                team.name.isEmpty ? tr('il_d040fd4027') : team.name,
+                team.name.isEmpty
+                    ? tr('il_d040fd4027', args: ['${index + 1}'])
+                    : team.name,
                 style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
@@ -1165,7 +1170,13 @@ Future<void> _saveResults(Match m) async {
             ),
             const SizedBox(height: 6),
             Text(
-              tr('il_4df14714b9'),
+              tr(
+                'il_4df14714b9',
+                namedArgs: {
+                  'confirmed': '$confirmed',
+                  'totalTracked': '$totalTracked',
+                },
+              ),
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 13,
@@ -1201,7 +1212,7 @@ Future<void> _saveResults(Match m) async {
             if (roster.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(
-                tr('il_ec7d9c2b9b'),
+                tr('il_ec7d9c2b9b', args: ['${roster.length}']),
                 style: const TextStyle(color: Colors.white38, fontSize: 12),
               ),
             ],
@@ -1313,7 +1324,7 @@ Widget _buildEditingSection(Match m) {
               Icon(Icons.balance, color: Colors.white70, size: 18),
               const SizedBox(width: 8),
               Text(
-                tr('il_f5b0ef7b5d'),
+                tr('il_f5b0ef7b5d', args: ['${editingSets.length}']),
                 style: const TextStyle(color: Colors.white70),
               ),
               const Spacer(),
@@ -1339,7 +1350,7 @@ Widget _buildEditingSection(Match m) {
               return SizedBox(
                 width: MediaQuery.of(context).size.width / (editingSets.length >= 2 ? 2 : 1) - 24,
                 child: _dragZone(
-                  title: tr('il_d040fd4027'),
+                  title: tr('il_d040fd4027', args: ['${index + 1}']),
                   players: teamPlayers,
                   onRemove: (id) {
                     if (_locked.contains(id)) return;
@@ -1514,7 +1525,11 @@ setState(() {
     );
   } catch (e) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(tr('il_50b9b968e1'))),
+      SnackBar(
+        content: Text(
+          tr('il_50b9b968e1', namedArgs: {'e': e.toString()}),
+        ),
+      ),
     );
   } finally {
     setState(() => _isLoading = false);
@@ -1603,14 +1618,14 @@ Widget _buildSettingsTab() {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    tr('il_9f93d6b4f0'),
+                    tr('il_9f93d6b4f0', args: [_localizedMatchStatus(m)]),
                     style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
                   if (m.isInProgress && m.startedAt != null)
                     Text(tr('started_at', args: [_formatDateTime(m.startedAt!)]), style: const TextStyle(color: Colors.white70, fontSize: 14)),
                   if (m.isFinished && m.finishedAt != null)
-                    Text(tr('il_d154eebf57'),
+                    Text(tr('il_d154eebf57', args: [_formatDateTime(m.finishedAt!)]),
                         style: const TextStyle(color: Colors.white70, fontSize: 14)),
                   if (m.hasTeams)
                     Text(tr('il_105abd8b27'), style: const TextStyle(color: Colors.green, fontSize: 14)),
@@ -2576,7 +2591,7 @@ setState(() {
     }
   } catch (e) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(tr('il_e69e7edfdf')), backgroundColor: Colors.red),
+      SnackBar(content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})), backgroundColor: Colors.red),
     );
   } finally {
     setState(() => _isLoading = false);
@@ -2613,7 +2628,7 @@ setState(() {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_e69e7edfdf')),
+          content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
           backgroundColor: Colors.red,
         ),
       );
@@ -2621,7 +2636,25 @@ setState(() {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-  
+
+  String _localizedMatchStatus(Match m) {
+    if (m.isUnplayedByTimeout == true) {
+      return tr('il_ee288d682b');
+    }
+    switch (m.status) {
+      case MatchStatus.open:
+        return tr('status_open');
+      case MatchStatus.full:
+        return tr('status_full');
+      case MatchStatus.inProgress:
+        return tr('status_in_progress');
+      case MatchStatus.finished:
+        return tr('status_finished');
+      case MatchStatus.cancelled:
+        return tr('status_cancelled');
+    }
+  }
+
   String _formatDateTime(DateTime dateTime) {
     return '${dateTime.day.toString().padLeft(2, '0')}.${dateTime.month.toString().padLeft(2, '0')}.${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }

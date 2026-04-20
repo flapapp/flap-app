@@ -99,7 +99,15 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         elevation: 0,
         title: Text(
           widget.challengeId != null 
-            ? tr('il_0b714f54fd')
+            ? tr(
+                'il_0b714f54fd',
+                args: [
+                  (widget.challengeTitle != null &&
+                          widget.challengeTitle!.trim().isNotEmpty)
+                      ? widget.challengeTitle!.trim()
+                      : tr('challenges'),
+                ],
+              )
             : tr('upload_video'),
           style: const TextStyle(color: Colors.white),
         ),
@@ -585,7 +593,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(tr('il_ef709be5c7')),
+            content: Text(tr('il_ef709be5c7', args: [e.toString()])),
             backgroundColor: Colors.red,
           ),
         );

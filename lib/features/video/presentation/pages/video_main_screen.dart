@@ -1067,7 +1067,7 @@ Widget build(BuildContext context) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    tr('il_e69e7edfdf'),
+                    tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}),
                   ),
                   backgroundColor: Colors.redAccent,
                 ),
@@ -1518,7 +1518,10 @@ Widget build(BuildContext context) {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              tr('il_24ffa7c8c5'),
+              tr(
+                'il_24ffa7c8c5',
+                args: [snapshot.error?.toString() ?? ''],
+              ),
               style: const TextStyle(color: Colors.white),
             ),
           );
@@ -1788,7 +1791,7 @@ Widget build(BuildContext context) {
               durationSeconds != null
                   ? _formatDuration(durationSeconds)
                   : (views > 0
-                      ? tr('il_d972e65e3c')
+                      ? tr('il_d972e65e3c', namedArgs: {'views': '$views'})
                       : tr('il_18fdd549b2')),
             ),
           ),
@@ -2171,7 +2174,10 @@ Widget build(BuildContext context) {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              tr('il_3a6e650bec'),
+              tr(
+                'il_3a6e650bec',
+                args: [snapshot.error?.toString() ?? ''],
+              ),
             ),
           );
         }
@@ -2929,7 +2935,10 @@ Widget build(BuildContext context) {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              tr('il_3a6e650bec'),
+              tr(
+                'il_3a6e650bec',
+                args: [snapshot.error?.toString() ?? ''],
+              ),
             ),
           );
                   }
@@ -3084,7 +3093,10 @@ Widget build(BuildContext context) {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              tr('il_3a6e650bec'),
+              tr(
+                'il_3a6e650bec',
+                args: [snapshot.error?.toString() ?? ''],
+              ),
             ),
           );
         }
@@ -3210,7 +3222,11 @@ Widget build(BuildContext context) {
                 );
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(tr('il_4f9785e6ae'))),
+                  SnackBar(
+                    content: Text(
+                      tr('il_4f9785e6ae', namedArgs: {'e': e.toString()}),
+                    ),
+                  ),
                 );
               }
             },
@@ -3289,7 +3305,12 @@ Widget build(BuildContext context) {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_e11b346cb1')), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(
+            tr('il_e11b346cb1', namedArgs: {'e': e.toString()}),
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -3757,7 +3778,10 @@ Widget build(BuildContext context) {
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600)),
                           Text(
-                            tr('il_7a6d30960a'),
+                            tr(
+                              'il_7a6d30960a',
+                              namedArgs: {'currentCoins': '$currentCoins'},
+                            ),
                             style: const TextStyle(color: Color(0xFFFFD700)),
                           ),
                         ],

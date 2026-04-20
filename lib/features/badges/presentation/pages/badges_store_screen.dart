@@ -590,7 +590,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  tr('il_f9ef28036b'),
+                  tr('il_f9ef28036b', args: [badge.name]),
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
@@ -614,7 +614,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  tr('il_baad69c3af'),
+                  tr('il_baad69c3af', args: [e.toString()]),
                   style: const TextStyle(fontSize: 16),
                 ),
               ),

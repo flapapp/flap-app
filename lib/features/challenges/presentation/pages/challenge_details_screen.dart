@@ -89,10 +89,20 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     children: [
                       GestureDetector(
                         onTap: _showParticipants,
-                        child: _buildStatChip(tr('il_467d80c72d')),
+                        child: _buildStatChip(
+                          tr(
+                            'il_467d80c72d',
+                            args: ['${widget.challenge.participants.length}'],
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 8),
-                      _buildStatChip(tr('il_bb1d0b2b0e')),
+                      _buildStatChip(
+                        tr(
+                          'il_bb1d0b2b0e',
+                          args: ['${widget.challenge.submissions.length}'],
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       _buildStatChip('💰 ${widget.challenge.prizePool}'),
                     ],
@@ -283,6 +293,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     final videoUrl = data['videoUrl'] ?? '';
     final isCreatorVideo = data['isCreatorVideo'] ?? false;
     final rating = (data['averageRating'] ?? 0.0).toDouble();
+    final voteCount = (data['voteCount'] is int)
+        ? data['voteCount'] as int
+        : int.tryParse('${data['voteCount'] ?? 0}') ?? 0;
     String thumb = (data['thumbnailUrl'] ?? '') as String;
     final videoDocId = data['videoId'] ?? '';
 
@@ -319,7 +332,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     ? _badge(tr('il_88447b8309'), color: const Color(0xFF4caf50))
                     : null,
                 bottomRight: _badge(
-                  tr('il_22f29c1ea8'),
+                  tr('il_22f29c1ea8', args: [rating.toStringAsFixed(1)]),
                   color: Colors.black.withOpacity(0.6),
                 ),
               );
@@ -404,13 +417,13 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                             fontSize: 13,
                           ),
                         ),
-                        Text(
-                          tr('il_bc2a9a8bbb'),
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
-                            fontSize: 11,
-                          ),
-                        ),
+              Text(
+                tr('il_bc2a9a8bbb', args: ['$voteCount']),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 11,
+                ),
+              ),
                       ],
                     ),
                   ],
@@ -433,6 +446,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     final videoUrl = data['videoUrl'] ?? '';
     final isCreatorVideo = data['isCreatorVideo'] ?? false;
     final rating = (data['averageRating'] ?? 0.0).toDouble();
+    final voteCount = (data['voteCount'] is int)
+        ? data['voteCount'] as int
+        : int.tryParse('${data['voteCount'] ?? 0}') ?? 0;
     // Отримуємо thumbnailUrl з submission, якщо немає - спробуємо з основного відео документа
     String thumb = (data['thumbnailUrl'] ?? '') as String;
     final videoDocId = data['videoId'] ?? '';
@@ -556,7 +572,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                 ),
               ),
               Text(
-                tr('il_bc2a9a8bbb'),
+                tr('il_bc2a9a8bbb', args: ['$voteCount']),
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.5),
                   fontSize: 12,
@@ -722,7 +738,13 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: Text(tr('il_55d4b4bd7f'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              tr(
+                'il_55d4b4bd7f',
+                args: ['${widget.challenge.submissions.length}'],
+              ),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ),
       ],
@@ -1172,7 +1194,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_5acb71c66c')),
+          content: Text(tr('il_5acb71c66c', args: [rating.toStringAsFixed(1)])),
           backgroundColor: const Color(0xFF4caf50),
         ),
       );

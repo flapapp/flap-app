@@ -151,7 +151,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   } catch (e) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(tr('il_a5c2eb690c'))),
+      SnackBar(
+        content: Text(tr('il_a5c2eb690c', namedArgs: {'e': e.toString()})),
+      ),
     );
   }
 }
@@ -216,7 +218,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            tr('il_7e1f7f4eb9'),
+            tr('il_7e1f7f4eb9', namedArgs: {'e': e.toString()}),
           ),
         ),
       );
@@ -375,7 +377,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('il_e69e7edfdf'))),
+          SnackBar(content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}))),
         );
       }
     } finally {
@@ -1140,7 +1142,7 @@ const SizedBox(height: 12),
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(parentContext).showSnackBar(
-        SnackBar(content: Text(tr('il_e69e7edfdf'))),
+        SnackBar(content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}))),
       );
     }
   }
@@ -1198,7 +1200,11 @@ const SizedBox(height: 12),
       success: (_) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('il_67089ac557'))),
+          SnackBar(
+            content: Text(
+              tr('il_67089ac557', args: [badge.localizedName]),
+            ),
+          ),
         );
         setState(() {
           _badgeEndorseVersion++;
@@ -1287,7 +1293,7 @@ Widget build(BuildContext context) {
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          tr('il_3ac75e6772'),
+                          tr('il_3ac75e6772', args: ['${team.memberIds.length}']),
                           style: const TextStyle(color: Colors.white60, fontSize: 11),
                         ),
                       ],
@@ -1306,7 +1312,7 @@ Widget build(BuildContext context) {
               ),
               const SizedBox(height: 6),
               Text(
-                tr('il_6eba3c021d'),
+                tr('il_6eba3c021d', namedArgs: {'winRate': winRate}),
                 style: const TextStyle(color: Colors.white60, fontSize: 11),
               ),
             ],

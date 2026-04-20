@@ -442,7 +442,9 @@ class _VideosScreenState extends State<VideosScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_e11b346cb1')),
+          content: Text(
+            tr('il_e11b346cb1', namedArgs: {'e': e.toString()}),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -452,7 +454,9 @@ class _VideosScreenState extends State<VideosScreen> {
   void _shareVideo(String videoId, String title) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(tr('il_08998c4fc9')),
+        content: Text(
+          tr('il_08998c4fc9', namedArgs: {'title': title}),
+        ),
         duration: const Duration(seconds: 2),
         backgroundColor: const Color(0xFF4caf50),
       ),
@@ -531,7 +535,9 @@ class _VideosScreenState extends State<VideosScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('il_e69e7edfdf')),
+          content: Text(
+            tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}),
+          ),
           backgroundColor: Colors.red,
         ),
       );

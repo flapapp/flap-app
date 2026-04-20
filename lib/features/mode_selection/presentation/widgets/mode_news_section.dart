@@ -38,10 +38,10 @@ class ModeNewsSection extends StatelessWidget {
       return tr('il_7ddb44d8a5');
     }
     if (diff.inHours < 1) {
-      return tr('il_481b95953d');
+      return tr('il_481b95953d', args: ['${diff.inMinutes}']);
     }
     if (diff.inHours < 24) {
-      return tr('il_027c01229b');
+      return tr('il_027c01229b', args: ['${diff.inHours}']);
     }
     return '${timestamp.day.toString().padLeft(2, '0')}.${timestamp.month.toString().padLeft(2, '0')}';
   }
