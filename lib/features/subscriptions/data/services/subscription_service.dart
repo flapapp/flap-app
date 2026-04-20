@@ -1,19 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../data/models/subscription.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/supabase/coin_ledger.dart';
+import '../../data/models/subscription.dart';
 
 class SubscriptionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Collection references
-  CollectionReference get _subscriptionsCollection => 
+  CollectionReference get _subscriptionsCollection =>
       _firestore.collection('subscriptions');
-  
-  CollectionReference get _usersCollection => 
-      _firestore.collection('users');
 
   // Get user's current subscription
   Future<Subscription?> getUserSubscription(String userId) async {
@@ -213,19 +211,13 @@ class SubscriptionService {
     }
 
     if (coinsToAward > 0) {
-      await _usersCollection.doc(userId).update({
-        'coins': FieldValue.increment(coinsToAward),
-      });
-
-      // Record transaction
-      await _firestore.collection('transactions').add({
-        'userId': userId,
-        'type': 'subscription_bonus',
-        'amount': coinsToAward,
-        'subscriptionType': type.toString().split('.').last,
-        'timestamp': FieldValue.serverTimestamp(),
-        'description': tr('il_c4dbbb91b5'),
-      });
+      await insertCoinTransaction(
+        Supabase.instance.client,
+        userId,
+        'subscription_bonus',
+        coinsToAward,
+        tr('il_c4dbbb91b5'),
+      );
     }
   }
 

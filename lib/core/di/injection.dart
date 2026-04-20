@@ -85,6 +85,11 @@ import '../../features/teams/data/services/team_service.dart';
 import '../../features/profile/presentation/bloc/profile_bloc.dart';
 import '../../features/profile/presentation/cubit/profile_creation_cubit.dart';
 import '../../features/profile/presentation/cubit/profile_settings_cubit.dart';
+import '../../features/mode_selection/data/datasources/mode_dashboard_remote_datasource.dart';
+import '../../features/mode_selection/data/datasources/mode_dashboard_remote_datasource_impl.dart';
+import '../../features/mode_selection/data/repositories/mode_news_repository_impl.dart';
+import '../../features/mode_selection/domain/repositories/mode_news_repository.dart';
+import '../../features/mode_selection/presentation/cubit/mode_selection_cubit.dart';
 import '../../features/stats/data/repositories/stats_repository_impl.dart';
 import '../../features/stats/domain/repositories/stats_repository.dart';
 import '../../features/subscriptions/data/repositories/subscriptions_repository_impl.dart';
@@ -218,6 +223,12 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<MatchParticipationStatsRepository>(
       () => MatchParticipationStatsRepositoryImpl(sl()),
     )
+    ..registerLazySingleton<ModeDashboardRemoteDataSource>(
+      () => ModeDashboardRemoteDataSourceImpl(Supabase.instance.client),
+    )
+    ..registerLazySingleton<ModeNewsRepository>(
+      () => ModeNewsRepositoryImpl(sl()),
+    )
     ..registerLazySingleton<UserBadgesRepository>(
       () => UserBadgesRepositoryImpl(sl<BadgesRepository>()),
     )
@@ -258,5 +269,12 @@ Future<void> configureDependencies() async {
     )
     ..registerLazySingleton(
       () => LoadPlayerProfileDashboardUseCase(sl()),
+    )
+    ..registerFactory(
+      () => ModeSelectionCubit(
+        sl<ModeNewsRepository>(),
+        sl<MatchParticipationStatsRepository>(),
+        sl<ProfileRepository>(),
+      ),
     );
 }
