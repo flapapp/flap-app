@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math';
 
 import 'package:bloc/bloc.dart';
@@ -6,7 +5,6 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../app_locale_access.dart';
 import '../../../../core/auth/app_auth.dart';
-import '../../../profile/domain/entities/user_profile.dart';
 import '../../../profile/domain/repositories/profile_repository.dart';
 import '../../../profile/domain/repositories/match_participation_stats_repository.dart';
 import '../../domain/entities/mode_hero_stats.dart';
@@ -27,24 +25,30 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
   final ProfileRepository _profileRepository;
 
   final Random _random = Random();
-  StreamSubscription<UserProfile?>? _profileSub;
 
   void _init() {
     final uid = AppAuth.currentUserId;
     if (uid != null) {
-      _listenProfile(uid);
+      _loadProfileDocumentIfNeeded(uid);
       _primeHeroStats(uid);
     }
     _updateGreetingFromProfile(uid);
     loadNews();
   }
 
-  void _listenProfile(String userId) {
-    _profileSub?.cancel();
-    _profileSub = _profileRepository.watchUserProfile(userId).listen((profile) {
-      final doc = profile?.document;
-      emit(state.copyWith(profileDocument: doc));
-    });
+  /// One-time fetch; skips if [ModeSelectionState.profileDocument] is already set.
+  Future<void> _loadProfileDocumentIfNeeded(String userId) async {
+    if (state.profileDocument != null) return;
+    final p = await _profileRepository.fetchUserProfile(userId);
+    emit(state.copyWith(profileDocument: p?.document));
+  }
+
+  /// Forces a profile refetch (e.g. after editing profile elsewhere).
+  Future<void> refreshProfileDocument() async {
+    final uid = AppAuth.currentUserId;
+    if (uid == null) return;
+    final p = await _profileRepository.fetchUserProfile(uid);
+    emit(state.copyWith(profileDocument: p?.document));
   }
 
   Future<void> loadNews() async {
@@ -106,11 +110,6 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
     emit(state.copyWith(heroStatsFuture: fut));
   }
 
-  @override
-  Future<void> close() async {
-    await _profileSub?.cancel();
-    return super.close();
-  }
 }
 
 class _LocalizedPair {

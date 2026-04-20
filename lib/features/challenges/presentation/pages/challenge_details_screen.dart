@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/di/injection.dart';
@@ -14,6 +15,8 @@ import 'challenge_completion_screen.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+
+import '../cubit/challenge_details_cubit.dart';
 
 @RoutePage()
 class ChallengeDetailsScreen extends StatefulWidget {
@@ -41,7 +44,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocProvider(
+      create: (_) => ChallengeDetailsCubit(widget.challenge.id)..load(),
+      child: Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0f0f23),
@@ -102,10 +107,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             const SizedBox(height: 24),
 
             // Videos list (like MVP)
-            _buildVideosList(),
+            _buildVideosList(context),
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -128,39 +134,24 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  Stream<List<Map<String, dynamic>>> _submissionsStream() {
-    return _sb
-        .from('challenge_submissions')
-        .stream(primaryKey: ['id'])
-        .eq('challenge_id', widget.challenge.id)
-        .order('created_at', ascending: false)
-        .map((rows) => rows.map((row) => _mapSubmissionRow(row)).toList());
-  }
-
-  Map<String, dynamic> _mapSubmissionRow(Map<String, dynamic> row) {
-    return <String, dynamic>{
-      'id': row['id']?.toString() ?? '',
-      'title': row['title'] ?? '',
-      'userId': row['user_id']?.toString() ?? '',
-      'videoUrl': row['video_url'] ?? '',
-      'videoId': row['video_id']?.toString() ?? '',
-      'thumbnailUrl': row['thumbnail_url'] ?? '',
-      'isCreatorVideo': row['is_creator_video'] ?? false,
-      'averageRating': row['average_rating'] ?? 0.0,
-      'voteCount': row['vote_count'] ?? 0,
-      'createdAt': row['created_at'],
-    };
-  }
-
-  Widget _buildVideosList() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _submissionsStream(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+  Widget _buildVideosList(BuildContext context) {
+    return BlocBuilder<ChallengeDetailsCubit, ChallengeDetailsState>(
+      builder: (context, state) {
+        if (state.isLoading && state.submissions.isEmpty) {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
         }
 
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        if (state.error != null && state.submissions.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              state.error!,
+              style: const TextStyle(color: Colors.redAccent),
+            ),
+          );
+        }
+
+        if (state.submissions.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -195,7 +186,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     style: const TextStyle(color: Colors.white30, fontSize: 12),
                   ),
                   Text(
-                    'Submissions collection: ${snapshot.data?.length ?? 0}',
+                    'Submissions collection: ${state.submissions.length}',
                     style: const TextStyle(color: Colors.white30, fontSize: 12),
                   ),
                   Text(
@@ -212,8 +203,8 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           );
         }
 
-        final videos = snapshot.data!;
-        
+        final videos = state.submissions;
+
         // Сортуємо клієнтською стороною: відео створювача першим
         final sortedVideos = videos.toList()
           ..sort((a, b) {
@@ -226,24 +217,29 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             if (!aIsCreator && bIsCreator) return 1;
             return bRating.compareTo(aRating);
           });
-        
+
+        final myRatings = state.myRatingsBySubmissionId;
         return Column(
-          children: sortedVideos.map((row) => _buildVideoCard(row)).toList(),
+          children: sortedVideos
+              .map((row) => _buildVideoCard(
+                    row,
+                    myRatingRow: myRatings[row['id']?.toString() ?? ''],
+                  ))
+              .toList(),
         );
       },
     );
   }
 
   // Окремий метод для модального вікна з повноширінними прев'ю
-  Widget _buildVideosListForModal() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _submissionsStream(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+  Widget _buildVideosListForModal(BuildContext context) {
+    return BlocBuilder<ChallengeDetailsCubit, ChallengeDetailsState>(
+      builder: (context, state) {
+        if (state.isLoading && state.submissions.isEmpty) {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
         }
 
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        if (state.submissions.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -259,19 +255,19 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           );
         }
 
-        final videos = snapshot.data!;
-        
+        final videos = state.submissions;
+
         // Сортуємо клієнтською стороною: відео створювача першим
         final sortedVideos = videos.toList()
           ..sort((a, b) {
             final aIsCreator = a['isCreatorVideo'] ?? false;
             final bIsCreator = b['isCreatorVideo'] ?? false;
-            
+
             if (aIsCreator && !bIsCreator) return -1;
             if (!aIsCreator && bIsCreator) return 1;
             return 0;
           });
-        
+
         return Column(
           children: sortedVideos.map((row) => _buildModalVideoCard(row)).toList(),
         );
@@ -427,7 +423,10 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  Widget _buildVideoCard(Map<String, dynamic> data) {
+  Widget _buildVideoCard(
+    Map<String, dynamic> data, {
+    Map<String, dynamic>? myRatingRow,
+  }) {
     final videoId = data['id']?.toString() ?? '';
     final title = data['title'] ?? tr('il_f59ab8d133');
     final userId = data['userId'] ?? '';
@@ -572,7 +571,14 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             future: _getThumbnailUrl(thumb, videoDocId, videoUrl),
             builder: (context, snapshot) {
               final effectiveThumb = snapshot.data ?? thumb;
-              return _buildVotingSection(videoId, videoUrl, title, userId, thumbnailUrl: effectiveThumb);
+              return _buildVotingSection(
+                videoId,
+                videoUrl,
+                title,
+                userId,
+                thumbnailUrl: effectiveThumb,
+                myRatingRow: myRatingRow,
+              );
             },
           ),
           const SizedBox(height: 8),
@@ -946,140 +952,134 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  Widget _buildVotingSection(String videoId, String videoUrl, String title, String userId, {String? thumbnailUrl}) {
+  Widget _buildVotingSection(
+    String videoId,
+    String videoUrl,
+    String title,
+    String userId, {
+    String? thumbnailUrl,
+    Map<String, dynamic>? myRatingRow,
+  }) {
     final currentUserId = AppAuth.currentUserId ?? '';
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _sb
-          .from('challenge_submission_ratings')
-          .stream(primaryKey: ['id'])
-          .map(
-            (rows) => rows.where((row) {
-              return row['challenge_id']?.toString() == widget.challenge.id &&
-                  row['submission_id']?.toString() == videoId &&
-                  row['voter_user_id']?.toString() == currentUserId;
-            }).toList(),
-          ),
-      builder: (context, voteSnapshot) {
-        final hasVoted = voteSnapshot.hasData && voteSnapshot.data!.isNotEmpty;
-        double currentVote = (_voteNotifiers[videoId]?.value) ?? 0.0;
+    // [myRatingRow] comes from cubit and is only populated for the signed-in voter.
+    final ratingRow = myRatingRow;
+    final hasVoted = ratingRow != null && currentUserId.isNotEmpty;
+    double currentVote = (_voteNotifiers[videoId]?.value) ?? 0.0;
 
-        if (hasVoted) {
-          final voteData = voteSnapshot.data!.first;
-          final serverVote = (voteData['rating'] ?? 0.0).toDouble();
-          if (_voteNotifiers.containsKey(videoId)) {
-            if ((_voteNotifiers[videoId]!.value - serverVote).abs() > 0.01) {
-              _voteNotifiers[videoId]!.value = serverVote;
-            }
-          } else {
-            _voteNotifiers[videoId] = ValueNotifier<double>(serverVote);
-          }
-        } else {
-          _voteNotifiers.putIfAbsent(
-              videoId, () => ValueNotifier<double>(currentVote));
+    if (ratingRow != null && currentUserId.isNotEmpty) {
+      final serverVote = (ratingRow['rating'] ?? 0.0).toDouble();
+      if (_voteNotifiers.containsKey(videoId)) {
+        if ((_voteNotifiers[videoId]!.value - serverVote).abs() > 0.01) {
+          _voteNotifiers[videoId]!.value = serverVote;
         }
+      } else {
+        _voteNotifiers[videoId] = ValueNotifier<double>(serverVote);
+      }
+    } else {
+      _voteNotifiers.putIfAbsent(
+          videoId, () => ValueNotifier<double>(currentVote));
+    }
 
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        children: [
+          // Video preview with thumbnail
+          VideoPreviewBox(
+            videoUrl: videoUrl,
+            thumbnailUrl: thumbnailUrl,
+            onTap: () {
+              if (videoUrl.isNotEmpty) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChallengeVideoPlayerScreen(
+                      videoUrl: videoUrl,
+                      title: title,
+                      authorName: 'Автор відео',
+                      challengeId: widget.challenge.id,
+                      submissionId: videoId,
+                      thumbnailUrl: thumbnailUrl,
+                    ),
+                  ),
+                );
+              }
+            },
+            aspectRatio: 16 / 9,
+            borderRadius: 12,
+            topRight: hasVoted
+                ? _badge(tr('il_24e6347ec5'),
+                    color: const Color(0xFF4caf50).withOpacity(0.8))
+                : null,
           ),
-          child: Column(
+          Row(
             children: [
-              // Video preview with thumbnail
-              VideoPreviewBox(
-                videoUrl: videoUrl,
-                thumbnailUrl: thumbnailUrl,
-                onTap: () {
-                  if (videoUrl.isNotEmpty) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChallengeVideoPlayerScreen(
-                          videoUrl: videoUrl,
-                          title: title,
-                          authorName: 'Автор відео',
-                          challengeId: widget.challenge.id,
-                          submissionId: videoId,
-                          thumbnailUrl: thumbnailUrl,
-                        ),
-                      ),
-                    );
-                  }
-                },
-                aspectRatio: 16 / 9,
-                borderRadius: 12,
-                topRight: hasVoted
-                    ? _badge(tr('il_24e6347ec5'),
-                        color: const Color(0xFF4caf50).withOpacity(0.8))
-                    : null,
+              Text(
+                tr('il_30b17903f7'),
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-              Row(
-                children: [
-                  Text(
-                    tr('il_30b17903f7'),
+              Expanded(
+                child: ValueListenableBuilder<double>(
+                  valueListenable: _voteNotifiers[videoId]!,
+                  builder: (context, value, _) => Slider(
+                    value: value,
+                    min: 0.0,
+                    max: 5.0,
+                    // без divisions для плавності
+                    activeColor: const Color(0xFF4caf50),
+                    inactiveColor: Colors.white.withOpacity(0.2),
+                    onChanged: hasVoted ? null : (v) {
+                      _voteNotifiers[videoId]!.value = v;
+                    },
+                    onChangeEnd: hasVoted ? null : (v) {
+                      final rounded = (v * 100).round() / 100;
+                      _voteNotifiers[videoId]!.value = rounded;
+                    },
+                  ),
+                ),
+              ),
+              Container(
+                width: 40,
+                child: ValueListenableBuilder<double>(
+                  valueListenable: _voteNotifiers[videoId]!,
+                  builder: (context, v, _) => Text(
+                    v.toStringAsFixed(2),
                     style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF66bb6a),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                  Expanded(
-                    child: ValueListenableBuilder<double>(
-                      valueListenable: _voteNotifiers[videoId]!,
-                      builder: (context, value, _) => Slider(
-                        value: value,
-                        min: 0.0,
-                        max: 5.0,
-                        // без divisions для плавності
-                        activeColor: const Color(0xFF4caf50),
-                        inactiveColor: Colors.white.withOpacity(0.2),
-                        onChanged: hasVoted ? null : (v) {
-                          _voteNotifiers[videoId]!.value = v;
-                        },
-                        onChangeEnd: hasVoted ? null : (v) {
-                          final rounded = (v * 100).round() / 100;
-                          _voteNotifiers[videoId]!.value = rounded;
-                        },
-                      ),
-                    ),
-                  ),
-                  Container(
-                    width: 40,
-                    child: ValueListenableBuilder<double>(
-                      valueListenable: _voteNotifiers[videoId]!,
-                      builder: (context, v, _) => Text(
-                        v.toStringAsFixed(2),
-                        style: const TextStyle(
-                          color: Color(0xFF66bb6a),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: hasVoted ? null : () => _submitVote(videoId, _voteNotifiers[videoId]!.value),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: hasVoted ? Colors.grey : const Color(0xFF4caf50),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                    ),
-                    child: Text(
-                      hasVoted ? tr('il_9cf238dedb') : tr('il_cd5588db6f'),
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: hasVoted ? null : () => _submitVote(videoId, _voteNotifiers[videoId]!.value),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: hasVoted ? Colors.grey : const Color(0xFF4caf50),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+                child: Text(
+                  hasVoted ? tr('il_9cf238dedb') : tr('il_cd5588db6f'),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
               ),
             ],
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -1104,6 +1104,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   Future<void> _submitVote(String videoId, double rating) async {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
+    final detailsCubit = context.read<ChallengeDetailsCubit>();
 
     // Перевіряємо чи користувач не голосує за себе
     final submissionRow = await _sb
@@ -1112,6 +1113,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         .eq('id', videoId)
         .maybeSingle();
     if (submissionRow == null) return;
+    if (!mounted) return;
     final submissionUserId = submissionRow['user_id']?.toString();
 
     if (submissionUserId == currentUser.id) {
@@ -1164,6 +1166,10 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         }
       } catch (_) {}
 
+      if (mounted) {
+        await detailsCubit.refresh();
+      }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(tr('il_5acb71c66c')),
@@ -1171,6 +1177,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(tr('il_53594cb961')),
@@ -1279,52 +1286,56 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         ),
       ),
     ).then((_) {
-      // Refresh the page when returning from video upload
-      setState(() {});
+      if (!mounted) return;
+      context.read<ChallengeDetailsCubit>().refresh();
     });
   }
 
   void _showChallengeVideos() {
+    final cubit = context.read<ChallengeDetailsCubit>();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        decoration: const BoxDecoration(
-          color: Color(0xFF0f0f23),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '🏆 ${widget.challenge.title}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+      builder: (sheetContext) => BlocProvider.value(
+        value: cubit,
+        child: Container(
+          height: MediaQuery.of(sheetContext).size.height * 0.8,
+          decoration: const BoxDecoration(
+            color: Color(0xFF0f0f23),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '🏆 ${widget.challenge.title}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.white),
-                  ),
-                ],
+                    IconButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildVideosListForModal(),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildVideosListForModal(sheetContext),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

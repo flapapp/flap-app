@@ -66,21 +66,42 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
             code: 'unauthenticated',
             message: null,
           ),
+          profile: null,
         ),
       );
       return;
     }
-    emit(state.copyWith(streamProgress: ProgressStatus.loading));
-    await emit.forEach<UserProfile?>(
-      _profileRepository.watchUserProfile(uid),
-      onData: (profile) => state.copyWith(
-        streamProgress: ProgressStatus.success,
-        profile: profile,
+    // Reuse in-memory profile when reopening the profile tab (same user, last load OK).
+    if (state.profile != null &&
+        state.profile!.id == uid &&
+        state.streamProgress == ProgressStatus.success) {
+      return;
+    }
+    emit(
+      state.copyWith(
+        streamProgress: ProgressStatus.loading,
         streamFailure: null,
-        avatarCommitFailure: null,
-        avatarCommitProgress: ProgressStatus.pure,
       ),
     );
+    try {
+      final profile = await _profileRepository.fetchUserProfile(uid);
+      emit(
+        state.copyWith(
+          streamProgress: ProgressStatus.success,
+          profile: profile,
+          streamFailure: null,
+          avatarCommitFailure: null,
+          avatarCommitProgress: ProgressStatus.pure,
+        ),
+      );
+    } catch (e) {
+      emit(
+        state.copyWith(
+          streamProgress: ProgressStatus.failure,
+          streamFailure: Failure.unexpected(e.toString()),
+        ),
+      );
+    }
   }
 
   Future<void> _onDismissDonation(
@@ -138,19 +159,29 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     final result = await _commitAvatarUrls(
       CommitProfileAvatarUrlsParams(downloadUrl: event.downloadUrl),
     );
-    result.when(
-      success: (_) => emit(
-        state.copyWith(
-          avatarCommitProgress: ProgressStatus.success,
-          avatarCommitFailure: null,
-        ),
-      ),
-      failure: (f) => emit(
-        state.copyWith(
-          avatarCommitProgress: ProgressStatus.failure,
-          avatarCommitFailure: f,
-        ),
-      ),
+    await result.when(
+      success: (_) async {
+        final uid = _authSession.peekCurrentUser?.uid;
+        UserProfile? updated;
+        if (uid != null) {
+          updated = await _profileRepository.fetchUserProfile(uid);
+        }
+        emit(
+          state.copyWith(
+            avatarCommitProgress: ProgressStatus.success,
+            avatarCommitFailure: null,
+            profile: updated ?? state.profile,
+          ),
+        );
+      },
+      failure: (f) async {
+        emit(
+          state.copyWith(
+            avatarCommitProgress: ProgressStatus.failure,
+            avatarCommitFailure: f,
+          ),
+        );
+      },
     );
   }
 }

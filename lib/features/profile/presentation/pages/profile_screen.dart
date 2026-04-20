@@ -26,13 +26,26 @@ import '../../../teams/presentation/pages/team_create_screen.dart';
 import '../bloc/profile_bloc.dart';
 
 @RoutePage()
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      sl<ProfileBloc>().add(const ProfileEvent.started());
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => sl<ProfileBloc>()..add(const ProfileEvent.started()),
+    return BlocProvider.value(
+      value: sl<ProfileBloc>(),
       child: const _ProfileScreenBody(),
     );
   }

@@ -160,7 +160,7 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton(
       () => SubmitEditableProfileUseCase(sl()),
     )
-    ..registerFactory(
+    ..registerLazySingleton<ProfileBloc>(
       () => ProfileBloc(sl(), sl(), sl(), sl()),
     )
     ..registerFactory(
