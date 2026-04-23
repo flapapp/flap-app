@@ -3558,13 +3558,16 @@ Widget build(BuildContext context) {
         );
         return FutureBuilder<Map<String, dynamic>?>(
           future: _sb
-              .from('profiles')
-              .select('rating')
-              .eq('id', uid)
+              .from('user_rating_snapshots')
+              .select('rating_value')
+              .eq('user_id', uid)
+              .eq('rating_scope', 'overall')
+              .order('created_at', ascending: false)
+              .limit(1)
               .maybeSingle(),
           builder: (context, profileSnap) {
             final rating =
-                ((profileSnap.data?['rating'] as num?) ?? 0).toDouble();
+                ((profileSnap.data?['rating_value'] as num?) ?? 0).toDouble();
             return Padding(
               padding: const EdgeInsets.only(right: 8.0),
               child: Row(

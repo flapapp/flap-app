@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:easy_localization/easy_localization.dart';
+import '../app_locale_access.dart';
 
 class CityCatalog {
   /// Pairs: Ukrainian + English; DB stores [toEnglishStorageKey] (lowercase,
@@ -47,8 +48,23 @@ class CityCatalog {
   }
 
   static List<String> cities({bool includeAll = false}) {
-    final aliases = _allAliases(includeAll: includeAll);
-    return aliases;
+    final isUk = currentAppLanguageCode() == 'uk';
+    final out = LinkedHashSet<String>();
+
+    if (includeAll) {
+      out.add(tr('all_cities'));
+    }
+
+    for (final pair in _cityPairs) {
+      final uk = (pair['uk'] ?? '').trim();
+      final en = (pair['en'] ?? '').trim();
+      final label = isUk ? uk : en;
+      if (label.isNotEmpty) {
+        out.add(label);
+      }
+    }
+
+    return out.toList(growable: false);
   }
 
   static List<String> suggest(
