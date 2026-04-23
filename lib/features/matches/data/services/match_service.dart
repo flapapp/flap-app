@@ -2,6 +2,8 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../utils/city_catalog.dart';
+
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../models/match.dart';
@@ -72,7 +74,7 @@ class MatchService {
           'description': match.description,
           'scheduled_at': match.date.toUtc().toIso8601String(),
           'location': match.location,
-          'city': match.city,
+          'city': CityCatalog.toEnglishStorageKey(match.city) ?? match.city,
           'latitude': match.coordinates?.latitude,
           'longitude': match.coordinates?.longitude,
           'max_players': match.maxPlayers,

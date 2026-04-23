@@ -96,6 +96,7 @@ const _$ChallengeTypeEnumMap = {
   ChallengeType.longPass: 'longPass',
   ChallengeType.dribbling: 'dribbling',
   ChallengeType.tackle: 'tackle',
+  ChallengeType.defending: 'defending',
   ChallengeType.penalty: 'penalty',
   ChallengeType.save: 'save',
   ChallengeType.wall: 'wall',

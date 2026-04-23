@@ -612,12 +612,9 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         throw Exception(tr('il_76144c407d'));
       }
 
-      // Перевіряємо чи користувач не голосує за себе та зберігаємо videoId
-      String? submissionVideoId;
-
       final submissionData = await _sb
           .from('challenge_submissions')
-          .select('id, user_id, video_id')
+          .select('id, user_id')
           .eq('id', widget.submissionId)
           .eq('challenge_id', widget.challengeId)
           .maybeSingle();
@@ -628,7 +625,6 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         );
       }
       final submissionUserId = (submissionData['user_id'] ?? '').toString();
-      submissionVideoId = submissionData['video_id']?.toString();
 
       if (submissionUserId == currentUser.id) {
         if (mounted) {
@@ -681,21 +677,17 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
           : values.reduce((a, b) => a + b) / newVotes;
       _submissionAverageRating = newRating;
 
-      // Записуємо голос у «відео» стандартним шляхом, щоб перерахунок рейтингу автора був ідентичним
-      if (submissionVideoId != null && submissionVideoId.isNotEmpty) {
-        try {
-          await sl<RatingsRepository>().rateVideo(
-            videoId: submissionVideoId,
-            ratedBy: currentUser.id,
-            criteria: {
-              'technical': _rating,
-              'creativity': _rating,
-              'difficulty': _rating,
-              'quality': _rating,
-            },
+      try {
+        if (submissionUserId.isNotEmpty && submissionUserId != currentUser.id) {
+          await sl<RatingsRepository>().recomputeOverallRating(
+            submissionUserId,
+            reason: 'challenge_vote',
+            source: currentUser.email?.split('@').first ?? '',
+            sourceType: 'challenge',
+            sourceId: widget.challengeId,
           );
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
 
       // Award coins for voting (ledger-based).
       await insertCoinTransaction(
@@ -705,8 +697,6 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         1,
         tr('il_97e061af07'),
       );
-
-      // Додатковий recompute не потрібен — rateVideo вже зробив оновлення рейтингу автора
 
       setState(() {
         _hasVoted = true;

@@ -8,6 +8,6 @@ abstract final class SupabaseEnv {
   //   'SUPABASE_ANON_KEY',
   //   defaultValue: '',
   // );
-  static const String url = 'https://uaftylfyqzvhjlgddrey.supabase.co';
-  static const String anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVhZnR5bGZ5cXp2aGpsZ2RkcmV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODkzNzcsImV4cCI6MjA5MTI2NTM3N30.G97_t-wNefKhqAOHEklwz3_2PrGwVpL5w4vxrgNMTK0';
+  static const String url = 'https://kwobbzwaxwquvjqdjidl.supabase.co';
+  static const String anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3b2JiendheHdxdXZqcWRqaWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NDAxMTQsImV4cCI6MjA5MjUxNjExNH0.MyraMGZ2GQhLGlP_Xi5nbo-TBzaquajz_2I88ffbXZo';
 }

@@ -302,6 +302,8 @@ class Challenge extends ChallengeEntity {
         return tr('il_a30ef79268');
       case ChallengeType.tackle:
         return tr('il_9c0dd00951');
+      case ChallengeType.defending:
+        return 'Defending';
       case ChallengeType.dribbling:
         return tr('il_0b337d1bc7');
       case ChallengeType.penalty:
@@ -359,6 +361,8 @@ class Challenge extends ChallengeEntity {
         return '📡';
       case ChallengeType.tackle:
         return '🛡️';
+      case ChallengeType.defending:
+        return '🧱';
       case ChallengeType.dribbling:
         return '🌀';
       case ChallengeType.penalty:
@@ -405,6 +409,9 @@ ChallengeType parseChallengeType(String? raw) {
       return ChallengeType.longPass;
     case 'tackle':
       return ChallengeType.tackle;
+    case 'defending':
+    case 'defense':
+      return ChallengeType.defending;
     case 'dribbling':
     case 'technical':
       return ChallengeType.dribbling;
@@ -441,6 +448,8 @@ String challengeTypeToSlug(ChallengeType type) {
       return 'dribbling';
     case ChallengeType.tackle:
       return 'tackle';
+    case ChallengeType.defending:
+      return 'defending';
     case ChallengeType.penalty:
       return 'penalty';
     case ChallengeType.save:

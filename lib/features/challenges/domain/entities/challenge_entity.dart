@@ -9,6 +9,7 @@ enum ChallengeType {
   longPass,
   dribbling,
   tackle,
+  defending,
   penalty,
   save,
   wall,

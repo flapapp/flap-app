@@ -70,6 +70,8 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         return tr('il_a30ef79268');
       case ChallengeType.tackle:
         return tr('il_9c0dd00951');
+      case ChallengeType.defending:
+        return 'Defending';
       case ChallengeType.dribbling:
         return tr('il_0b337d1bc7');
       case ChallengeType.penalty:
@@ -99,6 +101,8 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         return '📡';
       case ChallengeType.tackle:
         return '🛡️';
+      case ChallengeType.defending:
+        return '🧱';
       case ChallengeType.dribbling:
         return '🌀';
       case ChallengeType.penalty:
@@ -130,6 +134,8 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         return ['довг', 'long pass', 'cross', 'діагональ'];
       case ChallengeType.tackle:
         return ['підкат', 'відбір', 'tackle'];
+      case ChallengeType.defending:
+        return ['захист', 'оборона', 'defending', 'defense', 'block'];
       case ChallengeType.dribbling:
         return ['дриблінг', 'фінт', 'dribble', 'skill'];
       case ChallengeType.penalty:
@@ -1259,9 +1265,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               
               // Оновлюємо челендж з URL відео творця
               await _sb.from('challenges').update({
-                'creator_video_url': creatorVideoUrl,
+                'video_url': creatorVideoUrl,
               }).eq('id', challengeId);
-              print('Updated challenge $challengeId with creatorVideoUrl: $creatorVideoUrl');
+              print('Updated challenge $challengeId with video_url: $creatorVideoUrl');
               
             } else {
               print('WARNING: Creator video upload returned null/empty URL');
@@ -1494,34 +1500,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         throw Exception(tr('il_cc3ca4e740', args: [e.toString()]));
       }
       
-      // Створюємо запис у колекції videos, щоб мати єдиний шлях голосів і агрегатів
-      String createdVideoDocId = '';
-      try {
-        final videoDoc = await _sb
-            .from('videos')
-            .insert({
-              'user_id': userId,
-              'title': _titleController.text.trim().isNotEmpty
-                  ? _titleController.text.trim()
-                  : tr('il_b51a6ac57e'),
-              'description': _descriptionController.text.trim().isNotEmpty
-                  ? _descriptionController.text.trim()
-                  : tr('il_4c92b02f91'),
-              'video_url': videoUrl,
-              'thumbnail_url': null,
-            })
-            .select('id')
-            .single();
-        createdVideoDocId = (videoDoc['id'] ?? '').toString();
-      } catch (_) {}
-
-      // Зберігаємо відео створювача в submissions.
+      // Зберігаємо відео створювача в submissions (без [videos]: окремий [video_url]).
       print('Saving creator video to submissions collection...');
       try {
         await _sb.from('challenge_submissions').upsert({
           'challenge_id': challengeId,
           'user_id': userId,
-          'video_id': createdVideoDocId.isEmpty ? null : createdVideoDocId,
           'title': _titleController.text.trim().isNotEmpty
               ? _titleController.text.trim()
               : tr('il_b51a6ac57e'),
@@ -1562,71 +1546,38 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   }
 
   void _generateCreatorThumbnailInBackground(String challengeId, String videoUrl, String userId) {
-    // Генеруємо thumbnail в фоновому режимі
     Future.delayed(const Duration(seconds: 3), () async {
       try {
         print('🎬 Starting creator thumbnail generation for challenge: $challengeId');
-        
-        final thumbnailService = ThumbnailService();
-        // Спочатку генеруємо thumbnail для основного відео документа
-        final videoDoc = await _sb
-            .from('videos')
+
+        final sub = await _sb
+            .from('challenge_submissions')
             .select('id')
+            .eq('challenge_id', challengeId)
             .eq('user_id', userId)
-            .eq('video_url', videoUrl)
-            .limit(1);
-        
-        String? videoDocId;
-        final videoRows = videoDoc as List<dynamic>;
-        if (videoRows.isNotEmpty) {
-          videoDocId =
-              ((videoRows.first as Map<String, dynamic>)['id'] ?? '').toString();
-          final thumbnailUrl = await thumbnailService.generateAndUploadThumbnail(
-            videoUrl: videoUrl,
-            videoId: videoDocId,
-            userId: userId,
-          );
-          
-          if (thumbnailUrl != null) {
-            // Оновлюємо submission з thumbnailUrl
-            await _sb
-                .from('challenge_submissions')
-                .update({
-                  'thumbnail_url': thumbnailUrl,
-                })
-                .eq('challenge_id', challengeId)
-                .eq('user_id', userId);
-            await _sb
-                .from('challenges')
-                .update({
-                  'creator_thumbnail_url': thumbnailUrl,
-                  'thumbnail_url': thumbnailUrl,
-                })
-                .eq('id', challengeId);
-            print('✅ Creator video thumbnail generated: $thumbnailUrl');
-          }
-        } else {
-          // Якщо не знайшли відео документ, генеруємо thumbnail для submission
-          final thumbnailUrl = await thumbnailService.generateSubmissionThumbnail(
-            videoUrl: videoUrl,
-            challengeId: challengeId,
-            submissionId: userId,
-            userId: userId,
-          );
-          if (thumbnailUrl != null) {
-            await _sb
-                .from('challenges')
-                .update({
-                  'creator_thumbnail_url': thumbnailUrl,
-                  'thumbnail_url': thumbnailUrl,
-                })
-                .eq('id', challengeId);
-            print('✅ Creator submission thumbnail generated: $thumbnailUrl');
-          }
+            .maybeSingle();
+        final submissionId = (sub?['id'] ?? '').toString();
+        if (submissionId.isEmpty) {
+          print('❌ No submission row for creator thumbnail');
+          return;
+        }
+
+        final thumbnailService = ThumbnailService();
+        final thumbnailUrl = await thumbnailService.generateSubmissionThumbnail(
+          videoUrl: videoUrl,
+          challengeId: challengeId,
+          submissionId: submissionId,
+          userId: userId,
+        );
+        if (thumbnailUrl != null) {
+          await _sb.from('challenges').update({
+            'video_thumbnail_url': thumbnailUrl,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          }).eq('id', challengeId);
+          print('✅ Creator video thumbnail: $thumbnailUrl');
         }
       } catch (e) {
         print('❌ Background creator thumbnail generation error: $e');
-        // Не показуємо помилку користувачу, оскільки челендж вже створено
       }
     });
   }

@@ -35,7 +35,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   
-  String? _selectedCategoryId;
+  String? _selectedCategory;
   String? _selectedDifficulty;
   XFile? _pickedVideo;
   bool _isUploading = false;
@@ -312,7 +312,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: DropdownButtonFormField<String>(
-                    value: _selectedCategoryId ?? '',
+                    value: _selectedCategory ?? '',
                     style: const TextStyle(color: Colors.white),
                     dropdownColor: const Color(0xFF1e7d32),
                     decoration: InputDecoration(
@@ -360,14 +360,14 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                     ],
                     onChanged: (String? newValue) {
                       setState(() {
-                        _selectedCategoryId =
+                        _selectedCategory =
                             (newValue == null || newValue.isEmpty)
                                 ? null
                                 : newValue;
                       });
                     },
                     validator: (value) {
-                      if ((_selectedCategoryId ?? '').isEmpty) {
+                      if ((_selectedCategory ?? '').isEmpty) {
                         return tr('il_e26788c574');
                       }
                       return null;
@@ -531,48 +531,52 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       
       print('✅ Video uploaded successfully: $videoUrl');
 
-      final videoData = <String, dynamic>{
-        'user_id': user.id,
-        'title': _titleController.text.trim().isEmpty
-            ? (widget.challengeTitle ?? tr('il_d534be829e'))
-            : _titleController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'video_url': videoUrl,
-        'thumbnail_url': null,
-      };
-
-      final categoryCode = normalizeVideoCategoryValue(_selectedCategoryId ?? 'other');
-      if (widget.challengeId == null) {
-        final category = await client
-            .from('video_categories')
+      if (widget.challengeId != null) {
+        await _submitVideoToChallengeOnly(client, videoUrl, user.id);
+        final sub = await client
+            .from('challenge_submissions')
             .select('id')
-            .eq('code', categoryCode)
+            .eq('challenge_id', widget.challengeId!)
+            .eq('user_id', user.id)
             .maybeSingle();
+        final submissionId = (sub?['id'] ?? '').toString();
+        if (submissionId.isNotEmpty) {
+          _generateChallengeSubmissionThumbnailInBackground(
+            submissionId,
+            videoUrl,
+            user.id,
+            widget.challengeId!,
+          );
+        }
+      } else {
+        final videoData = <String, dynamic>{
+          'user_id': user.id,
+          'title': _titleController.text.trim().isEmpty
+              ? (widget.challengeTitle ?? tr('il_d534be829e'))
+              : _titleController.text.trim(),
+          'description': _descriptionController.text.trim(),
+          'video_url': videoUrl,
+          'thumbnail_url': null,
+        };
+
         final difficulty = await client
             .from('video_difficulties')
             .select('id')
             .eq('code', (_selectedDifficulty ?? '').toLowerCase())
             .maybeSingle();
-        if (category != null) {
-          videoData['category_id'] = category['id'];
+        final selectedCategory = (_selectedCategory ?? '').trim();
+        if (selectedCategory.isNotEmpty) {
+          videoData['category'] = selectedCategory;
         }
         if (difficulty != null) {
           videoData['difficulty_id'] = difficulty['id'];
         }
+
+        final videoDoc = await client.from('videos').insert(videoData).select('id').single();
+        final videoId = (videoDoc['id'] ?? '').toString();
+        print('✅ Video document created: $videoId');
+        _generateThumbnailInBackground(videoId, videoUrl, user.id);
       }
-
-      final videoDoc = await client.from('videos').insert(videoData).select('id').single();
-      final videoId = (videoDoc['id'] ?? '').toString();
-
-      print('✅ Video document created: $videoId');
-
-      // Якщо це відео для челенджу
-      if (widget.challengeId != null) {
-        await _submitVideoToChallenge(videoId, videoUrl);
-      }
-
-      // Генеруємо thumbnail в фоновому режимі
-      _generateThumbnailInBackground(videoId, videoUrl, user.id);
 
       // Показуємо успішне повідомлення
       if (mounted) {
@@ -608,30 +612,48 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     }
   }
 
-  Future<void> _submitVideoToChallenge(String videoId, String videoUrl) async {
-    try {
-      final user = AppAuth.currentUser!;
+  /// Challenge videos are not inserted into [videos]; [challenge_submissions.video_url] is canonical.
+  Future<void> _submitVideoToChallengeOnly(
+    SupabaseClient client,
+    String videoUrl,
+    String userId,
+  ) async {
+    await sl<ChallengesRepository>().addVideoToChallenge(widget.challengeId!, userId);
 
-      // Додаємо відео до челенджу
-      await sl<ChallengesRepository>()
-          .addVideoToChallenge(widget.challengeId!, user.id);
-      
-      await Supabase.instance.client.from('challenge_submissions').upsert({
-        'challenge_id': widget.challengeId!,
-        'user_id': user.id,
-        'video_id': videoId,
-        'video_url': videoUrl,
-        'title': _titleController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'thumbnail_url': null,
-      });
+    await client.from('challenge_submissions').upsert({
+      'challenge_id': widget.challengeId!,
+      'user_id': userId,
+      'video_url': videoUrl,
+      'title': _titleController.text.trim(),
+      'description': _descriptionController.text.trim(),
+      'thumbnail_url': null,
+    });
 
-      print('✅ Video submitted to challenge: ${widget.challengeId}');
-      
-    } catch (e) {
-      print('❌ Error submitting to challenge: $e');
-      throw e;
-    }
+    print('✅ Video submitted to challenge (submission only): ${widget.challengeId}');
+  }
+
+  void _generateChallengeSubmissionThumbnailInBackground(
+    String submissionId,
+    String videoUrl,
+    String userId,
+    String challengeId,
+  ) {
+    Future.delayed(const Duration(seconds: 2), () async {
+      try {
+        final thumbnailService = ThumbnailService();
+        final thumbnailUrl = await thumbnailService.generateSubmissionThumbnail(
+          videoUrl: videoUrl,
+          challengeId: challengeId,
+          submissionId: submissionId,
+          userId: userId,
+        );
+        if (thumbnailUrl != null) {
+          print('✅ Challenge submission thumbnail: $thumbnailUrl');
+        }
+      } catch (e) {
+        print('❌ Challenge submission thumbnail error: $e');
+      }
+    });
   }
 
   void _generateThumbnailInBackground(String videoId, String videoUrl, String userId) {
@@ -649,22 +671,6 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
 
         if (thumbnailUrl != null) {
           print('✅ Thumbnail generated successfully: $thumbnailUrl');
-          
-          // Якщо це відео для челенджу, оновлюємо submission з thumbnailUrl
-          if (widget.challengeId != null) {
-            try {
-              await Supabase.instance.client
-                  .from('challenge_submissions')
-                  .update({
-                'thumbnail_url': thumbnailUrl,
-              })
-                  .eq('challenge_id', widget.challengeId!)
-                  .eq('user_id', userId);
-              print('✅ Submission thumbnail updated for challenge: ${widget.challengeId}');
-            } catch (e) {
-              print('⚠️ Failed to update submission thumbnail: $e');
-            }
-          }
         } else {
           print('⚠️ Thumbnail generation failed, but video upload was successful');
         }

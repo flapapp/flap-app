@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/auth/app_auth.dart';
+import '../../../../utils/city_catalog.dart';
 import '../../../../core/supabase/coin_ledger.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../data/models/challenge.dart';
@@ -131,7 +132,7 @@ class ChallengeService {
             'description': challenge.description,
             'challenge_type_id': typeId,
             'audience_id': audienceId,
-            'city': challenge.city,
+            'city': CityCatalog.toEnglishStorageKey(challenge.city) ?? challenge.city,
             'entry_fee': entryFee,
             'max_participants': challenge.maxParticipants,
             'status': challenge.status.name,
@@ -721,7 +722,9 @@ class ChallengeService {
       ),
       creatorId: (row['creator_id'] ?? '').toString(),
       creatorName: creatorName,
-      creatorVideoUrl: null,
+      creatorVideoUrl: _nonEmptyOrNull(
+        (row['video_url'] ?? row['creator_video_url'])?.toString() ?? '',
+      ),
       city: (row['city'] ?? '').toString(),
       entryFee: (row['entry_fee'] as num?)?.toInt() ?? 0,
       duration: 7,
@@ -823,6 +826,11 @@ class ChallengeService {
       (e) => e.name == normalized,
       orElse: () => ChallengeStatus.recruiting,
     );
+  }
+
+  String? _nonEmptyOrNull(String s) {
+    final t = s.trim();
+    return t.isEmpty ? null : t;
   }
 }
 

@@ -187,9 +187,11 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       'description': row['description'],
       'creatorId': row['creator_id']?.toString() ?? '',
       'creatorName': row['creator_name'] ?? '',
-      'creatorVideoUrl': row['creator_video_url'],
-      'creatorThumbnailUrl': row['creator_thumbnail_url'],
-      'thumbnailUrl': row['thumbnail_url'],
+      'creatorVideoUrl': row['video_url'] ?? row['creator_video_url'],
+      'creatorThumbnailUrl': row['video_thumbnail_url'] ??
+          row['creator_thumbnail_url'] ??
+          row['thumbnail_url'],
+      'thumbnailUrl': row['video_thumbnail_url'] ?? row['thumbnail_url'],
       'participants': row['participants'] ?? const <String>[],
       'submissions': row['submissions'] ?? const <String>[],
       'entryFee': row['entry_fee'] ?? 10,

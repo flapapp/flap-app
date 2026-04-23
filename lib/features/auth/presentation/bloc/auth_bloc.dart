@@ -118,6 +118,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLoginRequested event,
     Emitter<AuthState> emit,
   ) async {
+    if (state.loginProgress == ProgressStatus.loading) {
+      return;
+    }
     emit(state.copyWith(
       loginProgress: ProgressStatus.loading,
       loginFailure: null,
@@ -148,6 +151,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthRegistrationRequested event,
     Emitter<AuthState> emit,
   ) async {
+    if (state.registrationProgress == ProgressStatus.loading) {
+      return;
+    }
     emit(state.copyWith(
       registrationProgress: ProgressStatus.loading,
       registrationFailure: null,

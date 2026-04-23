@@ -19,6 +19,7 @@ import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+import '../../../../core/supabase/public_video_feed.dart';
 
 @RoutePage()
 class VideoMainScreen extends StatefulWidget {
@@ -51,12 +52,13 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   final Set<String> _commentCountLoading = {};
   final Map<String, _CachedUserProfile> _userProfileCache = {};
   final Set<String> _loadingUserProfiles = {};
-  final Map<String, _CachedChallengeMeta> _challengeMetaCache = {};
-  final Set<String> _challengeMetaLoading = {};
-  final Set<String> _challengeMetaDenied = {};
   final Map<String, String?> _challengeCreatorThumbCache = {};
   final Set<String> _challengeCreatorThumbLoading = {};
-  late Stream<List<Map<String, dynamic>>> _videosStream;
+  int _myVideosRefreshToken = 0;
+  String? _cachedMainListKey;
+  Future<List<Map<String, dynamic>>>? _cachedMainListFuture;
+  String? _cachedMyListKey;
+  Future<List<Map<String, dynamic>>>? _cachedMyListFuture;
   bool _didInitFromRouteArgs = false;
   
 
@@ -104,94 +106,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
         videoCategoryLabel(_selectedCategory);
   }
 
-  double _extractVideoRating(Map<String, dynamic> data) {
-    final raw = data['rating'] ?? data['averageRating'] ?? data['voteAverage'] ?? 0.0;
-    if (raw is num) return raw.toDouble();
-    return double.tryParse(raw.toString()) ?? 0.0;
-  }
-
-  int _extractCreatedAtMillis(Map<String, dynamic> data) {
-    final ts =
-        data['createdAt'] ?? data['uploadedAt'] ?? data['timestamp'] ?? data['updatedAt'];
-    if (ts is String) return DateTime.tryParse(ts)?.millisecondsSinceEpoch ?? 0;
-    if (ts is DateTime) return ts.millisecondsSinceEpoch;
-    if (ts is int) return ts;
-    return 0;
-  }
-
-  bool _isChallengeVideoData(Map<String, dynamic> data) {
-    final challengeId = (data['challengeId'] ?? '').toString().trim();
-    final challengeTitle = (data['challengeTitle'] ?? '').toString().trim();
-    final title = (data['title'] ?? '').toString().trim().toLowerCase();
-    final description = (data['description'] ?? '').toString().trim().toLowerCase();
-    final explicitFlag = data['isChallengeVideo'] == true;
-
-    if (explicitFlag) return true;
-    if (challengeId.isNotEmpty || challengeTitle.isNotEmpty) return true;
-
-    // Legacy fallback markers for old challenge submissions.
-    return title == 'відео челенджу' ||
-        title == 'challenge video' ||
-        description == 'відео челенджу' ||
-        description == 'challenge video';
-  }
-
-  String _normalizeCity(String city) {
-    final v = _primaryCityToken(city);
-    const aliases = <String, String>{
-      'kyiv': 'kyiv',
-      'київ': 'kyiv',
-      'kiev': 'kyiv',
-      'lviv': 'lviv',
-      'львів': 'lviv',
-      'odesa': 'odesa',
-      'odessa': 'odesa',
-      'одеса': 'odesa',
-      'kharkiv': 'kharkiv',
-      'харків': 'kharkiv',
-      'dnipro': 'dnipro',
-      'дніпро': 'dnipro',
-      'днепр': 'dnipro',
-      'london': 'london',
-      'лондон': 'london',
-    };
-    return aliases[v] ?? v;
-  }
-
-  String _primaryCityToken(String city) {
-    final raw = city.trim().toLowerCase();
-    if (raw.isEmpty) return '';
-    final noParens = raw.replaceAll(RegExp(r'\(.*?\)'), '');
-    final beforeComma = noParens.split(',').first;
-    final beforeSlash = beforeComma.split('/').first;
-    return beforeSlash.replaceAll(RegExp(r'\s+'), ' ').trim();
-  }
-
-  bool _cityMatchesFilter(String cityValue) {
-    if (_selectedCity.isEmpty) return true;
-    final cityNorm = _normalizeCity(cityValue);
-    final selectedNorm = _normalizeCity(_selectedCity);
-    return cityNorm.isNotEmpty && selectedNorm.isNotEmpty && cityNorm == selectedNorm;
-  }
-
-  String _resolveVideoCityForFilter(
-    Map<String, dynamic> data,
-  ) {
-    final directCity = (data['city'] ?? '').toString().trim();
-    if (directCity.isNotEmpty) return directCity;
-
-    final userId = (data['userId'] ?? '').toString().trim();
-    if (userId.isEmpty) return '';
-
-    final cached = _userProfileCache[userId]?.city.trim() ?? '';
-    if (cached.isNotEmpty) return cached;
-
-    if (!_loadingUserProfiles.contains(userId)) {
-      _prefetchUserProfile(userId);
-    }
-    return '';
-  }
-
   void _prefetchChallengeCreatorThumbnail(String challengeId, String creatorId) async {
     if (challengeId.isEmpty || creatorId.isEmpty) return;
     if (_challengeCreatorThumbCache.containsKey(challengeId) ||
@@ -201,13 +115,21 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     _challengeCreatorThumbLoading.add(challengeId);
     try {
       String? thumbUrl;
-      final directData = await _sb
-          .from('challenge_submissions')
-          .select('thumbnail_url')
-          .eq('challenge_id', challengeId)
-          .eq('user_id', creatorId)
+      final ch = await _sb
+          .from('challenges')
+          .select('video_thumbnail_url')
+          .eq('id', challengeId)
           .maybeSingle();
-      thumbUrl = (directData?['thumbnail_url'] ?? '').toString().trim();
+      thumbUrl = (ch?['video_thumbnail_url'] ?? '').toString().trim();
+      if (thumbUrl.isEmpty) {
+        final directData = await _sb
+            .from('challenge_submissions')
+            .select('thumbnail_url')
+            .eq('challenge_id', challengeId)
+            .eq('user_id', creatorId)
+            .maybeSingle();
+        thumbUrl = (directData?['thumbnail_url'] ?? '').toString().trim();
+      }
 
       if (thumbUrl.isEmpty) {
         final fallback = await _sb
@@ -235,7 +157,6 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
 
   void initState() {
   super.initState();
-  _videosStream = _createVideosStream();
   _cityFilterController.text = '';
   _loadCurrentUserCity();
 }
@@ -263,6 +184,12 @@ void dispose() {
     } catch (_) {}
   }
 
+  String _resolveVideoCategoryCode(Map<String, dynamic> data) {
+    return normalizeVideoCategoryValue(
+      (data['category'] ?? data['category_code'] ?? '').toString().trim(),
+    );
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -280,7 +207,6 @@ void dispose() {
       _showOnlyMyVideos = myContent == 'videos';
       _showOnlyMyChallenges = myContent == 'challenges';
       _selectedTab = _showOnlyMyChallenges ? 'challenges' : 'all';
-      _videosStream = _createVideosStream();
     }
   }
 
@@ -715,6 +641,8 @@ Widget build(BuildContext context) {
         return const Color(0xFFAB47BC);
       case ChallengeType.tackle:
         return const Color(0xFF8D6E63);
+      case ChallengeType.defending:
+        return const Color(0xFF607D8B);
       case ChallengeType.penalty:
         return const Color(0xFFFFC107);
       case ChallengeType.save:
@@ -744,6 +672,8 @@ Widget build(BuildContext context) {
         return tr('il_0b337d1bc7');
       case ChallengeType.tackle:
         return tr('il_9c0dd00951');
+      case ChallengeType.defending:
+        return 'Defending';
       case ChallengeType.penalty:
         return tr('il_241c754092');
       case ChallengeType.save:
@@ -896,51 +826,6 @@ Widget build(BuildContext context) {
       // ignore
     } finally {
       _loadingUserProfiles.remove(userId);
-    }
-  }
-
-  void _prefetchChallengeMetaForVideo(String videoId) async {
-    if (_challengeMetaCache.containsKey(videoId) ||
-        _challengeMetaLoading.contains(videoId) ||
-        _challengeMetaDenied.contains(videoId)) {
-      return;
-    }
-    _challengeMetaLoading.add(videoId);
-    try {
-      final submissions = await _sb
-          .from('challenge_submissions')
-          .select('challenge_id')
-          .eq('video_id', videoId)
-          .limit(1);
-      final subRows = submissions as List<dynamic>;
-      if (subRows.isEmpty) return;
-      final challengeId =
-          ((subRows.first as Map<String, dynamic>)['challenge_id'] ?? '').toString();
-      if (challengeId.isEmpty) return;
-      final challengeData = await _sb
-          .from('challenges')
-          .select('title')
-          .eq('id', challengeId)
-          .maybeSingle();
-      if (challengeData == null) return;
-      final title = (challengeData['title'] ?? '').toString();
-      if (mounted) {
-        setState(() {
-          _challengeMetaCache[videoId] = _CachedChallengeMeta(
-            challengeId: challengeId,
-            title: title,
-          );
-        });
-      }
-    } catch (e) {
-      _challengeMetaDenied.add(videoId);
-      _challengeMetaCache[videoId] = const _CachedChallengeMeta(
-        challengeId: '',
-        title: '',
-      );
-      debugPrint('Error prefetching challenge meta for video $videoId: $e');
-    } finally {
-      _challengeMetaLoading.remove(videoId);
     }
   }
 
@@ -1243,9 +1128,6 @@ Widget build(BuildContext context) {
         if (_selectedTab == tab) return;
         setState(() {
           _selectedTab = tab;
-          if (tab != 'challenges') {
-            _videosStream = _createVideosStream();
-          }
         });
       },
         child: AnimatedContainer(
@@ -1375,22 +1257,9 @@ Widget build(BuildContext context) {
       ...kVideoCategories.map(
         (category) => DropdownMenuItem<String>(
           value: category.id,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                category.label(),
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              if (category.description().isNotEmpty)
-                Text(
-                  category.description(),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black54,
-                  ),
-                ),
-            ],
+          child: Text(
+            category.label(),
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
       ),
@@ -1420,6 +1289,121 @@ Widget build(BuildContext context) {
     );
   }
 
+  String get _videoFeedStateKey => [
+        _selectedTab,
+        _showOnlyMyVideos,
+        _showOnlyMyChallenges,
+        _selectedCategory,
+        _selectedCity,
+        _selectedRating,
+        _selectedSort,
+        _currentUserCity,
+        _myVideosRefreshToken,
+      ].join('|');
+
+  double? _minRatingParam() {
+    if (_selectedRating.isEmpty) {
+      return null;
+    }
+    if (_selectedRating == tr('il_a90e7e92a6')) {
+      return null;
+    }
+    final p = double.tryParse(_selectedRating.replaceAll('+', ''));
+    if (p == null || p <= 0) {
+      return null;
+    }
+    return p;
+  }
+
+  String? _cityKeyForFeed() {
+    return videoFeedCityKey(
+      _selectedCity,
+      allCitiesValue: tr('all_cities'),
+    );
+  }
+
+  List<String> _categoryCodesForFilter() {
+    if (_selectedCategory.isEmpty) {
+      return <String>[];
+    }
+    return <String>[_selectedCategory];
+  }
+
+  VideoFeedSort _mapSortForFeed({required bool useTrendingViews}) {
+    if (useTrendingViews) {
+      return VideoFeedSort.viewsDesc;
+    }
+    switch (_selectedSort) {
+      case 'my_city':
+        if (_currentUserCity.trim().isEmpty) {
+          return VideoFeedSort.newest;
+        }
+        return VideoFeedSort.myCity;
+      case 'rating_asc':
+        return VideoFeedSort.ratingAsc;
+      case 'rating_desc':
+        return VideoFeedSort.ratingDesc;
+      case 'newest':
+      default:
+        return VideoFeedSort.newest;
+    }
+  }
+
+  VideoFeedParams _defaultFeedParams({required bool trendingLayout}) {
+    return VideoFeedParams(
+      onlyUserId: null,
+      categoryCodes: _categoryCodesForFilter(),
+      minAvgRating: _minRatingParam(),
+      cityKey: _cityKeyForFeed(),
+      excludeChallengeRelated: true,
+      sort: _mapSortForFeed(useTrendingViews: trendingLayout),
+      limit: 400,
+    );
+  }
+
+  VideoFeedParams _myVideosFeedParams() {
+    return VideoFeedParams(
+      onlyUserId: AppAuth.currentUserId,
+      categoryCodes: _categoryCodesForFilter(),
+      minAvgRating: _minRatingParam(),
+      cityKey: _cityKeyForFeed(),
+      excludeChallengeRelated: true,
+      sort: _mapSortForFeed(useTrendingViews: false),
+      limit: 400,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadFeedForMainList() {
+    final isTrendingTab = _selectedTab == 'trending';
+    final p = isTrendingTab
+        ? _defaultFeedParams(trendingLayout: true)
+        : _defaultFeedParams(trendingLayout: false);
+    return getVideosFromDatabase(_sb, p);
+  }
+
+  Future<List<Map<String, dynamic>>> _loadFeedForMyList() {
+    return getVideosFromDatabase(_sb, _myVideosFeedParams());
+  }
+
+  /// Stable future per filter/tab so [FutureBuilder] is not re-started every frame.
+  Future<List<Map<String, dynamic>>> _memoizedMainListFuture() {
+    final k = 'main-$_videoFeedStateKey';
+    if (_cachedMainListKey == k) {
+      return _cachedMainListFuture!;
+    }
+    _cachedMainListKey = k;
+    return _cachedMainListFuture = _loadFeedForMainList();
+  }
+
+  Future<List<Map<String, dynamic>>> _memoizedMyListFuture() {
+    final k = 'my-$_videoFeedStateKey';
+    if (_cachedMyListKey == k) {
+      return _cachedMyListFuture!;
+    }
+    _cachedMyListKey = k;
+    return _cachedMyListFuture = _loadFeedForMyList();
+  }
+
   Widget _buildContent() {
   if (_showOnlyMyVideos) {
     return _buildMyVideosList();
@@ -1438,74 +1422,12 @@ Widget build(BuildContext context) {
   }
 }
 
-  List<Map<String, dynamic>> _filterAndSortVideoDocs(
-    Iterable<Map<String, dynamic>> source, {
-    bool excludeChallengeVideos = true,
-  }) {
-    final docs = source.where((data) {
-      final id = (data['id'] ?? '').toString();
-
-      if (excludeChallengeVideos && _isChallengeVideoData(data)) return false;
-
-      if (_selectedRating.isNotEmpty) {
-        final minRating = double.tryParse(_selectedRating.replaceAll('+', '')) ?? 0.0;
-        final ratingRaw = _videoRatingCache[id] ?? _extractVideoRating(data);
-        if (ratingRaw < minRating) return false;
-      }
-
-      if (_selectedCategory.isNotEmpty) {
-        final categoryValue = (data['category'] ?? '').toString();
-        final normalized = normalizeVideoCategoryValue(categoryValue);
-        if (normalized != _selectedCategory) return false;
-      }
-
-      if (_selectedCity.isNotEmpty) {
-        final city = _resolveVideoCityForFilter(data);
-        if (!_cityMatchesFilter(city)) return false;
-      }
-
-      return true;
-    }).toList();
-
-    docs.sort((a, b) {
-      final dataA = a;
-      final dataB = b;
-      final idA = (dataA['id'] ?? '').toString();
-      final idB = (dataB['id'] ?? '').toString();
-
-      if (_selectedSort == 'rating_asc' || _selectedSort == 'rating_desc') {
-        final ratingA = _videoRatingCache[idA] ?? _extractVideoRating(dataA);
-        final ratingB = _videoRatingCache[idB] ?? _extractVideoRating(dataB);
-        final cmp = _selectedSort == 'rating_asc'
-            ? ratingA.compareTo(ratingB)
-            : ratingB.compareTo(ratingA);
-        if (cmp != 0) return cmp;
-      } else if (_selectedSort == 'my_city' &&
-          _currentUserCity.trim().isNotEmpty) {
-        final cityA = _normalizeCity(_resolveVideoCityForFilter(dataA));
-        final cityB = _normalizeCity(_resolveVideoCityForFilter(dataB));
-        final mine = _normalizeCity(_currentUserCity);
-        final aMine = cityA == mine;
-        final bMine = cityB == mine;
-        if (aMine != bMine) return bMine ? 1 : -1;
-      } else if (_selectedTab == 'trending' && !_showOnlyMyVideos) {
-        final viewsA = (dataA['views'] ?? 0) as num;
-        final viewsB = (dataB['views'] ?? 0) as num;
-        final cmp = viewsB.compareTo(viewsA);
-        if (cmp != 0) return cmp;
-      }
-
-      final tsA = _extractCreatedAtMillis(dataA);
-      final tsB = _extractCreatedAtMillis(dataB);
-      return tsB.compareTo(tsA);
-    });
-
-    return docs;
-  }
-
   Widget _buildVideosList() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _videosStream,
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      key: ValueKey<String>(
+        'vm-feed-$_videoFeedStateKey',
+      ),
+      future: _memoizedMainListFuture(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -1527,7 +1449,8 @@ Widget build(BuildContext context) {
           );
         }
 
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        final docs = snapshot.data ?? const <Map<String, dynamic>>[];
+        if (docs.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1573,8 +1496,6 @@ Widget build(BuildContext context) {
           );
         }
 
-        final docs = _filterAndSortVideoDocs(snapshot.data!);
-
         return ListView.builder(
           key: PageStorageKey<String>(
             'videos-list-$_selectedTab-${_showOnlyMyVideos ? "mine" : "all"}',
@@ -1590,45 +1511,10 @@ Widget build(BuildContext context) {
     );
   }
 
-  Stream<List<Map<String, dynamic>>> _createVideosStream() {
-    final uid = _showOnlyMyVideos ? AppAuth.currentUserId : null;
-    return _sb
-        .from('videos')
-        .stream(primaryKey: ['id'])
-        .order('created_at', ascending: false)
-        .limit(400)
-        .map((rows) => rows
-            .where((row) => uid == null || (row['user_id'] ?? '').toString() == uid)
-            .map(_mapVideoRow)
-            .toList());
-  }
-
-  Map<String, dynamic> _mapVideoRow(Map<String, dynamic> row) {
-    return <String, dynamic>{
-      'id': row['id']?.toString() ?? '',
-      'title': row['title'],
-      'description': row['description'],
-      'category': row['category'] ?? row['category_code'] ?? '',
-      'rating': row['rating'] ?? row['average_rating'],
-      'views': row['views'] ?? 0,
-      'likes': row['likes'] ?? 0,
-      'comments': row['comments'] ?? row['comments_count'] ?? 0,
-      'authorName': row['author_name'],
-      'userId': row['user_id']?.toString() ?? '',
-      'city': row['city'] ?? '',
-      'createdAt': row['created_at'],
-      'videoUrl': row['video_url'],
-      'thumbnailUrl': row['thumbnail_url'],
-      'duration': row['duration'],
-      'challengeId': row['challenge_id'],
-      'challengeTitle': row['challenge_title'],
-    };
-  }
-
   Widget _buildVideoCard(Map<String, dynamic> data, String videoId) {
     final title = (data['title'] ?? tr('il_30a3b02cbe')).toString();
     final description = (data['description'] ?? '').toString();
-    final rawCategory = (data['category'] ?? '').toString();
+    final rawCategory = _resolveVideoCategoryCode(data);
     final categoryLabel = rawCategory.isEmpty
         ? tr('il_b91b9cac50')
         : videoCategoryLabel(rawCategory);
@@ -1689,24 +1575,10 @@ Widget build(BuildContext context) {
     final categoryColor = _videoCategoryColor(rawCategory);
     String resolvedChallengeId = (data['challengeId'] ?? '').toString();
     String resolvedChallengeTitle = (data['challengeTitle'] ?? '').toString();
-    final bool isChallengeVideo = resolvedChallengeId.isNotEmpty ||
-        title == 'Відео челенджу' ||
+    final bool isChallengeVideo = title == 'Відео челенджу' ||
         description == 'Відео челенджу' ||
         (data['isChallengeVideo'] == true);
     final bool hasChallengeInfo = isChallengeVideo || resolvedChallengeTitle.isNotEmpty;
-
-    if (hasChallengeInfo && resolvedChallengeId.isEmpty) {
-      final cachedMeta = _challengeMetaCache[videoId];
-      if (cachedMeta != null) {
-        resolvedChallengeId = cachedMeta.challengeId;
-        if (resolvedChallengeTitle.isEmpty) {
-          resolvedChallengeTitle = cachedMeta.title;
-        }
-      } else if (!_challengeMetaLoading.contains(videoId) &&
-          !_challengeMetaDenied.contains(videoId)) {
-        _prefetchChallengeMetaForVideo(videoId);
-      }
-    }
 
     final bool hasChallengeLink = resolvedChallengeId.isNotEmpty;
     final String challengeLabel = resolvedChallengeTitle.isNotEmpty
@@ -2270,9 +2142,10 @@ Widget build(BuildContext context) {
       'currentParticipants': row['current_participants'] ?? 0,
       'prizePool': row['prize_pool'] ?? 0.0,
       'participants': row['participants'] ?? const <String>[],
-      'creatorVideoUrl': row['creator_video_url'],
-      'creatorThumbnailUrl': row['creator_thumbnail_url'],
-      'thumbnailUrl': row['thumbnail_url'],
+      'creatorVideoUrl': row['video_url'] ?? row['creator_video_url'],
+      'creatorThumbnailUrl':
+          row['video_thumbnail_url'] ?? row['creator_thumbnail_url'] ?? row['thumbnail_url'],
+      'thumbnailUrl': row['video_thumbnail_url'] ?? row['thumbnail_url'],
       'imageUrl': row['image_url'],
       'isActive': row['is_active'] ?? true,
       'tags': row['tags'] ?? const <String>[],
@@ -2918,15 +2791,15 @@ Widget build(BuildContext context) {
   // Мої відео
   Widget _buildMyVideosList() {
     final currentUser = AppAuth.currentUser;
-    if (currentUser == null) return const SizedBox.shrink();
+    if (currentUser == null) {
+      return const SizedBox.shrink();
+    }
 
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _sb
-          .from('videos')
-          .stream(primaryKey: ['id'])
-          .eq('user_id', currentUser.id)
-          .order('created_at', ascending: false)
-          .map((rows) => rows.map(_mapVideoRow).toList()),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      key: ValueKey<String>(
+        'my-videos-feed-$_videoFeedStateKey',
+      ),
+      future: _memoizedMyListFuture(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -2941,9 +2814,9 @@ Widget build(BuildContext context) {
               ),
             ),
           );
-                  }
+        }
 
-        final videos = _filterAndSortVideoDocs(snapshot.data ?? const []);
+        final videos = snapshot.data ?? const <Map<String, dynamic>>[];
 
         if (videos.isEmpty) {
           return Center(
@@ -3065,12 +2938,23 @@ Widget build(BuildContext context) {
         } catch (_) {}
       }
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _myVideosRefreshToken++;
+        _cachedMyListKey = null;
+        _cachedMyListFuture = null;
+        _cachedMainListKey = null;
+        _cachedMainListFuture = null;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(tr('il_fbb5de3b38'))),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -3083,8 +2967,11 @@ Widget build(BuildContext context) {
 
   // Трендові відео
   Widget _buildTrendingVideos() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _videosStream,
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      key: ValueKey<String>(
+        'vm-trending-$_videoFeedStateKey',
+      ),
+      future: _memoizedMainListFuture(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -3101,7 +2988,7 @@ Widget build(BuildContext context) {
           );
         }
 
-        final videos = _filterAndSortVideoDocs(snapshot.data ?? const []);
+        final videos = snapshot.data ?? const <Map<String, dynamic>>[];
 
         if (videos.isEmpty) {
           return Center(
@@ -4170,14 +4057,3 @@ class _CachedUserProfile {
     required this.city,
   });
 }
-
-class _CachedChallengeMeta {
-  final String challengeId;
-  final String title;
-
-  const _CachedChallengeMeta({
-    required this.challengeId,
-    required this.title,
-  });
-}
-

@@ -91,6 +91,16 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     keywords: ['tackle', 'підкат', 'відбір', 'interception'],
   ),
   VideoCategoryDefinition(
+    id: 'defending',
+    labelUk: 'Захист',
+    labelEn: 'Defending',
+    descriptionUk: 'Оборонні дії, блоки, позиційна гра',
+    descriptionEn: 'Defensive actions, blocks and positioning',
+    color: Color(0xFF607D8B),
+    keywords: ['defending', 'defense', 'захист', 'оборона', 'block'],
+    showInQuickFilters: true,
+  ),
+  VideoCategoryDefinition(
     id: 'penalty',
     labelUk: 'Пенальті',
     labelEn: 'Penalty',

@@ -6,9 +6,14 @@ import '../../../../core/auth/app_auth.dart';
 /// Loads challenge submissions and the current user's ratings via standard selects
 /// (no Realtime `.stream`), with optional refresh after mutations.
 class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
-  ChallengeDetailsCubit(this._challengeId) : super(const ChallengeDetailsState());
+  ChallengeDetailsCubit(
+    this._challengeId, {
+    String? challengeCreatorId,
+  })  : _challengeCreatorId = challengeCreatorId ?? '',
+        super(const ChallengeDetailsState());
 
   final String _challengeId;
+  final String _challengeCreatorId;
   SupabaseClient get _sb => Supabase.instance.client;
 
   /// Loads data. Skips network if [force] is false and we already have rows for this challenge.
@@ -66,14 +71,14 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
   Future<void> refresh() => load(force: true);
 
   Map<String, dynamic> _mapSubmissionRow(Map<String, dynamic> row) {
+    final uid = row['user_id']?.toString() ?? '';
     return <String, dynamic>{
       'id': row['id']?.toString() ?? '',
       'title': row['title'] ?? '',
-      'userId': row['user_id']?.toString() ?? '',
+      'userId': uid,
       'videoUrl': row['video_url'] ?? '',
-      'videoId': row['video_id']?.toString() ?? '',
       'thumbnailUrl': row['thumbnail_url'] ?? '',
-      'isCreatorVideo': row['is_creator_video'] ?? false,
+      'isCreatorVideo': _challengeCreatorId.isNotEmpty && uid == _challengeCreatorId,
       'averageRating': row['average_rating'] ?? 0.0,
       'voteCount': row['vote_count'] ?? 0,
       'createdAt': row['created_at'],

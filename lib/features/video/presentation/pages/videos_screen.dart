@@ -11,6 +11,8 @@ import '../../../notifications/data/services/notification_service.dart';
 import '../../../../widgets/video_preview_box.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import '../../../../core/supabase/supabase_date.dart';
+import '../../../../core/supabase/public_video_feed.dart';
+import '../../../../constants/video_categories.dart';
 
 @RoutePage()
 class VideosScreen extends StatefulWidget {
@@ -28,6 +30,8 @@ class _VideosScreenState extends State<VideosScreen> {
   String _selectedRating = '';
   String _selectedTab = 'all'; // all, trending, my
   String _selectedSortKey = 'new'; // new, rating, views
+  String? _cachedListKey;
+  Future<List<Map<String, dynamic>>>? _cachedListFuture;
 
   List<String> get _cities => [
     tr('all_cities'),
@@ -180,10 +184,11 @@ class _VideosScreenState extends State<VideosScreen> {
             ),
           ),
 
-          // Videos list
+          // Videos list (filter/sort in Postgres via [get_videos_feed])
           Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _getVideosStream(),
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              key: ValueKey<String>(_feedStateKey),
+              future: _memoizedVideoList(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -191,73 +196,25 @@ class _VideosScreenState extends State<VideosScreen> {
                   );
                 }
 
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return _buildEmptyState();
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      snapshot.error.toString(),
+                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                  );
                 }
 
-                final currentUser = AppAuth.currentUser;
-                final allRows = snapshot.data!;
-
-                // Клієнтська фільтрація для стабільності без індексів
-                var rows = allRows.where((data) {
-                  
-                  // Виключаємо відео з челенджів
-                  final title = (data['title'] ?? '').toString();
-                  final description = (data['description'] ?? '').toString();
-                  if (title == 'Відео створювача' || 
-                      title == 'Відео челенджу' ||
-                      description == 'Відео челенджу') {
-                    return false; // Виключаємо відео з челенджів
-                  }
-                  
-                  if ((_selectedTab == 'my' || widget.showOnlyMyVideos) && currentUser != null) {
-                    if ((data['userId'] ?? '') != currentUser.id) return false;
-                  }
-                  if (_selectedCity.isNotEmpty && _selectedCity != tr('all_cities')) {
-                    if ((data['city'] ?? '') != _selectedCity) return false;
-                  }
-                  if (_selectedCategories.isNotEmpty) {
-                    final category = (data['category'] ?? '').toString();
-                    if (!_selectedCategories.contains(category)) return false;
-                  }
-                  return true;
-                }).toList();
-
-                // Сортування
-                rows.sort((ad, bd) {
-                  switch (_selectedSortKey) {
-                    case 'rating':
-                      final ar = (ad['rating'] ?? 0.0) as num;
-                      final br = (bd['rating'] ?? 0.0) as num;
-                      return br.compareTo(ar);
-                    case 'views':
-                      final av = (ad['views'] ?? 0) as num;
-                      final bv = (bd['views'] ?? 0) as num;
-                      return bv.compareTo(av);
-                    case 'new':
-                    default:
-                      final at = asDateTimeOrNull(ad['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
-                      final bt = asDateTimeOrNull(bd['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
-                      return bt.compareTo(at);
-                  }
-                });
-
-                if (_selectedTab == 'trending') {
-                  rows.sort((a, b) {
-                    final ad = a;
-                    final bd = b;
-                    final alikes = (ad['likes'] ?? 0) as int;
-                    final blikes = (bd['likes'] ?? 0) as int;
-                    return blikes.compareTo(alikes);
-                  });
+                final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+                if (rows.isEmpty) {
+                  return _buildEmptyState();
                 }
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: rows.length,
                   itemBuilder: (context, index) {
-                    final videoData = rows[index];
-                    return _buildVideoCard(videoData);
+                    return _buildVideoCard(rows[index]);
                   },
                 );
               },
@@ -267,6 +224,83 @@ class _VideosScreenState extends State<VideosScreen> {
       ),
       // Видаляю FloatingActionButton - він вже є в MainScreen
     );
+  }
+
+  String get _feedStateKey => [
+        _selectedTab,
+        widget.showOnlyMyVideos,
+        _selectedCity,
+        _selectedCategories.join(','),
+        _selectedRating,
+        _selectedSortKey,
+      ].join('|');
+
+  double? _minRatingParam() {
+    if (_selectedRating.isEmpty) {
+      return null;
+    }
+    if (_selectedRating == tr('all_ratings')) {
+      return null;
+    }
+    final p = double.tryParse(_selectedRating.replaceAll('+', ''));
+    if (p == null || p <= 0) {
+      return null;
+    }
+    return p;
+  }
+
+  List<String> _categoryCodes() {
+    if (_selectedCategories.isEmpty) {
+      return <String>[];
+    }
+    final all = tr('all_categories');
+    return _selectedCategories
+        .where((c) => c != all)
+        .map((c) => normalizeVideoCategoryValue(c))
+        .toList();
+  }
+
+  VideoFeedSort _sortForScreen() {
+    if (_selectedTab == 'trending') {
+      return VideoFeedSort.likesDesc;
+    }
+    switch (_selectedSortKey) {
+      case 'rating':
+        return VideoFeedSort.ratingDesc;
+      case 'views':
+        return VideoFeedSort.viewsDesc;
+      case 'new':
+      default:
+        return VideoFeedSort.newest;
+    }
+  }
+
+  VideoFeedParams _buildFeedParams() {
+    final uid = AppAuth.currentUser;
+    final onlyMe = (widget.showOnlyMyVideos || _selectedTab == 'my') && uid != null
+        ? uid.id
+        : null;
+    return VideoFeedParams(
+      onlyUserId: onlyMe,
+      categoryCodes: _categoryCodes(),
+      minAvgRating: _minRatingParam(),
+      cityKey: videoFeedCityKey(
+        _selectedCity,
+        allCitiesValue: tr('all_cities'),
+      ),
+      excludeChallengeRelated: true,
+      sort: _sortForScreen(),
+      limit: 100,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _memoizedVideoList() {
+    final k = _feedStateKey;
+    if (_cachedListKey == k) {
+      return _cachedListFuture!;
+    }
+    _cachedListKey = k;
+    return _cachedListFuture = getVideosFromDatabase(_sb, _buildFeedParams());
   }
 
   Widget _buildTab(String text, String value) {
@@ -323,33 +357,6 @@ class _VideosScreenState extends State<VideosScreen> {
         },
       ),
     );
-  }
-
-  Stream<List<Map<String, dynamic>>> _getVideosStream() {
-    return _sb
-        .from('videos')
-        .stream(primaryKey: ['id'])
-        .order('created_at', ascending: false)
-        .limit(50)
-        .map((rows) => rows.map(_mapVideoRow).toList());
-  }
-
-  Map<String, dynamic> _mapVideoRow(Map<String, dynamic> row) {
-    return <String, dynamic>{
-      'id': row['id']?.toString() ?? '',
-      'title': row['title'],
-      'description': row['description'],
-      'userId': row['user_id']?.toString() ?? '',
-      'videoUrl': row['video_url'],
-      'thumbnailUrl': row['thumbnail_url'],
-      'createdAt': row['created_at'],
-      'category': row['category'] ?? row['category_code'] ?? '',
-      'city': row['city'] ?? '',
-      'rating': (row['rating'] as num?)?.toDouble() ?? 0.0,
-      'likes': (row['likes'] as num?)?.toInt() ?? 0,
-      'views': (row['views'] as num?)?.toInt() ?? 0,
-      'duration': row['duration'],
-    };
   }
 
   Widget _buildEmptyState() {

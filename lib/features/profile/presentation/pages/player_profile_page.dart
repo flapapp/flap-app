@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/locale/football_position.dart';
+import '../../../../utils/city_catalog.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../../../badges/data/models/badge.dart' as app_badge;
 import '../../../auth/domain/repositories/auth_session_repository.dart';
@@ -401,36 +403,6 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     );
   }
 
-  String _localizedPosition(String? raw) {
-  final value = (raw ?? '').toString().trim().toLowerCase();
-
-  switch (value) {
-    case 'воротар':
-    case 'goalkeeper':
-      return tr('il_f2d20c7ee1');
-
-    case 'захисник':
-    case 'defender':
-      return tr('il_157ddc59b5');
-
-    case 'півзахисник':
-    case 'midfielder':
-      return tr('il_d332e47845');
-
-    case 'нападник':
-    case 'forward':
-      return tr('il_f1c65e1481');
-
-    case 'універсал':
-    case 'utility player':
-      return tr('il_ab28eea9ef');
-
-    default:
-      return (raw ?? '').toString();
-  }
-}
-
-
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -483,8 +455,12 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                          playerData!['authorName'] ?? 
                          playerData!['email']?.toString().split('@').first ?? 
                          tr('player')).toString();
-    final position = _localizedPosition(playerData!['position']?.toString());
-    final city = playerData!['city'] ?? '';
+    final position = positionLabelForDisplay(
+      playerData!['position']?.toString(),
+    );
+    final cityLabel = CityCatalog.labelForDisplay(
+      (playerData!['city'] ?? '').toString(),
+    );
     final rating = (playerData!['rating'] ?? 0.0).toDouble();
     final matchesFromProfile = ((playerData!['totalMatches'] ?? playerData!['matches'] ?? playerData!['matchesPlayed'] ?? 0) as num).toInt();
     final averageRating = (playerData!['averageRating'] ?? rating).toDouble();
@@ -541,13 +517,13 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 child: Text('⚽ $position', style: const TextStyle(color: Colors.white)),
               ),
             const SizedBox(height: 12),
-            if (city.isNotEmpty)
+            if (cityLabel.isNotEmpty)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.location_on, color: Colors.white70, size: 16),
                   const SizedBox(width: 4),
-                  Text(city, style: const TextStyle(color: Colors.white70)),
+                  Text(cityLabel, style: const TextStyle(color: Colors.white70)),
                 ],
               ),
             const SizedBox(height: 20),

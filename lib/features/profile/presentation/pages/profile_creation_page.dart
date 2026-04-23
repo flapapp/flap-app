@@ -10,7 +10,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/locale/football_position.dart';
+import '../../../../utils/city_catalog.dart';
 import '../../../../core/error/failure.dart';
+import '../../../../core/progress/progress_status.dart';
 import '../../../../core/usecases/no_params.dart';
 import '../../../../router/app_router.dart';
 import '../../../auth/domain/repositories/auth_session_repository.dart';
@@ -136,18 +139,33 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
     }
   }
 
-  /// Maps DB / legacy text to the dropdown `value` (Ukrainian canonical).
+  /// Maps DB (English) / legacy (UK/tr) to the dropdown `value` (Ukrainian canonical).
   String? _canonicalDropdownValue(
     String? stored,
     List<String> uk,
     List<String> trKeys,
   ) {
-    if (stored == null) return null;
+    if (stored == null) {
+      return null;
+    }
     final s = stored.trim();
-    if (s.isEmpty) return null;
+    if (s.isEmpty) {
+      return null;
+    }
+    final pEn = positionToEnglishDb(s);
+    for (var i = 0; i < uk.length && i < trKeys.length; i++) {
+      if (pEn == positionToEnglishDb(uk[i]) ||
+          pEn == positionToEnglishDb(tr(trKeys[i]))) {
+        return uk[i];
+      }
+    }
     for (var i = 0; i < uk.length; i++) {
-      if (s == uk[i]) return uk[i];
-      if (i < trKeys.length && s == tr(trKeys[i])) return uk[i];
+      if (s == uk[i]) {
+        return uk[i];
+      }
+      if (i < trKeys.length && s == tr(trKeys[i])) {
+        return uk[i];
+      }
     }
     return null;
   }
@@ -176,7 +194,9 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
             } else {
               _surnameController.text = userData['surname']?.toString() ?? '';
             }
-            _cityController.text = userData['city']?.toString() ?? '';
+            _cityController.text = CityCatalog.labelForDisplay(
+              (userData['city'] ?? '').toString(),
+            );
             _dateOfBirth = _parseDateOfBirthFromDocument(userData);
             _selectedPosition = _canonicalDropdownValue(
               userData['position']?.toString(),
@@ -246,6 +266,9 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
 
   @override
   Widget build(BuildContext context) {
+    final submitting = context.select<ProfileCreationCubit, bool>(
+      (cubit) => cubit.state.submitProgress == ProgressStatus.loading,
+    );
     final baseTheme = Theme.of(context);
     final robotoTextTheme = GoogleFonts.robotoTextTheme(baseTheme.textTheme);
     final robotoFamily = GoogleFonts.roboto().fontFamily;
@@ -647,7 +670,9 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
                               width: 2,
                             ),
                           ),
-                          onPressed: () => context.router.maybePop(),
+                          onPressed: submitting
+                              ? null
+                              : () => context.router.maybePop(),
                           child: Text(
                             tr('il_19766ed6cc'),
                             style: TextStyle(
@@ -669,7 +694,9 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
                             ),
                             backgroundColor: const Color(0xFF4caf50),
                           ),
-                          onPressed: () async {
+                          onPressed: submitting
+                              ? null
+                              : () async {
                             if (_dateOfBirth == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -743,17 +770,26 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
                               },
                             );
                           },
-                          child: Text(
-                            widget.isEditing
-                                ? tr('il_dd0ae7a5cb')
-                                : tr('il_61d30d997d'),
-                            style: TextStyle(
-                              fontFamily: robotoFamily,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Colors.white,
-                            ),
-                          ),
+                          child: submitting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  widget.isEditing
+                                      ? tr('il_dd0ae7a5cb')
+                                      : tr('il_61d30d997d'),
+                                  style: TextStyle(
+                                    fontFamily: robotoFamily,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
                       ),
                     ],

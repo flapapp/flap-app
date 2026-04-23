@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:rxdart/rxdart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/locale/football_position.dart';
+import '../../../../utils/city_catalog.dart';
 import '../supabase/profile_document_loader.dart';
 import 'profile_remote_datasource.dart';
 
@@ -72,10 +74,19 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
       row['last_name'] = lastName;
     }
     if (patch['city'] is String) {
-      row['city'] = patch['city'];
+      final c = (patch['city'] as String).trim();
+      if (c.isEmpty) {
+        row['city'] = c;
+      } else {
+        final en = CityCatalog.toEnglishStorageKey(c);
+        row['city'] = (en != null && en.isNotEmpty) ? en : c;
+      }
     }
     if (patch['position'] is String) {
-      row['position'] = patch['position'];
+      final p = positionToEnglishDb(patch['position'] as String);
+      if (p != null) {
+        row['position'] = p;
+      }
     }
     final dob = patch['dateOfBirth'];
     if (dob is DateTime) {

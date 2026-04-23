@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_app_storage.dart';
+import '../../../../utils/city_catalog.dart';
 import '../../data/models/app_team.dart';
 import '../../data/models/team_invite.dart';
 import '../../data/models/team_join_request.dart';
@@ -127,7 +128,9 @@ class TeamService {
         .insert(<String, dynamic>{
           'name': name,
           'description': description,
-          'city': city,
+          'city': (city == null || city.isEmpty)
+              ? city
+              : (CityCatalog.toEnglishStorageKey(city) ?? city),
           'is_public': isPublic,
           'created_by': user.id,
         })
@@ -198,7 +201,11 @@ class TeamService {
     final updates = <String, dynamic>{};
     if (name != null) updates['name'] = name;
     if (description != null) updates['description'] = description;
-    if (city != null) updates['city'] = city;
+    if (city != null) {
+      updates['city'] = city.isEmpty
+          ? city
+          : (CityCatalog.toEnglishStorageKey(city) ?? city);
+    }
     if (isPublic != null) updates['is_public'] = isPublic;
     if (updates.isNotEmpty) {
       await _sb.from('teams').update(updates).eq('id', teamId);

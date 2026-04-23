@@ -8,6 +8,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/locale/football_position.dart';
+import '../../../../utils/city_catalog.dart';
 import '../../../../core/progress/progress_status.dart';
 import '../../../../router/app_router.dart';
 import '../../../auth/domain/repositories/auth_session_repository.dart';
@@ -782,7 +784,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${_getPositionDisplay(userData['position'])} • ${userData['city'] ?? 'Earth'}',
+                              '${positionLabelForDisplay(userData['position']?.toString())} • ${CityCatalog.labelForDisplay((userData['city'] ?? '').toString())}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -1384,21 +1386,6 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     if (rating >= 2.5) return const Color(0xFFFFC107);
     if (rating >= 1.5) return const Color(0xFFFF9800);
     return const Color(0xFFF44336);
-  }
-
-  String _getPositionDisplay(String? position) {
-    switch (position?.toLowerCase()) {
-      case 'goalkeeper':
-        return bilingual('🥅 Воротар', '🥅 Goalkeeper');
-      case 'defender':
-        return bilingual('🛡️ Захисник', '🛡️ Defender');
-      case 'midfielder':
-        return bilingual('⚽ Півзахисник', '⚽ Midfielder');
-      case 'forward':
-        return bilingual('🎯 Нападник', '🎯 Forward');
-      default:
-        return '⚽ ${tr('player')}';
-    }
   }
 
   Future<void> _endorseBadge(String userId, app_badge.Badge badge) async {

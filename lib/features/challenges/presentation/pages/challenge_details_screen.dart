@@ -45,7 +45,10 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => ChallengeDetailsCubit(widget.challenge.id)..load(),
+      create: (_) => ChallengeDetailsCubit(
+            widget.challenge.id,
+            challengeCreatorId: widget.challenge.creatorId,
+          )..load(),
       child: Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
       appBar: AppBar(
@@ -297,7 +300,6 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         ? data['voteCount'] as int
         : int.tryParse('${data['voteCount'] ?? 0}') ?? 0;
     String thumb = (data['thumbnailUrl'] ?? '') as String;
-    final videoDocId = data['videoId'] ?? '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -306,7 +308,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         children: [
           // Прев'ю відео - займає весь простір (як на YouTube)
           FutureBuilder<String?>(
-            future: _getThumbnailUrl(thumb, videoDocId, videoUrl),
+            future: _getThumbnailUrl(thumb, videoId, videoUrl, userId),
             builder: (context, snapshot) {
               final effectiveThumb = snapshot.data ?? thumb;
               return VideoPreviewBox(
@@ -449,9 +451,8 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     final voteCount = (data['voteCount'] is int)
         ? data['voteCount'] as int
         : int.tryParse('${data['voteCount'] ?? 0}') ?? 0;
-    // Отримуємо thumbnailUrl з submission, якщо немає - спробуємо з основного відео документа
     String thumb = (data['thumbnailUrl'] ?? '') as String;
-    final videoDocId = data['videoId'] ?? '';
+    final submissionId = data['id']?.toString() ?? '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -584,7 +585,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
           // Voting section - exactly like MVP (video preview comes first, then voting controls)
           FutureBuilder<String?>(
-            future: _getThumbnailUrl(thumb, videoDocId, videoUrl),
+            future: _getThumbnailUrl(thumb, submissionId, videoUrl, userId),
             builder: (context, snapshot) {
               final effectiveThumb = snapshot.data ?? thumb;
               return _buildVotingSection(
@@ -1233,56 +1234,34 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  // Отримує thumbnailUrl: спочатку з submission, потім з основного відео документа, якщо немає - генеруємо
-  Future<String?> _getThumbnailUrl(String submissionThumb, String videoDocId, String videoUrl) async {
-    // Якщо є thumbnail в submission, повертаємо його
+  Future<String?> _getThumbnailUrl(
+    String submissionThumb,
+    String submissionId,
+    String videoUrl,
+    String participantUserId,
+  ) async {
     if (submissionThumb.isNotEmpty) {
       return submissionThumb;
     }
-    
-    // Якщо є videoId, спробуємо отримати thumbnail з основного відео документа
-    if (videoDocId.isNotEmpty) {
-      try {
-        final videoDoc = await _sb
-            .from('videos')
-            .select('thumbnail_url')
-            .eq('id', videoDocId)
-            .maybeSingle();
-        final videoThumb = (videoDoc?['thumbnail_url'] ?? '') as String;
-        if (videoThumb.isNotEmpty) {
-          // Оновлюємо submission з thumbnailUrl з основного відео
-          try {
-            await _sb
-                .from('challenge_submissions')
-                .update({'thumbnail_url': videoThumb})
-                .eq('id', videoDocId);
-          } catch (_) {}
-          return videoThumb;
-        }
-      } catch (e) {
-        print('⚠️ Error getting thumbnail from video doc: $e');
-      }
-    }
-    
-    // Якщо немає thumbnail, спробуємо згенерувати його
-    if (videoUrl.isNotEmpty && videoDocId.isNotEmpty) {
+    if (videoUrl.isNotEmpty && submissionId.isNotEmpty) {
       try {
         final thumbnailService = ThumbnailService();
-        final userId = AppAuth.currentUserId ?? '';
+        final uploader = participantUserId.isNotEmpty
+            ? participantUserId
+            : (AppAuth.currentUserId ?? '');
         final thumbnailUrl = await thumbnailService.generateSubmissionThumbnail(
           videoUrl: videoUrl,
           challengeId: widget.challenge.id,
-          submissionId: videoDocId,
-          userId: userId,
+          submissionId: submissionId,
+          userId: uploader,
         );
         if (thumbnailUrl != null && thumbnailUrl.isNotEmpty) {
           return thumbnailUrl;
         }
       } catch (e) {
-        print('⚠️ Error generating thumbnail: $e');
+        print('⚠️ Error generating submission thumbnail: $e');
       }
     }
-    
     return null;
   }
 
