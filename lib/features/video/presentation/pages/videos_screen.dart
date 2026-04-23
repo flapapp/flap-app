@@ -25,6 +25,9 @@ class VideosScreen extends StatefulWidget {
 
 class _VideosScreenState extends State<VideosScreen> {
   final SupabaseClient _sb = Supabase.instance.client;
+  final Map<String, Map<String, String>> _commentUserProfileCache =
+      <String, Map<String, String>>{};
+  final Set<String> _commentUserProfileLoading = <String>{};
   String _selectedCity = '';
   final Set<String> _selectedCategories = <String>{};
   String _selectedRating = '';
@@ -423,18 +426,11 @@ class _VideosScreenState extends State<VideosScreen> {
     }
   }
 
-  Future<void> _toggleLike(String videoId) async {
+  Future<void> _toggleLike(String videoId, bool isCurrentlyLiked) async {
     final uid = AppAuth.currentUserId;
     if (uid == null) return;
     try {
-      final likeDoc = await _sb
-          .from('video_likes')
-          .select('video_id')
-          .eq('video_id', videoId)
-          .eq('user_id', uid)
-          .maybeSingle();
-      final isLiked = likeDoc != null;
-      if (isLiked) {
+      if (isCurrentlyLiked) {
         await _sb
             .from('video_likes')
             .delete()
@@ -560,10 +556,16 @@ class _VideosScreenState extends State<VideosScreen> {
       ),
       isScrollControlled: true,
       builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.7,
-          child: Column(
-            children: [
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.7,
+            child: Column(
+              children: [
               // Header
               Container(
                 padding: const EdgeInsets.all(20),
@@ -608,19 +610,19 @@ class _VideosScreenState extends State<VideosScreen> {
                     final comments = snapshot.data!;
                     
                     if (comments.isEmpty) {
-                      return const Center(
+                      return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.comment_outlined, size: 64, color: Colors.white54),
-                            SizedBox(height: 16),
+                            const Icon(Icons.comment_outlined, size: 64, color: Colors.white54),
+                            const SizedBox(height: 16),
                             Text(
-                              'Поки немає коментарів',
-                              style: TextStyle(color: Colors.white70, fontSize: 16),
+                              tr('il_6b25808365'),
+                              style: const TextStyle(color: Colors.white70, fontSize: 16),
                             ),
                             Text(
-                              'Будьте першим!',
-                              style: TextStyle(color: Colors.white54, fontSize: 14),
+                              tr('il_comment_empty_cta'),
+                              style: const TextStyle(color: Colors.white54, fontSize: 14),
                             ),
                           ],
                         ),
@@ -633,6 +635,7 @@ class _VideosScreenState extends State<VideosScreen> {
                       itemBuilder: (context, index) {
                         final raw = comments[index];
                         final commentData = <String, dynamic>{
+                          'userId': (raw['user_id'] ?? '').toString(),
                           'authorName': raw['author_name'] ?? tr('il_b764cdc0ea'),
                           'text': raw['body'] ?? '',
                           'createdAt': raw['created_at'],
@@ -645,19 +648,21 @@ class _VideosScreenState extends State<VideosScreen> {
               ),
               
               // Add comment
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
-                ),
-                child: Row(
-                  children: [
+              SafeArea(
+                top: false,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
+                  ),
+                  child: Row(
+                    children: [
                     Expanded(
                       child: TextField(
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
-                          hintText: 'Додати коментар...',
+                          hintText: tr('il_23c5f33170'),
                           hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(20),
@@ -686,18 +691,63 @@ class _VideosScreenState extends State<VideosScreen> {
                         icon: const Icon(Icons.send, color: Colors.white, size: 20),
                       ),
                     ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
+            ),
           ),
         );
       },
     );
   }
 
+  Future<void> _prefetchCommentUserProfile(String userId) async {
+    if (userId.isEmpty ||
+        _commentUserProfileCache.containsKey(userId) ||
+        _commentUserProfileLoading.contains(userId)) {
+      return;
+    }
+    _commentUserProfileLoading.add(userId);
+    try {
+      final data = await _sb
+              .from('profiles')
+              .select('display_name, avatar_url, email')
+              .eq('id', userId)
+              .maybeSingle() ??
+          const <String, dynamic>{};
+      final name = (data['display_name'] ??
+              data['email']?.toString().split('@').first ??
+              tr('il_b764cdc0ea'))
+          .toString()
+          .trim();
+      final avatarUrl = (data['avatar_url'] ?? '').toString();
+      if (!mounted) return;
+      setState(() {
+        _commentUserProfileCache[userId] = <String, String>{
+          'name': name.isNotEmpty ? name : tr('il_b764cdc0ea'),
+          'avatarUrl': avatarUrl,
+        };
+      });
+    } catch (_) {
+      // Ignore comment profile prefetch failures.
+    } finally {
+      _commentUserProfileLoading.remove(userId);
+    }
+  }
+
   Widget _buildCommentItem(Map<String, dynamic> commentData) {
-    final authorName = commentData['authorName'] ?? 'Користувач';
+    final userId = (commentData['userId'] ?? '').toString();
+    final cachedProfile = userId.isNotEmpty ? _commentUserProfileCache[userId] : null;
+    final authorName = (cachedProfile?['name'] ??
+            commentData['authorName'] ??
+            tr('il_b764cdc0ea'))
+        .toString();
+    final authorAvatarUrl = (cachedProfile?['avatarUrl'] ?? '').toString();
+    if (userId.isNotEmpty && cachedProfile == null) {
+      _prefetchCommentUserProfile(userId);
+    }
     final text = commentData['text'] ?? '';
     final createdAt = asDateTimeOrNull(commentData['createdAt']);
     final timeAgo = createdAt != null ? _formatTimeAgo(createdAt) : '';
@@ -717,32 +767,45 @@ class _VideosScreenState extends State<VideosScreen> {
               CircleAvatar(
                 radius: 16,
                 backgroundColor: const Color(0xFF4caf50),
-                child: Text(
-                  authorName.isNotEmpty ? authorName[0].toUpperCase() : 'U',
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                ),
+                backgroundImage:
+                    authorAvatarUrl.isNotEmpty ? NetworkImage(authorAvatarUrl) : null,
+                child: authorAvatarUrl.isEmpty
+                    ? Text(
+                        authorName.isNotEmpty ? authorName[0].toUpperCase() : 'U',
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      )
+                    : null,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      authorName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (timeAgo.isNotEmpty)
-                      Text(
-                        timeAgo,
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            authorName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (timeAgo.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            timeAgo,
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -938,7 +1001,7 @@ class _VideosScreenState extends State<VideosScreen> {
                           builder: (context, likeSnap) {
                             final isLiked = (likeSnap.data?.isNotEmpty ?? false);
                             return IconButton(
-                              onPressed: () => _toggleLike(videoId),
+                              onPressed: () => _toggleLike(videoId, isLiked),
                               icon: Icon(
                                 isLiked ? Icons.favorite : Icons.favorite_border,
                                 color: isLiked ? Colors.red : Colors.white70,

@@ -376,10 +376,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           .toSet()
           .toList();
       final nameById = <String, String>{};
+      final avatarById = <String, String>{};
       if (userIds.isNotEmpty) {
         final users = await _sb
             .from('profiles')
-            .select('id, display_name, email')
+            .select('id, display_name, avatar_url, email')
             .inFilter('id', userIds);
         for (final raw in users as List<dynamic>) {
           final u = raw as Map<String, dynamic>;
@@ -387,6 +388,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                   u['email']?.toString().split('@').first ??
                   tr('il_b764cdc0ea'))
               .toString();
+          avatarById[u['id'].toString()] = (u['avatar_url'] ?? '').toString();
         }
       }
 
@@ -397,7 +399,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         comments.add({
           'id': data['id'],
           'text': data['body'] ?? '',
+          'userId': authorId,
           'authorName': nameById[authorId] ?? tr('il_b764cdc0ea'),
+          'authorAvatarUrl': avatarById[authorId] ?? '',
           'createdAt': data['created_at'],
         });
       }
@@ -858,13 +862,19 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.3,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => Column(
-          children: [
+      builder: (context) => AnimatedPadding(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) => Column(
+            children: [
             // Handle bar
             Container(
               margin: const EdgeInsets.only(top: 8, bottom: 16),
@@ -897,40 +907,43 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             const SizedBox(height: 16),
             
             // Comment input
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _commentController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: tr('il_23c5f33170'),
-                        hintStyle: const TextStyle(color: Colors.white54),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.1),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(25),
-                          borderSide: BorderSide.none,
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _commentController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: tr('il_23c5f33170'),
+                          hintStyle: const TextStyle(color: Colors.white54),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.1),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(25),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () {
-                      _addComment();
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFF4caf50),
-                      shape: const CircleBorder(),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () {
+                        _addComment();
+                        Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.send, color: Colors.white),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFF4caf50),
+                        shape: const CircleBorder(),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -962,13 +975,50 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Text(
-                                    comment['authorName'],
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                  Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 12,
+                                        backgroundColor: const Color(0xFF4caf50),
+                                        backgroundImage: (comment['authorAvatarUrl'] ?? '')
+                                                .toString()
+                                                .isNotEmpty
+                                            ? NetworkImage(
+                                                (comment['authorAvatarUrl'] ?? '').toString(),
+                                              )
+                                            : null,
+                                        child: (comment['authorAvatarUrl'] ?? '')
+                                                .toString()
+                                                .isEmpty
+                                            ? Text(
+                                                () {
+                                                  final name = (comment['authorName'] ?? '')
+                                                      .toString()
+                                                      .trim();
+                                                  if (name.isEmpty) return 'U';
+                                                  return name[0].toUpperCase();
+                                                }(),
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          (comment['authorName'] ?? tr('il_b764cdc0ea'))
+                                              .toString(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   const Spacer(),
                                   Text(
@@ -994,7 +1044,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       },
                     ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

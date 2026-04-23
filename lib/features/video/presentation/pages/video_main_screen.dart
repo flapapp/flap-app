@@ -50,6 +50,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   final Set<String> _videoRatingLoading = {};
   final Map<String, int> _commentCountCache = {};
   final Set<String> _commentCountLoading = {};
+  final Map<String, int> _likeCountCache = {};
+  final Map<String, bool> _likedByMeCache = {};
+  final Set<String> _likeStateLoading = {};
+  final Set<String> _likeToggleLoading = {};
   final Map<String, _CachedUserProfile> _userProfileCache = {};
   final Set<String> _loadingUserProfiles = {};
   final Map<String, String?> _challengeCreatorThumbCache = {};
@@ -787,6 +791,34 @@ Widget build(BuildContext context) {
       // ignore
     } finally {
       _commentCountLoading.remove(videoId);
+    }
+  }
+
+  void _prefetchLikeState(String videoId) async {
+    final uid = AppAuth.currentUserId;
+    if (uid == null ||
+        _likedByMeCache.containsKey(videoId) ||
+        _likeStateLoading.contains(videoId) ||
+        _likeToggleLoading.contains(videoId)) {
+      return;
+    }
+    _likeStateLoading.add(videoId);
+    try {
+      final likeDoc = await _sb
+          .from('video_likes')
+          .select('video_id')
+          .eq('video_id', videoId)
+          .eq('user_id', uid)
+          .maybeSingle();
+      if (mounted) {
+        setState(() {
+          _likedByMeCache[videoId] = likeDoc != null;
+        });
+      }
+    } catch (_) {
+      // ignore transient errors; keep feed usable
+    } finally {
+      _likeStateLoading.remove(videoId);
     }
   }
 
@@ -1541,6 +1573,11 @@ Widget build(BuildContext context) {
     } else if (!_commentCountLoading.contains(videoId)) {
       _prefetchCommentCount(videoId);
     }
+    int displayLikes = likes.toInt();
+    final cachedLikes = _likeCountCache[videoId];
+    if (cachedLikes != null) {
+      displayLikes = cachedLikes;
+    }
 
     String authorDisplayName = (data['authorName'] ??
             data['displayName'] ??
@@ -1568,7 +1605,13 @@ Widget build(BuildContext context) {
           : tr('il_b764cdc0ea');
     }
     final createdAt = asDateTimeOrNull(data['createdAt']);
-    final isLiked = data['isLikedByCurrentUser'] == true;
+    final bool serverIsLiked = data['isLikedByCurrentUser'] == true;
+    final isLiked = _likedByMeCache[videoId] ?? serverIsLiked;
+    if (AppAuth.currentUserId != null &&
+        !serverIsLiked &&
+        !_likedByMeCache.containsKey(videoId)) {
+      _prefetchLikeState(videoId);
+    }
     final videoUrl = (data['videoUrl'] ?? '').toString();
     final thumbnailUrl = data['thumbnailUrl']?.toString();
     final durationSeconds = data['duration'] is int ? data['duration'] as int : null;
@@ -1793,8 +1836,8 @@ Widget build(BuildContext context) {
                       tooltip: tr('il_64f915cb8b'),
                       iconColor: isLiked ? Colors.redAccent : Colors.white,
                       background: isLiked ? Colors.redAccent.withOpacity(0.15) : Colors.white10,
-                      onPressed: () => _toggleLike(videoId, isLiked),
-                      trailing: likes.toString(),
+                      onPressed: () => _toggleLike(videoId, isLiked, displayLikes),
+                      trailing: displayLikes.toString(),
                     ),
                     const SizedBox(width: 8),
                     _iconCircleButton(
@@ -3174,11 +3217,29 @@ Widget build(BuildContext context) {
   }
 
   // Interactive methods
-  Future<void> _toggleLike(String videoId, bool isCurrentlyLiked) async {
+  Future<void> _toggleLike(
+    String videoId,
+    bool isCurrentlyLiked,
+    int currentDisplayedLikes,
+  ) async {
     final uid = AppAuth.currentUserId;
     if (uid == null) return;
+    if (_likeToggleLoading.contains(videoId)) return;
+    final previousLiked = _likedByMeCache[videoId] ?? isCurrentlyLiked;
+    final previousCount = _likeCountCache[videoId];
+    final currentCount = previousCount ?? currentDisplayedLikes;
+    final nextCount = previousLiked
+        ? (currentCount - 1).clamp(0, 1 << 30)
+        : currentCount + 1;
+    _likeToggleLoading.add(videoId);
+    if (mounted) {
+      setState(() {
+        _likedByMeCache[videoId] = !previousLiked;
+        _likeCountCache[videoId] = nextCount;
+      });
+    }
     try {
-      if (isCurrentlyLiked) {
+      if (previousLiked) {
         await _sb
             .from('video_likes')
             .delete()
@@ -3190,7 +3251,27 @@ Widget build(BuildContext context) {
           'user_id': uid,
         });
       }
+      final likes = await _sb
+          .from('video_likes')
+          .select('user_id')
+          .eq('video_id', videoId);
+      if (mounted) {
+        setState(() {
+          _likeCountCache[videoId] = (likes as List<dynamic>).length;
+          _likedByMeCache[videoId] = !previousLiked;
+        });
+      }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _likedByMeCache[videoId] = previousLiked;
+          if (previousCount == null) {
+            _likeCountCache.remove(videoId);
+          } else {
+            _likeCountCache[videoId] = previousCount;
+          }
+        });
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -3199,6 +3280,9 @@ Widget build(BuildContext context) {
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      _likeToggleLoading.remove(videoId);
+      if (mounted) setState(() {});
     }
   }
 
@@ -3211,9 +3295,15 @@ Widget build(BuildContext context) {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: const BoxDecoration(
+      builder: (context) => AnimatedPadding(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -3224,7 +3314,7 @@ Widget build(BuildContext context) {
             topRight: Radius.circular(25),
           ),
         ),
-        child: Column(
+          child: Column(
           children: [
             // Handle bar
             Container(
@@ -3286,7 +3376,7 @@ Widget build(BuildContext context) {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Поки що немає коментарів',
+                            tr('il_6b25808365'),
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 16,
@@ -3294,7 +3384,7 @@ Widget build(BuildContext context) {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Будьте першим, хто залишить коментар!',
+                            tr('il_comment_empty_cta'),
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.6),
                               fontSize: 14,
@@ -3315,8 +3405,18 @@ Widget build(BuildContext context) {
                           (comment['comment'] ?? comment['text'] ?? comment['body'] ?? '')
                               .toString();
                       final timestamp = comment['created_at'];
-                      final authorName = (comment['author_name'] ?? tr('il_b764cdc0ea'))
+                      String authorName = (comment['author_name'] ?? tr('il_b764cdc0ea'))
                           .toString();
+                      String? authorAvatarUrl;
+                      if (userId.isNotEmpty) {
+                        final cachedProfile = _userProfileCache[userId];
+                        if (cachedProfile != null) {
+                          authorName = cachedProfile.name;
+                          authorAvatarUrl = cachedProfile.avatarUrl;
+                        } else {
+                          _prefetchUserProfile(userId);
+                        }
+                      }
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 16),
@@ -3334,7 +3434,7 @@ Widget build(BuildContext context) {
                             PlayerAvatarButton(
                               userId: userId,
                               displayName: authorName,
-                              avatarUrl: null,
+                              avatarUrl: authorAvatarUrl,
                               size: 38,
                               backgroundColor: const Color(0xFF4caf50),
                               borderColor: Colors.white.withValues(alpha: 0.25),
@@ -3345,24 +3445,41 @@ Widget build(BuildContext context) {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  GestureDetector(
-                                    onTap: () {
-                                      if (userId.isEmpty) return;
-                                      context.router.push(
-                                        PlayerProfileRoute(
-                                          playerId: userId,
-                                          playerName: authorName,
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            if (userId.isEmpty) return;
+                                            context.router.push(
+                                              PlayerProfileRoute(
+                                                playerId: userId,
+                                                playerName: authorName,
+                                              ),
+                                            );
+                                          },
+                                          child: Text(
+                                            authorName,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
                                         ),
-                                      );
-                                    },
-                                    child: Text(
-                                      authorName,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
                                       ),
-                                    ),
+                                      if (timestamp != null) ...[
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _formatTimestamp(timestamp),
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(alpha: 0.5),
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -3372,15 +3489,6 @@ Widget build(BuildContext context) {
                                       fontSize: 14,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  if (timestamp != null)
-                                    Text(
-                                      _formatTimestamp(timestamp),
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.5),
-                                        fontSize: 11,
-                                      ),
-                                    ),
                                 ],
                               ),
                             ),
@@ -3393,10 +3501,12 @@ Widget build(BuildContext context) {
               ),
             ),
             // Comment input
-            Container(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -3410,9 +3520,9 @@ Widget build(BuildContext context) {
                       child: TextField(
                         controller: commentController,
                         style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
-                          hintText: 'Написати коментар...',
-                          hintStyle: TextStyle(color: Colors.white70),
+                        decoration: InputDecoration(
+                          hintText: tr('il_23c5f33170'),
+                          hintStyle: const TextStyle(color: Colors.white70),
                           border: InputBorder.none,
                         ),
                         onSubmitted: (text) {
@@ -3450,11 +3560,13 @@ Widget build(BuildContext context) {
                       ),
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
         ),
+      ),
       ),
     );
   }
