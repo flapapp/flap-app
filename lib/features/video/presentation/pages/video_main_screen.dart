@@ -2499,8 +2499,8 @@ Widget build(BuildContext context) {
                     const SizedBox(width: 8),
                     Expanded(
                       child: _buildStatCard(
-                        icon: Icons.attach_money,
-                        value: '$entryFee',
+                        icon: Icons.toll,
+                        value: tr('il_eae716cab3', namedArgs: {'fee': '$entryFee'}),
                         label: tr('il_2649e082d9'),
                         color: const Color(0xFFFF9800),
                       ),
