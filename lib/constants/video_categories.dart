@@ -1,9 +1,57 @@
 import 'package:flutter/material.dart';
 
 import '../app_locale_access.dart';
+import '../features/challenges/domain/entities/challenge_entity.dart';
+
+enum VideoCategory {
+  goal,
+  shotPower,
+  pass,
+  longPass,
+  dribbling,
+  tackle,
+  defending,
+  penalty,
+  save,
+  wall,
+  strategy,
+  trick,
+  other,
+}
+
+String videoCategoryToSlug(VideoCategory category) {
+  switch (category) {
+    case VideoCategory.goal:
+      return 'goal';
+    case VideoCategory.shotPower:
+      return 'shot_power';
+    case VideoCategory.pass:
+      return 'pass';
+    case VideoCategory.longPass:
+      return 'long_pass';
+    case VideoCategory.dribbling:
+      return 'dribbling';
+    case VideoCategory.tackle:
+      return 'tackle';
+    case VideoCategory.defending:
+      return 'defending';
+    case VideoCategory.penalty:
+      return 'penalty';
+    case VideoCategory.save:
+      return 'save';
+    case VideoCategory.wall:
+      return 'wall';
+    case VideoCategory.strategy:
+      return 'strategy';
+    case VideoCategory.trick:
+      return 'trick';
+    case VideoCategory.other:
+      return 'other';
+  }
+}
 
 class VideoCategoryDefinition {
-  final String id;
+  final VideoCategory category;
   final String labelUk;
   final String labelEn;
   final String descriptionUk;
@@ -13,7 +61,7 @@ class VideoCategoryDefinition {
   final bool showInQuickFilters;
 
   const VideoCategoryDefinition({
-    required this.id,
+    required this.category,
     required this.labelUk,
     required this.labelEn,
     required this.descriptionUk,
@@ -26,6 +74,8 @@ class VideoCategoryDefinition {
   String label() =>
       currentAppLanguageCode() == 'uk' ? labelUk : labelEn;
 
+  String get id => videoCategoryToSlug(category);
+
   String description() => (descriptionUk.isEmpty && descriptionEn.isEmpty)
       ? ''
       : (currentAppLanguageCode() == 'uk' ? descriptionUk : descriptionEn);
@@ -33,7 +83,7 @@ class VideoCategoryDefinition {
 
 const List<VideoCategoryDefinition> kVideoCategories = [
   VideoCategoryDefinition(
-    id: 'goal',
+    category: VideoCategory.goal,
     labelUk: 'Гол',
     labelEn: 'Goal',
     descriptionUk: 'Фініші, хет-трики та вирішальні удари',
@@ -43,7 +93,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
-    id: 'shot_power',
+    category: VideoCategory.shotPower,
     labelUk: 'Сила удару',
     labelEn: 'Shot power',
     descriptionUk: 'Постріли здалеку, рикошети, удари гарматою',
@@ -53,7 +103,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
-    id: 'pass',
+    category: VideoCategory.pass,
     labelUk: 'Пас',
     labelEn: 'Pass',
     descriptionUk: 'Комбінована гра, ассисти та стінки',
@@ -63,7 +113,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
-    id: 'long_pass',
+    category: VideoCategory.longPass,
     labelUk: 'Довгий пас',
     labelEn: 'Long pass',
     descriptionUk: 'Переводи, навіси, діагоналі',
@@ -73,7 +123,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
-    id: 'dribble',
+    category: VideoCategory.dribbling,
     labelUk: 'Дриблінг',
     labelEn: 'Dribbling',
     descriptionUk: 'Фінти, слаломи, обводки',
@@ -82,7 +132,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     keywords: ['dribble', 'дрибл', 'skill', 'фінт'],
   ),
   VideoCategoryDefinition(
-    id: 'tackle',
+    category: VideoCategory.tackle,
     labelUk: 'Підкат',
     labelEn: 'Tackle',
     descriptionUk: 'Відбори, перехоплення, блоки',
@@ -91,7 +141,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     keywords: ['tackle', 'підкат', 'відбір', 'interception'],
   ),
   VideoCategoryDefinition(
-    id: 'defending',
+    category: VideoCategory.defending,
     labelUk: 'Захист',
     labelEn: 'Defending',
     descriptionUk: 'Оборонні дії, блоки, позиційна гра',
@@ -101,7 +151,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
-    id: 'penalty',
+    category: VideoCategory.penalty,
     labelUk: 'Пенальті',
     labelEn: 'Penalty',
     descriptionUk: 'Удари й серії 11‑метрових',
@@ -110,7 +160,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     keywords: ['penalty', 'пеналь', '11'],
   ),
   VideoCategoryDefinition(
-    id: 'save',
+    category: VideoCategory.save,
     labelUk: 'Сейв',
     labelEn: 'Save',
     descriptionUk: 'Героичні сейви воротарів',
@@ -120,7 +170,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
-    id: 'wall',
+    category: VideoCategory.wall,
     labelUk: 'Стіна / стандарт',
     labelEn: 'Wall / set-piece',
     descriptionUk: 'Організація стандартів, стінки, бар’єри',
@@ -129,7 +179,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     keywords: ['wall', 'стінк', 'barrier', 'free kick wall', 'set piece'],
   ),
   VideoCategoryDefinition(
-    id: 'strategy',
+    category: VideoCategory.strategy,
     labelUk: 'Стратегія',
     labelEn: 'Strategy',
     descriptionUk: 'Тактичні розбори, побудова атаки чи оборони',
@@ -138,7 +188,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     keywords: ['strategy', 'стратег', 'тактик', 'scheme'],
   ),
   VideoCategoryDefinition(
-    id: 'freestyle',
+    category: VideoCategory.trick,
     labelUk: 'Фрістайл',
     labelEn: 'Freestyle',
     descriptionUk: 'Трюки, жонглювання та шоу',
@@ -147,34 +197,7 @@ const List<VideoCategoryDefinition> kVideoCategories = [
     keywords: ['freestyle', 'трюк', 'show'],
   ),
   VideoCategoryDefinition(
-    id: 'technique',
-    labelUk: 'Техніка (класика)',
-    labelEn: 'Technique (legacy)',
-    descriptionUk: 'Спадщина попередніх категорій',
-    descriptionEn: 'Legacy upload category',
-    color: Color(0xFF5C6BC0),
-    keywords: ['technique', 'технік'],
-  ),
-  VideoCategoryDefinition(
-    id: 'physics',
-    labelUk: 'Фізика (класика)',
-    labelEn: 'Physics (legacy)',
-    descriptionUk: 'Силові вправи та кардіо',
-    descriptionEn: 'Legacy physical drills',
-    color: Color(0xFFEC407A),
-    keywords: ['physics', 'фіз'],
-  ),
-  VideoCategoryDefinition(
-    id: 'teamplay',
-    labelUk: 'Командна гра (класика)',
-    labelEn: 'Teamplay (legacy)',
-    descriptionUk: 'Старі командні категорії',
-    descriptionEn: 'Legacy teamplay category',
-    color: Color(0xFF26A69A),
-    keywords: ['team', 'команд'],
-  ),
-  VideoCategoryDefinition(
-    id: 'other',
+    category: VideoCategory.other,
     labelUk: 'Інше',
     labelEn: 'Other',
     descriptionUk: 'Все, що не вписується в попередні категорії',
@@ -193,8 +216,16 @@ VideoCategoryDefinition? videoCategoryById(String id) =>
 
 VideoCategoryDefinition? detectVideoCategory(String raw) {
   final normalized = raw.toLowerCase().trim();
-  if (_videoCategoriesById.containsKey(normalized)) {
-    return _videoCategoriesById[normalized];
+  final legacyAliases = <String, String>{
+    'dribble': 'dribbling',
+    'freestyle': 'trick',
+    'technique': 'dribbling',
+    'physics': 'shot_power',
+    'teamplay': 'pass',
+  };
+  final normalizedKey = legacyAliases[normalized] ?? normalized;
+  if (_videoCategoriesById.containsKey(normalizedKey)) {
+    return _videoCategoriesById[normalizedKey];
   }
 
   for (final category in kVideoCategories) {
@@ -216,6 +247,25 @@ String videoCategoryLabel(String raw) =>
 
 List<VideoCategoryDefinition> quickVideoCategories() =>
     kVideoCategories.where((c) => c.showInQuickFilters).toList();
+
+void _assertCategoryParity() {
+  assert(() {
+    final challengeNames = ChallengeType.values.map((e) => e.name).toSet();
+    final videoNames = VideoCategory.values.map((e) => e.name).toSet();
+    if (challengeNames.length != videoNames.length ||
+        !challengeNames.containsAll(videoNames)) {
+      throw StateError(
+        'VideoCategory and ChallengeType must share identical values.',
+      );
+    }
+    return true;
+  }());
+}
+
+final bool videoChallengeCategoryParityChecked = (() {
+  _assertCategoryParity();
+  return true;
+})();
 
 
 

@@ -2,8 +2,6 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
-import '../../../../core/di/injection.dart';
-import '../../../ratings/domain/repositories/ratings_repository.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -676,18 +674,6 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
           ? 0.0
           : values.reduce((a, b) => a + b) / newVotes;
       _submissionAverageRating = newRating;
-
-      try {
-        if (submissionUserId.isNotEmpty && submissionUserId != currentUser.id) {
-          await sl<RatingsRepository>().recomputeOverallRating(
-            submissionUserId,
-            reason: 'challenge_vote',
-            source: currentUser.email?.split('@').first ?? '',
-            sourceType: 'challenge',
-            sourceId: widget.challengeId,
-          );
-        }
-      } catch (_) {}
 
       // Award coins for voting (ledger-based).
       await insertCoinTransaction(

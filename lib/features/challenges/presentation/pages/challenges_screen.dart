@@ -1205,14 +1205,19 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       final ok = await _challengesRepo.completeChallenge(challengeId);
       if (!ok) return;
 
-      // Reload winners and show
-      final row = await _sb
-          .from('challenges')
-          .select('winners')
-          .eq('id', challengeId)
-          .maybeSingle();
-      final data = row ?? <String, dynamic>{};
-      final winners = List<String>.from(data['winners'] ?? []);
+      // Reload winners from prize places (set when challenge is finalized)
+      final prizeRows = await _sb
+          .from('challenge_prize_places')
+          .select('winner_user_id, place')
+          .eq('challenge_id', challengeId)
+          .order('place', ascending: true);
+      final winners = (prizeRows as List<dynamic>)
+          .map(
+            (r) =>
+                (r as Map<String, dynamic>)['winner_user_id']?.toString() ?? '',
+          )
+          .where((id) => id.isNotEmpty)
+          .toList();
 
       showModalBottomSheet(
         context: context,

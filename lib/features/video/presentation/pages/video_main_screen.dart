@@ -677,7 +677,7 @@ Widget build(BuildContext context) {
       case ChallengeType.tackle:
         return tr('il_9c0dd00951');
       case ChallengeType.defending:
-        return 'Defending';
+        return tr('challenge_type_defending');
       case ChallengeType.penalty:
         return tr('il_241c754092');
       case ChallengeType.save:
@@ -3132,33 +3132,12 @@ Widget build(BuildContext context) {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              
-              // Спочатку додаємо користувача в учасники
-              try {
-                await _sb
-                    .from('challenge_participants')
-                    .upsert(<String, dynamic>{
-                  'challenge_id': challengeId,
-                  'user_id': currentUser.id,
-                  'status': 'joined',
-                });
-                
-                // Тепер переходимо до завантаження відео
-    context.router.push(
-      VideoUploadRoute(
-        challengeId: challengeId,
-        challengeTitle: challenge['title']?.toString(),
-      ),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      tr('il_4f9785e6ae', namedArgs: {'e': e.toString()}),
-                    ),
-                  ),
-                );
-              }
+              context.router.push(
+                VideoUploadRoute(
+                  challengeId: challengeId,
+                  challengeTitle: challenge['title']?.toString(),
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4caf50)),
             child: Text(

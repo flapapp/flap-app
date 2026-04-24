@@ -4,8 +4,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/di/injection.dart';
-import '../../../ratings/domain/repositories/ratings_repository.dart';
 import '../../../../router/app_router.dart';
 import '../../data/models/challenge.dart';
 import '../../../video/presentation/pages/video_upload_screen.dart';
@@ -31,12 +29,81 @@ class ChallengeDetailsScreen extends StatefulWidget {
 class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   final SupabaseClient _sb = Supabase.instance.client;
   bool _celebrationChecked = false;
+  bool _isOpeningVideoPlayer = false;
+  late final ChallengeDetailsCubit _detailsCubit;
 
   final Map<String, ValueNotifier<double>> _voteNotifiers = {};
+
+  /// PostgREST returns `snake_case` keys; camelCase for compatibility with mocks.
+  String _profileAvatarUrl(Map<String, dynamic> p) {
+    final v = p['avatar_url'] ?? p['avatarUrl'] ?? p['avatar'];
+    if (v == null) return '';
+    return v.toString();
+  }
+
+  String _profileDisplayName(Map<String, dynamic> p) {
+    final dn = p['display_name'] ?? p['displayName'];
+    if (dn is String && dn.isNotEmpty) return dn;
+    final name = p['name'];
+    if (name is String && name.isNotEmpty) return name;
+    final email = p['email']?.toString();
+    if (email != null && email.contains('@')) return email.split('@').first;
+    return tr('il_b512d97e7c');
+  }
+
+  Future<Map<String, dynamic>?> _submitterProfile(String userId) {
+    if (userId.isEmpty) {
+      return Future<Map<String, dynamic>?>.value(null);
+    }
+    return _sb
+        .from('profiles')
+        .select('display_name,email,avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+  }
+
+  /// Small submitter mark on the video preview (for visibility while scrolling).
+  Widget _submitterAvatarOnVideo(
+    String userId,
+    String userName,
+    String avatarUrl,
+  ) {
+    if (userId.isEmpty) return const SizedBox.shrink();
+    return Material(
+      color: Colors.transparent,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 6,
+                ),
+              ],
+            ),
+            child: PlayerAvatarButton(
+              userId: userId,
+              displayName: userName,
+              avatarUrl: avatarUrl,
+              size: 28,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
+    _detailsCubit = ChallengeDetailsCubit(
+      widget.challenge.id,
+      challengeCreatorId: widget.challenge.creatorId,
+    )..load();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeShowWinnerCelebration();
     });
@@ -44,11 +111,8 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => ChallengeDetailsCubit(
-            widget.challenge.id,
-            challengeCreatorId: widget.challenge.creatorId,
-          )..load(),
+    return BlocProvider.value(
+      value: _detailsCubit,
       child: Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
       appBar: AppBar(
@@ -185,31 +249,6 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     tr('il_cab1225bc9'),
                     style: const TextStyle(color: Colors.white30, fontSize: 14),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Challenge ID: ${widget.challenge.id}',
-                    style: const TextStyle(color: Colors.white30, fontSize: 12),
-                  ),
-                  Text(
-                    'Participants: ${widget.challenge.participants.length}',
-                    style: const TextStyle(color: Colors.white30, fontSize: 12),
-                  ),
-                  Text(
-                    'Submissions array: ${widget.challenge.submissions.length}',
-                    style: const TextStyle(color: Colors.white30, fontSize: 12),
-                  ),
-                  Text(
-                    'Submissions collection: ${state.submissions.length}',
-                    style: const TextStyle(color: Colors.white30, fontSize: 12),
-                  ),
-                  Text(
-                    'Status: ${widget.challenge.status}',
-                    style: const TextStyle(color: Colors.white30, fontSize: 12),
-                  ),
-                  Text(
-                    'Creator ID: ${widget.challenge.creatorId}',
-                    style: const TextStyle(color: Colors.white30, fontSize: 12),
-                  ),
                 ],
               ),
             ),
@@ -303,137 +342,135 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Прев'ю відео - займає весь простір (як на YouTube)
-          FutureBuilder<String?>(
-            future: _getThumbnailUrl(thumb, videoId, videoUrl, userId),
-            builder: (context, snapshot) {
-              final effectiveThumb = snapshot.data ?? thumb;
-              return VideoPreviewBox(
-                videoUrl: videoUrl,
-                thumbnailUrl: effectiveThumb,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ChallengeVideoPlayerScreen(
+      child: FutureBuilder<Map<String, dynamic>?>(
+        future: _submitterProfile(userId),
+        builder: (context, profileSnapshot) {
+          final userData = profileSnapshot.data ?? <String, dynamic>{};
+          final avatarUrl = _profileAvatarUrl(userData);
+          final userName = _profileDisplayName(userData);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FutureBuilder<String?>(
+                future: _getThumbnailUrl(thumb, videoId, videoUrl, userId),
+                builder: (context, snapshot) {
+                  final effectiveThumb = snapshot.data ?? thumb;
+                  return VideoPreviewBox(
+                    videoUrl: videoUrl,
+                    thumbnailUrl: effectiveThumb,
+                    onTap: () {
+                      _openChallengeVideoPlayer(
                         videoUrl: videoUrl,
                         title: title,
-                        authorName: 'Автор відео',
-                        challengeId: widget.challenge.id,
                         submissionId: videoId,
+                        authorName: userName,
                         thumbnailUrl: effectiveThumb,
-                      ),
+                      );
+                    },
+                    borderRadius: 12,
+                    topLeft: isCreatorVideo
+                        ? _badge(tr('il_88447b8309'),
+                            color: const Color(0xFF4caf50))
+                        : null,
+                    bottomLeft: userId.isEmpty
+                        ? null
+                        : _submitterAvatarOnVideo(
+                            userId, userName, avatarUrl,
+                          ),
+                    bottomRight: _badge(
+                      tr('il_22f29c1ea8', args: [rating.toStringAsFixed(1)]),
+                      color: Colors.black.withOpacity(0.6),
                     ),
                   );
                 },
-                borderRadius: 12,
-                topLeft: isCreatorVideo
-                    ? _badge(tr('il_88447b8309'), color: const Color(0xFF4caf50))
-                    : null,
-                bottomRight: _badge(
-                  tr('il_22f29c1ea8', args: [rating.toStringAsFixed(1)]),
-                  color: Colors.black.withOpacity(0.6),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          
-          // Інформація про відео
-          Row(
-            children: [
-              FutureBuilder<Map<String, dynamic>?>(
-                future: _sb.from('profiles').select().eq('id', userId).maybeSingle(),
-                builder: (context, userSnapshot) {
-                  if (!userSnapshot.hasData) {
-                    return const CircleAvatar(
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  if (userId.isNotEmpty &&
+                      profileSnapshot.connectionState ==
+                          ConnectionState.waiting)
+                    const CircleAvatar(
                       radius: 20,
                       backgroundColor: Color(0xFF4caf50),
                       child: Icon(Icons.person, color: Colors.white, size: 20),
-                    );
-                  }
-                  
-                  final userData = userSnapshot.data ?? <String, dynamic>{};
-                  final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-                  final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? tr('il_b512d97e7c');
-                  
-                  return PlayerAvatarButton(
-                    userId: userId,
-                    displayName: userName,
-                    avatarUrl: avatarUrl,
-                    size: 40,
-                  );
-                },
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                    )
+                  else
+                    PlayerAvatarButton(
+                      userId: userId,
+                      displayName: userName,
+                      avatarUrl: avatarUrl,
+                      size: 40,
+                    ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isCreatorVideo)
-                          Container(
-                            margin: const EdgeInsets.only(left: 8),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF4caf50),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              tr('il_fdd5f6745e'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        _buildStars(rating),
-                        const SizedBox(width: 6),
-                        Text(
-                          rating.toStringAsFixed(2),
-                          style: const TextStyle(
-                            color: Color(0xFF66bb6a),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
+                            if (isCreatorVideo)
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF4caf50),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  tr('il_fdd5f6745e'),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-              Text(
-                tr('il_bc2a9a8bbb', args: ['$voteCount']),
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
-                  fontSize: 11,
-                ),
-              ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            _buildStars(rating),
+                            const SizedBox(width: 6),
+                            Text(
+                              rating.toStringAsFixed(2),
+                              style: const TextStyle(
+                                color: Color(0xFF66bb6a),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              tr('il_bc2a9a8bbb', args: ['$voteCount']),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -467,43 +504,42 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           width: isCreatorVideo ? 2 : 1,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // User info and title
-          FutureBuilder<Map<String, dynamic>?>(
-            future: _sb.from('profiles').select().eq('id', userId).maybeSingle(),
-            builder: (context, userSnapshot) {
-              final userData = userSnapshot.data ?? <String, dynamic>{};
-              final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-              final userName = userData['displayName'] ??
-                  userData['name'] ??
-                  userData['email']?.split('@')[0] ??
-                  tr('il_b512d97e7c');
-              return Row(
+      child: FutureBuilder<Map<String, dynamic>?>(
+        future: _submitterProfile(userId),
+        builder: (context, userSnapshot) {
+          final userData = userSnapshot.data ?? <String, dynamic>{};
+          final avatarUrl = _profileAvatarUrl(userData);
+          final userName = _profileDisplayName(userData);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // User info and title
+              Row(
                 children: [
-                  PlayerAvatarButton(
-                    userId: userId,
-                    displayName: userName,
-                    avatarUrl: avatarUrl,
-                    size: 34,
-                  ),
+                  if (userId.isNotEmpty &&
+                      userSnapshot.connectionState == ConnectionState.waiting)
+                    const CircleAvatar(
+                      radius: 17,
+                      backgroundColor: Color(0xFF4caf50),
+                      child: Icon(Icons.person, color: Colors.white, size: 18),
+                    )
+                  else
+                    PlayerAvatarButton(
+                      userId: userId,
+                      displayName: userName,
+                      avatarUrl: avatarUrl,
+                      size: 34,
+                    ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChallengeVideoPlayerScreen(
-                              videoUrl: videoUrl,
-                              title: title,
-                              authorName: userName,
-                              challengeId: widget.challenge.id,
-                              submissionId: videoId,
-                              thumbnailUrl: thumb,
-                            ),
-                          ),
+                        _openChallengeVideoPlayer(
+                          videoUrl: videoUrl,
+                          title: title,
+                          submissionId: videoId,
+                          authorName: userName,
+                          thumbnailUrl: thumb,
                         );
                       },
                       child: Column(
@@ -554,60 +590,67 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     ),
                   ),
                 ],
-              );
-            },
-          ),
-          const SizedBox(height: 8),
-
-          // Rating display
-          Row(
-            children: [
-              _buildStars(rating),
-              const SizedBox(width: 6),
-              Text(
-                rating.toStringAsFixed(2),
-                style: const TextStyle(
-                  color: Color(0xFF66bb6a),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                ),
               ),
-              Text(
-                tr('il_bc2a9a8bbb', args: ['$voteCount']),
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
-                  fontSize: 12,
-                ),
+              const SizedBox(height: 8),
+
+              // Rating display
+              Row(
+                children: [
+                  _buildStars(rating),
+                  const SizedBox(width: 6),
+                  Text(
+                    rating.toStringAsFixed(2),
+                    style: const TextStyle(
+                      color: Color(0xFF66bb6a),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    tr('il_bc2a9a8bbb', args: ['$voteCount']),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.5),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
+              const SizedBox(height: 8),
 
-          // Voting section - exactly like MVP (video preview comes first, then voting controls)
-          FutureBuilder<String?>(
-            future: _getThumbnailUrl(thumb, submissionId, videoUrl, userId),
-            builder: (context, snapshot) {
-              final effectiveThumb = snapshot.data ?? thumb;
-              return _buildVotingSection(
-                videoId,
-                videoUrl,
-                title,
-                userId,
-                thumbnailUrl: effectiveThumb,
-                myRatingRow: myRatingRow,
-              );
-            },
-          ),
-          const SizedBox(height: 8),
+              // Video preview (avatar on corner) + voting
+              FutureBuilder<String?>(
+                future: _getThumbnailUrl(thumb, submissionId, videoUrl, userId),
+                builder: (context, snapThumb) {
+                  final effectiveThumb = snapThumb.data ?? thumb;
+                  return _buildVotingSection(
+                    videoId,
+                    videoUrl,
+                    title,
+                    userId,
+                    thumbnailUrl: effectiveThumb,
+                    myRatingRow: myRatingRow,
+                    authorDisplayName: userName,
+                    authorAvatarUrl: avatarUrl,
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
 
-          // Action buttons
-          LayoutBuilder(
+              // Action buttons
+              LayoutBuilder(
   builder: (context, constraints) {
     final isNarrow = constraints.maxWidth < 360;
 
     final buttons = <Widget>[
       ElevatedButton.icon(
-        onPressed: () => _playVideo(videoUrl, title, videoId, userId, thumbnailUrl: thumb),
+        onPressed: () => _playVideo(
+          videoUrl,
+          title,
+          videoId,
+          userId,
+          thumbnailUrl: thumb,
+          authorName: userName,
+        ),
         icon: const Icon(Icons.play_arrow, size: 16),
         label: Text(tr('il_a71e757324'), style: const TextStyle(fontSize: 12)),
         style: ElevatedButton.styleFrom(
@@ -666,7 +709,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   },
 )
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -688,8 +733,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
   // Показати список учасників
   Widget _buildActionButtons() {
-    final now = DateTime.now();
-    final isFinished = widget.challenge.endDate.isBefore(now);
+    final isFinished = widget.challenge.status == ChallengeStatus.completed;
     
     if (isFinished) {
       // Показуємо кнопку результатів для завершених челенджів
@@ -771,16 +815,23 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     try {
       final challengeRow = await _sb
           .from('challenges')
-          .select('status,winners')
+          .select('status')
           .eq('id', widget.challenge.id)
           .maybeSingle();
       if (challengeRow == null) return;
       final status = challengeRow['status']?.toString() ?? '';
       if (status != 'completed') return;
-      final winners = (challengeRow['winners'] as List<dynamic>? ?? const <dynamic>[])
-          .map((e) => e.toString())
-          .toList();
-      if (!winners.contains(currentUser.id)) return;
+
+      final prizeRows = await _sb
+          .from('challenge_prize_places')
+          .select('winner_user_id')
+          .eq('challenge_id', widget.challenge.id);
+      final winnerIds = <String>{};
+      for (final raw in (prizeRows as List<dynamic>)) {
+        final uid = (raw as Map<String, dynamic>)['winner_user_id']?.toString() ?? '';
+        if (uid.isNotEmpty) winnerIds.add(uid);
+      }
+      if (!winnerIds.contains(currentUser.id)) return;
 
       if (!mounted) return;
       await Navigator.push(
@@ -867,11 +918,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                           return FutureBuilder<Map<String, dynamic>?>(
                             future: _sb
                                 .from('profiles')
-                                .select()
+                                .select('display_name,email,avatar_url,overall_rating,city')
                                 .eq('id', participantId)
                                 .maybeSingle(),
                             builder: (context, snapshot) {
-                              if (!snapshot.hasData) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
                                 return ListTile(
                                   leading: const CircleAvatar(
                                     backgroundColor: Color(0xFF4caf50),
@@ -882,9 +933,10 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                               }
 
                               final userData = snapshot.data ?? <String, dynamic>{};
-                              final userName = userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? tr('il_b512d97e7c');
-                              final avatarUrl = userData['avatarUrl'] ?? userData['avatar'] ?? '';
-                              final rating = (userData['rating'] ?? 0.0).toDouble();
+                              final userName = _profileDisplayName(userData);
+                              final avatarUrl = _profileAvatarUrl(userData);
+                              final r = userData['overall_rating'] ?? userData['rating'] ?? 0.0;
+                              final rating = (r is num) ? r.toDouble() : (double.tryParse(r.toString()) ?? 0.0);
                               final city = userData['city'] ?? tr('il_2491fe94a7');
 
                               return Container(
@@ -982,6 +1034,8 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     String userId, {
     String? thumbnailUrl,
     Map<String, dynamic>? myRatingRow,
+    String? authorDisplayName,
+    String? authorAvatarUrl,
   }) {
     final currentUserId = AppAuth.currentUserId ?? '';
     // [myRatingRow] comes from cubit and is only populated for the signed-in voter.
@@ -990,7 +1044,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     double currentVote = (_voteNotifiers[videoId]?.value) ?? 0.0;
 
     if (ratingRow != null && currentUserId.isNotEmpty) {
-      final serverVote = (ratingRow['rating'] ?? 0.0).toDouble();
+      final serverVote = (ratingRow['overall_rating'] ?? 0.0).toDouble();
       if (_voteNotifiers.containsKey(videoId)) {
         if ((_voteNotifiers[videoId]!.value - serverVote).abs() > 0.01) {
           _voteNotifiers[videoId]!.value = serverVote;
@@ -1003,6 +1057,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           videoId, () => ValueNotifier<double>(currentVote));
     }
 
+    final nameForPlayer =
+        (authorDisplayName != null && authorDisplayName.isNotEmpty)
+            ? authorDisplayName
+            : 'Автор відео';
+    final av = authorAvatarUrl ?? '';
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1018,23 +1077,24 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             thumbnailUrl: thumbnailUrl,
             onTap: () {
               if (videoUrl.isNotEmpty) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ChallengeVideoPlayerScreen(
-                      videoUrl: videoUrl,
-                      title: title,
-                      authorName: 'Автор відео',
-                      challengeId: widget.challenge.id,
-                      submissionId: videoId,
-                      thumbnailUrl: thumbnailUrl,
-                    ),
-                  ),
+                _openChallengeVideoPlayer(
+                  videoUrl: videoUrl,
+                  title: title,
+                  submissionId: videoId,
+                  authorName: nameForPlayer,
+                  thumbnailUrl: thumbnailUrl,
                 );
               }
             },
             aspectRatio: 16 / 9,
             borderRadius: 12,
+            bottomLeft: (userId.isNotEmpty)
+                ? _submitterAvatarOnVideo(
+                    userId,
+                    nameForPlayer,
+                    av,
+                  )
+                : null,
             topRight: hasVoted
                 ? _badge(tr('il_24e6347ec5'),
                     color: const Color(0xFF4caf50).withOpacity(0.8))
@@ -1127,12 +1187,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   Future<void> _submitVote(String videoId, double rating) async {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
-    final detailsCubit = context.read<ChallengeDetailsCubit>();
 
     // Перевіряємо чи користувач не голосує за себе
     final submissionRow = await _sb
         .from('challenge_submissions')
-        .select('id,user_id,average_rating,vote_count')
+        .select('id,user_id')
         .eq('id', videoId)
         .maybeSingle();
     if (submissionRow == null) return;
@@ -1151,46 +1210,15 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
     try {
       await _sb.from('challenge_submission_ratings').upsert({
-        'challenge_id': widget.challenge.id,
-        'submission_id': videoId,
+        'challenge_submission_id': videoId,
         'voter_user_id': currentUser.id,
-        'submission_user_id': submissionUserId,
-        'rating': rating,
-        'created_at': DateTime.now().toUtc().toIso8601String(),
+        'overall_rating': rating,
       });
 
-      final ratings = await _sb
-          .from('challenge_submission_ratings')
-          .select('rating')
-          .eq('challenge_id', widget.challenge.id)
-          .eq('submission_id', videoId);
-      final voteCount = ratings.length;
-      final total = ratings.fold<double>(
-        0.0,
-        (sum, item) => sum + ((item['rating'] ?? 0.0) as num).toDouble(),
-      );
-      final averageRating = voteCount == 0 ? 0.0 : total / voteCount;
-      await _sb.from('challenge_submissions').update({
-        'average_rating': averageRating,
-        'vote_count': voteCount,
-      }).eq('id', videoId);
-
-      // Recompute overall rating for the submission author (affects player rating)
-      try {
-        final userId = submissionUserId;
-        if (userId != null && userId.isNotEmpty && userId != currentUser.id) {
-          await sl<RatingsRepository>().recomputeOverallRating(
-            userId,
-            reason: 'challenge_vote',
-            source: currentUser.email?.split('@').first ?? '',
-            sourceType: 'challenge',
-            sourceId: widget.challenge.id,
-          );
-        }
-      } catch (_) {}
+      // Stored aggregates are optional in schema; UI recomputes from ratings on refresh.
 
       if (mounted) {
-        await detailsCubit.refresh();
+        await _detailsCubit.refresh();
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1210,7 +1238,14 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     }
   }
 
-  void _playVideo(String videoUrl, String title, String videoId, String userId, {String? thumbnailUrl}) {
+  void _playVideo(
+    String videoUrl,
+    String title,
+    String videoId,
+    String userId, {
+    String? thumbnailUrl,
+    String? authorName,
+  }) {
     if (videoUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(tr('il_fc512c458e'))),
@@ -1218,20 +1253,43 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       return;
     }
 
-    // Використовуємо ChallengeVideoPlayerScreen для відео в челенджах
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChallengeVideoPlayerScreen(
-          videoUrl: videoUrl,
-          title: title,
-          authorName: 'Автор відео',
-          challengeId: widget.challenge.id,
-          submissionId: videoId,
-          thumbnailUrl: thumbnailUrl,
-        ),
-      ),
+    _openChallengeVideoPlayer(
+      videoUrl: videoUrl,
+      title: title,
+      submissionId: videoId,
+      authorName: (authorName != null && authorName.isNotEmpty)
+          ? authorName
+          : 'Автор відео',
+      thumbnailUrl: thumbnailUrl,
     );
+  }
+
+  Future<void> _openChallengeVideoPlayer({
+    required String videoUrl,
+    required String title,
+    required String submissionId,
+    required String authorName,
+    String? thumbnailUrl,
+  }) async {
+    if (_isOpeningVideoPlayer || videoUrl.isEmpty) return;
+    _isOpeningVideoPlayer = true;
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChallengeVideoPlayerScreen(
+            videoUrl: videoUrl,
+            title: title,
+            authorName: authorName,
+            challengeId: widget.challenge.id,
+            submissionId: submissionId,
+            thumbnailUrl: thumbnailUrl,
+          ),
+        ),
+      );
+    } finally {
+      _isOpeningVideoPlayer = false;
+    }
   }
 
   Future<String?> _getThumbnailUrl(
@@ -1288,18 +1346,17 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       ),
     ).then((_) {
       if (!mounted) return;
-      context.read<ChallengeDetailsCubit>().refresh();
+      _detailsCubit.refresh();
     });
   }
 
   void _showChallengeVideos() {
-    final cubit = context.read<ChallengeDetailsCubit>();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => BlocProvider.value(
-        value: cubit,
+        value: _detailsCubit,
         child: Container(
           height: MediaQuery.of(sheetContext).size.height * 0.8,
           decoration: const BoxDecoration(
@@ -1340,5 +1397,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _detailsCubit.close();
+    super.dispose();
   }
 }

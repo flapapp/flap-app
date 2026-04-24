@@ -30,23 +30,52 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
           .from('challenge_submissions')
           .select()
           .eq('challenge_id', _challengeId)
-          .order('created_at', ascending: false);
+          .order('submitted_at', ascending: false);
 
       final list = (submissionsRows as List<dynamic>)
           .map((e) => _mapSubmissionRow(e as Map<String, dynamic>))
           .toList();
 
+      final submissionIds = list
+          .map((row) => row['id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList(growable: false);
+
+      if (submissionIds.isNotEmpty) {
+        final ratingsRows = await _sb
+            .from('challenge_submission_ratings')
+            .select('challenge_submission_id, overall_rating')
+            .inFilter('challenge_submission_id', submissionIds);
+        final totals = <String, double>{};
+        final counts = <String, int>{};
+        for (final raw in (ratingsRows as List<dynamic>)) {
+          final row = raw as Map<String, dynamic>;
+          final sid = row['challenge_submission_id']?.toString() ?? '';
+          if (sid.isEmpty) continue;
+          final val = ((row['overall_rating'] as num?) ?? 0).toDouble();
+          totals[sid] = (totals[sid] ?? 0) + val;
+          counts[sid] = (counts[sid] ?? 0) + 1;
+        }
+        for (final submission in list) {
+          final sid = submission['id']?.toString() ?? '';
+          final count = counts[sid] ?? 0;
+          final total = totals[sid] ?? 0;
+          submission['voteCount'] = count;
+          submission['averageRating'] = count == 0 ? 0.0 : total / count;
+        }
+      }
+
       final uid = AppAuth.currentUserId;
       Map<String, Map<String, dynamic>> myRatings = {};
-      if (uid != null && uid.isNotEmpty) {
+      if (uid != null && uid.isNotEmpty && submissionIds.isNotEmpty) {
         final ratingRows = await _sb
             .from('challenge_submission_ratings')
             .select()
-            .eq('challenge_id', _challengeId)
+            .inFilter('challenge_submission_id', submissionIds)
             .eq('voter_user_id', uid);
         for (final r in (ratingRows as List<dynamic>)) {
           final m = r as Map<String, dynamic>;
-          final sid = m['submission_id']?.toString() ?? '';
+          final sid = m['challenge_submission_id']?.toString() ?? '';
           if (sid.isNotEmpty) {
             myRatings[sid] = Map<String, dynamic>.from(m);
           }
@@ -79,9 +108,9 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
       'videoUrl': row['video_url'] ?? '',
       'thumbnailUrl': row['thumbnail_url'] ?? '',
       'isCreatorVideo': _challengeCreatorId.isNotEmpty && uid == _challengeCreatorId,
-      'averageRating': row['average_rating'] ?? 0.0,
-      'voteCount': row['vote_count'] ?? 0,
-      'createdAt': row['created_at'],
+      'averageRating': 0.0,
+      'voteCount': 0,
+      'createdAt': row['submitted_at'],
     };
   }
 }

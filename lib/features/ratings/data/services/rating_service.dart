@@ -6,8 +6,6 @@ import 'rating_tracking_service.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
 class RatingService {
-  static const double _matchWeight = 0.7;
-  static const double _videoWeight = 0.3;
   static const double _defaultRating = 3.0;
 
   static const List<String> _matchCriteria = <String>[
@@ -291,25 +289,11 @@ class RatingService {
   }) async {
     try {
       final oldRating = await getUserRating(userId);
-      final matchRatings = await _getMatchRatings(userId);
-      final videoRatings = await _getVideoRatings(userId);
-
-      var matchRating = _defaultRating;
-      if (matchRatings.isNotEmpty) {
-        matchRating = matchRatings.reduce((a, b) => a + b) / matchRatings.length;
-      }
-      var videoRating = _defaultRating;
-      if (videoRatings.isNotEmpty) {
-        videoRating = videoRatings.reduce((a, b) => a + b) / videoRatings.length;
-      }
-      final overallRating = (matchRating * _matchWeight) + (videoRating * _videoWeight);
-      final roundedOverall = double.parse(overallRating.toStringAsFixed(2));
-      final roundedMatch = double.parse(matchRating.toStringAsFixed(2));
-      final roundedVideo = double.parse(videoRating.toStringAsFixed(2));
-
-      await _saveSnapshot(userId, 'overall', roundedOverall);
-      await _saveSnapshot(userId, 'match', roundedMatch);
-      await _saveSnapshot(userId, 'video', roundedVideo);
+      await _sb.rpc(
+        'recompute_player_overall_rating',
+        params: <String, dynamic>{'p_user_id': userId},
+      );
+      final roundedOverall = await getUserRating(userId);
 
       try {
         if (reason != null) {
@@ -338,40 +322,6 @@ class RatingService {
       }
     } catch (e) {
       print('Error updating player rating: $e');
-    }
-  }
-
-  Future<List<double>> _getMatchRatings(String userId) async {
-    try {
-      final rows = await _sb
-          .from('match_player_ratings')
-          .select('overall_rating')
-          .eq('player_id', userId);
-      return (rows as List<dynamic>)
-          .map((r) => ((r as Map<String, dynamic>)['overall_rating'] as num).toDouble())
-          .toList(growable: false);
-    } catch (_) {
-      return <double>[];
-    }
-  }
-
-  Future<List<double>> _getVideoRatings(String userId) async {
-    try {
-      final vids = await _sb.from('videos').select('id').eq('user_id', userId);
-      final videoIds = (vids as List<dynamic>)
-          .map((r) => (r as Map<String, dynamic>)['id'].toString())
-          .where((id) => id.isNotEmpty)
-          .toList(growable: false);
-      if (videoIds.isEmpty) return <double>[];
-      final rows = await _sb
-          .from('video_ratings')
-          .select('overall_rating')
-          .inFilter('video_id', videoIds);
-      return (rows as List<dynamic>)
-          .map((r) => ((r as Map<String, dynamic>)['overall_rating'] as num).toDouble())
-          .toList(growable: false);
-    } catch (_) {
-      return <double>[];
     }
   }
 

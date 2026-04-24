@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_app_storage.dart';
+import '../../../../constants/video_categories.dart';
 import 'package:image_picker/image_picker.dart';
 // Removed dart:io to support web build
 import '../../../../core/di/injection.dart';
@@ -15,6 +16,7 @@ import '../../data/models/challenge.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../video/data/services/thumbnail_service.dart';
 import '../../../../widgets/player_avatar_button.dart';
+import '../../../../widgets/styled_dropdown_form_field.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
@@ -55,68 +57,6 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     {'hours': 72, 'label': tr('il_360719440e')},
     {'hours': 168, 'label': tr('il_c8cc522340')},
   ];
-
-  String _typeLabel(ChallengeType type) {
-    switch (type) {
-      case ChallengeType.goal:
-        return tr('il_cdbf6975e8');
-      case ChallengeType.shotPower:
-        return tr('il_a387ab1835');
-      case ChallengeType.save:
-        return tr('il_1509f561f2');
-      case ChallengeType.pass:
-        return tr('il_ebdf8cc00b');
-      case ChallengeType.longPass:
-        return tr('il_a30ef79268');
-      case ChallengeType.tackle:
-        return tr('il_9c0dd00951');
-      case ChallengeType.defending:
-        return 'Defending';
-      case ChallengeType.dribbling:
-        return tr('il_0b337d1bc7');
-      case ChallengeType.penalty:
-        return tr('il_241c754092');
-      case ChallengeType.wall:
-        return tr('il_93819c7151');
-      case ChallengeType.strategy:
-        return tr('il_6b27710dfa');
-      case ChallengeType.trick:
-        return tr('il_209e3aa0b5');
-      case ChallengeType.other:
-        return tr('il_f97e9da0e3');
-    }
-  }
-
-  String _typeEmoji(ChallengeType type) {
-    switch (type) {
-      case ChallengeType.goal:
-        return '⚽';
-      case ChallengeType.shotPower:
-        return '💥';
-      case ChallengeType.save:
-        return '🧤';
-      case ChallengeType.pass:
-        return '🎯';
-      case ChallengeType.longPass:
-        return '📡';
-      case ChallengeType.tackle:
-        return '🛡️';
-      case ChallengeType.defending:
-        return '🧱';
-      case ChallengeType.dribbling:
-        return '🌀';
-      case ChallengeType.penalty:
-        return '🎯';
-      case ChallengeType.wall:
-        return '🧱';
-      case ChallengeType.strategy:
-        return '🧠';
-      case ChallengeType.trick:
-        return '✨';
-      case ChallengeType.other:
-        return '🎲';
-    }
-  }
 
   String _typeTagValue(ChallengeType type) => challengeTypeToSlug(type);
 
@@ -363,39 +303,68 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 ),
                 
                 const SizedBox(height: 25),
-                
                 // Тип та аудиторія
                 _buildSectionTitle(Icons.settings, tr('settings')),
                 const SizedBox(height: 15),
-                
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 1,
-                      child: _buildDropdownField(
-                        label: tr('il_9a2597b919'),
-                        value: _selectedType,
-                        items: ChallengeType.values,
-                        onChanged: (value) { setState(() { _selectedType = value!; }); },
-                        itemBuilder: (type) => Row(
-                          children: [
-                            Text(_typeEmoji(type)),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                _typeLabel(type),
+                StyledDropdownFormField<String>(
+                        value: challengeTypeToSlug(_selectedType),
+                        labelText: tr('il_9a2597b919'),
+                        items: kVideoCategories.map((category) => category.id).toList(),
+                        itemBuilder: (categoryId) {
+                          final category = videoCategoryById(categoryId);
+                          final label =
+                              category?.label() ?? videoCategoryLabel(categoryId);
+                          final description = category?.description() ?? '';
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                label,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
                                 overflow: TextOverflow.ellipsis,
                               ),
+                              if (description.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  description,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ],
+                          );
+                        },
+                        selectedItemBuilder: (categoryId) {
+                          final category = videoCategoryById(categoryId);
+                          final label =
+                              category?.label() ?? videoCategoryLabel(categoryId);
+                          return Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
                             ),
-                          ],
-                        ),
-                        icon: Icons.sports_soccer,
+                          );
+                        },
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _selectedType = parseChallengeType(value);
+                          });
+                        },
                       ),
-                    ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      flex: 1,
-                      child: _buildDropdownField(
+                _buildDropdownField(
                         label: tr('il_3013c7e4fa'),
                         value: _selectedAudience,
                         items: ChallengeAudience.values,
@@ -409,9 +378,92 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         ),
                         icon: '👥',
                       ),
-                    ),
-                  ],
-                ),
+                // Тип та аудиторія
+                // _buildSectionTitle(Icons.settings, tr('settings')),
+                // const SizedBox(height: 15),
+                // Row(
+                //   children: [
+                //     Expanded(
+                //       flex: 1,
+                //       child: 
+                //       StyledDropdownFormField<String>(
+                //         value: challengeTypeToSlug(_selectedType),
+                //         labelText: tr('il_9a2597b919'),
+                //         items: kVideoCategories.map((category) => category.id).toList(),
+                //         itemBuilder: (categoryId) {
+                //           final category = videoCategoryById(categoryId);
+                //           final label =
+                //               category?.label() ?? videoCategoryLabel(categoryId);
+                //           final description = category?.description() ?? '';
+                //           return Column(
+                //             crossAxisAlignment: CrossAxisAlignment.start,
+                //             mainAxisSize: MainAxisSize.min,
+                //             children: [
+                //               Text(
+                //                 label,
+                //                 style: const TextStyle(
+                //                   color: Colors.white,
+                //                   fontWeight: FontWeight.w600,
+                //                 ),
+                //                 overflow: TextOverflow.ellipsis,
+                //               ),
+                //               if (description.isNotEmpty) ...[
+                //                 const SizedBox(height: 2),
+                //                 Text(
+                //                   description,
+                //                   style: const TextStyle(
+                //                     color: Colors.white70,
+                //                     fontSize: 11,
+                //                   ),
+                //                   maxLines: 1,
+                //                   overflow: TextOverflow.ellipsis,
+                //                 ),
+                //               ],
+                //             ],
+                //           );
+                //         },
+                //         selectedItemBuilder: (categoryId) {
+                //           final category = videoCategoryById(categoryId);
+                //           final label =
+                //               category?.label() ?? videoCategoryLabel(categoryId);
+                //           return Text(
+                //             label,
+                //             maxLines: 1,
+                //             overflow: TextOverflow.ellipsis,
+                //             style: const TextStyle(
+                //               color: Colors.white,
+                //               fontWeight: FontWeight.w600,
+                //             ),
+                //           );
+                //         },
+                //         onChanged: (value) {
+                //           if (value == null) return;
+                //           setState(() {
+                //             _selectedType = parseChallengeType(value);
+                //           });
+                //         },
+                //       ),
+                //     ),
+                //     const SizedBox(width: 12),
+                //     Expanded(
+                //       flex: 1,
+                //       child: _buildDropdownField(
+                //         label: tr('il_3013c7e4fa'),
+                //         value: _selectedAudience,
+                //         items: ChallengeAudience.values,
+                //         onChanged: (value) { setState(() { _selectedAudience = value!; }); },
+                //         itemBuilder: (audience) => Text(
+                //           audience == ChallengeAudience.friends ? tr('il_1419851d1b')
+                //           : audience == ChallengeAudience.city ? tr('il_eb5e5b054b')
+                //           : audience == ChallengeAudience.country ? tr('il_beba73d45d')
+                //           : tr('il_42605c01fa'),
+                //           overflow: TextOverflow.ellipsis,
+                //         ),
+                //         icon: '👥',
+                //       ),
+                //     ),
+                //   ],
+                // ),
                 
                 const SizedBox(height: 20),
 
@@ -532,7 +584,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                       _selectedEntryFee = value!;
                     });
                   },
-                  itemBuilder: (fee) => Text(tr('il_eae716cab3', args: ['$fee'])),
+                  itemBuilder: (fee) => Text(
+                    tr('il_eae716cab3', namedArgs: {'fee': '$fee'}),
+                  ),
                   icon: Icons.monetization_on,
                 ),
                 
@@ -852,7 +906,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   required String label,
   required T value,
   required List<T> items,
-  required Function(T?) onChanged,
+  required ValueChanged<T?> onChanged,
   required Widget Function(T) itemBuilder,
   required dynamic icon,
 }) {
@@ -897,11 +951,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                       Expanded(
                         child: DefaultTextStyle.merge(
                           style: const TextStyle(fontSize: 14), // єдиний розмір у списку
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: itemBuilder(item),
-                          ),
+                          child: itemBuilder(item),
                         ),
                       ),
                     ],
@@ -1057,7 +1107,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             border: Border.all(color: color.withOpacity(0.5)),
           ),
           child: Text(
-            tr('il_ddf8cb0f4a', args: ['$coins']),
+            tr('il_ddf8cb0f4a', namedArgs: {'coins': '$coins'}),
             style: TextStyle(
               color: color,
               fontSize: 14,
@@ -1239,7 +1289,6 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         await _sb.from('challenge_participants').upsert({
           'challenge_id': challengeId,
           'user_id': currentUser.id,
-          'status': 'joined',
         });
 
         // Надсилаємо інвайти обраним друзям (якщо обрали)
@@ -1503,18 +1552,21 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       // Зберігаємо відео створювача в submissions (без [videos]: окремий [video_url]).
       print('Saving creator video to submissions collection...');
       try {
-        await _sb.from('challenge_submissions').upsert({
-          'challenge_id': challengeId,
-          'user_id': userId,
-          'title': _titleController.text.trim().isNotEmpty
-              ? _titleController.text.trim()
-              : tr('il_b51a6ac57e'),
-          'description': _descriptionController.text.trim().isNotEmpty
-              ? _descriptionController.text.trim()
-              : tr('il_4c92b02f91'),
-          'video_url': videoUrl,
-          'thumbnail_url': null,
-        });
+        await _sb.from('challenge_submissions').upsert(
+          {
+            'challenge_id': challengeId,
+            'user_id': userId,
+            'title': _titleController.text.trim().isNotEmpty
+                ? _titleController.text.trim()
+                : tr('il_b51a6ac57e'),
+            'description': _descriptionController.text.trim().isNotEmpty
+                ? _descriptionController.text.trim()
+                : tr('il_4c92b02f91'),
+            'video_url': videoUrl,
+            'thumbnail_url': null,
+          },
+          onConflict: 'challenge_id,user_id',
+        );
         print('Creator video saved to submissions collection');
       } catch (e) {
         print('ERROR saving to submissions collection: $e');

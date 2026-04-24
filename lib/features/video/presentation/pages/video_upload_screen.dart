@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/supabase/supabase_app_storage.dart';
 import '../../../../constants/video_categories.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../widgets/styled_dropdown_form_field.dart';
 import '../../../challenges/domain/repositories/challenges_repository.dart';
 import '../../data/services/thumbnail_service.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -306,73 +307,86 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                 const SizedBox(height: 20),
 
                 // Категорія
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedCategory ?? '',
-                    style: const TextStyle(color: Colors.white),
-                    dropdownColor: const Color(0xFF1e7d32),
-                    decoration: InputDecoration(
-                      labelText: tr('il_292c06f004'),
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                      border: InputBorder.none,
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-                    ),
-                    items: [
-                      DropdownMenuItem<String>(
-                        value: '',
-                        child: Text(
-                          tr('il_b11f4a82b9'),
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                      ),
-                      ...kVideoCategories.map(
-                        (category) => DropdownMenuItem<String>(
-                          value: category.id,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                category.label(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              if (category.description().isNotEmpty) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  category.description(),
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ],
+                StyledDropdownFormField<String>(
+                  value: _selectedCategory ?? '',
+                  labelText: tr('il_292c06f004'),
+                  items: [
+                    '',
+                    ...kVideoCategories.map((category) => category.id),
+                  ],
+                  itemBuilder: (categoryId) {
+                    if (categoryId.isEmpty) {
+                      return Text(
+                        tr('il_b11f4a82b9'),
+                        style: const TextStyle(color: Colors.white70),
+                      );
+                    }
+
+                    final category = videoCategoryById(categoryId);
+                    final label = category?.label() ?? videoCategoryLabel(categoryId);
+                    final description = category?.description() ?? '';
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
+                        if (description.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            description,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                  selectedItemBuilder: (categoryId) {
+                    if (categoryId.isEmpty) {
+                      return Text(
+                        tr('il_b11f4a82b9'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white70),
+                      );
+                    }
+                    final category = videoCategoryById(categoryId);
+                    final label = category?.label() ?? videoCategoryLabel(categoryId);
+                    return Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        _selectedCategory =
-                            (newValue == null || newValue.isEmpty)
-                                ? null
-                                : newValue;
-                      });
-                    },
-                    validator: (value) {
-                      if ((_selectedCategory ?? '').isEmpty) {
-                        return tr('il_e26788c574');
-                      }
-                      return null;
-                    },
-                  ),
+                    );
+                  },
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedCategory = (newValue == null || newValue.isEmpty)
+                          ? null
+                          : newValue;
+                    });
+                  },
+                  validator: (value) {
+                    if ((_selectedCategory ?? '').isEmpty) {
+                      return tr('il_e26788c574');
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 20),
 
@@ -620,14 +634,17 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   ) async {
     await sl<ChallengesRepository>().addVideoToChallenge(widget.challengeId!, userId);
 
-    await client.from('challenge_submissions').upsert({
-      'challenge_id': widget.challengeId!,
-      'user_id': userId,
-      'video_url': videoUrl,
-      'title': _titleController.text.trim(),
-      'description': _descriptionController.text.trim(),
-      'thumbnail_url': null,
-    });
+    await client.from('challenge_submissions').upsert(
+      {
+        'challenge_id': widget.challengeId!,
+        'user_id': userId,
+        'video_url': videoUrl,
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'thumbnail_url': null,
+      },
+      onConflict: 'challenge_id,user_id',
+    );
 
     print('✅ Video submitted to challenge (submission only): ${widget.challengeId}');
   }

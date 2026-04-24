@@ -303,7 +303,7 @@ class Challenge extends ChallengeEntity {
       case ChallengeType.tackle:
         return tr('il_9c0dd00951');
       case ChallengeType.defending:
-        return 'Defending';
+        return tr('challenge_type_defending');
       case ChallengeType.dribbling:
         return tr('il_0b337d1bc7');
       case ChallengeType.penalty:

@@ -73,35 +73,6 @@ class SupabaseLookups {
     return inserted['id'] as String;
   }
 
-  static Future<String?> challengeTypeIdByCode(
-    SupabaseClient client,
-    String code,
-  ) async {
-    final row = await client
-        .from('challenge_types')
-        .select('id')
-        .eq('code', code)
-        .maybeSingle();
-    return row?['id'] as String?;
-  }
-
-  static Future<String> ensureChallengeType(
-    SupabaseClient client,
-    String code,
-    String label,
-  ) async {
-    final existing = await challengeTypeIdByCode(client, code);
-    if (existing != null) {
-      return existing;
-    }
-    final inserted = await client
-        .from('challenge_types')
-        .insert(<String, dynamic>{'code': code, 'label': label})
-        .select('id')
-        .single();
-    return inserted['id'] as String;
-  }
-
   static Future<String?> challengeAudienceIdByCode(
     SupabaseClient client,
     String code,

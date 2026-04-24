@@ -73,7 +73,7 @@ class ChallengeService {
       final out = <Challenge>[];
       for (final raw in rows as List<dynamic>) {
         final row = raw as Map<String, dynamic>;
-        final typeCode = await _typeCode((row['challenge_type_id'] ?? '').toString());
+        final typeCode = (row['type'] ?? 'other').toString();
         if (typeCode != slug) continue;
         final c = await _loadChallenge((row['id'] ?? '').toString());
         if (c != null) out.add(c);
@@ -121,7 +121,6 @@ class ChallengeService {
         );
       }
 
-      final typeId = await _resolveChallengeTypeId(challenge.type);
       final audienceId = await _resolveChallengeAudienceId(challenge.audience);
 
       final inserted = await _sb
@@ -130,7 +129,7 @@ class ChallengeService {
             'creator_id': currentUser.id,
             'title': challenge.title,
             'description': challenge.description,
-            'challenge_type_id': typeId,
+            'type': challengeTypeToSlug(challenge.type),
             'audience_id': audienceId,
             'city': CityCatalog.toEnglishStorageKey(challenge.city) ?? challenge.city,
             'entry_fee': entryFee,
@@ -227,14 +226,17 @@ class ChallengeService {
           .select('display_name, avatar_url')
           .eq('id', currentUser.id)
           .maybeSingle();
-      await _sb.from('challenge_submissions').insert(<String, dynamic>{
-        'challenge_id': challengeId,
-        'user_id': currentUser.id,
-        'video_url': videoUrl,
-        'title': challenge.title,
-        'description': challenge.description,
-        'thumbnail_url': null,
-      });
+      await _sb.from('challenge_submissions').upsert(
+        <String, dynamic>{
+          'challenge_id': challengeId,
+          'user_id': currentUser.id,
+          'video_url': videoUrl,
+          'title': challenge.title,
+          'description': challenge.description,
+          'thumbnail_url': null,
+        },
+        onConflict: 'challenge_id,user_id',
+      );
 
       final creatorId = challenge.creatorId;
       if (creatorId.isNotEmpty && creatorId != currentUser.id) {
@@ -408,18 +410,33 @@ class ChallengeService {
         throw Exception('Челендж неактивний. Не можна додавати відео.');
       }
 
-      await _sb.from('challenge_participants').upsert(<String, dynamic>{
-        'challenge_id': challengeId,
-        'user_id': userId,
-        'joined_at': DateTime.now().toUtc().toIso8601String(),
-      });
+      try {
+        await _sb.from('challenge_participants').upsert(<String, dynamic>{
+          'challenge_id': challengeId,
+          'user_id': userId,
+          'joined_at': DateTime.now().toUtc().toIso8601String(),
+        });
+      } on PostgrestException catch (e) {
+        // Some deployments restrict direct writes to participants via RLS.
+        // Continue with submission upsert, which is sufficient for upload flow.
+        final detailsText = e.details?.toString() ?? '';
+        final isParticipantRls = e.code == '42501' &&
+            (e.message.contains('challenge_participants') ||
+                detailsText.contains('challenge_participants'));
+        if (!isParticipantRls) {
+          rethrow;
+        }
+      }
 
-      await _sb.from('challenge_submissions').upsert(<String, dynamic>{
-        'challenge_id': challengeId,
-        'user_id': userId,
-        'title': challenge.title,
-        'description': challenge.description,
-      });
+      await _sb.from('challenge_submissions').upsert(
+        <String, dynamic>{
+          'challenge_id': challengeId,
+          'user_id': userId,
+          'title': challenge.title,
+          'description': challenge.description,
+        },
+        onConflict: 'challenge_id,user_id',
+      );
       return true;
     } catch (e) {
       print('Error adding video to challenge: $e');
@@ -663,7 +680,7 @@ class ChallengeService {
     if (challengeId.isEmpty) return null;
     final row = await _sb
         .from('challenges')
-        .select('*, challenge_types(code), challenge_audiences(code)')
+        .select('*, challenge_audiences(code)')
         .eq('id', challengeId)
         .maybeSingle();
     if (row == null) return null;
@@ -692,9 +709,7 @@ class ChallengeService {
     final creatorName =
         (creator?['display_name'] ?? creator?['nickname'] ?? '').toString();
 
-    final typeCode =
-        ((row['challenge_types'] as Map<String, dynamic>?)?['code'] ?? 'goal')
-            .toString();
+    final typeCode = (row['type'] ?? 'other').toString();
     final audienceCode =
         ((row['challenge_audiences'] as Map<String, dynamic>?)?['code'] ?? 'city')
             .toString();
@@ -785,16 +800,6 @@ class ChallengeService {
     return (rows as List<dynamic>).length < limit;
   }
 
-  Future<String?> _resolveChallengeTypeId(ChallengeType type) async {
-    final code = challengeTypeToSlug(type);
-    final row = await _sb
-        .from('challenge_types')
-        .select('id')
-        .eq('code', code)
-        .maybeSingle();
-    return row?['id']?.toString();
-  }
-
   Future<String?> _resolveChallengeAudienceId(ChallengeAudience audience) async {
     final row = await _sb
         .from('challenge_audiences')
@@ -802,16 +807,6 @@ class ChallengeService {
         .eq('code', audience.name)
         .maybeSingle();
     return row?['id']?.toString();
-  }
-
-  Future<String> _typeCode(String challengeTypeId) async {
-    if (challengeTypeId.isEmpty) return 'goal';
-    final row = await _sb
-        .from('challenge_types')
-        .select('code')
-        .eq('id', challengeTypeId)
-        .maybeSingle();
-    return (row?['code'] ?? 'goal').toString();
   }
 
   DateTime _parseDate(dynamic value) {
