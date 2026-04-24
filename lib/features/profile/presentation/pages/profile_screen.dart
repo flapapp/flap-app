@@ -5,7 +5,6 @@ import 'package:flap_app/app_locale_access.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/locale/football_position.dart';
@@ -68,8 +67,6 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   String? _userId;
   Future<Map<String, dynamic>>? _matchStatsFuture;
   String? _matchStatsUserId;
-  bool _donationPromptCheckStarted = false;
-  bool _donationDialogVisible = false;
 
   @override
   void initState() {
@@ -83,117 +80,6 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
       _teamsStream = teams.watchUserTeams(uid);
       _teamInvitesStream = teams.watchInvites(uid);
     }
-  }
-
-  _DonationConfig _getDonationConfig() {
-    final isEnglish = currentAppLanguageCode().toLowerCase().startsWith('en');
-    if (isEnglish) {
-      return const _DonationConfig(
-        imageAssetPath: 'assets/donate/en_donate.png',
-        donateUrl: 'https://www.privat24.ua/send/j1gih',
-      );
-    }
-    return const _DonationConfig(
-      imageAssetPath: 'assets/donate/ua_donate.png',
-      donateUrl: 'https://www.privat24.ua/send/j1gh1',
-    );
-  }
-
-  Future<void> _setDonationPromptDismissed() async {
-    if (!mounted) return;
-    context.read<ProfileBloc>().add(
-          const ProfileEvent.donationPromptDismissRequested(),
-        );
-  }
-
-  Future<void> _openDonationLink(String link) async {
-    final uri = Uri.parse(link);
-    var launched = false;
-    try {
-      launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
-    } catch (_) {}
-    if (!launched) {
-      try {
-        launched = await launchUrl(uri, mode: LaunchMode.inAppWebView);
-      } catch (_) {}
-    }
-    if (launched) return;
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          tr('il_7c78703c2a'),
-        ),
-      ),
-    );
-  }
-
-  void _showDonationDialog() {
-    _donationDialogVisible = true;
-    final config = _getDonationConfig();
-    showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF1a1a2e),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          tr('il_e8c3f980cf'),
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                tr('il_edc3fc8e6d'),
-                style: const TextStyle(color: Colors.white70),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () async => _openDonationLink(config.donateUrl),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(config.imageAssetPath, fit: BoxFit.contain),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                tr('il_f3bab18f57'),
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await _setDonationPromptDismissed();
-              if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-            },
-            child: Text(tr('il_f7f8a139c1')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(tr('il_7d9eb7acb1')),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-              await _openDonationLink(config.donateUrl);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4caf50),
-              foregroundColor: Colors.white,
-            ),
-            child: Text(tr('il_c91ee0f279')),
-          ),
-        ],
-      ),
-    ).whenComplete(() {
-      _donationDialogVisible = false;
-    });
   }
 
   void _loadUserBadges() async {
@@ -552,20 +438,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<ProfileBloc, ProfileState>(
-      listenWhen: (prev, curr) =>
-          curr.streamProgress == ProgressStatus.success &&
-          curr.profile != null &&
-          !curr.profile!.settings.hideDonationPrompt &&
-          prev.streamProgress != ProgressStatus.success,
-      listener: (context, state) {
-        if (_donationPromptCheckStarted) return;
-        _donationPromptCheckStarted = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || _donationDialogVisible) return;
-          _showDonationDialog();
-        });
-      },
+    return BlocBuilder<ProfileBloc, ProfileState>(
       builder: (context, state) {
         return Scaffold(
           backgroundColor: const Color(0xFF0f0f23),
@@ -1860,16 +1733,6 @@ class ProfileStatsPage extends StatelessWidget {
       ),
     );
   }
-}
-
-class _DonationConfig {
-  final String imageAssetPath;
-  final String donateUrl;
-
-  const _DonationConfig({
-    required this.imageAssetPath,
-    required this.donateUrl,
-  });
 }
 
 Widget buildPerformanceStat(
