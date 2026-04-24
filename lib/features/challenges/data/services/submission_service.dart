@@ -76,6 +76,7 @@ class SubmissionService {
       throw Exception('Ви вже подали відео до цього челенджу');
     }
 
+    final d = description?.trim() ?? '';
     final inserted = await _sb
         .from('challenge_submissions')
         .insert(<String, dynamic>{
@@ -84,7 +85,7 @@ class SubmissionService {
           'video_url': videoUrl,
           'thumbnail_url': thumbnailUrl,
           'title': title,
-          'description': description,
+          if (d.isNotEmpty) 'description': d,
         })
         .select('id')
         .single();

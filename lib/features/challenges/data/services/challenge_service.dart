@@ -122,13 +122,14 @@ class ChallengeService {
       }
 
       final audienceId = await _resolveChallengeAudienceId(challenge.audience);
+      final desc = challenge.description.trim();
 
       final inserted = await _sb
           .from('challenges')
           .insert(<String, dynamic>{
             'creator_id': currentUser.id,
             'title': challenge.title,
-            'description': challenge.description,
+            if (desc.isNotEmpty) 'description': desc,
             'type': challengeTypeToSlug(challenge.type),
             'audience_id': audienceId,
             'city': CityCatalog.toEnglishStorageKey(challenge.city) ?? challenge.city,
@@ -226,13 +227,14 @@ class ChallengeService {
           .select('display_name, avatar_url')
           .eq('id', currentUser.id)
           .maybeSingle();
+      final subDesc = challenge.description.trim();
       await _sb.from('challenge_submissions').upsert(
         <String, dynamic>{
           'challenge_id': challengeId,
           'user_id': currentUser.id,
           'video_url': videoUrl,
           'title': challenge.title,
-          'description': challenge.description,
+          if (subDesc.isNotEmpty) 'description': subDesc,
           'thumbnail_url': null,
         },
         onConflict: 'challenge_id,user_id',
@@ -428,12 +430,13 @@ class ChallengeService {
         }
       }
 
+      final addDesc = challenge.description.trim();
       await _sb.from('challenge_submissions').upsert(
         <String, dynamic>{
           'challenge_id': challengeId,
           'user_id': userId,
           'title': challenge.title,
-          'description': challenge.description,
+          if (addDesc.isNotEmpty) 'description': addDesc,
         },
         onConflict: 'challenge_id,user_id',
       );

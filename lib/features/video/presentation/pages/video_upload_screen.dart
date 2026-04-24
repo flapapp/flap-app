@@ -296,12 +296,6 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(15),
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return tr('il_2542f6b6c4');
-                      }
-                      return null;
-                    },
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -563,15 +557,18 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
           );
         }
       } else {
+        final desc = _descriptionController.text.trim();
         final videoData = <String, dynamic>{
           'user_id': user.id,
           'title': _titleController.text.trim().isEmpty
               ? (widget.challengeTitle ?? tr('il_d534be829e'))
               : _titleController.text.trim(),
-          'description': _descriptionController.text.trim(),
           'video_url': videoUrl,
           'thumbnail_url': null,
         };
+        if (desc.isNotEmpty) {
+          videoData['description'] = desc;
+        }
 
         final difficulty = await client
             .from('video_difficulties')
@@ -634,15 +631,19 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   ) async {
     await sl<ChallengesRepository>().addVideoToChallenge(widget.challengeId!, userId);
 
+    final subDesc = _descriptionController.text.trim();
+    final submission = <String, dynamic>{
+      'challenge_id': widget.challengeId!,
+      'user_id': userId,
+      'video_url': videoUrl,
+      'title': _titleController.text.trim(),
+      'thumbnail_url': null,
+    };
+    if (subDesc.isNotEmpty) {
+      submission['description'] = subDesc;
+    }
     await client.from('challenge_submissions').upsert(
-      {
-        'challenge_id': widget.challengeId!,
-        'user_id': userId,
-        'video_url': videoUrl,
-        'title': _titleController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'thumbnail_url': null,
-      },
+      submission,
       onConflict: 'challenge_id,user_id',
     );
 

@@ -292,10 +292,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                   hint: tr('il_c6fe7905a3'),
                   maxLines: 4,
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return tr('il_0190aa50f8');
-                    }
-                    if (value.trim().length < 20) {
+                    final t = value?.trim() ?? '';
+                    if (t.isEmpty) return null;
+                    if (t.length < 20) {
                       return tr('il_01a8bb483e');
                     }
                     return null;
@@ -1546,6 +1545,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       // Зберігаємо відео створювача в submissions (без [videos]: окремий [video_url]).
       print('Saving creator video to submissions collection...');
       try {
+        final creatorSubDesc = _descriptionController.text.trim();
         await _sb.from('challenge_submissions').upsert(
           {
             'challenge_id': challengeId,
@@ -1553,11 +1553,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             'title': _titleController.text.trim().isNotEmpty
                 ? _titleController.text.trim()
                 : tr('il_b51a6ac57e'),
-            'description': _descriptionController.text.trim().isNotEmpty
-                ? _descriptionController.text.trim()
-                : tr('il_4c92b02f91'),
             'video_url': videoUrl,
             'thumbnail_url': null,
+            if (creatorSubDesc.isNotEmpty) 'description': creatorSubDesc,
           },
           onConflict: 'challenge_id,user_id',
         );
