@@ -147,7 +147,7 @@ class ChallengeService {
           .single();
       final challengeId = inserted['id'].toString();
 
-      await _sb.from('challenge_participants').upsert(<String, dynamic>{
+      await _sb.from('challenge_participants').insert(<String, dynamic>{
         'challenge_id': challengeId,
         'user_id': currentUser.id,
         'joined_at': DateTime.now().toUtc().toIso8601String(),
@@ -726,6 +726,9 @@ class ChallengeService {
       winnerPrizes[uid] = ((r['prize_amount'] as num?)?.toDouble() ?? 0).round();
     }
 
+    final startDate = _parseDate(row['starts_at']);
+    final endDate = _parseDate(row['ends_at']);
+
     return Challenge(
       id: challengeId,
       title: (row['title'] ?? '').toString(),
@@ -742,12 +745,12 @@ class ChallengeService {
       ),
       city: (row['city'] ?? '').toString(),
       entryFee: (row['entry_fee'] as num?)?.toInt() ?? 0,
-      duration: 7,
+      duration: challengeDurationDaysFromSpan(startDate, endDate),
       createdAt: _parseDate(row['created_at']),
-      startDate: _parseDate(row['starts_at']),
+      startDate: startDate,
       submissionDeadline: _parseDate(row['submission_deadline']),
       votingDeadline: _parseDate(row['voting_deadline']),
-      endDate: _parseDate(row['ends_at']),
+      endDate: endDate,
       status: _statusFromString((row['status'] ?? 'recruiting').toString()),
       maxParticipants: (row['max_participants'] as num?)?.toInt() ?? 50,
       currentParticipants: participants.length,

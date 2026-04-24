@@ -1262,7 +1262,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         creatorVideoUrl: null, // Буде оновлено після завантаження відео
         city: userCity,
         entryFee: _selectedEntryFee,
-        duration: (_recruitmentHours / 24).ceil(), // Зберігаємо в днях для сумісності
+        duration: challengeDurationDaysFromSpan(startDate, endDate),
         createdAt: now,
         startDate: startDate,
         submissionDeadline: submissionDeadline,
@@ -1285,12 +1285,6 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       final challengeId = await _challengesRepo.createChallenge(challenge);
       
       if (challengeId != null) {
-        // Додаємо створювача як учасника.
-        await _sb.from('challenge_participants').upsert({
-          'challenge_id': challengeId,
-          'user_id': currentUser.id,
-        });
-
         // Надсилаємо інвайти обраним друзям (якщо обрали)
         if (_selectedInviteFriendIds.isNotEmpty) {
           try {

@@ -2175,12 +2175,14 @@ Widget build(BuildContext context) {
       'creatorName': row['creator_name'] ?? '',
       'city': row['city'] ?? '',
       'entryFee': row['entry_fee'] ?? 0,
-      'duration': row['duration'] ?? 7,
+      'duration': challengeDurationDaysFromRow(
+        Map<String, dynamic>.from(row),
+      ),
       'createdAt': row['created_at'],
-      'startDate': row['start_date'],
+      'startDate': row['starts_at'] ?? row['start_date'],
       'submissionDeadline': row['submission_deadline'],
       'votingDeadline': row['voting_deadline'],
-      'endDate': row['end_date'],
+      'endDate': row['ends_at'] ?? row['end_date'],
       'maxParticipants': row['max_participants'] ?? 50,
       'currentParticipants': row['current_participants'] ?? 0,
       'prizePool': row['prize_pool'] ?? 0.0,
@@ -2204,7 +2206,9 @@ Widget build(BuildContext context) {
     final maxParticipants = challenge['maxParticipants'] ?? 50;
     final prizePool = (challenge['prizePool'] ?? 0.0).toDouble();
     final entryFee = challenge['entryFee'] ?? 10;
-    final duration = challenge['duration'] ?? 7;
+    final duration = challengeDurationDaysFromRow(
+      Map<String, dynamic>.from(challenge),
+    );
     final creatorId = (challenge['creatorId'] ?? '').toString();
     final creatorName = (challenge['creatorName'] ??
             tr('il_b764cdc0ea'))
@@ -3165,7 +3169,9 @@ Widget build(BuildContext context) {
       creatorName: challengeData['creatorName'] ?? '',
       city: challengeData['city'] ?? '',
       entryFee: challengeData['entryFee'] ?? 10,
-      duration: challengeData['duration'] ?? 7,
+      duration: challengeDurationDaysFromRow(
+        Map<String, dynamic>.from(challengeData),
+      ),
       createdAt: asDateTimeOrNull(challengeData['createdAt']) ?? DateTime.now(),
       startDate: asDateTimeOrNull(challengeData['startDate']) ?? DateTime.now(),
       submissionDeadline:

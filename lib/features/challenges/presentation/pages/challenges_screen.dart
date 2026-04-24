@@ -196,14 +196,16 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       'submissions': row['submissions'] ?? const <String>[],
       'entryFee': row['entry_fee'] ?? 10,
       'status': row['status'] ?? 'recruiting',
-      'endDate': row['end_date'],
+      'endDate': row['ends_at'] ?? row['end_date'],
       'votingDeadline': row['voting_deadline'],
       'type': row['type'] ?? row['challenge_type'] ?? 'goal',
       'audience': row['audience'] ?? 'city',
       'city': row['city'] ?? '',
-      'duration': row['duration'] ?? 7,
+      'duration': challengeDurationDaysFromRow(
+        Map<String, dynamic>.from(row),
+      ),
       'createdAt': row['created_at'],
-      'startDate': row['start_date'],
+      'startDate': row['starts_at'] ?? row['start_date'],
       'submissionDeadline': row['submission_deadline'],
       'maxParticipants': row['max_participants'] ?? 50,
       'currentParticipants': row['current_participants'] ?? 0,
@@ -847,7 +849,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         creatorVideoUrl: challengeData['creatorVideoUrl'],
         city: challengeData['city'] ?? '',
         entryFee: challengeData['entryFee'] ?? 10,
-        duration: challengeData['duration'] ?? 7,
+        duration: challengeDurationDaysFromRow(
+          Map<String, dynamic>.from(challengeData),
+        ),
         createdAt: challengeData['createdAt'] != null
             ? (asDateTimeOrNull(challengeData['createdAt']) ?? DateTime.now())
             : DateTime.now(),

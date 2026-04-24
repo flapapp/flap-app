@@ -7,6 +7,37 @@ export '../../domain/entities/challenge_entity.dart';
 
 part 'challenge.g.dart';
 
+/// Full challenge length in whole days (start → end) for list/detail UI. Minimum 1.
+int challengeDurationDaysFromSpan(DateTime start, DateTime end) {
+  if (!end.isAfter(start)) return 1;
+  final d = (end.difference(start).inHours / 24).ceil();
+  return d < 1 ? 1 : d;
+}
+
+DateTime? _challengeDateTimeOrNull(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
+  return null;
+}
+
+/// [row] is a Supabase/JSON map; supports `starts_at` / `ends_at` and camelCase keys.
+int challengeDurationDaysFromRow(Map<String, dynamic> row) {
+  final start = _challengeDateTimeOrNull(row['starts_at']) ??
+      _challengeDateTimeOrNull(row['start_date']) ??
+      _challengeDateTimeOrNull(row['startDate']);
+  final end = _challengeDateTimeOrNull(row['ends_at']) ??
+      _challengeDateTimeOrNull(row['end_date']) ??
+      _challengeDateTimeOrNull(row['endDate']);
+  if (start == null || end == null) {
+    final raw = row['duration'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.round();
+    return 1;
+  }
+  return challengeDurationDaysFromSpan(start, end);
+}
+
 ChallengeType _challengeTypeFromJson(Object? json) =>
     parseChallengeType(json as String?);
 
@@ -106,7 +137,23 @@ class Challenge extends ChallengeEntity {
       creatorVideoUrl: data['creatorVideoUrl'],
       city: data['city'] ?? '',
       entryFee: data['entryFee'] ?? 10,
-      duration: data['duration'] ?? 7,
+      duration: (() {
+        final s = _challengeDateTimeOrNull(
+              data['startDate'] ?? data['starts_at'],
+            ) ??
+            _challengeDateTimeOrNull(data['start_date']);
+        final e = _challengeDateTimeOrNull(
+              data['endDate'] ?? data['ends_at'],
+            ) ??
+            _challengeDateTimeOrNull(data['end_date']);
+        if (s != null && e != null) {
+          return challengeDurationDaysFromSpan(s, e);
+        }
+        final raw = data['duration'];
+        if (raw is int) return raw;
+        if (raw is num) return raw.round();
+        return 1;
+      })(),
       createdAt: _readDate(data['createdAt']),
       startDate: _readDate(data['startDate']),
       submissionDeadline: _readDate(data['submissionDeadline']),
