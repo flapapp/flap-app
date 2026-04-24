@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/auth/app_auth.dart';
 import '../../../../core/di/injection.dart';
+import '../../../profile/presentation/profile_user_data_sync.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
 import '../../domain/entities/mode_navigation_target.dart';
 import '../../domain/entities/mode_hero_stats.dart';
@@ -29,10 +32,32 @@ class ModeSelectionScreen extends StatelessWidget {
   }
 }
 
-class _ModeSelectionBody extends StatelessWidget {
+class _ModeSelectionBody extends StatefulWidget {
   const _ModeSelectionBody();
 
+  @override
+  State<_ModeSelectionBody> createState() => _ModeSelectionBodyState();
+}
+
+class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
+  StreamSubscription<void>? _profileSyncSub;
+
   NotificationsRepository get _notificationsRepo => sl<NotificationsRepository>();
+
+  @override
+  void initState() {
+    super.initState();
+    _profileSyncSub = sl<ProfileUserDataSync>().onUpdated.listen((_) {
+      if (!mounted) return;
+      context.read<ModeSelectionCubit>().refreshProfileDocument();
+    });
+  }
+
+  @override
+  void dispose() {
+    _profileSyncSub?.cancel();
+    super.dispose();
+  }
 
   String _matchesLabel(Map<String, dynamic>? data, ModeHeroStats? stats) {
     if (stats != null && stats.finishedMatchesPlayed > 0) {

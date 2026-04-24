@@ -21,6 +21,7 @@ mixin _$ProfileEvent {
     required TResult Function() started,
     required TResult Function() donationPromptDismissRequested,
     required TResult Function(String downloadUrl) avatarCommitted,
+    required TResult Function() userProfileSyncRequested,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -28,6 +29,7 @@ mixin _$ProfileEvent {
     TResult? Function()? started,
     TResult? Function()? donationPromptDismissRequested,
     TResult? Function(String downloadUrl)? avatarCommitted,
+    TResult? Function()? userProfileSyncRequested,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -35,6 +37,7 @@ mixin _$ProfileEvent {
     TResult Function()? started,
     TResult Function()? donationPromptDismissRequested,
     TResult Function(String downloadUrl)? avatarCommitted,
+    TResult Function()? userProfileSyncRequested,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
@@ -44,6 +47,8 @@ mixin _$ProfileEvent {
     required TResult Function(ProfileDonationPromptDismissRequested value)
         donationPromptDismissRequested,
     required TResult Function(ProfileAvatarCommitted value) avatarCommitted,
+    required TResult Function(ProfileUserProfileSyncRequested value)
+        userProfileSyncRequested,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -52,6 +57,8 @@ mixin _$ProfileEvent {
     TResult? Function(ProfileDonationPromptDismissRequested value)?
         donationPromptDismissRequested,
     TResult? Function(ProfileAvatarCommitted value)? avatarCommitted,
+    TResult? Function(ProfileUserProfileSyncRequested value)?
+        userProfileSyncRequested,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -60,6 +67,8 @@ mixin _$ProfileEvent {
     TResult Function(ProfileDonationPromptDismissRequested value)?
         donationPromptDismissRequested,
     TResult Function(ProfileAvatarCommitted value)? avatarCommitted,
+    TResult Function(ProfileUserProfileSyncRequested value)?
+        userProfileSyncRequested,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
@@ -124,6 +133,7 @@ class _$ProfileStartedImpl implements ProfileStarted {
     required TResult Function() started,
     required TResult Function() donationPromptDismissRequested,
     required TResult Function(String downloadUrl) avatarCommitted,
+    required TResult Function() userProfileSyncRequested,
   }) {
     return started();
   }
@@ -134,6 +144,7 @@ class _$ProfileStartedImpl implements ProfileStarted {
     TResult? Function()? started,
     TResult? Function()? donationPromptDismissRequested,
     TResult? Function(String downloadUrl)? avatarCommitted,
+    TResult? Function()? userProfileSyncRequested,
   }) {
     return started?.call();
   }
@@ -144,6 +155,7 @@ class _$ProfileStartedImpl implements ProfileStarted {
     TResult Function()? started,
     TResult Function()? donationPromptDismissRequested,
     TResult Function(String downloadUrl)? avatarCommitted,
+    TResult Function()? userProfileSyncRequested,
     required TResult orElse(),
   }) {
     if (started != null) {
@@ -159,6 +171,8 @@ class _$ProfileStartedImpl implements ProfileStarted {
     required TResult Function(ProfileDonationPromptDismissRequested value)
         donationPromptDismissRequested,
     required TResult Function(ProfileAvatarCommitted value) avatarCommitted,
+    required TResult Function(ProfileUserProfileSyncRequested value)
+        userProfileSyncRequested,
   }) {
     return started(this);
   }
@@ -170,6 +184,8 @@ class _$ProfileStartedImpl implements ProfileStarted {
     TResult? Function(ProfileDonationPromptDismissRequested value)?
         donationPromptDismissRequested,
     TResult? Function(ProfileAvatarCommitted value)? avatarCommitted,
+    TResult? Function(ProfileUserProfileSyncRequested value)?
+        userProfileSyncRequested,
   }) {
     return started?.call(this);
   }
@@ -181,6 +197,8 @@ class _$ProfileStartedImpl implements ProfileStarted {
     TResult Function(ProfileDonationPromptDismissRequested value)?
         donationPromptDismissRequested,
     TResult Function(ProfileAvatarCommitted value)? avatarCommitted,
+    TResult Function(ProfileUserProfileSyncRequested value)?
+        userProfileSyncRequested,
     required TResult orElse(),
   }) {
     if (started != null) {
@@ -240,6 +258,7 @@ class _$ProfileDonationPromptDismissRequestedImpl
     required TResult Function() started,
     required TResult Function() donationPromptDismissRequested,
     required TResult Function(String downloadUrl) avatarCommitted,
+    required TResult Function() userProfileSyncRequested,
   }) {
     return donationPromptDismissRequested();
   }
@@ -250,6 +269,7 @@ class _$ProfileDonationPromptDismissRequestedImpl
     TResult? Function()? started,
     TResult? Function()? donationPromptDismissRequested,
     TResult? Function(String downloadUrl)? avatarCommitted,
+    TResult? Function()? userProfileSyncRequested,
   }) {
     return donationPromptDismissRequested?.call();
   }
@@ -260,6 +280,7 @@ class _$ProfileDonationPromptDismissRequestedImpl
     TResult Function()? started,
     TResult Function()? donationPromptDismissRequested,
     TResult Function(String downloadUrl)? avatarCommitted,
+    TResult Function()? userProfileSyncRequested,
     required TResult orElse(),
   }) {
     if (donationPromptDismissRequested != null) {
@@ -275,6 +296,8 @@ class _$ProfileDonationPromptDismissRequestedImpl
     required TResult Function(ProfileDonationPromptDismissRequested value)
         donationPromptDismissRequested,
     required TResult Function(ProfileAvatarCommitted value) avatarCommitted,
+    required TResult Function(ProfileUserProfileSyncRequested value)
+        userProfileSyncRequested,
   }) {
     return donationPromptDismissRequested(this);
   }
@@ -286,6 +309,8 @@ class _$ProfileDonationPromptDismissRequestedImpl
     TResult? Function(ProfileDonationPromptDismissRequested value)?
         donationPromptDismissRequested,
     TResult? Function(ProfileAvatarCommitted value)? avatarCommitted,
+    TResult? Function(ProfileUserProfileSyncRequested value)?
+        userProfileSyncRequested,
   }) {
     return donationPromptDismissRequested?.call(this);
   }
@@ -297,6 +322,8 @@ class _$ProfileDonationPromptDismissRequestedImpl
     TResult Function(ProfileDonationPromptDismissRequested value)?
         donationPromptDismissRequested,
     TResult Function(ProfileAvatarCommitted value)? avatarCommitted,
+    TResult Function(ProfileUserProfileSyncRequested value)?
+        userProfileSyncRequested,
     required TResult orElse(),
   }) {
     if (donationPromptDismissRequested != null) {
@@ -382,6 +409,7 @@ class _$ProfileAvatarCommittedImpl implements ProfileAvatarCommitted {
     required TResult Function() started,
     required TResult Function() donationPromptDismissRequested,
     required TResult Function(String downloadUrl) avatarCommitted,
+    required TResult Function() userProfileSyncRequested,
   }) {
     return avatarCommitted(downloadUrl);
   }
@@ -392,6 +420,7 @@ class _$ProfileAvatarCommittedImpl implements ProfileAvatarCommitted {
     TResult? Function()? started,
     TResult? Function()? donationPromptDismissRequested,
     TResult? Function(String downloadUrl)? avatarCommitted,
+    TResult? Function()? userProfileSyncRequested,
   }) {
     return avatarCommitted?.call(downloadUrl);
   }
@@ -402,6 +431,7 @@ class _$ProfileAvatarCommittedImpl implements ProfileAvatarCommitted {
     TResult Function()? started,
     TResult Function()? donationPromptDismissRequested,
     TResult Function(String downloadUrl)? avatarCommitted,
+    TResult Function()? userProfileSyncRequested,
     required TResult orElse(),
   }) {
     if (avatarCommitted != null) {
@@ -417,6 +447,8 @@ class _$ProfileAvatarCommittedImpl implements ProfileAvatarCommitted {
     required TResult Function(ProfileDonationPromptDismissRequested value)
         donationPromptDismissRequested,
     required TResult Function(ProfileAvatarCommitted value) avatarCommitted,
+    required TResult Function(ProfileUserProfileSyncRequested value)
+        userProfileSyncRequested,
   }) {
     return avatarCommitted(this);
   }
@@ -428,6 +460,8 @@ class _$ProfileAvatarCommittedImpl implements ProfileAvatarCommitted {
     TResult? Function(ProfileDonationPromptDismissRequested value)?
         donationPromptDismissRequested,
     TResult? Function(ProfileAvatarCommitted value)? avatarCommitted,
+    TResult? Function(ProfileUserProfileSyncRequested value)?
+        userProfileSyncRequested,
   }) {
     return avatarCommitted?.call(this);
   }
@@ -439,6 +473,8 @@ class _$ProfileAvatarCommittedImpl implements ProfileAvatarCommitted {
     TResult Function(ProfileDonationPromptDismissRequested value)?
         donationPromptDismissRequested,
     TResult Function(ProfileAvatarCommitted value)? avatarCommitted,
+    TResult Function(ProfileUserProfileSyncRequested value)?
+        userProfileSyncRequested,
     required TResult orElse(),
   }) {
     if (avatarCommitted != null) {
@@ -456,6 +492,132 @@ abstract class ProfileAvatarCommitted implements ProfileEvent {
   @JsonKey(ignore: true)
   _$$ProfileAvatarCommittedImplCopyWith<_$ProfileAvatarCommittedImpl>
       get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$ProfileUserProfileSyncRequestedImplCopyWith<$Res> {
+  factory _$$ProfileUserProfileSyncRequestedImplCopyWith(
+          _$ProfileUserProfileSyncRequestedImpl value,
+          $Res Function(_$ProfileUserProfileSyncRequestedImpl) then) =
+      __$$ProfileUserProfileSyncRequestedImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$ProfileUserProfileSyncRequestedImplCopyWithImpl<$Res>
+    extends _$ProfileEventCopyWithImpl<$Res,
+        _$ProfileUserProfileSyncRequestedImpl>
+    implements _$$ProfileUserProfileSyncRequestedImplCopyWith<$Res> {
+  __$$ProfileUserProfileSyncRequestedImplCopyWithImpl(
+      _$ProfileUserProfileSyncRequestedImpl _value,
+      $Res Function(_$ProfileUserProfileSyncRequestedImpl) _then)
+      : super(_value, _then);
+}
+
+/// @nodoc
+
+class _$ProfileUserProfileSyncRequestedImpl
+    implements ProfileUserProfileSyncRequested {
+  const _$ProfileUserProfileSyncRequestedImpl();
+
+  @override
+  String toString() {
+    return 'ProfileEvent.userProfileSyncRequested()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ProfileUserProfileSyncRequestedImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() started,
+    required TResult Function() donationPromptDismissRequested,
+    required TResult Function(String downloadUrl) avatarCommitted,
+    required TResult Function() userProfileSyncRequested,
+  }) {
+    return userProfileSyncRequested();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? started,
+    TResult? Function()? donationPromptDismissRequested,
+    TResult? Function(String downloadUrl)? avatarCommitted,
+    TResult? Function()? userProfileSyncRequested,
+  }) {
+    return userProfileSyncRequested?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? started,
+    TResult Function()? donationPromptDismissRequested,
+    TResult Function(String downloadUrl)? avatarCommitted,
+    TResult Function()? userProfileSyncRequested,
+    required TResult orElse(),
+  }) {
+    if (userProfileSyncRequested != null) {
+      return userProfileSyncRequested();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(ProfileStarted value) started,
+    required TResult Function(ProfileDonationPromptDismissRequested value)
+        donationPromptDismissRequested,
+    required TResult Function(ProfileAvatarCommitted value) avatarCommitted,
+    required TResult Function(ProfileUserProfileSyncRequested value)
+        userProfileSyncRequested,
+  }) {
+    return userProfileSyncRequested(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(ProfileStarted value)? started,
+    TResult? Function(ProfileDonationPromptDismissRequested value)?
+        donationPromptDismissRequested,
+    TResult? Function(ProfileAvatarCommitted value)? avatarCommitted,
+    TResult? Function(ProfileUserProfileSyncRequested value)?
+        userProfileSyncRequested,
+  }) {
+    return userProfileSyncRequested?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(ProfileStarted value)? started,
+    TResult Function(ProfileDonationPromptDismissRequested value)?
+        donationPromptDismissRequested,
+    TResult Function(ProfileAvatarCommitted value)? avatarCommitted,
+    TResult Function(ProfileUserProfileSyncRequested value)?
+        userProfileSyncRequested,
+    required TResult orElse(),
+  }) {
+    if (userProfileSyncRequested != null) {
+      return userProfileSyncRequested(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class ProfileUserProfileSyncRequested implements ProfileEvent {
+  const factory ProfileUserProfileSyncRequested() =
+      _$ProfileUserProfileSyncRequestedImpl;
 }
 
 /// @nodoc

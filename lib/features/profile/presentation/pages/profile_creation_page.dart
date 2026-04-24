@@ -20,6 +20,7 @@ import '../../../auth/domain/repositories/auth_session_repository.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import '../../domain/entities/editable_profile_submission.dart';
 import '../../domain/usecases/load_current_profile_usecase.dart';
+import '../bloc/profile_bloc.dart';
 import '../cubit/profile_creation_cubit.dart';
 
 @RoutePage()
@@ -755,6 +756,9 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
                             if (!mounted) return;
                             result.when(
                               success: (_) {
+                                sl<ProfileBloc>().add(
+                                  const ProfileEvent.userProfileSyncRequested(),
+                                );
                                 if (widget.isEditing) {
                                   context.router.maybePop();
                                 } else {

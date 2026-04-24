@@ -8,6 +8,7 @@ import '../../domain/entities/user_profile.dart';
 import '../../domain/repositories/profile_repository.dart';
 import '../../domain/usecases/commit_profile_avatar_urls_usecase.dart';
 import '../../domain/usecases/dismiss_donation_prompt_usecase.dart';
+import '../profile_user_data_sync.dart';
 
 part 'profile_bloc.freezed.dart';
 
@@ -20,6 +21,10 @@ class ProfileEvent with _$ProfileEvent {
 
   const factory ProfileEvent.avatarCommitted({required String downloadUrl}) =
       ProfileAvatarCommitted;
+
+  /// Refetch the current user profile from the server (e.g. after edit form save).
+  const factory ProfileEvent.userProfileSyncRequested() =
+      ProfileUserProfileSyncRequested;
 }
 
 @freezed
@@ -42,16 +47,19 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     this._profileRepository,
     this._dismissDonationPrompt,
     this._commitAvatarUrls,
+    this._userDataSync,
   ) : super(const ProfileState()) {
     on<ProfileStarted>(_onStarted);
     on<ProfileDonationPromptDismissRequested>(_onDismissDonation);
     on<ProfileAvatarCommitted>(_onAvatarCommitted);
+    on<ProfileUserProfileSyncRequested>(_onUserProfileSyncRequested);
   }
 
   final AuthSessionRepository _authSession;
   final ProfileRepository _profileRepository;
   final DismissDonationPromptUseCase _dismissDonationPrompt;
   final CommitProfileAvatarUrlsUseCase _commitAvatarUrls;
+  final ProfileUserDataSync _userDataSync;
 
   Future<void> _onStarted(
     ProfileStarted event,
@@ -146,6 +154,33 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     );
   }
 
+  Future<void> _onUserProfileSyncRequested(
+    ProfileUserProfileSyncRequested event,
+    Emitter<ProfileState> emit,
+  ) async {
+    final uid = _authSession.peekCurrentUser?.uid;
+    if (uid == null) {
+      return;
+    }
+    try {
+      final profile = await _profileRepository.fetchUserProfile(uid);
+      emit(
+        state.copyWith(
+          streamProgress: ProgressStatus.success,
+          profile: profile,
+          streamFailure: null,
+        ),
+      );
+      _userDataSync.notifyUpdated();
+    } catch (e) {
+      emit(
+        state.copyWith(
+          streamFailure: Failure.unexpected(e.toString()),
+        ),
+      );
+    }
+  }
+
   Future<void> _onAvatarCommitted(
     ProfileAvatarCommitted event,
     Emitter<ProfileState> emit,
@@ -173,6 +208,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
             profile: updated ?? state.profile,
           ),
         );
+        _userDataSync.notifyUpdated();
       },
       failure: (f) async {
         emit(

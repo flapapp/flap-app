@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../app_locale_access.dart';
 import '../../../../core/auth/app_auth.dart';
+import '../../../profile/domain/entities/user_profile.dart';
 import '../../../profile/domain/repositories/profile_repository.dart';
 import '../../../profile/domain/repositories/match_participation_stats_repository.dart';
 import '../../domain/entities/mode_hero_stats.dart';
@@ -49,6 +50,7 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
     if (uid == null) return;
     final p = await _profileRepository.fetchUserProfile(uid);
     emit(state.copyWith(profileDocument: p?.document));
+    await _updateGreetingFromProfile(uid, preloaded: p);
   }
 
   Future<void> loadNews() async {
@@ -65,7 +67,10 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
     await _updateGreetingFromProfile(AppAuth.currentUserId);
   }
 
-  Future<void> _updateGreetingFromProfile(String? uid) async {
+  Future<void> _updateGreetingFromProfile(
+    String? uid, {
+    UserProfile? preloaded,
+  }) async {
     final phrase = _motivationPhrases[_random.nextInt(_motivationPhrases.length)];
     if (uid == null) {
       emit(
@@ -77,7 +82,7 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
       return;
     }
 
-    final profile = await _profileRepository.fetchUserProfile(uid);
+    final profile = preloaded ?? await _profileRepository.fetchUserProfile(uid);
     final data = profile?.document;
     final name = data != null
         ? (data['displayName'] ??
