@@ -22,6 +22,20 @@ export 'team_model.dart';
 
 part 'match.g.dart';
 
+/// Supabase stores `pro`; app enum is [MatchLevel.professional] (`'professional'`).
+MatchLevel _matchLevelFromLegacyData(dynamic raw) {
+  final s = raw?.toString() ?? '';
+  if (s == 'pro' || s == 'professional') {
+    return MatchLevel.professional;
+  }
+  for (final e in MatchLevel.values) {
+    if (e.name == s) {
+      return e;
+    }
+  }
+  return MatchLevel.intermediate;
+}
+
 DateTime _matchReadDate(dynamic v, [DateTime? dflt]) {
   if (v == null) {
     return dflt ?? DateTime.now();
@@ -130,10 +144,7 @@ class Match extends MatchEntity {
       participants: List<String>.from(data['participants'] ?? []),
       pendingApplications: List<String>.from(data['pendingApplications'] ?? []),
       rejectedApplications: List<String>.from(data['rejectedApplications'] ?? []),
-      level: MatchLevel.values.firstWhere(
-        (e) => e.toString().split('.').last == data['level'],
-        orElse: () => MatchLevel.intermediate,
-      ),
+      level: _matchLevelFromLegacyData(data['level']),
       cost: (data['cost'] ?? 0.0).toDouble(),
       autoBalance: data['autoBalance'] ?? false,
       isPrivate: data['isPrivate'] ?? false,

@@ -65,11 +65,48 @@ class MatchService {
     });
   }
 
+  /// DB `matches.level` allows `'pro'`, not enum name `'professional'`.
+  static String _levelToSupabase(MatchLevel level) {
+    switch (level) {
+      case MatchLevel.professional:
+        return 'pro';
+      case MatchLevel.beginner:
+        return 'beginner';
+      case MatchLevel.intermediate:
+        return 'intermediate';
+      case MatchLevel.advanced:
+        return 'advanced';
+    }
+  }
+
+  /// DB `matches.status` uses `in_progress` / snake_case, not [MatchStatus.inProgress.name] (`inProgress`).
+  static String _matchStatusToSupabase(MatchStatus s) {
+    switch (s) {
+      case MatchStatus.open:
+        return 'open';
+      case MatchStatus.full:
+        return 'full';
+      case MatchStatus.inProgress:
+        return 'in_progress';
+      case MatchStatus.finished:
+        return 'finished';
+      case MatchStatus.cancelled:
+        return 'cancelled';
+    }
+  }
+
   Future<String> createMatch(Match match) async {
+    // Same client as the Supabase request so JWT matches `auth.uid()` in RLS.
+    final sessionUser = _sb.auth.currentUser;
+    final uid = sessionUser?.id;
+    if (uid == null) {
+      throw StateError('createMatch: no Supabase session');
+    }
+
     final inserted = await _sb
         .from('matches')
         .insert({
-          'organizer_id': match.organizerId,
+          'organizer_id': uid,
           'title': match.title,
           'description': match.description,
           'scheduled_at': match.date.toUtc().toIso8601String(),
@@ -79,34 +116,34 @@ class MatchService {
           'longitude': match.coordinates?.longitude,
           'max_players': match.maxPlayers,
           'participation_cost': match.cost,
-          'level': match.level.name,
+          'level': _levelToSupabase(match.level),
           'auto_balance': match.autoBalance,
           'is_private': match.isPrivate,
           'is_team_match': match.isTeamMatch,
-          'status': match.status.name,
+          'status': _matchStatusToSupabase(match.status),
         })
         .select('id')
         .single();
     final matchId = inserted['id'].toString();
 
-    await _sb.from('match_participants').upsert({
+    await _sb.from('match_participants').insert({
       'match_id': matchId,
-      'user_id': match.organizerId,
+      'user_id': uid,
       'status': 'accepted',
       'joined_at': DateTime.now().toUtc().toIso8601String(),
       'responded_at': DateTime.now().toUtc().toIso8601String(),
     });
 
     if (match.isPrivate && match.invitedFriends.isNotEmpty) {
-      for (final uid in match.invitedFriends) {
+      for (final friendId in match.invitedFriends) {
         await _sb.from('match_invites').insert({
           'match_id': matchId,
-          'user_id': uid,
-          'invited_by': match.organizerId,
+          'user_id': friendId,
+          'invited_by': uid,
           'status': 'pending',
         });
         await NotificationService().sendMatchInvite(
-          toUserId: uid,
+          toUserId: friendId,
           matchId: matchId,
           organizerName: match.organizerName,
         );
