@@ -876,6 +876,22 @@ Widget build(BuildContext context) {
     }
 
     try {
+      final videoRow = await _sb
+          .from('videos')
+          .select('user_id')
+          .eq('id', videoId)
+          .maybeSingle();
+      final ownerId = videoRow?['user_id']?.toString();
+      if (ownerId != null && ownerId == currentUser.id) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('il_11bedab9bb'))),
+        );
+        return;
+      }
+    } catch (_) {}
+
+    try {
       final existingVote = await _sb
           .from('video_ratings')
           .select('id')
@@ -883,6 +899,7 @@ Widget build(BuildContext context) {
           .eq('rated_by', currentUser.id)
           .maybeSingle();
       if (existingVote != null) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr('il_908b4d0670')),
@@ -891,6 +908,8 @@ Widget build(BuildContext context) {
         return;
       }
     } catch (_) {}
+
+    if (!mounted) return;
 
     double overall = 3.0;
     double technical = 3.0;
