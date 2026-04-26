@@ -29,6 +29,7 @@ class MatchEntity extends Equatable {
     required this.autoBalance,
     required this.isPrivate,
     this.invitedFriends = const [],
+    this.sentInvitesCount = 0,
     required this.status,
     this.teamA,
     this.teamB,
@@ -79,6 +80,7 @@ class MatchEntity extends Equatable {
   final bool autoBalance;
   final bool isPrivate;
   final List<String> invitedFriends;
+  final int sentInvitesCount;
   final MatchStatus status;
   @MatchTeamEntityConverter()
   final MatchTeamEntity? teamA;
@@ -144,6 +146,7 @@ class MatchEntity extends Equatable {
         autoBalance,
         isPrivate,
         invitedFriends,
+        sentInvitesCount,
         status,
         teamA,
         teamB,

@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_date.dart';
+import '../../../../core/auth/app_auth.dart';
 
 /// Builds the embedded map shape expected by [Match.fromLegacyMap] from normalized tables.
 class MatchLegacyRemoteMapper {
@@ -54,12 +55,21 @@ class MatchLegacyRemoteMapper {
 
     final invites = await client
         .from('match_invites')
-        .select('user_id')
+        .select('user_id,status,invited_by')
         .eq('match_id', matchId)
-        .eq('status', 'pending');
-    final invitedFriends = (invites as List<dynamic>)
-        .map((r) => (r as Map<String, dynamic>)['user_id'] as String)
+        .inFilter('status', const ['pending', 'accepted', 'declined']);
+    final inviteRows = (invites as List<dynamic>).cast<Map<String, dynamic>>();
+    final invitedFriends = inviteRows
+        .where((r) => (r['status'] ?? '').toString() == 'pending')
+        .map((r) => (r['user_id'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
         .toList();
+    final currentUserId = AppAuth.currentUserId;
+    final sentInvitesCount = currentUserId == null
+        ? 0
+        : inviteRows
+            .where((r) => (r['invited_by'] ?? '').toString() == currentUserId)
+            .length;
 
     final lat = row['latitude'] as num?;
     final lng = row['longitude'] as num?;
@@ -88,6 +98,7 @@ class MatchLegacyRemoteMapper {
       'autoBalance': row['auto_balance'] ?? false,
       'isPrivate': row['is_private'] ?? false,
       'invitedFriends': invitedFriends,
+      'sentInvitesCount': sentInvitesCount,
       'status': row['status'] ?? 'open',
       'teamMatch': row['is_team_match'] ?? false,
       'createdAt': row['created_at'],

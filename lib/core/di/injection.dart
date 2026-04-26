@@ -31,6 +31,9 @@ import '../../features/ratings/domain/repositories/ratings_repository.dart';
 import '../../features/matches/data/datasources/matches_read_remote_datasource.dart';
 import '../../features/matches/data/datasources/matches_read_remote_datasource_impl.dart';
 import '../../features/matches/data/repositories/matches_repository_impl.dart';
+import '../../features/matches/application/create_match_use_case.dart';
+import '../../features/matches/application/match_management_actions_use_case.dart';
+import '../../features/matches/application/match_participation_actions_use_case.dart';
 import '../../features/matches/domain/repositories/matches_repository.dart';
 import '../../features/notifications/data/repositories/notifications_repository_impl.dart';
 import '../../features/notifications/domain/repositories/notifications_repository.dart';
@@ -199,6 +202,15 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<MatchService>(() => MatchService())
     ..registerLazySingleton<MatchesRepository>(
       () => MatchesRepositoryImpl(sl(), sl()),
+    )
+    ..registerLazySingleton(
+      () => CreateMatchUseCase(sl(), sl(), sl(), Supabase.instance.client),
+    )
+    ..registerLazySingleton(
+      () => MatchParticipationActionsUseCase(sl()),
+    )
+    ..registerLazySingleton(
+      () => MatchManagementActionsUseCase(sl()),
     )
     ..registerLazySingleton<ChallengeService>(() => ChallengeService())
     ..registerLazySingleton<ChallengesRepository>(

@@ -1,16 +1,15 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/models/match.dart';
+import '../../application/create_match_command.dart';
+import '../../application/create_match_use_case.dart';
 import '../../../teams/data/models/app_team.dart';
+import 'match_invite_search_screen.dart';
 import '../../../../core/di/injection.dart';
-import '../../domain/repositories/matches_repository.dart';
 import '../../../../features/teams/domain/repositories/teams_repository.dart';
-import '../../../notifications/data/services/notification_service.dart';
-import '../../../notifications/data/models/notification.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
@@ -42,15 +41,16 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   bool _isPrivate = false;
   int _numberOfTeams = 2; // 2, 3 or 4 teams
   final Set<String> _selectedInviteFriendIds = <String>{};
+  final Map<String, Map<String, dynamic>> _selectedInviteUsers =
+      <String, Map<String, dynamic>>{};
   
-  List<String> get _cities => [tr('kyiv'), tr('kharkiv'), tr('odesa'), tr('dnipro'), tr('lviv')];
   List<String> get _levels => [tr('beginner'), tr('il_3b1cfa63d7'), tr('il_9f088dbebd'), tr('professional')];
   final List<int> _playerOptions = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
   final ScrollController _friendsScrollController = ScrollController();
 
   TeamsRepository get _teamsRepo => sl<TeamsRepository>();
 
-  MatchesRepository get _matchesRepo => sl<MatchesRepository>();
+  CreateMatchUseCase get _createMatchUseCase => sl<CreateMatchUseCase>();
 
   bool _isCreating = false;
   bool _teamMode = false;
@@ -495,9 +495,82 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                         fontSize: 18,
                         fontWeight: FontWeight.bold),
                   ),
+                  const Spacer(),
+                  OutlinedButton.icon(
+                    onPressed: _openInviteSearchPage,
+                    icon: const Icon(Icons.search, color: Colors.white),
+                    label: Text(
+                      tr('il_146ee72e30'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF4caf50)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
+              if (_selectedInviteFriendIds.isNotEmpty) ...[
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12)),
+                  ),
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    children: _selectedInviteFriendIds.map((id) {
+                      final user = _selectedInviteUsers[id] ?? const <String, dynamic>{};
+                      final name = (user['displayName'] ??
+                              user['display_name'] ??
+                              user['email']?.toString().split('@').first ??
+                              tr('player'))
+                          .toString();
+                      final avatar = (user['avatarUrl'] ?? user['avatar_url'] ?? '').toString();
+                      final city = (user['city'] ?? '').toString();
+                      return ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                        leading: PlayerAvatarButton(
+                          userId: id,
+                          displayName: name,
+                          avatarUrl: avatar,
+                          size: 34,
+                        ),
+                        title: Text(
+                          name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: city.isEmpty
+                            ? null
+                            : Text(
+                                city,
+                                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                              ),
+                        trailing: IconButton(
+                          tooltip: tr('remove'),
+                          icon: const Icon(Icons.close, color: Colors.redAccent),
+                          onPressed: () {
+                            setState(() {
+                              _selectedInviteFriendIds.remove(id);
+                              _selectedInviteUsers.remove(id);
+                            });
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               FutureBuilder<List<Map<String, dynamic>>>(
                 future: _loadMyFriends(),
                 builder: (context, snapshot) {
@@ -603,8 +676,15 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                                   setState(() {
                                     if (val == true) {
                                       _selectedInviteFriendIds.add(id);
+                                      _selectedInviteUsers[id] = {
+                                        'id': id,
+                                        'displayName': name,
+                                        'avatarUrl': photoUrl,
+                                        'city': '',
+                                      };
                                     } else {
                                       _selectedInviteFriendIds.remove(id);
+                                      _selectedInviteUsers.remove(id);
                                     }
                                   });
                                 },
@@ -615,8 +695,15 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                                 setState(() {
                                   if (selected) {
                                     _selectedInviteFriendIds.remove(id);
+                                    _selectedInviteUsers.remove(id);
                                   } else {
                                     _selectedInviteFriendIds.add(id);
+                                    _selectedInviteUsers[id] = {
+                                      'id': id,
+                                      'displayName': name,
+                                      'avatarUrl': photoUrl,
+                                      'city': '',
+                                    };
                                   }
                                 });
                               },
@@ -694,75 +781,6 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;
 
-      // NEW: resolve organizer name reliably
-      final userData = await _sb
-              .from('profiles')
-              .select('display_name')
-              .eq('id', currentUser.id)
-              .maybeSingle() ??
-          <String, dynamic>{};
-      final emailPrefix = currentUser.email?.split('@').first;
-      final resolvedOrganizerName = (userData['display_name'] ??
-              emailPrefix ??
-              tr('il_b764cdc0ea'))
-          .toString();
-      
-      var participants = <String>[currentUser.id];
-      var currentPlayers = 1;
-      var autoBalance = _autoBalance;
-      var isTeamMatch = false;
-      final Map<String, List<String>> teamRosters = {};
-      final Map<String, Map<String, String>> teamRosterStatus = {};
-      Team? teamAData;
-      Team? teamBData;
-      String? teamAId;
-      String? teamBId;
-      String? teamAStatus;
-      String? teamBStatus;
-      var hostIsMyTeam = false;
-
-      if (_teamMode) {
-        if (_selectedTeam == null) {
-          throw Exception(tr('il_f7f8b89b06'));
-        }
-        hostIsMyTeam =
-            _selectedTeam!.memberIds.contains(currentUser.id);
-        if (hostIsMyTeam && _selectedRoster.isEmpty) {
-          throw Exception(tr('il_5e90e3ad39'));
-        }
-        if (!hostIsMyTeam) {
-          participants = <String>[];
-          currentPlayers = 0;
-        } else {
-          participants = List<String>.from(_selectedRoster);
-          currentPlayers = participants.length;
-        }
-        autoBalance = false;
-        isTeamMatch = true;
-        teamAId = _selectedTeam!.id;
-        teamAStatus = 'pending';
-        teamRosters['teamA'] =
-            hostIsMyTeam ? List<String>.from(_selectedRoster) : <String>[];
-        if (hostIsMyTeam) {
-          teamRosterStatus['teamA'] = {
-            for (final playerId in _selectedRoster) playerId: 'pending',
-          };
-        }
-        if (_opponentTeam != null) {
-          teamBId = _opponentTeam!.id;
-          teamBStatus = 'pending';
-          teamRosters['teamB'] = [];
-          teamBData = Team(
-            name: _opponentTeam!.name,
-            playerIds: const [],
-          );
-        }
-        teamAData = Team(
-          name: _selectedTeam!.name,
-          playerIds: hostIsMyTeam ? _selectedRoster : const [],
-        );
-      }
-
       _selectedCity = _cityController.text.trim();
       if (_selectedCity.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -770,105 +788,35 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
         );
         return;
       }
-
-      final match = Match(
-        id: '', // Firestore згенерує ID
-        title: _titleController.text,
-        description: _descriptionController.text,
-        organizerId: currentUser.id,
-        organizerName: resolvedOrganizerName,
-        date: _selectedDate,
-        time: '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
-        location: _locationController.text,
-        city: _selectedCity,
-        currentPlayers: currentPlayers,
-        maxPlayers: _selectedPlayers,
-        participants: participants,
-        level: _getMatchLevel(_selectedLevel),
-        cost: _cost,
-        autoBalance: autoBalance,
-        isPrivate: _isPrivate,
-        invitedFriends: _selectedInviteFriendIds.toList(),
-        isTeamMatch: isTeamMatch,
-        teamAId: teamAId,
-        teamBId: teamBId,
-        teamAStatus: teamAStatus,
-        teamBStatus: teamBStatus,
-        teamRosters: teamRosters,
-        teamRosterStatus: teamRosterStatus,
-        teamA: teamAData,
-        teamB: teamBData,
-        status: MatchStatus.open,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+      final result = await _createMatchUseCase.execute(
+        CreateMatchCommand(
+          currentUserId: currentUser.id,
+          currentUserEmail: currentUser.email,
+          title: _titleController.text,
+          description: _descriptionController.text,
+          date: _selectedDate,
+          timeLabel:
+              '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
+          location: _locationController.text,
+          city: _selectedCity,
+          maxPlayers: _selectedPlayers,
+          level: _getMatchLevel(_selectedLevel),
+          cost: _cost,
+          autoBalance: _autoBalance,
+          isPrivate: _isPrivate,
+          teamMode: _teamMode,
+          selectedInviteFriendIds: _selectedInviteFriendIds.toList(),
+          selectedRoster: List<String>.from(_selectedRoster),
+          selectedTeam: _selectedTeam,
+          opponentTeam: _opponentTeam,
+        ),
       );
-      
-            final matchId = await _matchesRepo.createMatch(match);
-
-      // Надіслати інвайти вибраним друзям (push + in-app)
-      if (_selectedInviteFriendIds.isNotEmpty) {
-        try {
-          final title = _titleController.text.trim();
-          final notifService = NotificationService();
-          for (final uid in _selectedInviteFriendIds) {
-            await notifService.sendNotification(AppNotification(
-              id: '',
-              userId: uid,
-              type: NotificationType.matchInvite,
-              title: tr('il_bfaa223845'),
-              message: bilingual(
-                '$resolvedOrganizerName запросив вас на матч "$title"',
-                '$resolvedOrganizerName invited you to the match "$title"',
-              ),
-              data: {
-                'matchId': matchId, 
-                'matchTitle': title,
-                'city': _selectedCity,
-                'date': _selectedDate.toIso8601String(),
-                'time': '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
-                'action': 'open_match',
-              },
-              createdAt: DateTime.now(),
-            ));
-          }
-        } catch (_) {}
-      }
-      
-      if (_teamMode) {
-        if (_selectedTeam != null && !hostIsMyTeam) {
-          await _teamsRepo.sendMatchRequest(
-            teamId: _selectedTeam!.id,
-            opponentTeamId: _opponentTeam?.id ?? '',
-            opponentName:
-                _opponentTeam?.name ?? tr('il_c0886e50d4'),
-            matchId: matchId,
-            proposedRoster: hostIsMyTeam ? _selectedRoster : const [],
-          );
-        }
-        if (_opponentTeam != null) {
-          await _teamsRepo.sendMatchRequest(
-            teamId: _opponentTeam!.id,
-            opponentTeamId: _selectedTeam!.id,
-            opponentName: _selectedTeam!.name,
-            matchId: matchId,
-            proposedRoster: const [],
-          );
-        }
-        if (hostIsMyTeam) {
-          await _sendRosterInvites(
-            matchId: matchId,
-            teamKey: 'teamA',
-            teamName: _selectedTeam!.name,
-            playerIds: _selectedRoster,
-          );
-        }
-      }
 
       if (!mounted) return;
       await _showMatchCreatedDialog(
-        matchId,
+        result.matchId,
         _titleController.text.trim(),
-        resolvedOrganizerName,
+        result.organizerName,
       );
     } catch (e) {
       if (!mounted) return;
@@ -951,24 +899,6 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _sendRosterInvites({
-    required String matchId,
-    required String teamKey,
-    required String teamName,
-    required List<String> playerIds,
-  }) async {
-    if (playerIds.isEmpty) return;
-    final notifService = NotificationService();
-    for (final playerId in playerIds) {
-      await notifService.sendTeamRosterInvite(
-        toUserId: playerId,
-        matchId: matchId,
-        teamName: teamName,
-        teamKey: teamKey,
-      );
-    }
   }
 
   Future<void> _openTeamSearchSheet({required bool forHost}) async {
@@ -1405,6 +1335,41 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     }
   }
 
+  Future<void> _openInviteSearchPage() async {
+    final selected = await Navigator.of(context).push<List<Map<String, dynamic>>>(
+      MaterialPageRoute(
+        builder: (_) => MatchInviteSearchScreen(
+          selectionOnly: true,
+          initialSelectedUserIds: _selectedInviteFriendIds.toList(),
+          excludedUserIds: const <String>[],
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+
+    setState(() {
+      _selectedInviteFriendIds
+        ..clear()
+        ..addAll(selected
+            .map((e) => (e['id'] ?? '').toString())
+            .where((id) => id.isNotEmpty));
+      _selectedInviteUsers
+        ..clear()
+        ..addEntries(
+          selected.map((e) {
+            final id = (e['id'] ?? '').toString();
+            return MapEntry(id, <String, dynamic>{
+              'id': id,
+              'displayName': e['display_name'],
+              'avatarUrl': e['avatar_url'],
+              'city': e['city'],
+              'email': e['email'],
+            });
+          }).where((entry) => entry.key.isNotEmpty),
+        );
+    });
+  }
+
   Future<void> _loadMyTeams() async {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
@@ -1429,228 +1394,6 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
       if (!mounted) return;
       setState(() => _loadingTeams = false);
     }
-  }
-
-  Future<List<Map<String, dynamic>>> _loadInviteCandidates() async {
-    try {
-      final me = AppAuth.currentUser;
-      if (me == null) return [];
-      final snap = await _sb
-          .from('profiles')
-          .select('id, display_name, avatar_url, city')
-          .limit(100);
-      final result = <Map<String, dynamic>>[];
-      for (final row in snap as List<dynamic>) {
-        final data = row as Map<String, dynamic>;
-        if ((data['id'] ?? '').toString() == me.id) continue;
-        result.add({
-          'id': data['id'],
-          'displayName': data['display_name'],
-          'avatarUrl': data['avatar_url'],
-          'city': data['city'],
-        });
-      }
-      result.sort((a, b) {
-        final aName = (a['displayName'] ?? a['name'] ?? '').toString();
-        final bName = (b['displayName'] ?? b['name'] ?? '').toString();
-        return aName.compareTo(bName);
-      });
-      return result;
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<void> _showInviteParticipantsDialog(
-    String matchId,
-    String matchTitle,
-    String organizerName,
-  ) async {
-    final candidates = await _loadInviteCandidates();
-    if (!mounted) return;
-
-    final searchController = TextEditingController();
-    String selectedCity = tr('all_cities');
-    final selectedIds = <String>{};
-
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setStateDialog) {
-          final query = searchController.text.trim().toLowerCase();
-          final filtered = candidates.where((user) {
-            final name = (user['displayName'] ?? user['name'] ?? '').toString().toLowerCase();
-            final city = (user['city'] ?? '').toString();
-            final matchesQuery = query.isEmpty || name.contains(query);
-            final matchesCity = selectedCity == tr('all_cities') || city == selectedCity;
-            return matchesQuery && matchesCity;
-          }).toList();
-
-          return AlertDialog(
-            backgroundColor: const Color(0xFF1a1a2e),
-            title: Text(
-              tr('il_146ee72e30'),
-              style: const TextStyle(color: Colors.white),
-            ),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: searchController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: tr('il_4ae2b33364'),
-                      labelStyle: const TextStyle(color: Colors.white70),
-                    ),
-                    onChanged: (_) => setStateDialog(() {}),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: selectedCity,
-                    dropdownColor: const Color(0xFF1a1a2e),
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: tr('il_fc33f73246'),
-                      labelStyle: const TextStyle(color: Colors.white70),
-                    ),
-                    items: _cities
-                        .map((city) => DropdownMenuItem<String>(
-                              value: city,
-                              child: Text(city),
-                            ))
-                        .toList()
-                      ..insert(
-                        0,
-                        DropdownMenuItem<String>(
-                          value: tr('all_cities'),
-                          child: Text(tr('all_cities')),
-                        ),
-                      ),
-                    onChanged: (value) {
-                      selectedCity = value ?? tr('all_cities');
-                      setStateDialog(() {});
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Flexible(
-                    child: filtered.isEmpty
-                        ? Center(
-                            child: Text(
-                              tr('il_bf1e104fb3'),
-                              style: const TextStyle(color: Colors.white54),
-                            ),
-                          )
-                        : ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: filtered.length,
-                            itemBuilder: (context, index) {
-                              final user = filtered[index];
-                              final id = user['id'] as String;
-                              final name = (user['displayName'] ?? user['name'] ?? tr('il_b512d97e7c')).toString();
-                              final city = (user['city'] ?? '').toString();
-                              final rating = ((user['rating'] ?? 0) as num).toDouble();
-                              final avatar = (user['avatarUrl'] ?? user['avatar'] ?? '').toString();
-                              final selected = selectedIds.contains(id);
-
-                              return ListTile(
-                                onTap: () {
-                                  setStateDialog(() {
-                                    if (selected) {
-                                      selectedIds.remove(id);
-                                    } else {
-                                      selectedIds.add(id);
-                                    }
-                                  });
-                                },
-                                leading: PlayerAvatarButton(
-                                  userId: id,
-                                  displayName: name,
-                                  avatarUrl: avatar,
-                                  size: 34,
-                                ),
-                                title: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        name,
-                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '⭐ ${rating.toStringAsFixed(2)}',
-                                      style: const TextStyle(color: Color(0xFFFFD54F), fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                                subtitle: Text(
-                                  city,
-                                  style: const TextStyle(color: Colors.white54),
-                                ),
-                                trailing: Checkbox(
-                                  value: selected,
-                                  onChanged: (value) {
-                                    setStateDialog(() {
-                                      if (value == true) {
-                                        selectedIds.add(id);
-                                      } else {
-                                        selectedIds.remove(id);
-                                      }
-                                    });
-                                  },
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(tr('cancel')),
-              ),
-              ElevatedButton(
-                onPressed: selectedIds.isEmpty
-                    ? null
-                    : () async {
-                        final notificationService = NotificationService();
-                        for (final uid in selectedIds) {
-                          await notificationService.sendNotification(
-                            AppNotification(
-                              id: '',
-                              userId: uid,
-                              type: NotificationType.matchInvite,
-                              title: tr('il_bfaa223845'),
-                              message: bilingual(
-                                '$organizerName запросив вас на матч "$matchTitle"',
-                                '$organizerName invited you to the match "$matchTitle"',
-                              ),
-                              data: {
-                                'matchId': matchId,
-                                'matchTitle': matchTitle,
-                                'action': 'open_match',
-                              },
-                              createdAt: DateTime.now(),
-                            ),
-                          );
-                        }
-
-                        if (context.mounted) Navigator.pop(ctx);
-                      },
-                child: Text(tr('il_1fd9ae1607')),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-
-    searchController.dispose();
   }
 
   Future<void> _showMatchCreatedDialog(
@@ -1685,7 +1428,15 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     );
 
     if (action == 'invite') {
-      await _showInviteParticipantsDialog(matchId, matchTitle, organizerName);
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => MatchInviteSearchScreen(
+            matchId: matchId,
+            matchTitle: matchTitle,
+            organizerName: organizerName,
+          ),
+        ),
+      );
     }
 
     if (mounted) {
@@ -1699,21 +1450,24 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   }
 
   Future<Map<String, String>> _fetchMemberNames(List<String> ids) async {
+    if (ids.isEmpty) return <String, String>{};
     final map = <String, String>{};
-    for (final id in ids) {
-      try {
-        final data = await _sb
-            .from('profiles')
-            .select('display_name,email')
-            .eq('id', id)
-            .maybeSingle();
-        map[id] = (data?['display_name'] ??
-                data?['email']?.toString().split('@').first ??
+    try {
+      final rows = await _sb
+          .from('profiles')
+          .select('id,display_name,email')
+          .inFilter('id', ids);
+      for (final row in rows) {
+        final id = (row['id'] ?? '').toString();
+        if (id.isEmpty) continue;
+        map[id] = (row['display_name'] ??
+                row['email']?.toString().split('@').first ??
                 tr('player'))
             .toString();
-      } catch (_) {
-        map[id] = tr('player');
       }
+    } catch (_) {}
+    for (final id in ids) {
+      map.putIfAbsent(id, () => tr('player'));
     }
     return map;
   }

@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flap_app/core/supabase/supabase_date.dart';
 
 import '../../../../router/app_router.dart';
 import '../../../../core/di/injection.dart';
+import '../../application/match_management_actions_use_case.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../../data/models/match.dart';
+import 'match_invite_search_screen.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import 'dart:math';
@@ -26,8 +29,11 @@ class MatchManagementScreen extends StatefulWidget {
 
 class _MatchManagementScreenState extends State<MatchManagementScreen> with TickerProviderStateMixin {
   late TabController _tabController;
+  late final bool _isOwner;
 
   MatchesRepository get _matchRepo => sl<MatchesRepository>();
+  MatchManagementActionsUseCase get _managementActions =>
+      sl<MatchManagementActionsUseCase>();
   final SupabaseClient _sb = Supabase.instance.client;
 
   List<String> _pendingApplications = [];
@@ -136,7 +142,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTabIndex);
+    _isOwner = AppAuth.currentUserId == widget.match.organizerId;
+    final tabCount = _isOwner ? 4 : 3;
+    final safeInitialIndex =
+        widget.initialTabIndex.clamp(0, tabCount - 1).toInt();
+    _tabController =
+        TabController(length: tabCount, vsync: this, initialIndex: safeInitialIndex);
     _loadMatchData();
   }
 
@@ -227,6 +238,30 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: _isOwner
+            ? [
+                IconButton(
+                  tooltip: tr('il_146ee72e30'),
+                  icon: const Icon(Icons.person_add_alt_1, color: Colors.white),
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => MatchInviteSearchScreen(
+                          matchId: widget.match.id,
+                          matchTitle: widget.match.title,
+                          organizerName: widget.match.organizerName,
+                          excludedUserIds: <String>[
+                            widget.match.organizerId,
+                            ...widget.match.participants,
+                            ...widget.match.pendingApplications,
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ]
+            : null,
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -244,63 +279,50 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
               final has = snap.hasData && snap.data != null;
               final m = has ? snap.data! : widget.match;
               final pendingCount = has ? m.pendingApplications.length : _pendingApplications.length;
-              final participantsCount = has ? m.participants.length : _participants.length;
+
+              final tabs = <Widget>[
+                Tab(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(tr('il_98e33b0f31')),
+                        const SizedBox(width: 6),
+                        if (pendingCount > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$pendingCount',
+                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                Tab(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(tr('il_1e1a1c078a')),
+                  ),
+                ),
+                Tab(text: tr('settings')),
+              ];
+              if (_isOwner) {
+                tabs.add(Tab(text: bilingual('Запрошення', 'Invitations')));
+              }
 
               return TabBar(
                 controller: _tabController,
                 labelColor: Colors.white,
                 unselectedLabelColor: Colors.white70,
                 indicatorColor: Colors.white,
-                tabs: [
-                  Tab(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(tr('il_98e33b0f31')),
-                          const SizedBox(width: 6),
-                          if (pendingCount > 0)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.orange,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                '$pendingCount',
-                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Tab(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(tr('il_1e1a1c078a')),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.blue,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '$participantsCount',
-                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Tab(text: tr('settings')),
-                ],
+                tabs: tabs,
               );
             },
           ),
@@ -312,7 +334,210 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
           _buildApplicationsTab(),
           _buildTeamsTab(),
           _buildSettingsTab(),
+          if (_isOwner) _buildInvitationsTab(),
         ],
+      ),
+    );
+  }
+
+  Stream<List<_InviteHistoryItem>> _invitationHistoryStream() {
+    return _sb
+        .from('match_invites')
+        .stream(primaryKey: ['id'])
+        .eq('match_id', widget.match.id)
+        .asyncMap((rows) async {
+      final inviteRows = (rows as List<dynamic>)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(growable: false);
+      final userIds = inviteRows
+          .map((r) => (r['user_id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList(growable: false);
+
+      final profileById = <String, Map<String, dynamic>>{};
+      if (userIds.isNotEmpty) {
+        try {
+          final profiles = await _sb
+              .from('profiles')
+              .select('id,display_name,email')
+              .inFilter('id', userIds);
+          for (final p in profiles as List<dynamic>) {
+            final row = Map<String, dynamic>.from(p as Map);
+            final id = (row['id'] ?? '').toString();
+            if (id.isNotEmpty) profileById[id] = row;
+          }
+        } catch (_) {}
+      }
+
+      final items = inviteRows.map((r) {
+        final userId = (r['user_id'] ?? '').toString();
+        final p = profileById[userId];
+        final label = (p?['display_name'] ??
+                p?['email']?.toString().split('@').first ??
+                userId)
+            .toString();
+        final email = (p?['email'] ?? '').toString();
+        return _InviteHistoryItem(
+          userId: userId,
+          label: label,
+          email: email,
+          status: (r['status'] ?? 'pending').toString(),
+          createdAt: asDateTimeOrNull(r['created_at']) ?? DateTime.now(),
+        );
+      }).toList(growable: false)
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return items;
+    });
+  }
+
+  Widget _buildInvitationsTab() {
+    if (!_isOwner) {
+      return Center(
+        child: Text(
+          bilingual('Недоступно', 'Not available'),
+          style: const TextStyle(color: Colors.white70),
+        ),
+      );
+    }
+    return StreamBuilder<List<_InviteHistoryItem>>(
+      stream: _invitationHistoryStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+          );
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  tr('il_e69e7edfdf', namedArgs: {'e': snapshot.error.toString()}),
+                  style: const TextStyle(color: Colors.redAccent),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () => setState(() {}),
+                  child: Text(tr('retry')),
+                ),
+              ],
+            ),
+          );
+        }
+        final items = snapshot.data ?? const <_InviteHistoryItem>[];
+        if (items.isEmpty) {
+          return Center(
+            child: Text(
+              bilingual('Запрошень ще немає', 'No invitations sent yet'),
+              style: const TextStyle(color: Colors.white70),
+            ),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.white12,
+                    child: Text(
+                      item.label.isNotEmpty ? item.label[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (item.email.isNotEmpty)
+                          Text(
+                            item.email,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatInvitationTime(item.createdAt),
+                          style: const TextStyle(color: Colors.white54, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildInviteStatusChip(item.status),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _formatInvitationTime(DateTime dt) {
+    final mm = dt.month.toString().padLeft(2, '0');
+    final dd = dt.day.toString().padLeft(2, '0');
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '$dd.$mm ${dt.year} $hh:$min';
+  }
+
+  Widget _buildInviteStatusChip(String status) {
+    final normalized = status.trim().toLowerCase();
+    Color bg = Colors.white24;
+    String label = normalized;
+    if (normalized == 'pending') {
+      bg = Colors.orange;
+      label = bilingual('Очікує', 'Pending');
+    } else if (normalized == 'accepted') {
+      bg = const Color(0xFF4caf50);
+      label = bilingual('Прийнято', 'Accepted');
+    } else if (normalized == 'declined') {
+      bg = Colors.redAccent;
+      label = bilingual('Відхилено', 'Declined');
+    } else if (normalized == 'cancelled') {
+      bg = Colors.grey;
+      label = bilingual('Скасовано', 'Cancelled');
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: bg.withOpacity(0.45)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -949,11 +1174,11 @@ Future<void> _saveResults(Match m) async {
       return;
     }
 
-    final finished = await _matchRepo.finishMatch(
-      m.id,
-      MatchResult.draw,
-      m.teamAScore ?? 0,
-      m.teamBScore ?? 0,
+    final finished = await _managementActions.finishMatch(
+      matchId: m.id,
+      result: MatchResult.draw,
+      teamAScore: m.teamAScore ?? 0,
+      teamBScore: m.teamBScore ?? 0,
     );
 
     if (!finished) {
@@ -1824,7 +2049,10 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
   // Прийняття заявки
   Future<void> _acceptApplication(String userId) async {
     try {
-      final success = await _matchRepo.acceptApplication(widget.match.id, userId);
+      final success = await _managementActions.acceptApplication(
+        matchId: widget.match.id,
+        userId: userId,
+      );
       
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1855,7 +2083,10 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
   // Відхилення заявки
   Future<void> _rejectApplication(String userId) async {
     try {
-      final success = await _matchRepo.rejectApplication(widget.match.id, userId);
+      final success = await _managementActions.rejectApplication(
+        matchId: widget.match.id,
+        userId: userId,
+      );
       
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2122,7 +2353,7 @@ setState(() {
   setState(() => _isLoading = true);
   
   try {
-    final success = await _matchRepo.startMatch(widget.match.id);
+    final success = await _managementActions.startMatch(widget.match.id);
     
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2308,11 +2539,11 @@ setState(() {
         return;
       }
       
-      final success = await _matchRepo.finishMatch(
-        widget.match.id, 
-        result, 
-        _teamAScore, 
-        _teamBScore,
+      final success = await _managementActions.finishMatch(
+        matchId: widget.match.id,
+        result: result,
+        teamAScore: _teamAScore,
+        teamBScore: _teamBScore,
         goalsByPlayer: goalMap,
       );
       
@@ -2559,18 +2790,25 @@ setState(() {
 }
 
   Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {
+    if (ids.isEmpty) return <String, String>{};
     final names = <String, String>{};
-    for (final id in ids) {
-      try {
-        final data = await _sb.from('profiles').select().eq('id', id).maybeSingle();
-        names[id] = (data?['display_name'] ??
-                data?['first_name'] ??
-                data?['author_name'] ??
+    try {
+      final rows = await _sb
+          .from('profiles')
+          .select('id,display_name,first_name,author_name')
+          .inFilter('id', ids);
+      for (final row in rows) {
+        final id = (row['id'] ?? '').toString();
+        if (id.isEmpty) continue;
+        names[id] = (row['display_name'] ??
+                row['first_name'] ??
+                row['author_name'] ??
                 tr('player'))
             .toString();
-      } catch (_) {
-        names[id] = tr('player');
       }
+    } catch (_) {}
+    for (final id in ids) {
+      names.putIfAbsent(id, () => tr('player'));
     }
     return names;
   }
@@ -2678,6 +2916,22 @@ class _ClubInfo {
       rating: team?.averageRating,
     );
   }
+}
+
+class _InviteHistoryItem {
+  const _InviteHistoryItem({
+    required this.userId,
+    required this.label,
+    required this.email,
+    required this.status,
+    required this.createdAt,
+  });
+
+  final String userId;
+  final String label;
+  final String email;
+  final String status;
+  final DateTime createdAt;
 }
 
 class _ClubCardData {

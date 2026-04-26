@@ -136,12 +136,15 @@ class MatchService {
 
     if (match.isPrivate && match.invitedFriends.isNotEmpty) {
       for (final friendId in match.invitedFriends) {
-        await _sb.from('match_invites').insert({
-          'match_id': matchId,
-          'user_id': friendId,
-          'invited_by': uid,
-          'status': 'pending',
-        });
+        await _sb.from('match_invites').upsert(
+          {
+            'match_id': matchId,
+            'user_id': friendId,
+            'invited_by': uid,
+            'status': 'pending',
+          },
+          onConflict: 'match_id,user_id',
+        );
         await NotificationService().sendMatchInvite(
           toUserId: friendId,
           matchId: matchId,

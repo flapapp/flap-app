@@ -12,8 +12,10 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/matches_repository.dart';
+import '../../application/match_participation_actions_use_case.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../../data/models/match.dart';
+import '../utils/match_status_ui.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/user_chip.dart';
@@ -31,10 +33,15 @@ class MatchDetailsScreen extends StatefulWidget {
 
 class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   MatchesRepository get _matchRepo => sl<MatchesRepository>();
+  MatchParticipationActionsUseCase get _participationActions =>
+      sl<MatchParticipationActionsUseCase>();
   final SupabaseClient _sb = Supabase.instance.client;
 
   final NotificationService _notificationService = NotificationService();
   bool _isJoining = false;
+  bool _isRespondingInvite = false;
+  String? _inviteStatusOverride;
+  bool _acceptedInviteLocally = false;
   bool _isUploadingCover = false;
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -43,6 +50,17 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   final Map<String, AppTeam> _teamCache = {};
   final Map<String, String> _playerNameCache = {};
   bool _isProcessingRosterAction = false;
+
+  List<String> get _effectiveParticipants {
+    final ids = List<String>.from(widget.match.participants);
+    final currentUserId = AppAuth.currentUserId;
+    if (_acceptedInviteLocally &&
+        currentUserId != null &&
+        !ids.contains(currentUserId)) {
+      ids.add(currentUserId);
+    }
+    return ids;
+  }
 
   Stream<Match?> _liveMatchStream() {
     return _sb
@@ -128,6 +146,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildHeaderSection() {
+    final statusUi = buildMatchStatusUi(widget.match.status, match: widget.match);
+
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -173,11 +193,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: _getStatusColor(widget.match.status, match: widget.match),
+              color: statusUi.color,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              _getStatusText(widget.match.status, match: widget.match),
+              statusUi.label,
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 14,
@@ -461,7 +481,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               Expanded(
                 child: _buildStatCard(
                   '👥',
-                  '${widget.match.participants.length}/${widget.match.maxPlayers}',
+                  '${_effectiveParticipants.length}/${widget.match.maxPlayers}',
                   tr('il_84e12ac655'),
                 ),
               ),
@@ -1602,7 +1622,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                tr('il_1610626016', args: ['${widget.match.participants.length}']),
+                tr('il_1610626016', args: ['${_effectiveParticipants.length}']),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -1616,7 +1636,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '${widget.match.participants.length}/${widget.match.maxPlayers}',
+                  '${_effectiveParticipants.length}/${widget.match.maxPlayers}',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -1628,7 +1648,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           ),
           SizedBox(height: 16),
           
-          if (widget.match.participants.isEmpty)
+          if (_effectiveParticipants.isEmpty)
             Container(
               padding: EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -1647,7 +1667,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             )
           else
             Column(
-              children: widget.match.participants.map((participantId) {
+              children: _effectiveParticipants.map((participantId) {
                 return _buildParticipantCard(participantId);
               }).toList(),
             ),
@@ -1939,8 +1959,10 @@ String _localizedCity(String? raw) {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return const SizedBox.shrink();
 
-    final isParticipant = widget.match.participants.contains(currentUser.id);
-    final isFull = widget.match.currentPlayers >= widget.match.maxPlayers;
+    final isParticipant =
+        _effectiveParticipants.contains(currentUser.id) || _acceptedInviteLocally;
+    final hasPendingRequest = widget.match.hasPendingApplication(currentUser.id);
+    final isFull = _effectiveParticipants.length >= widget.match.maxPlayers;
     final isOrganizer = widget.match.organizerId == currentUser.id;
 
     if (widget.match.isTeamMatch && !isParticipant && !isOrganizer) {
@@ -2096,56 +2118,187 @@ String _localizedCity(String? raw) {
   );
 }
 
-return Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 50,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF4caf50).withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: _isJoining ? null : _joinMatch,
+if (hasPendingRequest) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
-                child: Center(
-                  child: _isJoining
-                      ? const CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2)
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.add, color: Colors.white, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              tr('join'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              ),
+              child: Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.hourglass_top, color: Colors.white70, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      tr('join'),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
+          const SizedBox(width: 16),
+          _buildShareButton(),
+        ],
+      ),
+      const SizedBox(height: 8),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Text(
+          tr('already_applied'),
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+          ),
         ),
+      ),
+    ],
+  );
+}
+
+return Row(
+      children: [
+        Expanded(child: _buildPrimaryAction(currentUser.id)),
         const SizedBox(width: 16),
-        _buildShareButton(),
+        // _buildShareButton(),
       ],
+    );
+  }
+
+  Widget _buildPrimaryAction(String userId) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _sb
+          .from('match_invites')
+          .select('status')
+          .eq('match_id', widget.match.id)
+          .eq('user_id', userId)
+          .maybeSingle(),
+      builder: (context, snapshot) {
+        final inviteStatus =
+            _inviteStatusOverride ?? (snapshot.data?['status'] ?? '').toString();
+        if (inviteStatus == 'pending') {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isRespondingInvite ? null : () => _respondMatchInvite(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4caf50),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: _isRespondingInvite
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(tr('accept')),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isRespondingInvite ? null : _confirmDeclineInvite,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(tr('reject')),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildShareButton(expand: false),
+            ],
+          );
+        }
+        if (inviteStatus == 'declined') {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+                ),
+                child: Text(
+                  tr('il_d3bcba9446'),
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildShareButton(expand: false),
+            ],
+          );
+        }
+        return Container(
+          height: 50,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF4caf50).withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _isJoining ? null : _joinMatch,
+              borderRadius: BorderRadius.circular(12),
+              child: Center(
+                child: _isJoining
+                    ? const CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2)
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.add, color: Colors.white, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            tr('join'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -2274,6 +2427,7 @@ return Row(
 
   final currentUser = AppAuth.currentUser;
   if (currentUser == null) return;
+  if (widget.match.hasPendingApplication(currentUser.id)) return;
 
   if (widget.match.isUnplayedByTimeout ||
       widget.match.status == MatchStatus.cancelled) {
@@ -2291,7 +2445,10 @@ return Row(
 
   try {
     final success =
-        await _matchRepo.applyForMatch(widget.match.id, currentUser.id);
+        await _participationActions.applyForMatch(
+          matchId: widget.match.id,
+          userId: currentUser.id,
+        );
 
     if (!mounted) return;
 
@@ -2326,6 +2483,85 @@ return Row(
   }
 }
 
+  Future<void> _respondMatchInvite(bool accept) async {
+    if (_isRespondingInvite) return;
+    final currentUser = AppAuth.currentUser;
+    if (currentUser == null) return;
+
+    setState(() => _isRespondingInvite = true);
+    try {
+      await _sb.from('match_invites').update({
+        'status': accept ? 'accepted' : 'declined',
+      }).eq('match_id', widget.match.id).eq('user_id', currentUser.id);
+
+      if (accept) {
+        await _sb.from('match_participants').upsert(
+          {
+            'match_id': widget.match.id,
+            'user_id': currentUser.id,
+            'status': 'accepted',
+            'joined_at': DateTime.now().toUtc().toIso8601String(),
+            'responded_at': DateTime.now().toUtc().toIso8601String(),
+          },
+          onConflict: 'match_id,user_id',
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _inviteStatusOverride = accept ? 'accepted' : 'declined';
+        if (accept) {
+          _acceptedInviteLocally = true;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(accept ? tr('il_d585866af0') : tr('il_d3bcba9446')),
+          backgroundColor: accept ? const Color(0xFF4caf50) : Colors.orangeAccent,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isRespondingInvite = false);
+    }
+  }
+
+  Future<void> _confirmDeclineInvite() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('confirm')),
+        content: Text(
+          bilingual(
+            'Ви впевнені, що хочете відхилити запрошення на матч?',
+            'Are you sure you want to decline the match invitation?',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(tr('cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: Text(tr('reject')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _respondMatchInvite(false);
+    }
+  }
+
   void _shareMatch() {
     final url = 'https://flap.app/match/${widget.match.id}';
     Share.share('${tr('il_5f7bc7026d', args: [widget.match.title])}$url');
@@ -2344,41 +2580,6 @@ return Row(
     }
   }
 
-  Color _getStatusColor(MatchStatus status, {Match? match}) {
-  if (match?.isUnplayedByTimeout == true) {
-    return const Color(0xFF607D8B);
-  }
-  switch (status) {
-    case MatchStatus.open:
-      return const Color(0xFF4caf50);
-    case MatchStatus.full:
-      return Colors.orange;
-    case MatchStatus.inProgress:
-      return const Color(0xFF2196f3);
-    case MatchStatus.finished:
-      return Colors.grey;
-    case MatchStatus.cancelled:
-      return Colors.red;
-  }
-}
-
-String _getStatusText(MatchStatus status, {Match? match}) {
-  if (match?.isUnplayedByTimeout == true) {
-    return tr('il_ee288d682b');
-  }
-  switch (status) {
-    case MatchStatus.open:
-      return tr('il_ed077f3d81');
-    case MatchStatus.full:
-      return tr('il_008dacb6d1');
-    case MatchStatus.inProgress:
-      return tr('il_c1f88e9d6c');
-    case MatchStatus.finished:
-      return tr('il_7804f7a79a');
-    case MatchStatus.cancelled:
-      return tr('il_d353a99eb4');
-  }
-}
   Future<double> _getMyMatchAverageRating(String matchId, String userId) async {
     try {
       final rows = await _sb
@@ -2418,7 +2619,7 @@ String _getStatusText(MatchStatus status, {Match? match}) {
     List<String> aPlayers = List<String>.from(widget.match.teamA?.playerIds ?? const <String>[]);
     List<String> bPlayers = List<String>.from(widget.match.teamB?.playerIds ?? const <String>[]);
     if (aPlayers.isEmpty && bPlayers.isEmpty) {
-      final all = List<String>.from(widget.match.participants);
+      final all = List<String>.from(_effectiveParticipants);
       all.sort();
       final mid = (all.length / 2).floor();
       aPlayers = all.sublist(0, mid);

@@ -1,28 +1,25 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
-import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
+import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../router/app_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/di/injection.dart';
-import '../../domain/repositories/matches_repository.dart';
-import '../../data/models/match.dart';
-import 'create_match_screen.dart';
-import 'match_details_screen.dart';
-import '../../../ratings/presentation/pages/ratings_screen.dart';
-import '../../../../widgets/rating_display.dart';
-import '../../../ratings/domain/repositories/ratings_repository.dart';
-import 'match_management_screen.dart';
-import 'package:share_plus/share_plus.dart';
-import 'dart:async';
-import '../../../../widgets/user_chip.dart';
-import '../../../../widgets/player_avatar_button.dart';
-import '../../../../widgets/mode_speed_dial.dart';
-import '../../../notifications/data/services/notification_service.dart';
+import '../../../../router/app_router.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
-import 'package:flap_app/core/auth/app_auth.dart';
+import '../../../../widgets/mode_speed_dial.dart';
+import '../../../../widgets/player_avatar_button.dart';
+import '../../../../widgets/user_chip.dart';
+import '../../../notifications/data/services/notification_service.dart';
+import '../../../ratings/domain/repositories/ratings_repository.dart';
+import '../../data/models/match.dart';
+import '../../domain/repositories/matches_repository.dart';
+import '../controllers/match_list_controller.dart';
+import '../utils/match_status_ui.dart';
 
 
 
@@ -105,6 +102,7 @@ class _MatchesScreenState extends State<MatchesScreen> with TickerProviderStateM
   }
 
   MatchesRepository get _matchRepo => sl<MatchesRepository>();
+  MatchListController get _matchListController => MatchListController(_matchRepo);
 
   RatingsRepository get _ratingsRepo => sl<RatingsRepository>();
   final SupabaseClient _sb = Supabase.instance.client;
@@ -1819,10 +1817,14 @@ void _shareMatch(Match match) {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-    Text(
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
                   match.title,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
@@ -1832,6 +1834,13 @@ void _shareMatch(Match match) {
                     fontWeight: FontWeight.w600,
                 ),
               ),
+                  ],
+                ),
+              ),
+              if (isParticipant) ...[
+                const SizedBox(width: 10),
+                _buildJoinedIndicator(),
+              ],
             ],
           ),
           
@@ -1848,6 +1857,34 @@ void _shareMatch(Match match) {
             const SizedBox(height: 16),
             _buildMatchPhotoFooter(match),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJoinedIndicator() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF4caf50).withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: const Color(0xFF4caf50).withValues(alpha: 0.45),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check_circle, size: 14, color: Color(0xFF81C784)),
+          const SizedBox(width: 6),
+          Text(
+            bilingual('Учасник', 'Joined'),
+            style: const TextStyle(
+              color: Color(0xFFE8F5E9),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -2127,12 +2164,10 @@ SingleChildScrollView(
 Widget _buildActionButtons(Match match, String currentUserId) {
   // Перевіряємо статус користувача в матчі
   final rawUserStatus = match.getUserStatus(currentUserId);
-  final userStatus = _convertUserStatus(rawUserStatus);
 
   // Діагностика
   print('DEBUG: Match ${match.title}');
   print('DEBUG: Raw user status: $rawUserStatus');
-  print('DEBUG: Converted user status: $userStatus');
   print('DEBUG: Match status: ${match.status}');
   print('DEBUG: Participants: ${match.participants}');
   print('DEBUG: Current user: $currentUserId');
@@ -2166,161 +2201,85 @@ Widget _buildActionButtons(Match match, String currentUserId) {
           ),
         ),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: () =>
-              context.router.push(MatchDetailsRoute(match: match)),
-          icon: const Icon(Icons.info_outline, size: 16),
-          label: Text(tr('details'),
-              style:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.white,
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            minimumSize: const Size(0, 40),
-          ),
-        ),
+        _buildDetailShareRow(match),
       ],
     );
   }
 
   // Приватний матч — лише за запрошенням
   if (match.isPrivate && !match.invitedFriends.contains(currentUserId)) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.lock, color: Colors.white70, size: 16),
-          const SizedBox(width: 8),
-          Text(tr('private_match_invite_only'), style: const TextStyle(color: Colors.white70)),
-        ],
-      ),
-    );
-  }
-
-  // Відкритий матч і користувач не учасник — показати три компактні кнопки
-  if (rawUserStatus == 'none' && match.status == MatchStatus.open) {
-    return LayoutBuilder(
-  builder: (context, c) {
-    final isNarrow = c.maxWidth < 360;
-
-    final joinBtn = ElevatedButton.icon(
-      onPressed: () => _applyForMatch(match.id),
-      icon: const Icon(Icons.person_add_alt_1, size: 16),
-      label: Text(tr('join'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-        style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF4caf50),
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        minimumSize: const Size(0, 40),
-      ),
-    );
-
-    final detailsBtn = OutlinedButton.icon(
-      onPressed: () => context.router.push(MatchDetailsRoute(match: match)),
-      icon: const Icon(Icons.info_outline, size: 16),
-      label: Text(tr('details'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.white,
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        minimumSize: const Size(0, 40),
-      ),
-    );
-
-    final shareBtn = OutlinedButton.icon(
-      onPressed: () => _shareMatch(match),
-      icon: const Icon(Icons.share, size: 16),
-      label: Text(tr('il_29887a5ff9'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.white,
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        minimumSize: const Size(0, 40),
-      ),
-    );
-
-    if (isNarrow) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(width: double.infinity, child: joinBtn),
-          const SizedBox(height: 8),
-          SizedBox(width: double.infinity, child: detailsBtn),
-          const SizedBox(height: 8),
-          SizedBox(width: double.infinity, child: shareBtn),
-        ],
-      );
-    }
-
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(child: SizedBox(height: 40, child: joinBtn)),
-        const SizedBox(width: 8),
-        Expanded(child: SizedBox(height: 40, child: detailsBtn)),
-        const SizedBox(width: 8),
-        Expanded(child: SizedBox(height: 40, child: shareBtn)),
-      ],
-    );
-  },
-);
-  }
-
-  // Інші стани — дві компактні кнопки
-  return Row(
-    children: [
-      // Деталі (outline)
-      Expanded(
-        child: Container(
-          height: 40,
+        Container(
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white24),
+                borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
           ),
-          child: TextButton(
-            onPressed: () {
-              context.router.push(MatchDetailsRoute(match: match));
-            },
-            child: Text(
+          child: Row(
+            children: [
+              const Icon(Icons.lock, color: Colors.white70, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  tr('private_match_invite_only'),
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildDetailShareRow(match),
+      ],
+    );
+  }
+
+  return _buildDetailShareRow(match);
+}
+
+Widget _buildDetailShareRow(Match match) {
+  return Row(
+    children: [
+      Expanded(
+        child: SizedBox(
+          height: 40,
+          child: OutlinedButton.icon(
+            onPressed: () => context.router.push(MatchDetailsRoute(match: match)),
+            icon: const Icon(Icons.info_outline, size: 16),
+            label: Text(
               tr('details'),
-              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
         ),
       ),
       const SizedBox(width: 8),
-      // Share / Join CTA
       Expanded(
-        child: Container(
+        child: SizedBox(
           height: 40,
-          decoration: BoxDecoration(
-            color: const Color(0xFF4caf50),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: TextButton(
-            onPressed: () {
-              if (match.status == MatchStatus.open && rawUserStatus == 'none') {
-                _applyForMatch(match.id);
-                return;
-              }
-              final url = 'https://flap.app/match/${match.id}';
-              Share.share(tr('il_df5a71b7ac') + url);
-            },
-            child: Text(
-              match.status == MatchStatus.open && rawUserStatus == 'none'
-                  ? tr('il_fd30fe681b')
-                  : tr('il_29887a5ff9'),
-              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          child: OutlinedButton.icon(
+            onPressed: () => _shareMatch(match),
+            icon: const Icon(Icons.share, size: 16),
+            label: Text(
+              tr('il_29887a5ff9'),
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
         ),
@@ -2466,60 +2425,23 @@ Widget _buildActionButtons(Match match, String currentUserId) {
 
 
   Stream<List<Match>> _getFilteredMatches() {
-    return _matchRepo.getAvailableMatches().map((matches) {
-    final selectedCity = _selectedCity.trim();
-    final filtered = matches.where((match) {
-        // Фільтр по місту
-      if (selectedCity.isNotEmpty &&
-      selectedCity != tr('all_cities') &&
-      match.city.trim().toLowerCase() != selectedCity.toLowerCase()) {
-    return false;
-  }
-        // Фільтр по рівню
-      if (_selectedLevel != tr('all_levels') && _getLevelText(match.level) != _selectedLevel) return false;
-        // Фільтр по часу
-        if (_selectedTime != tr('anytime')) {
-        final now = DateTime.now();
-        final matchDate = match.date;
-          final timeValue = _selectedTime;
-          if (timeValue == tr('il_2b065c7c9c')) {
-            if (!_isSameDay(matchDate, now)) return false;
-          } else if (timeValue == tr('il_456a73bbce')) {
-            final tomorrow = now.add(const Duration(days: 1));
-            if (!_isSameDay(matchDate, tomorrow)) return false;
-          } else if (timeValue == tr('il_8c4eef5ab2')) {
-            final weekEnd = now.add(const Duration(days: 7));
-            if (matchDate.isBefore(now) || matchDate.isAfter(weekEnd)) return false;
-          }
-        }
-        // Фільтр по пошуку
-        if (_searchQuery.isNotEmpty) {
-        final q = _searchQuery.toLowerCase();
-        return match.title.toLowerCase().contains(q) ||
-               match.description.toLowerCase().contains(q) ||
-               match.location.toLowerCase().contains(q) ||
-               match.city.toLowerCase().contains(q);
-      }
-        return true;
-      }).toList();
-    // Сортування
-      filtered.sort((a, b) {
-      if (a.isUnplayedByTimeout != b.isUnplayedByTimeout) {
-        return a.isUnplayedByTimeout ? 1 : -1;
-      }
-
-      if (_selectedSort == 'my_city' &&
-          _currentUserCity.trim().isNotEmpty) {
-        final aMine = a.city.trim().toLowerCase() == _currentUserCity.trim().toLowerCase();
-        final bMine = b.city.trim().toLowerCase() == _currentUserCity.trim().toLowerCase();
-        if (aMine != bMine) {
-          return bMine ? 1 : -1;
-        }
-      }
-      return b.createdAt.compareTo(a.createdAt);
-    });
-    return filtered;
-    });
+    return _matchListController.getFilteredMatches(
+      MatchListFilters(
+        selectedCity: _selectedCity,
+        allCitiesLabel: tr('all_cities'),
+        selectedLevel: _selectedLevel,
+        allLevelsLabel: tr('all_levels'),
+        selectedTime: _selectedTime,
+        anytimeLabel: tr('anytime'),
+        todayLabel: tr('il_2b065c7c9c'),
+        tomorrowLabel: tr('il_456a73bbce'),
+        weekLabel: tr('il_8c4eef5ab2'),
+        selectedSort: _selectedSort,
+        searchQuery: _searchQuery,
+        currentUserCity: _currentUserCity,
+      ),
+      levelTextResolver: _getLevelText,
+    );
   }
 
   String _sortLabel(String key) {
@@ -2551,44 +2473,12 @@ Widget _buildActionButtons(Match match, String currentUserId) {
 
   // Метод для отримання кольору статусу
   Color _getStatusColor(MatchStatus status, {Match? match}) {
-  if (match?.isUnplayedByTimeout == true) {
-    return const Color(0xFF607D8B);
+    return buildMatchListStatusUi(status, match: match).color;
   }
-  switch (status) {
-    case MatchStatus.open:
-      return const Color(0xFF4caf50);
-    case MatchStatus.full:
-      return Colors.blue;
-    case MatchStatus.inProgress:
-      return Colors.orange;
-    case MatchStatus.finished:
-      return Colors.grey;
-    case MatchStatus.cancelled:
-      return Colors.red;
-    default:
-      return Colors.grey;
-  }
-}
 
-String _getStatusText(MatchStatus status, {Match? match}) {
-  if (match?.isUnplayedByTimeout == true) {
-    return tr('il_ee288d682b');
+  String _getStatusText(MatchStatus status, {Match? match}) {
+    return buildMatchListStatusUi(status, match: match).label;
   }
-  switch (status) {
-    case MatchStatus.open:
-      return tr('status_open');
-    case MatchStatus.full:
-      return tr('status_full');
-    case MatchStatus.inProgress:
-      return tr('status_in_progress');
-    case MatchStatus.finished:
-      return tr('status_finished');
-    case MatchStatus.cancelled:
-      return tr('status_cancelled');
-    default:
-      return tr('unknown');
-  }
-}
 
 IconData _getStatusIcon(MatchStatus status) {
   switch (status) {
@@ -2619,13 +2509,6 @@ IconData _getStatusIcon(MatchStatus status) {
     } else {
       return '${dateTime.day}.${dateTime.month} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
     }
-  }
-
-  // Допоміжні методи для фільтрації
-  bool _isSameDay(DateTime date1, DateTime date2) {
-    return date1.year == date2.year &&
-           date1.month == date2.month &&
-           date1.day == date2.day;
   }
 
   String _getLevelText(MatchLevel level) {
@@ -3013,43 +2896,6 @@ Column(
   }
 
 
-  // Метод для подачі заявки на матч
-  Future<void> _applyForMatch(String matchId) async {
-    try {
-      final currentUser = AppAuth.currentUser;
-      if (currentUser == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('il_1141023944')), backgroundColor: Colors.red),
-        );
-        return;
-      }
-
-      final success = await _matchRepo.applyForMatch(matchId, currentUser.id);
-
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(tr('il_a5cf09124c')),
-            backgroundColor: Color(0xFF4caf50),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(tr('il_c8f6eedfa0')),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
   // Вихід з матчу
 Future<void> _onLeaveMatch(Match match) async {
   try {
@@ -3300,21 +3146,24 @@ Future<void> _onLeaveMatch(Match match) async {
   }
 
   Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {
+    if (ids.isEmpty) return <String, String>{};
     final names = <String, String>{};
-    for (final id in ids) {
-      try {
-        final row = await _sb
-            .from('profiles')
-            .select('display_name, email')
-            .eq('id', id)
-            .maybeSingle();
-        names[id] = (row?['display_name'] ??
-                row?['email']?.toString().split('@').first ??
+    try {
+      final rows = await _sb
+          .from('profiles')
+          .select('id,display_name,email')
+          .inFilter('id', ids);
+      for (final row in rows) {
+        final id = (row['id'] ?? '').toString();
+        if (id.isEmpty) continue;
+        names[id] = (row['display_name'] ??
+                row['email']?.toString().split('@').first ??
                 tr('player'))
             .toString();
-      } catch (_) {
-        names[id] = tr('player');
       }
+    } catch (_) {}
+    for (final id in ids) {
+      names.putIfAbsent(id, () => tr('player'));
     }
     return names;
   }
@@ -3333,23 +3182,6 @@ Future<void> _onLeaveMatch(Match match) async {
         return Colors.grey;
     }
   }
-  String _convertUserStatus(String status) {
-  switch (status) {
-    case 'organizer':
-      return tr('manage');
-    case 'participant':
-      return tr('participant');
-    case 'pending':
-      return tr('il_f4e93d19a0');
-    case 'rejected':
-      return tr('reject');
-    case 'none':
-      return tr('apply');
-    default:
-      return tr('apply');
-  }
-} 
-
   // Картка матчу для історії (детальна як у MVP)
   Widget _buildHistoryMatchCard(Match match) {
     final currentUserId = AppAuth.currentUserId;
