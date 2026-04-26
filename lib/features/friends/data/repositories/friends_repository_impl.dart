@@ -1,6 +1,7 @@
 import '../models/friend_request.dart';
 import '../services/friends_service.dart';
 import '../../domain/repositories/friends_repository.dart';
+import '../../domain/entities/friendship_state.dart';
 
 class FriendsRepositoryImpl implements FriendsRepository {
   FriendsRepositoryImpl(this._friends);
@@ -23,6 +24,16 @@ class FriendsRepositoryImpl implements FriendsRepository {
   }
 
   @override
+  Future<List<FriendRequest>> fetchPendingIncomingFriendRequests() {
+    return _friends.fetchPendingIncomingFriendRequests();
+  }
+
+  @override
+  Future<List<FriendRequest>> fetchPendingOutgoingFriendRequests() {
+    return _friends.fetchPendingOutgoingFriendRequests();
+  }
+
+  @override
   Future<bool> respondToFriendRequest(String requestId, bool accept) {
     return _friends.respondToFriendRequest(requestId, accept);
   }
@@ -40,6 +51,11 @@ class FriendsRepositoryImpl implements FriendsRepository {
   @override
   Future<bool> areUsersFriends(String userId1, String userId2) {
     return _friends.areUsersFriends(userId1, userId2);
+  }
+
+  @override
+  Future<FriendshipState> friendshipStateWith(String otherUserId) {
+    return _friends.friendshipStateWith(otherUserId);
   }
 
   @override

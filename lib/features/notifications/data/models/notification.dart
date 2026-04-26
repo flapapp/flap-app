@@ -30,6 +30,14 @@ class AppNotification extends AppNotificationEntity {
     if (code == null || code.isEmpty) {
       return NotificationType.friendRequest;
     }
+    // DB / RPC uses snake_case codes; client enum names are camelCase.
+    switch (code) {
+      case 'friend_request':
+      case 'friend_request_sent':
+        return NotificationType.friendRequest;
+      case 'friend_request_accepted':
+        return NotificationType.friendAccepted;
+    }
     return NotificationType.values.firstWhere(
       (e) => e.toString().split('.').last == code,
       orElse: () => NotificationType.friendRequest,

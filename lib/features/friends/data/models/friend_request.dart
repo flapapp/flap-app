@@ -170,11 +170,23 @@ class Friend extends FriendEntity {
 
   // Factory constructor from user data
   factory Friend.fromUserData(Map<String, dynamic> userData, DateTime friendsSince) {
+    final ratingRaw = userData['rating'] ??
+        userData['overall_rating'] ??
+        userData['overallRating'] ??
+        0.0;
     return Friend(
-      userId: userData['id'] ?? '',
-      name: userData['displayName'] ?? userData['name'] ?? userData['email']?.split('@')[0] ?? tr('il_b512d97e7c'),
-      avatar: userData['avatarUrl'] ?? userData['avatar'] ?? '', // Спочатку перевіряємо avatarUrl, потім avatar
-      rating: (userData['rating'] ?? 0.0).toDouble(),
+      userId: userData['id']?.toString() ?? '',
+      name: userData['displayName'] ??
+          userData['display_name'] ??
+          userData['name'] ??
+          userData['email']?.toString().split('@').first ??
+          tr('il_b512d97e7c'),
+      avatar: userData['avatarUrl'] ??
+          userData['avatar_url'] ??
+          userData['avatar'] ??
+          '',
+      rating: (ratingRaw is num ? ratingRaw : double.tryParse('$ratingRaw') ?? 0.0)
+          .toDouble(),
       city: userData['city'] ?? tr('il_2491fe94a7'),
       position: userData['position'] ?? 'player',
       friendsSince: friendsSince,

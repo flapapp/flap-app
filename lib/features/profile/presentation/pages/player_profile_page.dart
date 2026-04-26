@@ -18,6 +18,8 @@ import '../../domain/repositories/player_badge_endorsement_repository.dart';
 import '../../domain/repositories/player_challenge_invite_repository.dart';
 import '../../domain/repositories/player_notification_actions_repository.dart';
 import '../../domain/repositories/player_social_repository.dart';
+import '../../../friends/domain/entities/friendship_state.dart';
+import '../../../friends/domain/repositories/friends_repository.dart';
 import '../../domain/repositories/player_videos_repository.dart';
 import '../../domain/repositories/profile_repository.dart';
 import '../../domain/repositories/team_stats_repository.dart';
@@ -47,6 +49,8 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   List<Map<String, dynamic>> playerVideos = [];
   bool isLoading = true;
   bool _isSendingRequest = false;
+  int _friendshipUiEpoch = 0;
+  bool _friendshipActionBusy = false;
   // Пікер та локальний буфер аватару
   final ImagePicker _picker = ImagePicker();
   XFile? _pickedAvatar; // web-safe файл
@@ -334,27 +338,65 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     });
   }
 
-  Future<bool> _areFriends() async {
-    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
-    if (uid == null) return false;
+  Future<FriendshipState> _friendshipState() =>
+      sl<PlayerSocialRepository>().friendshipStateWith(widget.playerId);
 
+  Future<void> _respondToFriendRequestFromProfile(
+    String requestId,
+    bool accept,
+  ) async {
+    setState(() => _friendshipActionBusy = true);
     try {
-      return await sl<PlayerSocialRepository>()
-          .areUsersFriends(uid, widget.playerId);
+      await sl<FriendsRepository>().respondToFriendRequest(requestId, accept);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            accept
+                ? bilingual('✅ Запрошення прийнято!', '✅ Invitation accepted!')
+                : bilingual('❌ Запрошення відхилено', '❌ Invitation declined'),
+          ),
+          backgroundColor: accept ? Colors.green : Colors.red,
+        ),
+      );
+      setState(() => _friendshipUiEpoch++);
     } catch (e) {
-      return false;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _friendshipActionBusy = false);
     }
   }
 
-  Future<bool> _hasPendingRequest() async {
-    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
-    if (uid == null) return false;
-
+  Future<void> _cancelOutgoingFromProfile(String requestId) async {
+    setState(() => _friendshipActionBusy = true);
     try {
-      return await sl<PlayerSocialRepository>()
-          .hasOutgoingPendingRequestTo(widget.playerId);
+      await sl<FriendsRepository>().cancelFriendRequest(requestId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            bilingual('✅ Запрошення скасовано', '✅ Invitation cancelled'),
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      setState(() => _friendshipUiEpoch++);
     } catch (e) {
-      return false;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _friendshipActionBusy = false);
     }
   }
 
@@ -374,7 +416,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        setState(() {});
+        setState(() => _friendshipUiEpoch++);
       }
     } catch (e) {
       if (mounted) {
@@ -653,62 +695,177 @@ const SizedBox(height: 12),
                 final isOwnProfile = me != null && widget.playerId == me;
                 if (isOwnProfile) return const SizedBox.shrink();
 
-                return FutureBuilder<Map<String, bool>>(
-                  future: Future.wait([_areFriends(), _hasPendingRequest()]).then((results) {
-                    return {'isFriend': results[0], 'hasPendingRequest': results[1]};
-                  }),
+                return FutureBuilder<FriendshipState>(
+                  key: ValueKey(_friendshipUiEpoch),
+                  future: _friendshipState(),
                   builder: (context, snapshot) {
-                    final data = snapshot.data ?? {'isFriend': false, 'hasPendingRequest': false};
-                    final isFriend = data['isFriend']!;
-                    final hasPendingRequest = data['hasPendingRequest']!;
-
-                    return Row(children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: isFriend || hasPendingRequest || _isSendingRequest ? null : () => _sendFriendRequest(),
-                          icon: Icon(isFriend
-                              ? Icons.people
-                              : hasPendingRequest
-                                  ? Icons.schedule
-                                  : Icons.person_add),
-                          label: Text(isFriend
-                              ? tr('friends')
-                              : hasPendingRequest
-                                  ? bilingual('Запрошення надіслано', 'Invitation sent')
-                                  : _isSendingRequest
-                                      ? bilingual('Надсилання...', 'Sending...')
-                                      : bilingual('Додати в друзі', 'Add friend')),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4caf50),
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: hasPendingRequest ? Colors.orange.withOpacity(0.4) : Colors.grey.withOpacity(0.4),
-                            disabledForegroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                            side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        !snapshot.hasData) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Center(
+                          child: SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF4caf50),
+                              strokeWidth: 2,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () => _showInviteToChallengeDialog(),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.12),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                        ),
-                        child: const Icon(Icons.emoji_events, size: 16),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () => _showRateMeDialog(),
+                      );
+                    }
+
+                    final state = snapshot.data ??
+                        const FriendshipState(isFriend: false);
+                    final isFriend = state.isFriend;
+                    final hasOutgoing = state.hasPendingOutgoing;
+                    final hasIncoming = state.hasPendingIncoming;
+                    final busy = _friendshipActionBusy || _isSendingRequest;
+
+                    Widget primaryFriendAction;
+                    if (isFriend) {
+                      primaryFriendAction = ElevatedButton.icon(
+                        onPressed: null,
+                        icon: const Icon(Icons.people),
+                        label: Text(tr('friends')),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF4caf50),
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                          disabledBackgroundColor:
+                              Colors.grey.withOpacity(0.4),
+                          disabledForegroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          side: BorderSide(color: Colors.white.withOpacity(0.2)),
                         ),
-                        child: Text(bilingual('Оціни мене', 'Rate me')),
-                      ),
-                    ]);
+                      );
+                    } else if (hasIncoming) {
+                      final rid = state.incomingPendingRequestId!;
+                      primaryFriendAction = Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: busy
+                                  ? null
+                                  : () =>
+                                      _respondToFriendRequestFromProfile(rid, false),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(color: Colors.red),
+                              ),
+                              child: Text(tr('reject')),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: busy
+                                  ? null
+                                  : () =>
+                                      _respondToFriendRequestFromProfile(rid, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4caf50),
+                                foregroundColor: Colors.white,
+                              ),
+                              child: Text(tr('accept')),
+                            ),
+                          ),
+                        ],
+                      );
+                    } else if (hasOutgoing) {
+                      final rid = state.outgoingPendingRequestId!;
+                      primaryFriendAction = Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: null,
+                              icon: const Icon(Icons.schedule),
+                              label: Text(
+                                bilingual(
+                                  'Запрошення надіслано',
+                                  'Invitation sent',
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4caf50),
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor:
+                                    Colors.orange.withOpacity(0.4),
+                                disabledForegroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                side: BorderSide(
+                                  color: Colors.white.withOpacity(0.2),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          TextButton(
+                            onPressed:
+                                busy ? null : () => _cancelOutgoingFromProfile(rid),
+                            child: Text(
+                              tr('cancel'),
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                          ),
+                        ],
+                      );
+                    } else {
+                      primaryFriendAction = ElevatedButton.icon(
+                        onPressed: busy ? null : () => _sendFriendRequest(),
+                        icon: const Icon(Icons.person_add),
+                        label: Text(
+                          _isSendingRequest
+                              ? bilingual('Надсилання...', 'Sending...')
+                              : bilingual('Додати в друзі', 'Add friend'),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4caf50),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.grey.withOpacity(0.4),
+                          disabledForegroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                        ),
+                      );
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: primaryFriendAction),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () => _showInviteToChallengeDialog(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white.withOpacity(0.12),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                          child: const Icon(Icons.emoji_events, size: 16),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () => _showRateMeDialog(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4caf50),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                          child: Text(bilingual('Оціни мене', 'Rate me')),
+                        ),
+                      ],
+                    );
                   },
                 );
               },

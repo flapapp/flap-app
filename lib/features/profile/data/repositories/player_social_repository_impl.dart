@@ -1,5 +1,6 @@
 import '../../../friends/data/models/friend_request.dart';
 import '../../../friends/domain/repositories/friends_repository.dart';
+import '../../../friends/domain/entities/friendship_state.dart';
 import '../../domain/repositories/player_social_repository.dart';
 
 class PlayerSocialRepositoryImpl implements PlayerSocialRepository {
@@ -14,8 +15,13 @@ class PlayerSocialRepositoryImpl implements PlayerSocialRepository {
 
   @override
   Future<bool> hasOutgoingPendingRequestTo(String toUserId) async {
-    final outgoing = await _friends.getOutgoingFriendRequests().first;
-    return outgoing.any((request) => request.toUserId == toUserId);
+    final s = await _friends.friendshipStateWith(toUserId);
+    return s.hasPendingOutgoing;
+  }
+
+  @override
+  Future<FriendshipState> friendshipStateWith(String otherUserId) {
+    return _friends.friendshipStateWith(otherUserId);
   }
 
   @override

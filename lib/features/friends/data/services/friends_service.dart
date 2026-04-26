@@ -6,6 +6,7 @@ import 'package:flap_app/core/supabase/supabase_date.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/models/friend_request.dart';
+import '../../domain/entities/friendship_state.dart';
 import '../../../notifications/data/services/notification_service.dart';
 
 class FriendsService {
@@ -30,15 +31,20 @@ class FriendsService {
         throw Exception('Ви вже друзі з цим користувачем');
       }
 
-      final existing = await _client
-          .from('friend_requests')
-          .select('id')
-          .eq('from_user_id', currentUser.id)
-          .eq('to_user_id', toUserId)
-          .eq('status', 'pending')
-          .maybeSingle();
-      if (existing != null) {
-        throw Exception('Запрошення вже надіслано');
+      final pendingBetween =
+          await _pendingRequestsBetween(currentUser.id, toUserId);
+      if (pendingBetween.isNotEmpty) {
+        final p = pendingBetween.first;
+        final from = p['from_user_id'].toString();
+        if (from == currentUser.id) {
+          throw Exception('Запрошення вже надіслано');
+        }
+        throw Exception(
+          bilingual(
+            'Цей користувач уже надіслав вам запрошення. Відповідайте у розділі Друзі.',
+            'This user already sent you a request. Respond in Friends.',
+          ),
+        );
       }
 
       final fromProfile = await _client
@@ -90,6 +96,17 @@ class FriendsService {
       );
 
       return true;
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        throw Exception(
+          bilingual(
+            'Запрошення вже існує або очікує відповіді',
+            'A friend request already exists or is pending',
+          ),
+        );
+      }
+      print('Error sending friend request: $e');
+      rethrow;
     } catch (e) {
       print('Error sending friend request: $e');
       rethrow;
@@ -128,6 +145,18 @@ class FriendsService {
         .stream(primaryKey: ['id'])
         .eq('from_user_id', currentUser.id)
         .asyncMap((_) => _loadFriendRequests(incoming: false, userId: currentUser.id));
+  }
+
+  Future<List<FriendRequest>> fetchPendingIncomingFriendRequests() async {
+    final currentUser = AppAuth.currentUser;
+    if (currentUser == null) return [];
+    return _loadFriendRequests(incoming: true, userId: currentUser.id);
+  }
+
+  Future<List<FriendRequest>> fetchPendingOutgoingFriendRequests() async {
+    final currentUser = AppAuth.currentUser;
+    if (currentUser == null) return [];
+    return _loadFriendRequests(incoming: false, userId: currentUser.id);
   }
 
   Future<List<FriendRequest>> _loadFriendRequests({
@@ -199,29 +228,19 @@ class FriendsService {
         throw Exception('Запрошення вже оброблено');
       }
 
-      final newStatus = accept
-          ? FriendRequestStatus.accepted
-          : FriendRequestStatus.declined;
-
-      await _client.from('friend_requests').update(<String, dynamic>{
-        'status': newStatus.toString().split('.').last,
-        'responded_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', requestId);
+      try {
+        await _client.rpc(
+          'accept_friend_request_rpc',
+          params: <String, dynamic>{
+            'p_request_id': requestId,
+            'p_accept': accept,
+          },
+        );
+      } on PostgrestException catch (e) {
+        throw Exception(_translateFriendRpcError(e));
+      }
 
       if (accept) {
-        await _client.from('friendships').insert([
-          <String, dynamic>{
-            'user_id': request.fromUserId,
-            'friend_user_id': request.toUserId,
-            'source_request_id': requestId,
-          },
-          <String, dynamic>{
-            'user_id': request.toUserId,
-            'friend_user_id': request.fromUserId,
-            'source_request_id': requestId,
-          },
-        ]);
-
         await insertCoinTransaction(
           _client,
           request.toUserId,
@@ -231,11 +250,6 @@ class FriendsService {
             'Новий друг: ${request.fromUserName}',
             'New friend: ${request.fromUserName}',
           ),
-        );
-
-        await _notificationService.sendFriendAcceptedNotification(
-          toUserId: request.fromUserId,
-          friendName: request.toUserName,
         );
       }
 
@@ -263,7 +277,7 @@ class FriendsService {
         throw Exception('Запрошення не знайдено');
       }
 
-      if (row['from_user_id'] != currentUser.id) {
+      if (row['from_user_id'].toString() != currentUser.id) {
         throw Exception('Це не ваше запрошення');
       }
 
@@ -303,7 +317,7 @@ class FriendsService {
         final friendDoc = await _client
             .from('profiles')
             .select(
-                'id,display_name,email,avatar_url,city,position,last_seen_at')
+                'id,display_name,email,avatar_url,city,position,last_seen_at,overall_rating')
             .eq('id', friendId)
             .maybeSingle();
 
@@ -321,6 +335,72 @@ class FriendsService {
       print('Error getting user friends: $e');
       return [];
     }
+  }
+
+  Future<FriendshipState> friendshipStateWith(String otherUserId) async {
+    try {
+      final currentUser = AppAuth.currentUser;
+      if (currentUser == null || otherUserId == currentUser.id) {
+        return const FriendshipState(isFriend: false);
+      }
+      if (await areUsersFriends(currentUser.id, otherUserId)) {
+        return const FriendshipState(isFriend: true);
+      }
+      final rows = await _pendingRequestsBetween(currentUser.id, otherUserId);
+      String? incomingId;
+      String? outgoingId;
+      for (final m in rows) {
+        final id = m['id'].toString();
+        final from = m['from_user_id'].toString();
+        if (from == otherUserId) {
+          incomingId = id;
+        } else {
+          outgoingId = id;
+        }
+      }
+      return FriendshipState(
+        isFriend: false,
+        incomingPendingRequestId: incomingId,
+        outgoingPendingRequestId: outgoingId,
+      );
+    } catch (e) {
+      print('Error friendshipStateWith: $e');
+      return const FriendshipState(isFriend: false);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _pendingRequestsBetween(
+    String userIdA,
+    String userIdB,
+  ) async {
+    final rows = await _client
+        .from('friend_requests')
+        .select('id, from_user_id, to_user_id')
+        .eq('status', 'pending')
+        .or(
+          'and(from_user_id.eq.$userIdA,to_user_id.eq.$userIdB),'
+          'and(from_user_id.eq.$userIdB,to_user_id.eq.$userIdA)',
+        );
+    return (rows as List<dynamic>)
+        .map((r) => Map<String, dynamic>.from(r as Map))
+        .toList();
+  }
+
+  String _translateFriendRpcError(PostgrestException e) {
+    final m = e.message;
+    if (m.contains('Friend request not found')) {
+      return bilingual('Запрошення не знайдено', 'Friend request not found');
+    }
+    if (m.contains('Not your friend request')) {
+      return bilingual('Це не ваше запрошення', 'Not your friend request');
+    }
+    if (m.contains('Friend request already processed')) {
+      return bilingual(
+        'Запрошення вже оброблено',
+        'Friend request already processed',
+      );
+    }
+    return bilingual('Помилка: $m', m);
   }
 
   Future<bool> areUsersFriends(String userId1, String userId2) async {
