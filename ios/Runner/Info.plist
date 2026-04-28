@@ -32,6 +32,14 @@
 <string>Потрібен доступ до фото для аватарки профілю</string>
 <key>NSCameraUsageDescription</key>
 <string>Потрібен доступ до камери для фото профілю</string>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Notifications keep you updated on matches, challenges, and team activity.</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

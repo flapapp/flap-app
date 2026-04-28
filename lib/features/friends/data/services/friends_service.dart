@@ -7,14 +7,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/models/friend_request.dart';
 import '../../domain/entities/friendship_state.dart';
-import '../../../notifications/data/services/notification_service.dart';
 
 class FriendsService {
   FriendsService();
 
   SupabaseClient get _client => Supabase.instance.client;
-
-  final NotificationService _notificationService = NotificationService();
 
   Future<bool> sendFriendRequest(String toUserId, {String? message}) async {
     try {
@@ -62,10 +59,9 @@ class FriendsService {
         throw Exception('Користувача не знайдено');
       }
 
-      final fromName = _profileDisplayName(fromProfile);
       final toName = _profileDisplayName(toProfile);
 
-      final inserted = await _client
+      await _client
           .from('friend_requests')
           .insert(<String, dynamic>{
             'from_user_id': currentUser.id,
@@ -75,14 +71,6 @@ class FriendsService {
           })
           .select('id')
           .single();
-
-      final requestId = inserted['id'] as String;
-
-      await _notificationService.sendFriendRequestNotification(
-        toUserId: toUserId,
-        fromUserName: fromName,
-        requestId: requestId,
-      );
 
       await insertCoinTransaction(
         _client,

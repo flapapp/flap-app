@@ -1,3 +1,5 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/models/notification.dart';
@@ -5,14 +7,17 @@ import '../../../matches/data/models/match.dart' as app_models;
 import '../../../matches/data/supabase/match_legacy_remote_mapper.dart';
 import '../../../../router/app_router.dart';
 import '../../../profile/data/services/user_settings_service.dart';
-import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
+import 'fcm_transport_service.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/core/config/supabase_env.dart';
-import 'package:flap_app/core/supabase/supabase_lookups.dart';
 
 class NotificationService {
+  NotificationService({FcmTransportService? transportService})
+      : _transportService = transportService ?? FcmTransportService();
+
   SupabaseClient get _sb => Supabase.instance.client;
+  final FcmTransportService _transportService;
+  final Set<String> _processedMessageKeys = <String>{};
 
   bool get _hasSb =>
       SupabaseEnv.url.isNotEmpty && SupabaseEnv.anonKey.isNotEmpty;
@@ -43,12 +48,21 @@ class NotificationService {
       }
 
       print('Initializing NotificationService...');
+      await _transportService.initialize(
+        onForegroundMessage: _handleForegroundRemoteMessage,
+        onNotificationTap: _navigateFromData,
+        onToken: _saveFCMToken,
+      );
       AppAuth.onAuthStateChange.listen((state) async {
         final u = state.session?.user;
         if (u != null) {
           if (!await UserSettingsService().isNotificationsEnabled()) {
             await _clearNotificationTokens(u.id);
+          } else {
+            await syncCurrentUserToken();
           }
+        } else {
+          await _clearNotificationTokens();
         }
       });
 
@@ -59,7 +73,13 @@ class NotificationService {
   }
 
   Future<void> syncCurrentUserToken() async {
-    await _clearNotificationTokens();
+    if (!await UserSettingsService().isNotificationsEnabled()) {
+      await _clearNotificationTokens();
+      return;
+    }
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token == null || token.isEmpty) return;
+    await _saveFCMToken(token);
   }
 
   Future<void> _saveFCMToken(String token) async {
@@ -69,36 +89,46 @@ class NotificationService {
       await _clearNotificationTokens(currentUser.id);
       return;
     }
-    const platform = 'disabled';
-    await _sb.from('push_tokens').upsert(
-      <String, dynamic>{
-        'user_id': currentUser.id,
+    final platform = _devicePlatform;
+    if (platform == null) return;
+    await _sb.functions.invoke(
+      'notification-command',
+      body: <String, dynamic>{
+        'action': 'register_push_token',
         'token': token,
         'platform': platform,
-        'last_seen_at': DateTime.now().toUtc().toIso8601String(),
       },
-      onConflict: 'token',
     );
+  }
+
+  String? get _devicePlatform {
+    if (kIsWeb) return null;
+    if (defaultTargetPlatform == TargetPlatform.android) return 'android';
+    if (defaultTargetPlatform == TargetPlatform.iOS) return 'ios';
+    return null;
   }
 
   Future<void> _clearNotificationTokens([String? uid]) async {
     final userId = uid ?? AppAuth.currentUserId;
     if (userId == null || !_hasSb) return;
-    await _sb.from('push_tokens').update(<String, dynamic>{
-      'revoked_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('user_id', userId);
+    await _sb.functions.invoke(
+      'notification-command',
+      body: <String, dynamic>{
+        'action': 'revoke_push_tokens',
+        'user_id': userId,
+      },
+    );
   }
 
-  // Handle foreground messages
-  void _handleForegroundMessage(Map<String, dynamic> message) {
-    print('Received foreground message: ${message['title']}');
-    // Show in-app notification or update UI
+  Future<void> _handleForegroundRemoteMessage(RemoteMessage message) async {
+    final key = _messageKey(message.data);
+    if (key != null && !_processedMessageKeys.add(key)) {
+      return;
+    }
+    if (key != null && _processedMessageKeys.length > 300) {
+      _processedMessageKeys.remove(_processedMessageKeys.first);
+    }
   }
-
-  // Handle notification tap
-  void _handleNotificationTap(Map<String, dynamic> message) {
-  _navigateFromData(message);
-}
 
 Future<void> _navigateFromData(Map<String, dynamic> data) async {
   final type = data['type'] as String? ?? '';
@@ -164,39 +194,69 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   }
 }
 
+String? _messageKey(Map<String, dynamic> data) {
+  final notificationId = data['notification_id']?.toString();
+  if (notificationId != null && notificationId.isNotEmpty) return notificationId;
+  final queueId = data['queue_id']?.toString();
+  if (queueId != null && queueId.isNotEmpty) return queueId;
+  final type = data['type']?.toString() ?? '';
+  final matchId = data['matchId']?.toString() ?? '';
+  final challengeId = data['challengeId']?.toString() ?? '';
+  final videoId = data['videoId']?.toString() ?? '';
+  if (type.isEmpty) return null;
+  return '$type|$matchId|$challengeId|$videoId';
+}
+
   Future<bool> sendNotification(AppNotification notification) async {
     try {
       if (!_hasSb) return false;
-      final typeCode = notification.type.toString().split('.').last;
-      final typeId = await SupabaseLookups.notificationTypeId(
-        _sb,
-        typeCode,
-        typeCode,
-      );
       final rel = _relatedMeta(notification);
-      await _sb.from('notifications').insert(<String, dynamic>{
-        'user_id': notification.userId,
-        'notification_type_id': typeId,
-        'title': notification.title,
-        'message': AppNotification.packMessageField(notification),
-        if (rel.$1 != null) 'related_table': rel.$1,
-        if (rel.$2 != null) 'related_record_id': rel.$2,
-        'is_read': notification.isRead,
-      });
-      try {
-        await _sb.from('push_notification_queue').insert(<String, dynamic>{
-          'user_id': notification.userId,
-          'title': notification.title,
-          'message': notification.message,
-          'notification_type_id': typeId,
-          if (rel.$1 != null) 'related_table': rel.$1,
-          if (rel.$2 != null) 'related_record_id': rel.$2,
-          'status': 'pending',
-        });
-      } catch (_) {}
+      await _sb.functions.invoke(
+        'notification-command',
+        body: <String, dynamic>{
+          'action': 'enqueue_notification',
+          'notification': <String, dynamic>{
+            'user_id': notification.userId,
+            'type_code': notification.type.toString().split('.').last,
+            'title': notification.title,
+            'message': notification.message,
+            'data': notification.data,
+            'image_url': notification.imageUrl,
+            'action_url': notification.actionUrl,
+            'is_read': notification.isRead,
+            if (rel.$1 != null) 'related_table': rel.$1,
+            if (rel.$2 != null) 'related_record_id': rel.$2,
+          },
+          'idempotency_key': _messageKey(notification.data) ??
+              '${notification.userId}|${notification.type.name}|${notification.createdAt.toUtc().millisecondsSinceEpoch}',
+        },
+      );
       return true;
     } catch (e) {
       print('Error sending notification: $e');
+      return false;
+    }
+  }
+
+  Future<bool> emitDomainEvent({
+    required String eventType,
+    required Map<String, dynamic> payload,
+    String? idempotencyKey,
+  }) async {
+    try {
+      if (!_hasSb) return false;
+      await _sb.functions.invoke(
+        'notification-command',
+        body: <String, dynamic>{
+          'action': 'emit_domain_event',
+          'event_type': eventType,
+          'payload': payload,
+          if (idempotencyKey != null && idempotencyKey.isNotEmpty)
+            'idempotency_key': idempotencyKey,
+        },
+      );
+      return true;
+    } catch (_) {
       return false;
     }
   }
@@ -310,40 +370,15 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     required String fromUserName,
     required String requestId,
   }) async {
-    final notification = AppNotification.friendRequest(
-      userId: toUserId,
-      fromUserName: fromUserName,
-      requestId: requestId,
+    return emitDomainEvent(
+      eventType: 'friend_request_created',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'from_user_name': fromUserName,
+        'request_id': requestId,
+      },
+      idempotencyKey: 'friend_request:$requestId',
     );
-    return await sendNotification(notification);
-  }
-
-  // Send friend accepted notification
-  Future<bool> sendFriendAcceptedNotification({
-    required String toUserId,
-    required String friendName,
-  }) async {
-    final notification = AppNotification.friendAccepted(
-      userId: toUserId,
-      friendName: friendName,
-    );
-    return await sendNotification(notification);
-  }
-
-  // Send challenge invite notification
-  Future<bool> sendChallengeInviteNotification({
-    required String toUserId,
-    required String challengeTitle,
-    required String challengeId,
-    required String creatorName,
-  }) async {
-    final notification = AppNotification.challengeInvite(
-      userId: toUserId,
-      challengeTitle: challengeTitle,
-      challengeId: challengeId,
-      creatorName: creatorName,
-    );
-    return await sendNotification(notification);
   }
 
   // Send challenge result notification
@@ -354,14 +389,17 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     required int position,
     required int coinsWon,
   }) async {
-    final notification = AppNotification.challengeResult(
-      userId: toUserId,
-      challengeTitle: challengeTitle,
-      challengeId: challengeId,
-      position: position,
-      coinsWon: coinsWon,
+    return emitDomainEvent(
+      eventType: 'challenge_result_ready',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'challenge_id': challengeId,
+        'challenge_title': challengeTitle,
+        'position': position,
+        'coins_won': coinsWon,
+      },
+      idempotencyKey: 'challenge_result:$challengeId:$toUserId:$position',
     );
-    return await sendNotification(notification);
   }
 
   Future<bool> sendChallengeCompletedNotification({
@@ -369,12 +407,15 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     required String challengeTitle,
     required String challengeId,
   }) async {
-    final notification = AppNotification.challengeCompleted(
-      userId: toUserId,
-      challengeTitle: challengeTitle,
-      challengeId: challengeId,
+    return emitDomainEvent(
+      eventType: 'challenge_completed',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'challenge_id': challengeId,
+        'challenge_title': challengeTitle,
+      },
+      idempotencyKey: 'challenge_completed:$challengeId:$toUserId',
     );
-    return await sendNotification(notification);
   }
 
   // Send video vote notification
@@ -384,24 +425,16 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   required String voterName,
   required double rating,
 }) async {
-  final notification = AppNotification(
-    id: '',
-    userId: toUserId,
-    type: NotificationType.videoVote,
-    title: tr('il_e54105ee12'),
-    message: bilingual(
-      '$voterName оцінив ваше відео "$videoTitle" на ${rating.toStringAsFixed(2)}',
-      '$voterName rated your video "$videoTitle" at ${rating.toStringAsFixed(2)}',
-    ),
-    data: {
-      'videoTitle': videoTitle,
-      'voterName': voterName,
+  return emitDomainEvent(
+    eventType: 'video_vote_recorded',
+    payload: <String, dynamic>{
+      'to_user_id': toUserId,
+      'video_title': videoTitle,
+      'voter_name': voterName,
       'rating': rating,
     },
-    isRead: false,
-    createdAt: DateTime.now(),
+    idempotencyKey: 'video_vote:$toUserId:$voterName:$videoTitle:${rating.toStringAsFixed(2)}',
   );
-  return await sendNotification(notification);
 }
 
   // Send a rating change summary notification
@@ -413,15 +446,19 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     required double newRating,
     String? videoTitle,
   }) async {
-    final notification = AppNotification.ratingChanged(
-      userId: toUserId,
-      voterName: voterName,
-      rating: rating,
-      delta: delta,
-      newRating: newRating,
-      videoTitle: videoTitle,
+    return emitDomainEvent(
+      eventType: 'rating_changed',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'voter_name': voterName,
+        'rating': rating,
+        'delta': delta,
+        'new_rating': newRating,
+        'video_title': videoTitle,
+      },
+      idempotencyKey:
+          'rating_changed:$toUserId:$voterName:${newRating.toStringAsFixed(2)}',
     );
-    return await sendNotification(notification);
   }
 
   // Send request to rate my videos to selected friend(s)
@@ -430,60 +467,15 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     required String fromUserName,
     required List<String> videoIds,
   }) async {
-    try {
-      final notifications = toUserIds.map((uid) => AppNotification.ratingRequest(
-        userId: uid,
-        fromUserName: fromUserName,
-        videoIds: videoIds,
-      )).toList();
-      return await sendBulkNotifications(notifications);
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // Send badge earned notification
-  Future<bool> sendBadgeEarnedNotification({
-    required String toUserId,
-    required String badgeName,
-    required String badgeEmoji,
-    required String reason,
-  }) async {
-    final notification = AppNotification.badgeEarned(
-      userId: toUserId,
-      badgeName: badgeName,
-      badgeEmoji: badgeEmoji,
-      reason: reason,
+    return emitDomainEvent(
+      eventType: 'rating_request_created',
+      payload: <String, dynamic>{
+        'to_user_ids': toUserIds,
+        'from_user_name': fromUserName,
+        'video_ids': videoIds,
+      },
+      idempotencyKey: 'rating_request:$fromUserName:${videoIds.join(",")}:${toUserIds.join(",")}',
     );
-    return await sendNotification(notification);
-  }
-
-  // Send coins earned notification
-  Future<bool> sendCoinsEarnedNotification({
-    required String toUserId,
-    required int amount,
-    required String reason,
-  }) async {
-    final notification = AppNotification.coinsEarned(
-      userId: toUserId,
-      amount: amount,
-      reason: reason,
-    );
-    return await sendNotification(notification);
-  }
-
-  // Send bulk notifications (for challenge results)
-  Future<bool> sendBulkNotifications(List<AppNotification> notifications) async {
-    try {
-      if (!_hasSb) return false;
-      for (final notification in notifications) {
-        await sendNotification(notification);
-      }
-      return true;
-    } catch (e) {
-      print('Error sending bulk notifications: $e');
-      return false;
-    }
   }
 
   Future<Map<String, int>> getNotificationStats() async {
@@ -541,25 +533,17 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   required String creatorName,
   required String challengeType,
 }) async {
-  final notification = AppNotification(
-    id: '',
-    userId: toUserId,
-    type: NotificationType.challengeInvitation,
-    title: tr('il_f9b41369d5'),
-    message: bilingual(
-      '$creatorName запросив вас взяти участь у челенджі "$challengeTitle"',
-      '$creatorName invited you to join the "$challengeTitle" challenge',
-    ),
-    data: {
-      'challengeId': challengeId,
-      'challengeTitle': challengeTitle,
-      'creatorName': creatorName,
-      'challengeType': challengeType,
+  return emitDomainEvent(
+    eventType: 'challenge_invite_created',
+    payload: <String, dynamic>{
+      'to_user_id': toUserId,
+      'challenge_id': challengeId,
+      'challenge_title': challengeTitle,
+      'creator_name': creatorName,
+      'challenge_type': challengeType,
     },
-    isRead: false,
-    createdAt: DateTime.now(),
+    idempotencyKey: 'challenge_invite:$challengeId:$toUserId',
   );
-  return await sendNotification(notification);
 }
 
   // Challenge submission notification
@@ -569,109 +553,16 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   required String challengeTitle,
   required String participantName,
 }) async {
-  final notification = AppNotification(
-    id: '',
-    userId: toUserId,
-    type: NotificationType.challengeUpdate,
-    title: tr('il_7ce51873c6'),
-    message: bilingual(
-      '$participantName завантажив відео до челенджу "$challengeTitle"',
-      '$participantName uploaded a video to the "$challengeTitle" challenge',
-    ),
-    data: {
-      'challengeId': challengeId,
-      'challengeTitle': challengeTitle,
-      'participantName': participantName,
+  return emitDomainEvent(
+    eventType: 'challenge_submission_uploaded',
+    payload: <String, dynamic>{
+      'to_user_id': toUserId,
+      'challenge_id': challengeId,
+      'challenge_title': challengeTitle,
+      'participant_name': participantName,
     },
-    isRead: false,
-    createdAt: DateTime.now(),
+    idempotencyKey: 'challenge_submission:$challengeId:$toUserId:$participantName',
   );
-  return await sendNotification(notification);
-}
-
-  // Challenge voting started notification
-  Future<bool> sendChallengeVotingStarted({
-  required String toUserId,
-  required String challengeId,
-  required String challengeTitle,
-}) async {
-  final notification = AppNotification(
-    id: '',
-    userId: toUserId,
-    type: NotificationType.challengeUpdate,
-    title: tr('il_8da8637d80'),
-    message: bilingual(
-      'Розпочалося голосування в челенджі "$challengeTitle". Проголосуйте за найкращі відео!',
-      'Voting has started in the "$challengeTitle" challenge. Please vote for the best videos!',
-    ),
-    data: {
-      'challengeId': challengeId,
-      'challengeTitle': challengeTitle,
-      'action': 'vote',
-    },
-    isRead: false,
-    createdAt: DateTime.now(),
-  );
-  return await sendNotification(notification);
-}
-
-  // Challenge results notification
-  Future<bool> sendChallengeResults({
-  required String toUserId,
-  required String challengeId,
-  required String challengeTitle,
-  required int position,
-  required int coinsWon,
-}) async {
-  late final String title;
-  late final String message;
-
-  switch (position) {
-    case 1:
-      title = tr('il_0901974591');
-      message = bilingual(
-        'Вітаємо! Ви зайняли 1 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!',
-        'Congratulations! You took 1st place in "$challengeTitle" and earned $coinsWon coins!',
-      );
-      break;
-    case 2:
-      title = tr('il_1c3e8ad54d');
-      message = bilingual(
-        'Чудово! Ви зайняли 2 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!',
-        'Great! You took 2nd place in "$challengeTitle" and earned $coinsWon coins!',
-      );
-      break;
-    case 3:
-      title = tr('il_c7c21b29c5');
-      message = bilingual(
-        'Добре! Ви зайняли 3 місце в челенджі "$challengeTitle" та отримали $coinsWon монет!',
-        'Nice! You took 3rd place in "$challengeTitle" and earned $coinsWon coins!',
-      );
-      break;
-    default:
-      title = tr('il_6011c9f25a');
-      message = bilingual(
-        'Челендж "$challengeTitle" завершено. Дякуємо за участь!',
-        'The "$challengeTitle" challenge has ended. Thanks for participating!',
-      );
-  }
-
-  final notification = AppNotification(
-    id: '',
-    userId: toUserId,
-    type: NotificationType.challengeResult,
-    title: title,
-    message: message,
-    data: {
-      'challengeId': challengeId,
-      'challengeTitle': challengeTitle,
-      'position': position,
-      'coinsWon': coinsWon,
-    },
-    isRead: false,
-    createdAt: DateTime.now(),
-  );
-  return await sendNotification(notification);
 }
 
   // Send challenge invitations to multiple users
@@ -682,31 +573,17 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     required String creatorName,
     required String challengeType,
   }) async {
-    try {
-      final notifications = userIds.map((userId) => AppNotification(
-        id: '',
-        userId: userId,
-        type: NotificationType.challengeInvitation,
-        title: tr('il_f9b41369d5'),
-        message: bilingual(
-          '$creatorName запросив вас взяти участь у челенджі "$challengeTitle"',
-          '$creatorName invited you to join the "$challengeTitle" challenge',
-        ),
-        data: {
-          'challengeId': challengeId,
-          'challengeTitle': challengeTitle,
-          'creatorName': creatorName,
-          'challengeType': challengeType,
-        },
-        isRead: false,
-        createdAt: DateTime.now(),
-      )).toList();
-
-      return await sendBulkNotifications(notifications);
-    } catch (e) {
-      print('Error sending bulk challenge invitations: $e');
-      return false;
-    }
+    return emitDomainEvent(
+      eventType: 'challenge_invite_bulk_created',
+      payload: <String, dynamic>{
+        'to_user_ids': userIds,
+        'challenge_id': challengeId,
+        'challenge_title': challengeTitle,
+        'creator_name': creatorName,
+        'challenge_type': challengeType,
+      },
+      idempotencyKey: 'challenge_bulk:$challengeId:${userIds.join(",")}',
+    );
   }
 
   Future<bool> sendTeamRosterInvite({
@@ -715,28 +592,48 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     required String teamName,
     required String teamKey,
   }) async {
-    final notification = AppNotification.teamRosterInvite(
-      userId: toUserId,
-      matchId: matchId,
-      teamName: teamName,
-      teamKey: teamKey,
+    return emitDomainEvent(
+      eventType: 'team_roster_invite_created',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'match_id': matchId,
+        'team_name': teamName,
+        'team_key': teamKey,
+      },
+      idempotencyKey: 'team_roster:$matchId:$toUserId:$teamKey',
     );
-    return await sendNotification(notification);
   }
 
-  Future<bool> sendTeamMatchReadyNotification({
+  Future<bool> sendTeamInviteNotification({
+    required String toUserId,
+    required String teamId,
+    required String teamName,
+  }) async {
+    return emitDomainEvent(
+      eventType: 'team_invite_created',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'team_id': teamId,
+        'team_name': teamName,
+      },
+      idempotencyKey: 'team_invite:$teamId:$toUserId',
+    );
+  }
+
+  Future<bool> sendTeamMatchRequestNotification({
     required String toUserId,
     required String matchId,
-    required String teamAName,
-    required String teamBName,
+    required String opponentTeamName,
   }) async {
-    final notification = AppNotification.teamMatchReady(
-      userId: toUserId,
-      matchId: matchId,
-      teamAName: teamAName,
-      teamBName: teamBName,
+    return emitDomainEvent(
+      eventType: 'team_match_request_created',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'match_id': matchId,
+        'opponent_team_name': opponentTeamName,
+      },
+      idempotencyKey: 'team_match_request:$matchId:$toUserId',
     );
-    return await sendNotification(notification);
   }
 
   Future<bool> sendTeamJoinRequestNotification({
@@ -746,14 +643,17 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
     required String requesterName,
     required String requestId,
   }) async {
-    final notification = AppNotification.teamJoinRequest(
-      userId: toUserId,
-      teamId: teamId,
-      teamName: teamName,
-      requesterName: requesterName,
-      requestId: requestId,
+    return emitDomainEvent(
+      eventType: 'team_join_request_created',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'team_id': teamId,
+        'team_name': teamName,
+        'requester_name': requesterName,
+        'request_id': requestId,
+      },
+      idempotencyKey: 'team_join:$requestId:$toUserId',
     );
-    return await sendNotification(notification);
   }
   Future<bool> sendMatchInvite({
   required String toUserId,
@@ -762,18 +662,17 @@ Future<void> _navigateFromData(Map<String, dynamic> data) async {
   String? title,
   String? body,
 }) async {
-  final localizedTitle = title ?? tr('il_bfaa223845');
-  final localizedBody = body ??
-      tr('il_2a17d067e3', namedArgs: {'organizerName': organizerName});
-  return sendNotification(AppNotification(
-    id: '',
-    userId: toUserId,
-    type: NotificationType.matchInvite,
-    title: localizedTitle,
-    message: localizedBody,
-    data: {'type': 'match_invite', 'matchId': matchId},
-    createdAt: DateTime.now(),
-  ));
+  return emitDomainEvent(
+    eventType: 'match_invite_created',
+    payload: <String, dynamic>{
+      'to_user_id': toUserId,
+      'match_id': matchId,
+      'organizer_name': organizerName,
+      'title_override': title,
+      'body_override': body,
+    },
+    idempotencyKey: 'match_invite:$matchId:$toUserId',
+  );
 }
 
 Future<bool> sendMatchApplicationSubmitted({
@@ -781,18 +680,15 @@ Future<bool> sendMatchApplicationSubmitted({
   required String matchId,
   required String applicantName,
 }) async {
-  return sendNotification(AppNotification(
-    id: '',
-    userId: toOrganizerId,
-    type: NotificationType.matchInvite,
-    title: tr('il_8b79eee0c4'),
-    message: bilingual(
-      '$applicantName подав(ла) заявку на участь у вашому матчі',
-      '$applicantName applied to join your match',
-    ),
-    data: {'type': 'match_application_submitted', 'matchId': matchId},
-    createdAt: DateTime.now(),
-  ));
+  return emitDomainEvent(
+    eventType: 'match_application_submitted',
+    payload: <String, dynamic>{
+      'to_user_id': toOrganizerId,
+      'match_id': matchId,
+      'applicant_name': applicantName,
+    },
+    idempotencyKey: 'match_apply:$matchId:$toOrganizerId:$applicantName',
+  );
 }
 
 Future<bool> sendMatchApplicationAccepted({
@@ -800,18 +696,15 @@ Future<bool> sendMatchApplicationAccepted({
   required String matchId,
   required String organizerName,
 }) async {
-  return sendNotification(AppNotification(
-    id: '',
-    userId: toUserId,
-    type: NotificationType.matchInvite,
-    title: tr('il_c491d848c2'),
-    message: bilingual(
-      '$organizerName підтвердив(ла) вашу участь у матчі',
-      '$organizerName approved your participation in the match',
-    ),
-    data: {'type': 'match_application_accepted', 'matchId': matchId},
-    createdAt: DateTime.now(),
-  ));
+  return emitDomainEvent(
+    eventType: 'match_application_accepted',
+    payload: <String, dynamic>{
+      'to_user_id': toUserId,
+      'match_id': matchId,
+      'organizer_name': organizerName,
+    },
+    idempotencyKey: 'match_accept:$matchId:$toUserId',
+  );
 }
 
 Future<bool> sendMatchApplicationRejected({
@@ -819,18 +712,15 @@ Future<bool> sendMatchApplicationRejected({
   required String matchId,
   required String organizerName,
 }) async {
-  return sendNotification(AppNotification(
-    id: '',
-    userId: toUserId,
-    type: NotificationType.matchInvite,
-    title: tr('il_149be53f9a'),
-    message: bilingual(
-      '$organizerName відхилив(ла) вашу заявку на матч',
-      '$organizerName declined your match application',
-    ),
-    data: {'type': 'match_application_rejected', 'matchId': matchId},
-    createdAt: DateTime.now(),
-  ));
+  return emitDomainEvent(
+    eventType: 'match_application_rejected',
+    payload: <String, dynamic>{
+      'to_user_id': toUserId,
+      'match_id': matchId,
+      'organizer_name': organizerName,
+    },
+    idempotencyKey: 'match_reject:$matchId:$toUserId',
+  );
 }
 
 Future<bool> sendMatchFinished({
@@ -841,19 +731,17 @@ Future<bool> sendMatchFinished({
   required int teamAScore,
   required int teamBScore,
 }) async {
-  final score = '$teamAName $teamAScore:$teamBScore $teamBName';
-  return sendNotification(AppNotification(
-    id: '',
-    userId: toUserId,
-    type: NotificationType.matchFinished,
-    title: tr('il_dc00754e01'),
-    message: bilingual(
-      'Матч завершено: $score. Поставте оцінки гравцям.',
-      'Full time: $score. Please rate the players.',
-    ),
-    data: {'type': 'match_finished', 'matchId': matchId},
-    actionUrl: '/match/$matchId/rate',
-    createdAt: DateTime.now(),
-  ));
+  return emitDomainEvent(
+    eventType: 'match_finished',
+    payload: <String, dynamic>{
+      'to_user_id': toUserId,
+      'match_id': matchId,
+      'team_a_name': teamAName,
+      'team_b_name': teamBName,
+      'team_a_score': teamAScore,
+      'team_b_score': teamBScore,
+    },
+    idempotencyKey: 'match_finished:$matchId:$toUserId',
+  );
 }
 }

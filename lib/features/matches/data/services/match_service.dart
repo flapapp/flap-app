@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../utils/city_catalog.dart';
 
-import '../../../notifications/data/services/notification_service.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../models/match.dart';
 import '../supabase/match_legacy_remote_mapper.dart';
@@ -145,11 +144,6 @@ class MatchService {
           },
           onConflict: 'match_id,user_id',
         );
-        await NotificationService().sendMatchInvite(
-          toUserId: friendId,
-          matchId: matchId,
-          organizerName: match.organizerName,
-        );
       }
     }
     return matchId;
@@ -194,11 +188,6 @@ class MatchService {
         'applied_at': DateTime.now().toUtc().toIso8601String(),
       });
 
-      await NotificationService().sendMatchApplicationSubmitted(
-        toOrganizerId: m.organizerId,
-        matchId: matchId,
-        applicantName: userId,
-      );
       return true;
     } catch (_) {
       return false;
@@ -229,11 +218,6 @@ class MatchService {
         await _sb.from('matches').update({'status': 'full'}).eq('id', matchId);
       }
 
-      await NotificationService().sendMatchApplicationAccepted(
-        toUserId: userId,
-        matchId: matchId,
-        organizerName: m.organizerName,
-      );
       return true;
     } catch (_) {
       return false;
@@ -257,11 +241,6 @@ class MatchService {
           .eq('match_id', matchId)
           .eq('user_id', userId);
 
-      await NotificationService().sendMatchApplicationRejected(
-        toUserId: userId,
-        matchId: matchId,
-        organizerName: m.organizerName,
-      );
       return true;
     } catch (_) {
       return false;
@@ -522,16 +501,6 @@ class MatchService {
         'cancellation_reason': '${result.name}:$teamAScore:$teamBScore',
       }).eq('id', matchId);
 
-      for (final uid in m.participants) {
-        await NotificationService().sendMatchFinished(
-          toUserId: uid,
-          matchId: matchId,
-          teamAName: m.teamA?.name ?? 'Команда A',
-          teamBName: m.teamB?.name ?? 'Команда B',
-          teamAScore: teamAScore,
-          teamBScore: teamBScore,
-        );
-      }
       return true;
     } catch (_) {
       return false;

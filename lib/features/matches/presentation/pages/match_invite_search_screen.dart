@@ -6,8 +6,6 @@ import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../notifications/data/models/notification.dart';
-import '../../../notifications/data/services/notification_service.dart';
 import '../../../../widgets/player_avatar_button.dart';
 
 class MatchInviteSearchScreen extends StatefulWidget {
@@ -34,7 +32,6 @@ class MatchInviteSearchScreen extends StatefulWidget {
 
 class _MatchInviteSearchScreenState extends State<MatchInviteSearchScreen> {
   final SupabaseClient _sb = Supabase.instance.client;
-  final NotificationService _notificationService = NotificationService();
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _selectedIds = <String>{};
   final Set<String> _excluded = <String>{};
@@ -126,24 +123,6 @@ class _MatchInviteSearchScreenState extends State<MatchInviteSearchScreen> {
             'status': 'pending',
           },
           onConflict: 'match_id,user_id',
-        );
-        await _notificationService.sendNotification(
-          AppNotification(
-            id: '',
-            userId: uid,
-            type: NotificationType.matchInvite,
-            title: tr('il_bfaa223845'),
-            message: bilingual(
-              '${widget.organizerName} запросив вас на матч "${widget.matchTitle}"',
-              '${widget.organizerName} invited you to the match "${widget.matchTitle}"',
-            ),
-            data: {
-              'matchId': widget.matchId,
-              'matchTitle': widget.matchTitle,
-              'action': 'open_match',
-            },
-            createdAt: DateTime.now(),
-          ),
         );
       }
       if (!mounted) return;

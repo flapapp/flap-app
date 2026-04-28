@@ -1,9 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../notifications/data/models/notification.dart';
-import '../../notifications/data/services/notification_service.dart';
 import '../../teams/domain/repositories/teams_repository.dart';
 import '../data/models/match.dart';
 import '../domain/repositories/matches_repository.dart';
@@ -23,13 +20,11 @@ class CreateMatchUseCase {
   CreateMatchUseCase(
     this._matchesRepository,
     this._teamsRepository,
-    this._notificationService,
     this._supabaseClient,
   );
 
   final MatchesRepository _matchesRepository;
   final TeamsRepository _teamsRepository;
-  final NotificationService _notificationService;
   final SupabaseClient _supabaseClient;
 
   Future<CreateMatchResult> execute(CreateMatchCommand command) async {
@@ -133,27 +128,6 @@ class CreateMatchUseCase {
           },
           onConflict: 'match_id,user_id',
         );
-        await _notificationService.sendNotification(
-          AppNotification(
-            id: '',
-            userId: userId,
-            type: NotificationType.matchInvite,
-            title: tr('il_bfaa223845'),
-            message: bilingual(
-              '$organizerName запросив вас на матч "${command.title}"',
-              '$organizerName invited you to the match "${command.title}"',
-            ),
-            data: {
-              'matchId': matchId,
-              'matchTitle': command.title,
-              'city': command.city,
-              'date': command.date.toIso8601String(),
-              'time': command.timeLabel,
-              'action': 'open_match',
-            },
-            createdAt: DateTime.now(),
-          ),
-        );
       }
     } catch (_) {}
   }
@@ -191,14 +165,7 @@ class CreateMatchUseCase {
     required List<String> playerIds,
   }) async {
     if (playerIds.isEmpty) return;
-    for (final playerId in playerIds) {
-      await _notificationService.sendTeamRosterInvite(
-        toUserId: playerId,
-        matchId: matchId,
-        teamName: teamName,
-        teamKey: teamKey,
-      );
-    }
+    // Backend trigger handles roster invite notifications from roster records.
   }
 
   _PreparedMatchData _prepareMatchData(CreateMatchCommand command) {

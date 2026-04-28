@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/app_locale_access.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -10,6 +11,7 @@ import '../../../matches/data/models/match.dart';
 import '../../data/models/notification.dart';
 import '../../../../router/app_router.dart';
 import '../../domain/repositories/notifications_repository.dart';
+import '../bloc/notification_bloc.dart';
 
 @RoutePage()
 class NotificationsScreen extends StatefulWidget {
@@ -25,86 +27,75 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0f0f23),
-      appBar: AppBar(
+    return BlocProvider<NotificationBloc>(
+      create: (_) => NotificationBloc(_notificationsRepo)..add(const NotificationStarted()),
+      child: Scaffold(
         backgroundColor: const Color(0xFF0f0f23),
-        elevation: 0,
-        title: Text(
-          tr('il_209f1f8c24'),
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.mark_email_read, color: Colors.white),
-            onPressed: _markAllAsRead,
-            tooltip: tr('il_d7592650e1'),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0f0f23),
+          elevation: 0,
+          title: Text(
+            tr('il_209f1f8c24'),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
           ),
-        ],
-      ),
-      body: StreamBuilder<List<AppNotification>>(
-        stream: _notificationsRepo.getUserNotifications(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF4caf50)),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Colors.red,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    tr('il_d68c419c3c'),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 16,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.mark_email_read, color: Colors.white),
+              onPressed: _markAllAsRead,
+              tooltip: tr('il_d7592650e1'),
+            ),
+          ],
+        ),
+        body: BlocBuilder<NotificationBloc, NotificationState>(
+          builder: (context, state) {
+            if (state is NotificationLoading) {
+              return const Center(
+                child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+              );
+            }
+            if (state is NotificationError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text(
+                      tr('il_d68c419c3c'),
+                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 16),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    snapshot.error.toString(),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
-                      fontSize: 12,
+                    const SizedBox(height: 12),
+                    Text(
+                      state.message,
+                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () => setState(() {}),
-                    icon: const Icon(Icons.refresh),
-                    label: Text(tr('il_d8b8392e2c')),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4caf50),
-                      foregroundColor: Colors.white,
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => context
+                          .read<NotificationBloc>()
+                          .add(const NotificationStarted()),
+                      icon: const Icon(Icons.refresh),
+                      label: Text(tr('il_d8b8392e2c')),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4caf50),
+                        foregroundColor: Colors.white,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final notifications = snapshot.data ?? [];
-
-          if (notifications.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          return _buildNotificationsList(notifications);
-        },
+                  ],
+                ),
+              );
+            }
+            final notifications =
+                state is NotificationLoaded ? state.notifications : <AppNotification>[];
+            if (notifications.isEmpty) return _buildEmptyState();
+            return _buildNotificationsList(notifications);
+          },
+        ),
       ),
     );
   }
@@ -199,7 +190,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: const Icon(Icons.delete_outline, color: Colors.white),
       ),
       onDismissed: (_) async {
-        await _notificationsRepo.deleteNotification(notification.id);
+        context.read<NotificationBloc>().add(
+          NotificationDeleteRequested(notification.id),
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -677,7 +670,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _markAsRead(AppNotification notification) async {
-    await _notificationsRepo.markAsRead(notification.id);
+    context.read<NotificationBloc>().add(NotificationMarkReadRequested(notification.id));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(tr('il_908aed4260')),
@@ -687,27 +680,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _markAllAsRead() async {
-    final success = await _notificationsRepo.markAllAsRead();
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_7ff45c5f80')),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
+    context.read<NotificationBloc>().add(const NotificationMarkAllReadRequested());
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tr('il_7ff45c5f80')),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   void _deleteNotification(AppNotification notification) async {
-    final success = await _notificationsRepo.deleteNotification(notification.id);
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_f9caffd585')),
-          duration: const Duration(seconds: 1),
-        ),
-      );
-    }
+    context.read<NotificationBloc>().add(NotificationDeleteRequested(notification.id));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tr('il_f9caffd585')),
+        duration: const Duration(seconds: 1),
+      ),
+    );
   }
 }
 

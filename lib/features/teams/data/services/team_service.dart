@@ -9,8 +9,6 @@ import '../../data/models/app_team.dart';
 import '../../data/models/team_invite.dart';
 import '../../data/models/team_join_request.dart';
 import '../../data/models/team_match_request.dart';
-import '../../../notifications/data/models/notification.dart';
-import '../../../notifications/data/services/notification_service.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
 class TeamService {
@@ -229,15 +227,7 @@ class TeamService {
         'created_at': now,
       });
     }
-    for (final uid in userIds) {
-      await NotificationService().sendNotification(
-        AppNotification.teamInvite(
-          userId: uid,
-          teamId: teamId,
-          teamName: teamName,
-        ),
-      );
-    }
+    // Backend trigger handles team invitation notifications.
   }
 
   Stream<List<TeamInvite>> watchInvites(String userId) {
@@ -370,7 +360,7 @@ class TeamService {
         (user.userMetadata?['full_name'] as String?)?.trim().isNotEmpty == true
             ? (user.userMetadata!['full_name'] as String).trim()
             : (user.email?.split('@').first ?? 'Player');
-    final reqRef = await _sb.from('team_join_requests').insert(<String, dynamic>{
+    await _sb.from('team_join_requests').insert(<String, dynamic>{
       'team_id': teamId,
       'user_id': user.id,
       'status': 'pending',
@@ -378,28 +368,7 @@ class TeamService {
       'created_at': DateTime.now().toUtc().toIso8601String(),
     }).select('id').single();
 
-    try {
-      final captainId = team.captainId;
-      final viceIds = team.viceCaptainIds;
-      final recipients = {
-        if (captainId.isNotEmpty) captainId,
-        ...viceIds.where((id) => id.isNotEmpty),
-      }..remove(user.id);
-      if (recipients.isNotEmpty) {
-        final notifier = NotificationService();
-        final resolvedTeamName =
-            teamName.isNotEmpty ? teamName : team.name;
-        for (final target in recipients) {
-          await notifier.sendTeamJoinRequestNotification(
-            toUserId: target,
-            teamId: teamId,
-            teamName: resolvedTeamName,
-            requesterName: requesterName,
-            requestId: reqRef['id'].toString(),
-          );
-        }
-      }
-    } catch (_) {}
+    // Backend trigger handles team join request notifications.
   }
 
   Future<void> respondToJoinRequest({
@@ -481,27 +450,7 @@ class TeamService {
         'player_id': playerId,
       });
     }
-    try {
-      final team = await _loadTeam(teamId);
-      if (team != null) {
-        final captainId = team.captainId;
-        final viceCaptainIds = team.viceCaptainIds;
-        final recipients = {
-          captainId,
-          ...viceCaptainIds,
-        }.where((id) => id.isNotEmpty).toSet();
-
-        for (final recipient in recipients) {
-          await NotificationService().sendNotification(
-            AppNotification.teamMatchRequest(
-              userId: recipient,
-              opponentTeamName: opponentName,
-              matchId: matchId,
-            ),
-          );
-        }
-      }
-    } catch (_) {}
+    // Backend trigger handles team match request notifications.
   }
 
   Future<void> respondToMatchRequest({
@@ -521,17 +470,7 @@ class TeamService {
     }
 
     if (accept && assignedTeamKey != null && confirmedRoster.isNotEmpty) {
-      final team = await _loadTeam(request.teamId);
-      final teamName = team?.name ?? 'Team';
-      final notif = NotificationService();
-      for (final playerId in confirmedRoster) {
-        await notif.sendTeamRosterInvite(
-          toUserId: playerId,
-          matchId: request.matchId,
-          teamName: teamName,
-          teamKey: assignedTeamKey,
-        );
-      }
+      // Backend trigger handles roster invite notifications.
     }
   }
 

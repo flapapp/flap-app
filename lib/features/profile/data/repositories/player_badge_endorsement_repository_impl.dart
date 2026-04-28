@@ -87,12 +87,6 @@ class PlayerBadgeEndorsementRepositoryImpl
         );
       }
 
-      final tid = await SupabaseLookups.notificationTypeId(
-        _client,
-        'badge_endorsed',
-        'Badge endorsed',
-      );
-
       final endorser = await _client
           .from('profiles')
           .select('display_name,first_name,last_name')
@@ -100,27 +94,24 @@ class PlayerBadgeEndorsementRepositoryImpl
           .maybeSingle();
       final currentName = _nameFromProfile(endorser);
 
-      await _client.from('notifications').insert(<String, dynamic>{
-        'user_id': ownerUserId,
-        'notification_type_id': tid,
-        'title': _titleKey,
-        'message': jsonEncode(<String, String>{
-          'badgeId': badgeId,
-          'endorserUserId': endorserUserId,
-        }),
-        'is_read': false,
-      });
-
-      await _client.from('notifications').insert(<String, dynamic>{
-        'user_id': ownerUserId,
-        'notification_type_id': tid,
-        'title': tr('il_cd519087d2'),
-        'message': bilingual(
-          '$currentName підтвердив ваш бейдж "$badgeLocalizedName"',
-          '$currentName confirmed your badge "$badgeLocalizedName"',
-        ),
-        'is_read': false,
-      });
+      final idempotencyKey = 'badge_endorse:$ownerUserId:$badgeId:$endorserUserId';
+      await _client.rpc(
+        'enqueue_notification_backend',
+        params: <String, dynamic>{
+          'p_target_user_id': ownerUserId,
+          'p_type_code': 'badge_endorsed',
+          'p_title': tr('il_cd519087d2'),
+          'p_message': bilingual(
+            '$currentName підтвердив ваш бейдж "$badgeLocalizedName"',
+            '$currentName confirmed your badge "$badgeLocalizedName"',
+          ),
+          'p_data': <String, dynamic>{
+            'badgeId': badgeId,
+            'endorserUserId': endorserUserId,
+          },
+          'p_idempotency_key': idempotencyKey,
+        },
+      );
 
       return const Result.success(Unit.value);
     } catch (e) {

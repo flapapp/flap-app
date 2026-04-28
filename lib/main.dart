@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/auth/app_auth.dart';
@@ -16,10 +17,14 @@ import 'features/badges/domain/repositories/badges_repository.dart';
 import 'features/subscriptions/domain/repositories/subscriptions_repository.dart';
 import 'features/notifications/data/services/notification_service.dart';
 import 'features/profile/data/services/user_settings_service.dart';
+import 'features/notifications/data/services/fcm_transport_service.dart';
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FcmTransportService.registerBackgroundHandler();
   await EasyLocalization.ensureInitialized();
+  await _initializeFirebase();
   await initializeSupabase();
   await configureDependencies();
   runApp(
@@ -35,9 +40,17 @@ Future<void> main() async {
   unawaited(_bootstrapAppServices());
 }
 
+Future<void> _initializeFirebase() async {
+  final options = DefaultFirebaseOptions.currentPlatform;
+  if (options == null) return;
+  try {
+    await Firebase.initializeApp(options: options);
+  } catch (_) {}
+}
+
 Future<void> _bootstrapAppServices() async {
   try {
-    await NotificationService().initialize();
+    await sl<NotificationService>().initialize();
   } catch (e) {
     print('Failed to initialize NotificationService: $e');
   }
@@ -65,9 +78,9 @@ Future<void> _bootstrapAppServices() async {
 }
 
 Future<void> _initMessaging() async {
-  // Push transport is intentionally disabled during Firebase removal.
   if (kIsWeb || SupabaseEnv.url.isEmpty || SupabaseEnv.anonKey.isEmpty) return;
-  await UserSettingsService().isNotificationsEnabled();
+  if (!await UserSettingsService().isNotificationsEnabled()) return;
+  await sl<NotificationService>().syncCurrentUserToken();
 }
 
 class MyApp extends StatefulWidget {

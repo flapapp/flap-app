@@ -37,6 +37,7 @@ import '../../features/matches/application/match_participation_actions_use_case.
 import '../../features/matches/domain/repositories/matches_repository.dart';
 import '../../features/notifications/data/repositories/notifications_repository_impl.dart';
 import '../../features/notifications/domain/repositories/notifications_repository.dart';
+import '../../features/notifications/presentation/bloc/notification_bloc.dart';
 import '../../features/challenges/data/services/challenge_service.dart';
 import '../../features/matches/data/services/match_service.dart';
 import '../../features/profile/data/datasources/match_participation_stats_remote_datasource.dart';
@@ -82,6 +83,7 @@ import '../../features/profile/domain/usecases/submit_editable_profile_usecase.d
 import '../../features/badges/data/services/badge_service.dart';
 import '../../features/friends/data/services/friends_service.dart';
 import '../../features/notifications/data/services/notification_service.dart';
+import '../../features/notifications/data/services/fcm_transport_service.dart';
 import '../../features/ratings/data/services/rating_service.dart';
 import '../../features/subscriptions/data/services/subscription_service.dart';
 import '../../features/teams/data/services/team_service.dart';
@@ -204,7 +206,7 @@ Future<void> configureDependencies() async {
       () => MatchesRepositoryImpl(sl(), sl()),
     )
     ..registerLazySingleton(
-      () => CreateMatchUseCase(sl(), sl(), sl(), Supabase.instance.client),
+      () => CreateMatchUseCase(sl(), sl(), Supabase.instance.client),
     )
     ..registerLazySingleton(
       () => MatchParticipationActionsUseCase(sl()),
@@ -268,10 +270,14 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<PlayerBadgeEndorsementRepository>(
       () => PlayerBadgeEndorsementRepositoryImpl(Supabase.instance.client),
     )
-    ..registerLazySingleton<NotificationService>(NotificationService.new)
+    ..registerLazySingleton<FcmTransportService>(FcmTransportService.new)
+    ..registerLazySingleton<NotificationService>(
+      () => NotificationService(transportService: sl()),
+    )
     ..registerLazySingleton<NotificationsRepository>(
       () => NotificationsRepositoryImpl(sl()),
     )
+    ..registerFactory(() => NotificationBloc(sl()))
     ..registerLazySingleton<PlayerNotificationActionsRepository>(
       () => PlayerNotificationActionsRepositoryImpl(sl()),
     )

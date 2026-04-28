@@ -4,12 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/auth/app_auth.dart';
 import '../../../../utils/city_catalog.dart';
 import '../../../../core/supabase/coin_ledger.dart';
-import '../../../notifications/data/services/notification_service.dart';
 import '../../data/models/challenge.dart';
 
 class ChallengeService {
   final SupabaseClient _sb = Supabase.instance.client;
-  final NotificationService _notificationService = NotificationService();
 
   Stream<List<Challenge>> getActiveChallenges() {
     return _sb
@@ -222,11 +220,6 @@ class ChallengeService {
         throw Exception('Ви вже подали відео на цей челендж');
       }
 
-      final profile = await _sb
-          .from('profiles')
-          .select('display_name, avatar_url')
-          .eq('id', currentUser.id)
-          .maybeSingle();
       final subDesc = challenge.description.trim();
       await _sb.from('challenge_submissions').upsert(
         <String, dynamic>{
@@ -242,12 +235,7 @@ class ChallengeService {
 
       final creatorId = challenge.creatorId;
       if (creatorId.isNotEmpty && creatorId != currentUser.id) {
-        await _notificationService.sendChallengeSubmission(
-          toUserId: creatorId,
-          challengeId: challengeId,
-          challengeTitle: challenge.title,
-          participantName: (profile?['display_name'] ?? currentUser.id).toString(),
-        );
+        // Backend trigger handles challenge submission notifications.
       }
       return true;
     } catch (e) {
@@ -495,13 +483,7 @@ class ChallengeService {
       targetUserIds.remove(challenge.creatorId);
       if (targetUserIds.isEmpty) return;
 
-      await _notificationService.sendBulkChallengeInvitations(
-        userIds: targetUserIds.toList(growable: false),
-        challengeId: challengeId,
-        challengeTitle: challenge.title,
-        creatorName: challenge.creatorName,
-        challengeType: challengeTypeToSlug(challenge.type),
-      );
+      // Backend trigger handles challenge invitation notifications.
     } catch (e) {
       print('Error sending challenge invitations: $e');
     }
@@ -615,13 +597,7 @@ class ChallengeService {
           'Prize for place ${i + 1} in "${challenge.title}"',
         );
       }
-      await _notificationService.sendChallengeResultNotification(
-        toUserId: winnerId,
-        challengeTitle: challenge.title,
-        challengeId: challenge.id,
-        position: i + 1,
-        coinsWon: prize,
-      );
+      // Backend trigger handles challenge result notifications.
     }
 
     await _sb.from('challenges').update(<String, dynamic>{
@@ -649,11 +625,7 @@ class ChallengeService {
       if (participantId.isEmpty || winnersSet.contains(participantId)) {
         continue;
       }
-      await _notificationService.sendChallengeCompletedNotification(
-        toUserId: participantId,
-        challengeTitle: challenge.title,
-        challengeId: challenge.id,
-      );
+      // Backend trigger handles challenge completion notifications.
     }
   }
 
