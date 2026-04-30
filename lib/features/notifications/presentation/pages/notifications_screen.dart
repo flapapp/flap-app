@@ -24,11 +24,25 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   NotificationsRepository get _notificationsRepo => sl<NotificationsRepository>();
   final SupabaseClient _sb = Supabase.instance.client;
+  late final NotificationBloc _notificationBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationBloc = NotificationBloc(_notificationsRepo)
+      ..add(const NotificationStarted());
+  }
+
+  @override
+  void dispose() {
+    _notificationBloc.close();
+    super.dispose();
+  }
   
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<NotificationBloc>(
-      create: (_) => NotificationBloc(_notificationsRepo)..add(const NotificationStarted()),
+    return BlocProvider<NotificationBloc>.value(
+      value: _notificationBloc,
       child: Scaffold(
         backgroundColor: const Color(0xFF0f0f23),
         appBar: AppBar(
@@ -670,7 +684,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _markAsRead(AppNotification notification) async {
-    context.read<NotificationBloc>().add(NotificationMarkReadRequested(notification.id));
+    _notificationBloc.add(NotificationMarkReadRequested(notification.id));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(tr('il_908aed4260')),
@@ -680,7 +694,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _markAllAsRead() async {
-    context.read<NotificationBloc>().add(const NotificationMarkAllReadRequested());
+    _notificationBloc.add(const NotificationMarkAllReadRequested());
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(tr('il_7ff45c5f80')),
@@ -690,7 +704,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _deleteNotification(AppNotification notification) async {
-    context.read<NotificationBloc>().add(NotificationDeleteRequested(notification.id));
+    _notificationBloc.add(NotificationDeleteRequested(notification.id));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(tr('il_f9caffd585')),

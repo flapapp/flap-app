@@ -41,11 +41,17 @@ Future<void> main() async {
 }
 
 Future<void> _initializeFirebase() async {
-  final options = DefaultFirebaseOptions.currentPlatform;
-  if (options == null) return;
   try {
-    await Firebase.initializeApp(options: options);
-  } catch (_) {}
+    if (Firebase.apps.isNotEmpty) return;
+    final options = DefaultFirebaseOptions.currentPlatform;
+    if (options != null) {
+      await Firebase.initializeApp(options: options);
+      return;
+    }
+    await Firebase.initializeApp();
+  } catch (e) {
+    print('Firebase initialization failed: $e');
+  }
 }
 
 Future<void> _bootstrapAppServices() async {
@@ -79,6 +85,7 @@ Future<void> _bootstrapAppServices() async {
 
 Future<void> _initMessaging() async {
   if (kIsWeb || SupabaseEnv.url.isEmpty || SupabaseEnv.anonKey.isEmpty) return;
+  if (Firebase.apps.isEmpty) return;
   if (!await UserSettingsService().isNotificationsEnabled()) return;
   await sl<NotificationService>().syncCurrentUserToken();
 }

@@ -4,6 +4,47 @@ const url = Deno.env.get("SUPABASE_URL") ?? "";
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
+async function triggerPushQueueWorker() {
+  if (!url || !serviceKey) {
+    return {
+      ok: false as const,
+      status: 500,
+      error: "SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY are not configured",
+    };
+  }
+
+  try {
+    const response = await fetch(
+      `${url.replace(/\/$/, "")}/functions/v1/push-queue-worker`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${serviceKey}`,
+          apikey: serviceKey,
+        },
+        body: "{}",
+      },
+    );
+    if (!response.ok) {
+      const errorBody = await response.text();
+      return {
+        ok: false as const,
+        status: response.status,
+        error: errorBody || "push-queue-worker returned non-2xx",
+      };
+    }
+    return { ok: true as const };
+  } catch (e) {
+    console.error("Error triggering push queue worker:", e);
+    return {
+      ok: false as const,
+      status: 500,
+      error: String(e),
+    };
+  }
+}
+
 function packMessageField(input: {
   message: string;
   data?: Record<string, unknown>;
@@ -129,7 +170,18 @@ Deno.serve(async (req) => {
     }).eq("id", lockRow!.id);
 
     if (queueError) return { ok: false, status: 500, error: queueError.message };
-    return { ok: true, notificationId: inserted.id };
+    const workerResult = await triggerPushQueueWorker();
+    if (!workerResult.ok) {
+      // Keep notification + queue entry created; worker can retry later.
+      console.error("push-queue-worker trigger failed:", workerResult);
+    }
+    return {
+      ok: true,
+      notificationId: inserted.id,
+      workerTriggered: workerResult.ok,
+      workerStatus: workerResult.status ?? 200,
+      workerError: workerResult.error ?? null,
+    };
   }
 
   if (action === "register_push_token") {
@@ -204,7 +256,13 @@ Deno.serve(async (req) => {
     if (!result.ok) {
       return new Response(JSON.stringify({ ok: false, error: result.error }), { status: result.status });
     }
-    return new Response(JSON.stringify({ ok: true, notification_id: result.notificationId }), { status: 200 });
+    return new Response(JSON.stringify({
+      ok: true,
+      notification_id: result.notificationId,
+      worker_triggered: result.workerTriggered ?? null,
+      worker_status: result.workerStatus ?? null,
+      worker_error: result.workerError ?? null,
+    }), { status: 200 });
   }
 
   if (action === "emit_domain_event") {
@@ -486,7 +544,13 @@ Deno.serve(async (req) => {
     if (!result.ok) {
       return new Response(JSON.stringify({ ok: false, error: result.error }), { status: result.status });
     }
-    return new Response(JSON.stringify({ ok: true, notification_id: result.notificationId }), { status: 200 });
+    return new Response(JSON.stringify({
+      ok: true,
+      notification_id: result.notificationId,
+      worker_triggered: result.workerTriggered ?? null,
+      worker_status: result.workerStatus ?? null,
+      worker_error: result.workerError ?? null,
+    }), { status: 200 });
   }
 
   return new Response(JSON.stringify({ ok: false, error: "Unknown action" }), {

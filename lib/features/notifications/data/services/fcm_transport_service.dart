@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -15,7 +16,7 @@ class FcmTransportService {
   static const _channelId = 'flap_notifications';
   static const _channelName = 'FLAP Notifications';
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  FirebaseMessaging get _messaging => FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
@@ -35,6 +36,7 @@ class FcmTransportService {
     required TokenHandler onToken,
   }) async {
     if (kIsWeb || _initialized) return;
+    if (Firebase.apps.isEmpty) return;
     _initialized = true;
 
     final settings = await _messaging.requestPermission(

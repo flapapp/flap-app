@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -73,6 +74,7 @@ class NotificationService {
   }
 
   Future<void> syncCurrentUserToken() async {
+    if (Firebase.apps.isEmpty) return;
     if (!await UserSettingsService().isNotificationsEnabled()) {
       await _clearNotificationTokens();
       return;
