@@ -6,11 +6,9 @@ import '../../../../core/auth/app_auth.dart';
 /// Loads challenge submissions and the current user's ratings via standard selects
 /// (no Realtime `.stream`), with optional refresh after mutations.
 class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
-  ChallengeDetailsCubit(
-    this._challengeId, {
-    String? challengeCreatorId,
-  })  : _challengeCreatorId = challengeCreatorId ?? '',
-        super(const ChallengeDetailsState());
+  ChallengeDetailsCubit(this._challengeId, {String? challengeCreatorId})
+    : _challengeCreatorId = challengeCreatorId ?? '',
+      super(const ChallengeDetailsState());
 
   final String _challengeId;
   final String _challengeCreatorId;
@@ -82,18 +80,39 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
         }
       }
 
-      emit(ChallengeDetailsState(
-        submissions: list,
-        myRatingsBySubmissionId: myRatings,
-        isLoading: false,
-        error: null,
-        loadedChallengeId: _challengeId,
-      ));
+      final submitterIds = list
+          .map((row) => row['userId']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList(growable: false);
+
+      final submitterProfiles = <String, Map<String, dynamic>>{};
+      if (submitterIds.isNotEmpty) {
+        final profileRows = await _sb
+            .from('profiles')
+            .select('id,display_name,email,avatar_url')
+            .inFilter('id', submitterIds);
+        for (final raw in (profileRows as List<dynamic>)) {
+          final row = raw as Map<String, dynamic>;
+          final id = row['id']?.toString() ?? '';
+          if (id.isNotEmpty) {
+            submitterProfiles[id] = row;
+          }
+        }
+      }
+
+      emit(
+        ChallengeDetailsState(
+          submissions: list,
+          myRatingsBySubmissionId: myRatings,
+          submitterProfilesByUserId: submitterProfiles,
+          isLoading: false,
+          error: null,
+          loadedChallengeId: _challengeId,
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      ));
+      emit(state.copyWith(isLoading: false, error: e.toString()));
     }
   }
 
@@ -107,7 +126,8 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
       'userId': uid,
       'videoUrl': row['video_url'] ?? '',
       'thumbnailUrl': row['thumbnail_url'] ?? '',
-      'isCreatorVideo': _challengeCreatorId.isNotEmpty && uid == _challengeCreatorId,
+      'isCreatorVideo':
+          _challengeCreatorId.isNotEmpty && uid == _challengeCreatorId,
       'averageRating': 0.0,
       'voteCount': 0,
       'createdAt': row['submitted_at'],
@@ -119,6 +139,7 @@ class ChallengeDetailsState {
   const ChallengeDetailsState({
     this.submissions = const [],
     this.myRatingsBySubmissionId = const {},
+    this.submitterProfilesByUserId = const {},
     this.isLoading = false,
     this.error,
     this.loadedChallengeId,
@@ -126,6 +147,7 @@ class ChallengeDetailsState {
 
   final List<Map<String, dynamic>> submissions;
   final Map<String, Map<String, dynamic>> myRatingsBySubmissionId;
+  final Map<String, Map<String, dynamic>> submitterProfilesByUserId;
   final bool isLoading;
   final String? error;
   final String? loadedChallengeId;
@@ -133,6 +155,7 @@ class ChallengeDetailsState {
   ChallengeDetailsState copyWith({
     List<Map<String, dynamic>>? submissions,
     Map<String, Map<String, dynamic>>? myRatingsBySubmissionId,
+    Map<String, Map<String, dynamic>>? submitterProfilesByUserId,
     bool? isLoading,
     String? error,
     String? loadedChallengeId,
@@ -141,6 +164,8 @@ class ChallengeDetailsState {
       submissions: submissions ?? this.submissions,
       myRatingsBySubmissionId:
           myRatingsBySubmissionId ?? this.myRatingsBySubmissionId,
+      submitterProfilesByUserId:
+          submitterProfilesByUserId ?? this.submitterProfilesByUserId,
       isLoading: isLoading ?? this.isLoading,
       error: error,
       loadedChallengeId: loadedChallengeId ?? this.loadedChallengeId,

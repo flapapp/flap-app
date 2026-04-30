@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/di/injection.dart';
@@ -8,6 +9,7 @@ import '../router/app_router.dart';
 import '../features/notifications/data/services/notification_service.dart';
 import '../features/video/presentation/pages/videos_screen.dart';
 import '../features/challenges/presentation/pages/challenges_screen.dart';
+import 'cubit/main_header_cubit.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
 class MainScreen extends StatefulWidget {
@@ -30,21 +32,26 @@ class _MainScreenState extends State<MainScreen>
     with SingleTickerProviderStateMixin {
   late final NotificationService _notificationService;
   final SupabaseClient _sb = Supabase.instance.client;
-  Stream<List<Map<String, dynamic>>>? _profileStream;
+  late final MainHeaderCubit _mainHeaderCubit;
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _notificationService = sl<NotificationService>();
+    _mainHeaderCubit = MainHeaderCubit(
+      supabase: _sb,
+      notificationService: _notificationService,
+      userId: AppAuth.currentUserId ?? '',
+    )..initialize();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.index = widget.initialTabIndex;
-    _profileStream = _profileDataStream();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _mainHeaderCubit.close();
     super.dispose();
   }
 
@@ -102,61 +109,54 @@ class _MainScreenState extends State<MainScreen>
           ],
         ),
         actions: [
-          StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _profileStream,
-            builder: (context, snapshot) {
-              final rows = snapshot.data ?? const <Map<String, dynamic>>[];
-              final userData = rows.isEmpty ? null : rows.first;
+          BlocBuilder<MainHeaderCubit, MainHeaderState>(
+            bloc: _mainHeaderCubit,
+            builder: (context, state) {
+              final userData = state.profileData;
+              final unreadCount = state.unreadCount;
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildUserChips(userData),
                   _buildProfileButton(userData),
-                ],
-              );
-            },
-          ),
-          // Notifications
-          StreamBuilder<int>(
-            stream: _notificationService.getUnreadCount(),
-            builder: (context, snapshot) {
-              final unreadCount = snapshot.data ?? 0;
-              return Stack(
-                children: [
-                  IconButton(
-                    tooltip: tr('notifications'),
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.white,
-                    ),
-                    onPressed: () =>
-                        context.router.push(const NotificationsRoute()),
-                  ),
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(10),
+                  Stack(
+                    children: [
+                      IconButton(
+                        tooltip: tr('notifications'),
+                        icon: const Icon(
+                          Icons.notifications_outlined,
+                          color: Colors.white,
                         ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          unreadCount > 99 ? '99+' : unreadCount.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
+                        onPressed: () =>
+                            context.router.push(const NotificationsRoute()),
                       ),
-                    ),
+                      if (unreadCount > 0)
+                        Positioned(
+                          right: 6,
+                          top: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              unreadCount > 99 ? '99+' : unreadCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               );
             },
@@ -335,13 +335,6 @@ class _MainScreenState extends State<MainScreen>
             : null,
       ),
     );
-  }
-
-  Stream<List<Map<String, dynamic>>> _profileDataStream() {
-    return _sb
-        .from('profiles')
-        .stream(primaryKey: ['id'])
-        .eq('id', AppAuth.currentUserId ?? '');
   }
 
   void _showCoinsHistory(int currentCoins) {

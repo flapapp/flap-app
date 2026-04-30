@@ -48,17 +48,6 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     return tr('il_b512d97e7c');
   }
 
-  Future<Map<String, dynamic>?> _submitterProfile(String userId) {
-    if (userId.isEmpty) {
-      return Future<Map<String, dynamic>?>.value(null);
-    }
-    return _sb
-        .from('profiles')
-        .select('display_name,email,avatar_url')
-        .eq('id', userId)
-        .maybeSingle();
-  }
-
   /// Small submitter mark on the video preview (for visibility while scrolling).
   Widget _submitterAvatarOnVideo(
     String userId,
@@ -277,11 +266,13 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           });
 
         final myRatings = state.myRatingsBySubmissionId;
+        final submitterProfiles = state.submitterProfilesByUserId;
         return Column(
           children: sortedVideos
               .map(
                 (row) => _buildVideoCard(
                   row,
+                  submitterProfilesByUserId: submitterProfiles,
                   myRatingRow: myRatings[row['id']?.toString() ?? ''],
                 ),
               )
@@ -332,7 +323,12 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
         return Column(
           children: sortedVideos
-              .map((row) => _buildModalVideoCard(row))
+              .map(
+                (row) => _buildModalVideoCard(
+                  row,
+                  submitterProfilesByUserId: state.submitterProfilesByUserId,
+                ),
+              )
               .toList(),
         );
       },
@@ -340,7 +336,10 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   }
 
   // Відео картка для модального вікна з повноширінним прев'ю
-  Widget _buildModalVideoCard(Map<String, dynamic> data) {
+  Widget _buildModalVideoCard(
+    Map<String, dynamic> data, {
+    required Map<String, Map<String, dynamic>> submitterProfilesByUserId,
+  }) {
     final videoId = data['id']?.toString() ?? '';
     final title = data['title'] ?? tr('il_f59ab8d133');
     final userId = data['userId'] ?? '';
@@ -352,145 +351,139 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         : int.tryParse('${data['voteCount'] ?? 0}') ?? 0;
     String thumb = (data['thumbnailUrl'] ?? '') as String;
 
+    final userData = submitterProfilesByUserId[userId] ?? <String, dynamic>{};
+    final avatarUrl = _profileAvatarUrl(userData);
+    final userName = _profileDisplayName(userData);
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      child: FutureBuilder<Map<String, dynamic>?>(
-        future: _submitterProfile(userId),
-        builder: (context, profileSnapshot) {
-          final userData = profileSnapshot.data ?? <String, dynamic>{};
-          final avatarUrl = _profileAvatarUrl(userData);
-          final userName = _profileDisplayName(userData);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              FutureBuilder<String?>(
-                future: _getThumbnailUrl(thumb, videoId, videoUrl, userId),
-                builder: (context, snapshot) {
-                  final effectiveThumb = snapshot.data ?? thumb;
-                  return VideoPreviewBox(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FutureBuilder<String?>(
+            future: _getThumbnailUrl(thumb, videoId, videoUrl, userId),
+            builder: (context, snapshot) {
+              final effectiveThumb = snapshot.data ?? thumb;
+              return VideoPreviewBox(
+                videoUrl: videoUrl,
+                thumbnailUrl: effectiveThumb,
+                onTap: () {
+                  _openChallengeVideoPlayer(
                     videoUrl: videoUrl,
+                    title: title,
+                    submissionId: videoId,
+                    authorName: userName,
                     thumbnailUrl: effectiveThumb,
-                    onTap: () {
-                      _openChallengeVideoPlayer(
-                        videoUrl: videoUrl,
-                        title: title,
-                        submissionId: videoId,
-                        authorName: userName,
-                        thumbnailUrl: effectiveThumb,
-                      );
-                    },
-                    borderRadius: 12,
-                    topLeft: isCreatorVideo
-                        ? _badge(
-                            tr('il_88447b8309'),
-                            color: const Color(0xFF4caf50),
-                          )
-                        : null,
-                    bottomLeft: userId.isEmpty
-                        ? null
-                        : _submitterAvatarOnVideo(userId, userName, avatarUrl),
-                    bottomRight: _badge(
-                      tr('il_22f29c1ea8', args: [rating.toStringAsFixed(1)]),
-                      color: Colors.black.withOpacity(0.6),
-                    ),
                   );
                 },
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  if (userId.isNotEmpty &&
-                      profileSnapshot.connectionState ==
-                          ConnectionState.waiting)
-                    const CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Color(0xFF4caf50),
-                      child: Icon(Icons.person, color: Colors.white, size: 20),
-                    )
-                  else
-                    PlayerAvatarButton(
-                      userId: userId,
-                      displayName: userName,
-                      avatarUrl: avatarUrl,
-                      size: 40,
-                    ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                borderRadius: 12,
+                topLeft: isCreatorVideo
+                    ? _badge(
+                        tr('il_88447b8309'),
+                        color: const Color(0xFF4caf50),
+                      )
+                    : null,
+                bottomLeft: userId.isEmpty
+                    ? null
+                    : _submitterAvatarOnVideo(userId, userName, avatarUrl),
+                bottomRight: _badge(
+                  tr('il_22f29c1ea8', args: [rating.toStringAsFixed(1)]),
+                  color: Colors.black.withOpacity(0.6),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (userId.isNotEmpty && userData.isEmpty)
+                const CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Color(0xFF4caf50),
+                  child: Icon(Icons.person, color: Colors.white, size: 20),
+                )
+              else
+                PlayerAvatarButton(
+                  userId: userId,
+                  displayName: userName,
+                  avatarUrl: avatarUrl,
+                  size: 40,
+                ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
                             ),
-                            if (isCreatorVideo)
-                              Container(
-                                margin: const EdgeInsets.only(left: 8),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF4caf50),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  tr('il_fdd5f6745e'),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                          ],
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            _buildStars(rating),
-                            const SizedBox(width: 6),
-                            Text(
-                              rating.toStringAsFixed(2),
+                        if (isCreatorVideo)
+                          Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4caf50),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              tr('il_fdd5f6745e'),
                               style: const TextStyle(
-                                color: Color(0xFF66bb6a),
+                                color: Colors.white,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w700,
-                                fontSize: 13,
                               ),
                             ),
-                            Text(
-                              tr('il_bc2a9a8bbb', args: ['$voteCount']),
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.5),
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        _buildStars(rating),
+                        const SizedBox(width: 6),
+                        Text(
+                          rating.toStringAsFixed(2),
+                          style: const TextStyle(
+                            color: Color(0xFF66bb6a),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          tr('il_bc2a9a8bbb', args: ['$voteCount']),
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.5),
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
-          );
-        },
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildVideoCard(
     Map<String, dynamic> data, {
+    required Map<String, Map<String, dynamic>> submitterProfilesByUserId,
     Map<String, dynamic>? myRatingRow,
   }) {
     final videoId = data['id']?.toString() ?? '';
@@ -504,6 +497,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         : int.tryParse('${data['voteCount'] ?? 0}') ?? 0;
     String thumb = (data['thumbnailUrl'] ?? '') as String;
     final submissionId = data['id']?.toString() ?? '';
+    final userData = submitterProfilesByUserId[userId] ?? <String, dynamic>{};
+    final avatarUrl = _profileAvatarUrl(userData);
+    final userName = _profileDisplayName(userData);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -518,244 +514,232 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           width: isCreatorVideo ? 2 : 1,
         ),
       ),
-      child: FutureBuilder<Map<String, dynamic>?>(
-        future: _submitterProfile(userId),
-        builder: (context, userSnapshot) {
-          final userData = userSnapshot.data ?? <String, dynamic>{};
-          final avatarUrl = _profileAvatarUrl(userData);
-          final userName = _profileDisplayName(userData);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // User info and title
+          Row(
             children: [
-              // User info and title
-              Row(
-                children: [
-                  if (userId.isNotEmpty &&
-                      userSnapshot.connectionState == ConnectionState.waiting)
-                    const CircleAvatar(
-                      radius: 17,
-                      backgroundColor: Color(0xFF4caf50),
-                      child: Icon(Icons.person, color: Colors.white, size: 18),
-                    )
-                  else
-                    PlayerAvatarButton(
-                      userId: userId,
-                      displayName: userName,
-                      avatarUrl: avatarUrl,
-                      size: 34,
-                    ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        _openChallengeVideoPlayer(
-                          videoUrl: videoUrl,
-                          title: title,
-                          submissionId: videoId,
-                          authorName: userName,
-                          thumbnailUrl: thumb,
-                        );
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              if (userId.isNotEmpty && userData.isEmpty)
+                const CircleAvatar(
+                  radius: 17,
+                  backgroundColor: Color(0xFF4caf50),
+                  child: Icon(Icons.person, color: Colors.white, size: 18),
+                )
+              else
+                PlayerAvatarButton(
+                  userId: userId,
+                  displayName: userName,
+                  avatarUrl: avatarUrl,
+                  size: 34,
+                ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    _openChallengeVideoPlayer(
+                      videoUrl: videoUrl,
+                      title: title,
+                      submissionId: videoId,
+                      authorName: userName,
+                      thumbnailUrl: thumb,
+                    );
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  title,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
                               ),
-                              if (isCreatorVideo)
-                                Container(
-                                  margin: const EdgeInsets.only(left: 6),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF4caf50),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    tr('il_fdd5f6745e'),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          Text(
-                            userName,
-                            style: const TextStyle(
-                              color: Color(0xFF66bb6a),
-                              fontSize: 11,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          if (isCreatorVideo)
+                            Container(
+                              margin: const EdgeInsets.only(left: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4caf50),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                tr('il_fdd5f6745e'),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
-                    ),
+                      Text(
+                        userName,
+                        style: const TextStyle(
+                          color: Color(0xFF66bb6a),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Rating display
-              Row(
-                children: [
-                  _buildStars(rating),
-                  const SizedBox(width: 6),
-                  Text(
-                    rating.toStringAsFixed(2),
-                    style: const TextStyle(
-                      color: Color(0xFF66bb6a),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    tr('il_bc2a9a8bbb', args: ['$voteCount']),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Video preview (avatar on corner) + voting
-              FutureBuilder<String?>(
-                future: _getThumbnailUrl(thumb, submissionId, videoUrl, userId),
-                builder: (context, snapThumb) {
-                  final effectiveThumb = snapThumb.data ?? thumb;
-                  return _buildVotingSection(
-                    videoId,
-                    videoUrl,
-                    title,
-                    userId,
-                    thumbnailUrl: effectiveThumb,
-                    myRatingRow: myRatingRow,
-                    authorDisplayName: userName,
-                    authorAvatarUrl: avatarUrl,
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-
-              // Action buttons
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isNarrow = constraints.maxWidth < 360;
-
-                  final buttons = <Widget>[
-                    ElevatedButton.icon(
-                      onPressed: () => _playVideo(
-                        videoUrl,
-                        title,
-                        videoId,
-                        userId,
-                        thumbnailUrl: thumb,
-                        authorName: userName,
-                      ),
-                      icon: const Icon(Icons.play_arrow, size: 16),
-                      label: Text(
-                        tr('il_a71e757324'),
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withOpacity(0.1),
-                        foregroundColor: Colors.white,
-                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        minimumSize: const Size(0, 36),
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () => _shareVideo(videoId),
-                      icon: const Icon(Icons.share, size: 16),
-                      label: Text(
-                        tr('share'),
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withOpacity(0.1),
-                        foregroundColor: Colors.white,
-                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        minimumSize: const Size(0, 36),
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () => _saveVideo(videoId),
-                      icon: const Icon(Icons.bookmark_outline, size: 16),
-                      label: Text(
-                        tr('save'),
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withOpacity(0.1),
-                        foregroundColor: Colors.white,
-                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        minimumSize: const Size(0, 36),
-                      ),
-                    ),
-                  ];
-
-                  if (isNarrow) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (final b in buttons)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: b,
-                          ),
-                      ],
-                    );
-                  }
-
-                  return Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: buttons
-                        .map((b) => SizedBox(height: 36, child: b))
-                        .toList(),
-                  );
-                },
+                ),
               ),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: 8),
+
+          // Rating display
+          Row(
+            children: [
+              _buildStars(rating),
+              const SizedBox(width: 6),
+              Text(
+                rating.toStringAsFixed(2),
+                style: const TextStyle(
+                  color: Color(0xFF66bb6a),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                tr('il_bc2a9a8bbb', args: ['$voteCount']),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Video preview (avatar on corner) + voting
+          FutureBuilder<String?>(
+            future: _getThumbnailUrl(thumb, submissionId, videoUrl, userId),
+            builder: (context, snapThumb) {
+              final effectiveThumb = snapThumb.data ?? thumb;
+              return _buildVotingSection(
+                videoId,
+                videoUrl,
+                title,
+                userId,
+                thumbnailUrl: effectiveThumb,
+                myRatingRow: myRatingRow,
+                authorDisplayName: userName,
+                authorAvatarUrl: avatarUrl,
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+
+          // Action buttons
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 360;
+
+              final buttons = <Widget>[
+                ElevatedButton.icon(
+                  onPressed: () => _playVideo(
+                    videoUrl,
+                    title,
+                    videoId,
+                    userId,
+                    thumbnailUrl: thumb,
+                    authorName: userName,
+                  ),
+                  icon: const Icon(Icons.play_arrow, size: 16),
+                  label: Text(
+                    tr('il_a71e757324'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white.withOpacity(0.1),
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    minimumSize: const Size(0, 36),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _shareVideo(videoId),
+                  icon: const Icon(Icons.share, size: 16),
+                  label: Text(
+                    tr('share'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white.withOpacity(0.1),
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    minimumSize: const Size(0, 36),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _saveVideo(videoId),
+                  icon: const Icon(Icons.bookmark_outline, size: 16),
+                  label: Text(tr('save'), style: const TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white.withOpacity(0.1),
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    minimumSize: const Size(0, 36),
+                  ),
+                ),
+              ];
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final b in buttons)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: b,
+                      ),
+                  ],
+                );
+              }
+
+              return Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: buttons
+                    .map((b) => SizedBox(height: 36, child: b))
+                    .toList(),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

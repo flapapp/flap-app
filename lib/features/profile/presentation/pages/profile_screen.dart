@@ -23,6 +23,7 @@ import '../../domain/repositories/profile_team_membership_repository.dart';
 import '../../domain/repositories/team_stats_repository.dart';
 import '../../domain/repositories/user_badges_repository.dart';
 import '../bloc/profile_bloc.dart';
+import '../cubit/profile_overview_cubit.dart';
 
 @RoutePage()
 class ProfileScreen extends StatefulWidget {
@@ -58,54 +59,32 @@ class _ProfileScreenBody extends StatefulWidget {
 }
 
 class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
-  List<app_badge.Badge> _userBadges = [];
-  int _friendsCount = 0;
-  Stream<List<AppTeam>>? _teamsStream;
-  Stream<List<TeamInvite>>? _teamInvitesStream;
-  String? _userId;
+  late final ProfileOverviewCubit _overviewCubit;
   Future<Map<String, dynamic>>? _matchStatsFuture;
   String? _matchStatsUserId;
 
   @override
   void initState() {
     super.initState();
-    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
-    if (uid != null) {
-      _userId = uid;
-      _loadUserBadges();
-      _loadFriendsCount();
-      final teams = sl<ProfileTeamMembershipRepository>();
-      _teamsStream = teams.watchUserTeams(uid);
-      _teamInvitesStream = teams.watchInvites(uid);
-    }
+    _overviewCubit = ProfileOverviewCubit(
+      authSessionRepository: sl<AuthSessionRepository>(),
+      userBadgesRepository: sl<UserBadgesRepository>(),
+      playerSocialRepository: sl<PlayerSocialRepository>(),
+      teamMembershipRepository: sl<ProfileTeamMembershipRepository>(),
+    )..initialize();
   }
 
-  void _loadUserBadges() async {
-    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
-    if (uid != null) {
-      final badges = await sl<UserBadgesRepository>().getUserBadges(uid);
-      setState(() {
-        _userBadges = badges;
-      });
-    }
-  }
-
-  void _loadFriendsCount() async {
-    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
-    if (uid != null) {
-      final count = await sl<PlayerSocialRepository>().countFriends(uid);
-      setState(() {
-        _friendsCount = count;
-      });
-    }
+  @override
+  void dispose() {
+    _overviewCubit.close();
+    super.dispose();
   }
 
   Widget _buildTeamsSection() {
-    if (_teamsStream == null) return const SizedBox.shrink();
-    return StreamBuilder<List<AppTeam>>(
-      stream: _teamsStream,
-      builder: (context, snapshot) {
-        final teams = snapshot.data ?? const [];
+    return BlocBuilder<ProfileOverviewCubit, ProfileOverviewState>(
+      bloc: _overviewCubit,
+      builder: (context, overview) {
+        final teams = overview.teams;
         final canCreate = teams.length < 3;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,7 +105,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                   TextButton.icon(
                     onPressed: canCreate
                         ? () async {
-                            if (_userId == null) return;
+                            if (overview.userId == null) return;
                             await context.router.push(
                               TeamCreateRoute(existingTeams: teams.length),
                             );
@@ -141,7 +120,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                 ],
               ),
             ),
-            if (snapshot.connectionState == ConnectionState.waiting)
+            if (overview.status == ProfileOverviewStatus.loading)
               const Padding(
                 padding: EdgeInsets.all(20),
                 child: LinearProgressIndicator(),
@@ -222,11 +201,10 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   }
 
   Widget _buildTeamInvitesSection() {
-    if (_teamInvitesStream == null) return const SizedBox.shrink();
-    return StreamBuilder<List<TeamInvite>>(
-      stream: _teamInvitesStream,
-      builder: (context, snapshot) {
-        final invites = snapshot.data ?? const [];
+    return BlocBuilder<ProfileOverviewCubit, ProfileOverviewState>(
+      bloc: _overviewCubit,
+      builder: (context, overview) {
+        final invites = overview.invites;
         if (invites.isEmpty) return const SizedBox.shrink();
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -836,43 +814,48 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   }
 
   Widget _buildStatsCards(Map<String, dynamic> userData) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatCard(
-              tr('matches'),
-              (userData['matchesPlayed'] ?? 0).toString(),
-              Icons.sports_soccer,
-              const Color(0xFF4caf50),
-              onTap: () =>
-                  context.router.push(MatchesRoute(initialTabIndex: 1)),
-            ),
+    return BlocBuilder<ProfileOverviewCubit, ProfileOverviewState>(
+      bloc: _overviewCubit,
+      builder: (context, overview) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  tr('matches'),
+                  (userData['matchesPlayed'] ?? 0).toString(),
+                  Icons.sports_soccer,
+                  const Color(0xFF4caf50),
+                  onTap: () =>
+                      context.router.push(MatchesRoute(initialTabIndex: 1)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  tr('videos'),
+                  (userData['videosUploaded'] ?? 0).toString(),
+                  Icons.videocam,
+                  const Color(0xFFFF6B35),
+                  onTap: () =>
+                      context.router.push(VideoMainRoute(myContent: 'videos')),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  tr('friends'),
+                  overview.friendsCount.toString(),
+                  Icons.people,
+                  const Color(0xFF2196F3),
+                  onTap: () => _openFriends(),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildStatCard(
-              tr('videos'),
-              (userData['videosUploaded'] ?? 0).toString(),
-              Icons.videocam,
-              const Color(0xFFFF6B35),
-              onTap: () =>
-                  context.router.push(VideoMainRoute(myContent: 'videos')),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildStatCard(
-              tr('friends'),
-              _friendsCount.toString(),
-              Icons.people,
-              const Color(0xFF2196F3),
-              onTap: () => _openFriends(),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -969,7 +952,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           ),
           const SizedBox(height: 12),
 
-          if (_userBadges.isEmpty)
+          if (_overviewCubit.state.badges.isEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -1003,10 +986,10 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 padding: EdgeInsets.zero,
-                itemCount: _userBadges.length,
+                itemCount: _overviewCubit.state.badges.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
-                  final badge = _userBadges[index];
+                  final badge = _overviewCubit.state.badges[index];
                   return FutureBuilder<BadgeEndorsementInfo>(
                     future: sl<PlayerBadgeEndorsementRepository>()
                         .getEndorsementInfo(
