@@ -14,6 +14,7 @@ import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:flap_app/city_localization.dart';
 
 @RoutePage()
 class CreateMatchScreen extends StatefulWidget {
@@ -87,7 +88,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
         child: ListView(
           padding: EdgeInsets.all(20),
           children: [
-            // Назва матчу
+            // Match title
             TextFormField(
               controller: _titleController,
               decoration: InputDecoration(
@@ -109,7 +110,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             ),
             SizedBox(height: 20),
             
-            // Опис
+            // Description
             TextFormField(
               controller: _descriptionController,
               decoration: InputDecoration(
@@ -128,7 +129,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             ),
             SizedBox(height: 20),
             
-            // Дата та час
+            // Date and time
             Row(
               children: [
                 Expanded(
@@ -220,7 +221,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             ),
             SizedBox(height: 20),
             
-            // Локація
+            // Location
             TextFormField(
               controller: _locationController,
               decoration: InputDecoration(
@@ -242,7 +243,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             ),
             SizedBox(height: 20),
             
-            // Місто та рівень
+            // City and level
             Row(
               children: [
                 Expanded(
@@ -292,7 +293,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             ),
             SizedBox(height: 20),
             
-            // Кількість гравців та вартість
+            // Player count and price
             Row(
               children: [
                 Expanded(
@@ -354,7 +355,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             ),
             SizedBox(height: 20),
             
-            // Налаштування
+            // Settings
             LayoutBuilder(
               builder: (context, constraints) {
                 final isNarrow = constraints.maxWidth < 640;
@@ -395,7 +396,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
               },
             ),
             
-            // Вибір кількості команд
+            // Number of teams
             if (_autoBalance) ...[
               const SizedBox(height: 10),
               Container(
@@ -552,7 +553,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                         subtitle: city.isEmpty
                             ? null
                             : Text(
-                                city,
+                                localizeCity(city),
                                 style: const TextStyle(color: Colors.white54, fontSize: 12),
                               ),
                         trailing: IconButton(
@@ -741,7 +742,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             ],
             SizedBox(height: 20),
             
-            // Кнопка створення
+            // Create button
             ElevatedButton(
               onPressed: _isCreating ? null : _createMatch,
               style: ElevatedButton.styleFrom(

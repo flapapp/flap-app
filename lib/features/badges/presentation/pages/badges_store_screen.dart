@@ -1,7 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/badges_repository.dart';
@@ -95,7 +94,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          // Показуємо поточний баланс монет
+          // Show current coin balance
           Container(
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -128,11 +127,11 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white54,
           tabs: [
-            Tab(text: bilingual('Всі', 'All')),
-            Tab(text: bilingual('Початкові', 'Starter')),
-            Tab(text: bilingual('Навички', 'Skills')),
-            Tab(text: bilingual('Досягнення', 'Achievements')),
-            Tab(text: bilingual('Легендарні', 'Legendary')),
+            Tab(text: tr('badge_tab_all')),
+            Tab(text: tr('badge_tab_starter')),
+            Tab(text: tr('badge_tab_skills')),
+            Tab(text: tr('badge_tab_achievements')),
+            Tab(text: tr('badge_tab_legendary')),
           ],
         ),
       ),
@@ -170,7 +169,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              bilingual('Немає бейджів у цій категорії', 'No badges in this category'),
+              tr('badges_category_empty'),
               style: const TextStyle(
                 color: Colors.white54,
                 fontSize: 16,
@@ -261,7 +260,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        bilingual('МАЄТЕ', 'OWNED'),
+                        tr('badge_chip_owned'),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 9,
@@ -367,7 +366,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                     border: Border.all(color: const Color(0xFF4caf50)),
                   ),
                   child: Text(
-                    bilingual('✓ КУПЛЕНО', '✓ PURCHASED'),
+                    tr('badge_chip_purchased'),
                     style: const TextStyle(
                       color: Color(0xFF4caf50),
                       fontSize: 11,
@@ -448,7 +447,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      bilingual('Ціна:', 'Price:'),
+                      tr('price_label'),
                       style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                     Row(
@@ -484,7 +483,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      bilingual('Ваш баланс:', 'Your balance:'),
+                      tr('your_balance_label'),
                       style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                     Row(
@@ -517,9 +516,11 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    bilingual(
-                      'Недостатньо монет! Потрібно ще ${badge.price - _userCoins} монет.',
-                      'Not enough coins! You need ${badge.price - _userCoins} more.',
+                    tr(
+                      'badge_insufficient_coins',
+                      namedArgs: {
+                        'amount': '${badge.price - _userCoins}',
+                      },
                     ),
                     style: const TextStyle(
                       color: Colors.red,
@@ -550,7 +551,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                 ),
               ),
               child: Text(
-                bilingual('Купити', 'Buy'),
+                tr('badge_store_buy'),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -562,9 +563,9 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
 
   Future<void> _purchaseBadge(app_badge.Badge badge) async {
     try {
-      Navigator.pop(context); // Закриваємо діалог
+      Navigator.pop(context); // Close the dialog
       
-      // Показуємо індикатор завантаження
+      // Show loading indicator
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -573,15 +574,15 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
         ),
       );
       
-      // Купуємо бейдж
+      // Purchase the badge
       await _badgesRepo.purchaseBadge(badge.id);
       
-      Navigator.pop(context); // Закриваємо індикатор
+      Navigator.pop(context); // Close loading indicator
       
-      // Оновлюємо дані
+      // Refresh data
       await _loadData();
       
-      // Показуємо повідомлення про успіх
+      // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -604,7 +605,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
         ),
       );
     } catch (e) {
-      Navigator.pop(context); // Закриваємо індикатор якщо є помилка
+      Navigator.pop(context); // Close loading indicator on error
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

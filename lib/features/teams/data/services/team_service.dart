@@ -110,7 +110,7 @@ class TeamService {
   }) async {
     final user = AppAuth.currentUser;
     if (user == null) {
-      throw Exception('Користувач не авторизований');
+      throw Exception(tr('team_error_not_signed_in'));
     }
 
     final existingMemberships = await _sb
@@ -118,7 +118,7 @@ class TeamService {
         .select('id')
         .eq('user_id', user.id);
     if ((existingMemberships as List<dynamic>).length >= 3) {
-      throw Exception('Максимум 3 команди на гравця');
+      throw Exception(tr('team_error_max_teams_three'));
     }
 
     final inserted = await _sb
@@ -155,7 +155,7 @@ class TeamService {
   Future<String> _uploadTeamLogo(String teamId, Uint8List bytes) async {
     final uid = AppAuth.currentUser?.id;
     if (uid == null) {
-      throw Exception('Користувач не авторизований');
+      throw Exception(tr('team_error_not_signed_in'));
     }
     final path =
         '$uid/$teamId-${DateTime.now().millisecondsSinceEpoch}.png';
@@ -262,7 +262,7 @@ class TeamService {
   }) async {
     final userTeams = await fetchUserTeams(invite.userId);
     if (accept && userTeams.length >= 3) {
-      throw Exception('Максимум 3 команди на гравця');
+      throw Exception(tr('team_error_max_teams_three'));
     }
     await _sb.from('team_invites').update(<String, dynamic>{
       'status': accept ? 'accepted' : 'declined',
@@ -286,7 +286,7 @@ class TeamService {
       final userName = (userRow?['display_name'] ??
               userRow?['nickname'] ??
               '${userRow?['first_name'] ?? ''} ${userRow?['last_name'] ?? ''}'.trim() ??
-              'Player')
+              tr('player'))
           .toString();
       await _publishTeamMovementNews(
         action: 'joined_team',
@@ -336,14 +336,14 @@ class TeamService {
   }) async {
     final user = AppAuth.currentUser;
     if (user == null) {
-      throw Exception('Потрібна авторизація');
+      throw Exception(tr('team_error_auth_required'));
     }
     final team = await _loadTeam(teamId);
     if (team == null) {
-      throw Exception('Команду не знайдено');
+      throw Exception(tr('team_error_team_not_found'));
     }
     if (team.memberIds.contains(user.id)) {
-      throw Exception('Ви вже у цій команді');
+      throw Exception(tr('team_error_already_member'));
     }
 
     final pendingExisting = await _sb
@@ -353,13 +353,13 @@ class TeamService {
         .eq('user_id', user.id)
         .eq('status', 'pending');
     if ((pendingExisting as List).isNotEmpty) {
-      throw Exception('Запит вже надіслано');
+      throw Exception(tr('team_error_join_request_pending'));
     }
 
     final requesterName =
         (user.userMetadata?['full_name'] as String?)?.trim().isNotEmpty == true
             ? (user.userMetadata!['full_name'] as String).trim()
-            : (user.email?.split('@').first ?? 'Player');
+            : (user.email?.split('@').first ?? tr('player'));
     await _sb.from('team_join_requests').insert(<String, dynamic>{
       'team_id': teamId,
       'user_id': user.id,
@@ -379,14 +379,14 @@ class TeamService {
     if (currentUser == null) return;
     final team = await _loadTeam(request.teamId);
     if (team == null) {
-      throw Exception('Команду не знайдено');
+      throw Exception(tr('team_error_team_not_found'));
     }
     final captainId = team.captainId;
     final viceIds = team.viceCaptainIds;
     final canManage =
         captainId == currentUser.id || viceIds.contains(currentUser.id);
     if (!canManage) {
-      throw Exception('Недостатньо прав');
+      throw Exception(tr('team_error_insufficient_permissions'));
     }
 
     await _sb.from('team_join_requests').update({
@@ -585,7 +585,7 @@ class TeamService {
       );
     }
 
-    // Якщо капітан останній у команді — не даємо "осиротити" команду
+    // If captain is the last member, do not leave the team without a captain
     if (captainId == userId && memberIds.length == 1) {
       throw Exception(
         tr('il_b0792872ce'),
@@ -595,7 +595,7 @@ class TeamService {
     final updatedMembers = List<String>.from(memberIds)..remove(userId);
     final updatedVice = List<String>.from(viceIds)..remove(userId);
 
-    // Якщо виходить капітан — передаємо капітанство іншому учаснику
+    // When captain leaves, assign captain to another member
     if (captainId == userId) {
       String? nextCaptain;
       if (updatedVice.isNotEmpty) {
@@ -627,7 +627,7 @@ class TeamService {
       .eq('team_id', teamId)
       .eq('user_id', userId);
 
-  // Після успішного виходу — новина в activity feed
+  // After successful leave, post to activity feed
   final userRow = await _sb
       .from('profiles')
       .select('display_name,nickname,first_name,last_name')
@@ -636,7 +636,7 @@ class TeamService {
   final userName = (userRow?['display_name'] ??
           userRow?['nickname'] ??
           '${userRow?['first_name'] ?? ''} ${userRow?['last_name'] ?? ''}'.trim() ??
-          'Player')
+          tr('player'))
       .toString();
 
   await _publishTeamMovementNews(
@@ -674,7 +674,7 @@ class TeamService {
       final userName = (profile?['display_name'] ??
               profile?['nickname'] ??
               '${profile?['first_name'] ?? ''} ${profile?['last_name'] ?? ''}'.trim() ??
-              'Player')
+              tr('player'))
           .toString();
       out.add(TeamJoinRequest.fromJson(<String, dynamic>{
         'id': row['id'],

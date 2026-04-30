@@ -8,81 +8,81 @@ class WebThumbnailService {
 
   final SupabaseClient _sb = Supabase.instance.client;
 
-  /// Генерує thumbnail для веб-платформи використовуючи VideoPlayer
+  /// Generates a thumbnail on web using VideoPlayer
   Future<String?> generateWebThumbnail({
     required String videoUrl,
     required String videoId,
     required String userId,
   }) async {
     try {
-      print('🌐 Starting web thumbnail generation for: $videoId');
+      print('[web_thumb] Starting web thumbnail generation for: $videoId');
 
-      // Створюємо VideoPlayerController
+      // Create VideoPlayerController
       final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
       
       await controller.initialize();
       
-      // Переходимо до 1-ї секунди
+      // Seek to first second
       await controller.seekTo(const Duration(seconds: 1));
       
-      // Чекаємо щоб кадр завантажився
+      // Wait for frame to load
       await Future.delayed(const Duration(milliseconds: 500));
       
-      // На веб-платформі створюємо простий placeholder з інформацією про відео
+      // On web, build a simple placeholder with video metadata
       final thumbnailUrl = await _createWebPlaceholder(
         videoId: videoId,
         userId: userId,
         videoUrl: videoUrl,
       );
 
-      // Очищуємо ресурси
+      // Dispose resources
       await controller.dispose();
 
       return thumbnailUrl;
     } catch (e) {
-      print('❌ Error generating web thumbnail: $e');
+      print('[web_thumb] ERROR generating web thumbnail: $e');
       return null;
     }
   }
 
-  /// Створює placeholder для веб-платформи
+  /// Creates a web placeholder thumbnail
   Future<String?> _createWebPlaceholder({
     required String videoId,
     required String userId,
     required String videoUrl,
   }) async {
     try {
-      // Для веб: використовуємо саме відео як прев'ю, щоб браузер відобразив перший кадр
+      // On web, use the video URL as preview so the browser shows the first frame
       await _sb.from('videos').update(<String, dynamic>{
         'thumbnail_url': videoUrl,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', videoId);
 
-      print('✅ Web placeholder created for: $videoId');
+      print('[web_thumb] Web placeholder created for: $videoId');
       return videoUrl;
     } catch (e) {
-      print('❌ Error creating web placeholder: $e');
+      print('[web_thumb] ERROR creating web placeholder: $e');
       return null;
     }
   }
 
-  /// Генерує thumbnail для челенджу
+  /// Generates a thumbnail for a challenge video
   Future<String?> generateWebChallengeThumbnail({
     required String videoUrl,
     required String challengeId,
     required String userId,
   }) async {
     try {
-      // Для челенджів також використовуємо відео URL
+      // For challenges, also use the video URL
       await _sb.from('challenges').update(<String, dynamic>{
         'image_url': videoUrl,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', challengeId);
 
-      print('✅ Web challenge thumbnail created: $challengeId');
+      print('[web_thumb] Web challenge thumbnail created: $challengeId');
       return videoUrl;
     } catch (e) {
-      print('❌ Error creating web challenge thumbnail: $e');
+      print('[web_thumb] ERROR creating web challenge thumbnail: $e');
       return null;
     }
   }

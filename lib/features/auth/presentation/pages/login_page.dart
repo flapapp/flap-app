@@ -2,7 +2,6 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../core/error/failure.dart';
 import '../../../../core/progress/progress_status.dart';
@@ -79,9 +78,9 @@ class _LoginScreenState extends State<LoginScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                bilingual(
-                  'Помилка: ${_loginErrorMessage(failure)}',
-                  'Error: ${_loginErrorMessage(failure)}',
+                tr(
+                  'auth_error_with_detail',
+                  namedArgs: {'detail': _loginErrorMessage(failure)},
                 ),
               ),
             ),

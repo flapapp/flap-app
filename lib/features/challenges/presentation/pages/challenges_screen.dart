@@ -12,6 +12,7 @@ import '../../../../widgets/user_chip.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:flap_app/city_localization.dart';
 
 class ChallengesScreen extends StatefulWidget {
   final bool showOnlyMyChallenges;
@@ -114,7 +115,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 ..sort((ad, bd) {
                   switch (_selectedSort) {
                     case 'rating':
-                      final ar = (ad['averageRating'] ?? 0.0) as num; // якщо є агрегований рейтинг
+                      final ar = (ad['averageRating'] ?? 0.0) as num; // When server provides aggregate rating
                       final br = (bd['averageRating'] ?? 0.0) as num;
                       return br.compareTo(ar);
                     case 'views':
@@ -143,7 +144,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           ),
         ],
       ),
-      // Видаляю FloatingActionButton - він вже є в MainScreen
+      // No FloatingActionButton here — MainScreen already provides one
     );
   }
 
@@ -302,7 +303,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-          // Header з інформацією про челендж
+          // Header with challenge info
           Container(
             padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -369,7 +370,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 child: UserChip(userId: creatorId, name: creatorName, showName: true, size: 20),
               ),
                 const SizedBox(height: 8),
-                // Статистика
+                // Stats
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -409,13 +410,13 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
             ),
           ),
           
-          // Контентна частина
+          // Main content
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Верхня половина: відео творця челенджу (займає половину картки)
+                // Top half: creator video (half the card)
                 VideoPreviewBox(
                   thumbnailUrl: creatorThumbnailUrl,
                   videoUrl: creatorVideoUrl,
@@ -434,7 +435,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
             
                 const SizedBox(height: 12),
 
-                // Нижня половина: слайдер з відео учасників
+                // Bottom half: participant videos carousel
             if (submissions > 0) ...[
               Text(
                 tr('il_740fb949c8'),
@@ -484,7 +485,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                         
                     return ListView.builder(
                       scrollDirection: Axis.horizontal,
-                          itemCount: submissionDocs.length + (submissionDocs.length < submissions ? 1 : 0), // +1 для показу кількості
+                          itemCount: submissionDocs.length + (submissionDocs.length < submissions ? 1 : 0), // +1 tile for “more” count
                       itemBuilder: (context, index) {
                             if (index < submissionDocs.length) {
                         final submissionData = submissionDocs[index];
@@ -554,7 +555,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                 ),
                         );
                             } else {
-                              // Показуємо кількість якщо є більше відео
+                              // Show count when more videos exist
                               final remainingCount = submissions - submissionDocs.length;
                               return Container(
                                 width: 60,
@@ -600,7 +601,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 
                 const SizedBox(height: 12),
 
-                // Кнопки дій
+                // Action buttons
             Row(
               children: [
                 Expanded(
@@ -687,7 +688,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
   }) {
     print('Playing creator video: $videoUrl');
     if (videoUrl.isNotEmpty) {
-      // Відкриваємо відео творця з голосуванням (як учасника челенджу)
+      // Open creator video with voting (as challenge participant)
       context.router.push(
         ChallengeVideoPlayerRoute(
           videoUrl: videoUrl,
@@ -714,7 +715,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;
 
-      // Отримуємо дані челенджу для показу вартості
+      // Load challenge for entry fee display
       final challengeData = await _sb
           .from('challenges')
           .select('title, entry_fee')
@@ -727,7 +728,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       final entryFee = challengeData['entry_fee'] ?? 10;
       final challengeTitle = challengeData['title'] ?? tr('il_27cf1792f7');
 
-      // Показуємо діалог підтвердження оплати
+      // Show payment confirmation dialog
       final shouldJoin = await showDialog<bool>(
         context: context,
         builder: (BuildContext context) {
@@ -796,10 +797,10 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
       );
 
       if (shouldJoin == true) {
-        // Приєднуємося до челенджу (платимо вступну плату)
+        // Join challenge (pay entry fee)
         await _challengesRepo.joinChallenge(challengeId);
         
-        // Показуємо повідомлення про успіх
+        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -815,7 +816,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           ),
         );
         
-        // Потім переходимо на завантаження відео
+        // Then go to video upload
     context.router.push(
       VideoUploadRoute(
         challengeId: challengeId,
@@ -826,7 +827,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ ${e.toString()}'),
+          content: Text(tr('challenges_open_failed', namedArgs: {'error': e.toString()})),
           backgroundColor: Colors.red,
         ),
       );
@@ -921,7 +922,10 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Учасники челенджу (${participants.length})',
+                        tr(
+                          'challenge_participants_title',
+                          namedArgs: {'count': '${participants.length}'},
+                        ),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
@@ -940,7 +944,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               // Participants list
               Expanded(
                 child: participants.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -951,7 +955,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                             ),
                             SizedBox(height: 16),
                             Text(
-                              'Поки немає учасників',
+                              tr('challenge_no_participants_yet'),
                               style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: 16,
@@ -985,10 +989,12 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                               final userData = snapshot.data ?? {};
                               final userName = userData['display_name'] ??
                                   userData['email']?.toString().split('@')[0] ??
-                                  'Користувач';
+                                  tr('il_b512d97e7c');
                               final avatarUrl = userData['avatar_url'] ?? '';
                               final rating = (userData['rating'] ?? 0.0).toDouble();
-                              final city = userData['city'] ?? 'Невідоме місто';
+                              final city = localizeCity(
+                                (userData['city'] ?? '').toString(),
+                              );
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -1054,9 +1060,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                             color: const Color(0xFF4caf50).withOpacity(0.2),
                                             borderRadius: BorderRadius.circular(8),
                                           ),
-                                          child: const Text(
-                                            'Творець',
-                                            style: TextStyle(
+                                          child: Text(
+                                            tr('il_88447b8309'),
+                                            style: const TextStyle(
                                               color: Color(0xFF4caf50),
                                               fontSize: 10,
                                               fontWeight: FontWeight.w600,
@@ -1087,7 +1093,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     String? thumbnailUrl,
   }) {
     if (videoUrl.isNotEmpty) {
-      // Відкриваємо відео учасника з голосуванням (1 повзунок)
+      // Open participant video with voting (single slider)
       context.router.push(
         ChallengeVideoPlayerRoute(
           videoUrl: videoUrl,
@@ -1272,7 +1278,9 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           .maybeSingle(),
       builder: (context, snap) {
         final ud = snap.data ?? {};
-        final name = ud['display_name'] ?? ud['email']?.toString().split('@')[0] ?? 'Користувач';
+        final name = ud['display_name'] ??
+            ud['email']?.toString().split('@')[0] ??
+            tr('il_b512d97e7c');
         final avatar = ud['avatar_url'] ?? '';
         final medal = place == 1 ? '🥇' : place == 2 ? '🥈' : '🥉';
         return ListTile(

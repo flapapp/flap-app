@@ -2,7 +2,6 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:flap_app/city_localization.dart';
 
 import '../../../../core/di/injection.dart';
@@ -141,7 +140,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 16),
             Text(
-              bilingual('У вас поки немає друзів', 'You have no friends yet'),
+              tr('friends_empty_title'),
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 18,
@@ -150,7 +149,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 8),
             Text(
-              bilingual('Додайте друзів, щоб грати разом!', 'Add friends to play together!'),
+              tr('friends_empty_subtitle'),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 14,
@@ -367,7 +366,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 16),
             Text(
-              bilingual('Немає нових запрошень', 'No new requests'),
+              tr('friends_incoming_empty_title'),
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 18,
@@ -376,7 +375,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 8),
             Text(
-              bilingual('Тут з\'являться запрошення в друзі', 'Friend requests will appear here'),
+              tr('friends_incoming_empty_hint'),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 14,
@@ -410,7 +409,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 16),
             Text(
-              bilingual('Немає надісланих запрошень', 'No sent requests'),
+              tr('friends_outgoing_empty_title'),
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 18,
@@ -419,7 +418,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 8),
             Text(
-              bilingual('Тут з\'являться ваші запрошення', 'Your invitations will appear here'),
+              tr('friends_outgoing_empty_hint'),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 14,
@@ -493,9 +492,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      isIncoming 
-                          ? bilingual('Хоче додати вас у друзі', 'Wants to add you as a friend')
-                          : bilingual('Запрошення надіслано', 'Invitation sent'),
+                      isIncoming
+                          ? tr('friends_subtitle_wants_to_add')
+                          : tr('player_invitation_pending_label'),
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.7),
                         fontSize: 14,
@@ -596,7 +595,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   }
 
   void _showAddFriendDialog() {
-    // Створюємо тестових користувачів якщо їх немає
+    // Seed test users if none exist
     _ensureTestUsers();
     
     showDialog(
@@ -749,8 +748,17 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                                 child: Text(userName, style: const TextStyle(color: Colors.white)),
                               ),
                               subtitle: Text(
-                                bilingual('📍 ${user['city'] ?? 'Невідоме місто'}',
-                                    '📍 ${user['city'] ?? 'Unknown city'}'),
+                                tr(
+                                  'friends_city_pin',
+                                  namedArgs: {
+                                    'city': (user['city'] ?? '')
+                                            .toString()
+                                            .trim()
+                                            .isEmpty
+                                        ? tr('unknown_city')
+                                        : user['city'].toString(),
+                                  },
+                                ),
                                 style: TextStyle(color: Colors.white.withOpacity(0.7)),
                               ),
                               trailing: IconButton(
@@ -792,7 +800,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(bilingual('✅ Запрошення надіслано!', '✅ Invitation sent!')),
+          content: Text(tr('player_invitation_sent_snackbar')),
           backgroundColor: Colors.green,
         ),
       );
@@ -812,9 +820,11 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(accept
-              ? bilingual('✅ Запрошення прийнято!', '✅ Invitation accepted!')
-              : bilingual('❌ Запрошення відхилено', '❌ Invitation declined')),
+          content: Text(
+            accept
+                ? tr('player_invitation_accepted')
+                : tr('player_invitation_declined'),
+          ),
           backgroundColor: accept ? Colors.green : Colors.red,
         ),
       );
@@ -833,7 +843,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(bilingual('✅ Запрошення скасовано', '✅ Invitation cancelled')),
+          content: Text(tr('player_invitation_cancelled')),
           backgroundColor: Colors.orange,
         ),
       );
@@ -871,7 +881,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
         title: Text(
-          bilingual('Видалити з друзів?', 'Remove from friends?'),
+          tr('friends_remove_dialog_title'),
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
@@ -925,10 +935,10 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
           .limit(5);
       final otherUsersCount = (existingUsers as List<dynamic>).length;
       if (otherUsersCount < 3) {
-        print('ℹ️ Not enough users for rich search demo; skipping local test-user seeding.');
+        print('[friends] INFO: Not enough users for rich search demo; skipping local test-user seeding.');
       }
     } catch (e) {
-      print('❌ Error creating test users: $e');
+      print('[friends] ERROR creating test users: $e');
     }
   }
 }

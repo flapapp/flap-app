@@ -182,7 +182,7 @@ class Subscription extends SubscriptionEntity {
   bool hasFeature(String feature) {
     switch (type) {
       case SubscriptionType.champions:
-        return true; // Champions має всі можливості
+        return true; // Champions tier includes all features
       case SubscriptionType.europa:
         return [
           'visible_ratings',

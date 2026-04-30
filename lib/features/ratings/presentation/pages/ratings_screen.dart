@@ -6,6 +6,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../router/app_router.dart';
 import '../../domain/repositories/ratings_repository.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:flap_app/city_localization.dart';
 
 @RoutePage()
 class RatingsScreen extends StatefulWidget {
@@ -28,7 +29,7 @@ class _RatingsScreenState extends State<RatingsScreen>
     tr('my_stats'),
   ];
 
-  // Фільтри
+  // Filters
   String _selectedCity = tr('all_cities');
   String _selectedPosition = tr('il_0e333190c1');
 
@@ -50,7 +51,7 @@ class _RatingsScreenState extends State<RatingsScreen>
     tr('il_f1c65e1481'),
   ];
 
-  // Дані
+  // Data
   List<Map<String, dynamic>> _topPlayers = [];
   List<Map<String, dynamic>> _cityPlayers = [];
   List<Map<String, dynamic>> _positionPlayers = [];
@@ -79,7 +80,7 @@ class _RatingsScreenState extends State<RatingsScreen>
     for (final p in players) {
       final id = (p['id'] ?? '').toString();
       if (id.isEmpty) continue;
-      byId[id] = p; // залишаємо останній екземпляр
+      byId[id] = p; // keep last instance
     }
     return byId.values.toList();
   }
@@ -90,11 +91,11 @@ class _RatingsScreenState extends State<RatingsScreen>
     });
 
     try {
-      // Завантажуємо топ гравців
+      // Load top players
       _topPlayers = await _ratingRepo.getTopPlayers(limit: 50);
       _topPlayers = _dedupeById(_topPlayers);
 
-      // Завантажуємо гравців за містом
+      // Load players by city
       if (_selectedCity != tr('all_cities')) {
         _cityPlayers = await _ratingRepo.getTopPlayers(
           limit: 50,
@@ -103,7 +104,7 @@ class _RatingsScreenState extends State<RatingsScreen>
         _cityPlayers = _dedupeById(_cityPlayers);
       }
 
-      // Завантажуємо гравців за позицією
+      // Load players by position
       if (_selectedPosition != tr('il_0e333190c1')) {
         _positionPlayers = await _ratingRepo.getTopPlayers(
           limit: 50,
@@ -112,7 +113,7 @@ class _RatingsScreenState extends State<RatingsScreen>
         _positionPlayers = _dedupeById(_positionPlayers);
       }
 
-      // Завантажуємо мою статистику
+      // Load my stats
       await _loadMyStats();
     } catch (e) {
       print('Error loading ratings data: $e');
@@ -156,7 +157,7 @@ class _RatingsScreenState extends State<RatingsScreen>
         elevation: 0,
         title: Row(
           children: [
-            // Логотип FLAP
+            // FLAP logo
             Container(
               width: 32,
               height: 32,
@@ -205,7 +206,7 @@ class _RatingsScreenState extends State<RatingsScreen>
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadData,
-            tooltip: 'Оновити',
+            tooltip: tr('ratings_refresh_tooltip'),
           ),
         ],
       ),
@@ -258,7 +259,7 @@ class _RatingsScreenState extends State<RatingsScreen>
     );
   }
 
-  // Загальний рейтинг
+  // Overall rating
   Widget _buildOverallRatingsTab() {
     if (_isLoading) {
       return const Center(
@@ -345,7 +346,7 @@ class _RatingsScreenState extends State<RatingsScreen>
               children: [
                 Expanded(
                   child: Text(
-                    player['name'] ?? 'Невідомий',
+                    player['name'] ?? tr('unknown'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -382,7 +383,7 @@ class _RatingsScreenState extends State<RatingsScreen>
               children: [
                 const SizedBox(height: 4),
                 Text(
-                  '${player['position'] ?? 'Невідомо'} • ${player['city'] ?? 'Невідомо'}',
+                  '${player['position'] ?? tr('unknown')} • ${localizeCity((player['city'] ?? '').toString())}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -392,7 +393,10 @@ class _RatingsScreenState extends State<RatingsScreen>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${player['totalMatches'] ?? 0} матчів зіграно',
+                  tr(
+                    'ratings_matches_played_line',
+                    namedArgs: {'count': '${player['totalMatches'] ?? 0}'},
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -431,11 +435,11 @@ class _RatingsScreenState extends State<RatingsScreen>
     );
   }
 
-  // Рейтинг за містом
+  // Rating by city
   Widget _buildCityRatingsTab() {
     return Column(
       children: [
-        // Фільтр міста
+        // City filter
         Container(
           margin: const EdgeInsets.all(15),
           padding: const EdgeInsets.all(16),
@@ -448,7 +452,7 @@ class _RatingsScreenState extends State<RatingsScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '🏙️ Оберіть місто',
+                tr('ratings_pick_city_heading'),
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.9),
                   fontSize: 14,
@@ -496,12 +500,12 @@ class _RatingsScreenState extends State<RatingsScreen>
           ),
         ),
 
-        // Список гравців
+        // Player list
         Expanded(
           child: _selectedCity == tr('all_cities')
               ? Center(
                   child: Text(
-                    'Оберіть місто для перегляду рейтингу',
+                    tr('ratings_pick_city_hint'),
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 16,
@@ -509,14 +513,14 @@ class _RatingsScreenState extends State<RatingsScreen>
                   ),
                 )
               : _isCityLoading
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       CircularProgressIndicator(color: Color(0xFF4caf50)),
                       SizedBox(height: 16),
                       Text(
-                        'Завантаження гравців...',
+                        tr('ratings_loading_players'),
                         style: TextStyle(color: Colors.white70, fontSize: 14),
                       ),
                     ],
@@ -528,11 +532,11 @@ class _RatingsScreenState extends State<RatingsScreen>
     );
   }
 
-  // Рейтинг за позицією
+  // Rating by position
   Widget _buildPositionRatingsTab() {
     return Column(
       children: [
-        // Фільтр позиції
+        // Position filter
         Container(
           margin: const EdgeInsets.all(15),
           padding: const EdgeInsets.all(16),
@@ -545,7 +549,7 @@ class _RatingsScreenState extends State<RatingsScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '⚽ Оберіть позицію',
+                tr('ratings_pick_position_heading'),
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.9),
                   fontSize: 14,
@@ -596,13 +600,13 @@ class _RatingsScreenState extends State<RatingsScreen>
           ),
         ),
 
-        // Список гравців
-        // Список гравців
+        // Player list
+        // Player list
         Expanded(
           child: _selectedPosition == tr('il_0e333190c1')
               ? Center(
                   child: Text(
-                    'Оберіть позицію для перегляду рейтингу',
+                    tr('ratings_pick_position_hint'),
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 16,
@@ -610,14 +614,14 @@ class _RatingsScreenState extends State<RatingsScreen>
                   ),
                 )
               : _isPositionLoading
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       CircularProgressIndicator(color: Color(0xFF4caf50)),
                       SizedBox(height: 16),
                       Text(
-                        'Завантаження гравців...',
+                        tr('ratings_loading_players'),
                         style: TextStyle(color: Colors.white70, fontSize: 14),
                       ),
                     ],
@@ -629,7 +633,7 @@ class _RatingsScreenState extends State<RatingsScreen>
     );
   }
 
-  // Моя статистика
+  // My statistics
   Widget _buildMyStatsTab() {
     if (_myStats.isEmpty) {
       return const Center(
@@ -650,7 +654,7 @@ class _RatingsScreenState extends State<RatingsScreen>
       padding: const EdgeInsets.all(15),
       child: Column(
         children: [
-          // Основний рейтинг
+          // Primary rating
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(24),
@@ -669,7 +673,7 @@ class _RatingsScreenState extends State<RatingsScreen>
             child: Column(
               children: [
                 Text(
-                  'Ваш рейтинг',
+                  tr('my_rating'),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 16,
@@ -718,14 +722,14 @@ class _RatingsScreenState extends State<RatingsScreen>
 
           const SizedBox(height: 20),
 
-          // Детальна статистика
+          // Detailed stats
           Row(
             children: [
               Expanded(
                 child: _buildStatCard(
-                  'Матчі',
+                  tr('matches'),
                   '${matchRating.toStringAsFixed(2)} ⭐',
-                  '70% ваги',
+                  tr('rating_weight_match_percent'),
                   Icons.sports_soccer,
                   const Color(0xFF4CAF50),
                 ),
@@ -733,9 +737,9 @@ class _RatingsScreenState extends State<RatingsScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                  'Відео',
+                  tr('videos'),
                   '${videoRating.toStringAsFixed(2)} ⭐',
-                  '30% ваги',
+                  tr('rating_weight_video_percent'),
                   Icons.videocam,
                   const Color(0xFFFF9800),
                 ),
@@ -745,14 +749,14 @@ class _RatingsScreenState extends State<RatingsScreen>
 
           const SizedBox(height: 20),
 
-          // Кількість матчів та відео
+          // Match and video counts
           Row(
             children: [
               Expanded(
                 child: _buildStatCard(
-                  'Зіграно матчів',
+                  tr('ratings_stat_matches_played'),
                   '$totalMatches',
-                  'Загалом',
+                  tr('ratings_stat_total'),
                   Icons.emoji_events,
                   const Color(0xFFFFD700),
                 ),
@@ -760,9 +764,9 @@ class _RatingsScreenState extends State<RatingsScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                  'Завантажено відео',
+                  tr('ratings_stat_videos_uploaded'),
                   '$totalVideos',
-                  'Загалом',
+                  tr('ratings_stat_total'),
                   Icons.video_library,
                   const Color(0xFF9C27B0),
                 ),
@@ -772,7 +776,7 @@ class _RatingsScreenState extends State<RatingsScreen>
 
           const SizedBox(height: 20),
 
-          // Графік прогресу (заглушка)
+          // Progress chart (placeholder)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
@@ -788,7 +792,7 @@ class _RatingsScreenState extends State<RatingsScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '📈 Прогрес рейтингу',
+                  tr('ratings_progress_heading'),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 16,
@@ -806,7 +810,7 @@ class _RatingsScreenState extends State<RatingsScreen>
                     ),
                     child: Center(
                       child: Text(
-                        'Графік буде додано\nв наступному оновленні',
+                        tr('ratings_chart_placeholder'),
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.7),
                           fontSize: 12,
@@ -824,7 +828,7 @@ class _RatingsScreenState extends State<RatingsScreen>
     );
   }
 
-  // Картка статистики
+  // Stat card
   Widget _buildStatCard(
     String title,
     String value,
@@ -874,12 +878,12 @@ class _RatingsScreenState extends State<RatingsScreen>
     );
   }
 
-  // Список гравців
+  // Player list
   Widget _buildPlayersList(List<Map<String, dynamic>> players) {
     if (players.isEmpty) {
       return Center(
         child: Text(
-          'Гравців не знайдено',
+          tr('ratings_no_players_found'),
           style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 16),
         ),
       );
@@ -964,7 +968,7 @@ class _RatingsScreenState extends State<RatingsScreen>
               children: [
                 Expanded(
                   child: Text(
-                    player['name'] ?? 'Невідомий',
+                    player['name'] ?? tr('unknown'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -997,7 +1001,7 @@ class _RatingsScreenState extends State<RatingsScreen>
               ],
             ),
             subtitle: Text(
-              '${player['position'] ?? 'Невідомо'} • ${player['city'] ?? 'Невідомо'}',
+              '${player['position'] ?? tr('unknown')} • ${localizeCity((player['city'] ?? '').toString())}',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 11,
@@ -1032,23 +1036,23 @@ class _RatingsScreenState extends State<RatingsScreen>
     );
   }
 
-  // Завантаження гравців за містом
+  // Loading players by city
   Future<void> _loadCityPlayers(String city) async {
     setState(() {
       _isCityLoading = true;
     });
 
     try {
-      print('🔍 Loading players for city: $city');
+      print('[ratings] Loading players for city: $city');
       final players = await _ratingRepo.getTopPlayers(limit: 50, city: city);
-      print('✅ Loaded ${players.length} players for city: $city');
+      print('[ratings] Loaded ${players.length} players for city: $city');
 
       setState(() {
         _cityPlayers = _dedupeById(players);
         _isCityLoading = false;
       });
     } catch (e) {
-      print('❌ Error loading city players: $e');
+      print('[ratings] ERROR loading city players: $e');
       setState(() {
         _isCityLoading = false;
       });
@@ -1064,26 +1068,26 @@ class _RatingsScreenState extends State<RatingsScreen>
     }
   }
 
-  // Завантаження гравців за позицією
+  // Loading players by position
   Future<void> _loadPositionPlayers(String position) async {
     setState(() {
       _isPositionLoading = true;
     });
 
     try {
-      print('🔍 Loading players for position: $position');
+      print('[ratings] Loading players for position: $position');
       final players = await _ratingRepo.getTopPlayers(
         limit: 50,
         position: position,
       );
-      print('✅ Loaded ${players.length} players for position: $position');
+      print('[ratings] Loaded ${players.length} players for position: $position');
 
       setState(() {
         _positionPlayers = _dedupeById(players);
         _isPositionLoading = false;
       });
     } catch (e) {
-      print('❌ Error loading position players: $e');
+      print('[ratings] ERROR loading position players: $e');
       setState(() {
         _isPositionLoading = false;
       });

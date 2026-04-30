@@ -122,14 +122,14 @@ class WelcomeScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _buildLanguageButton(
-                        label: 'Українська',
+                        label: tr('welcome_language_ukrainian'),
                         selected: lang == 'uk',
                         onTap: () async =>
                             context.setLocale(const Locale('uk')),
                       ),
                       const SizedBox(width: 12),
                       _buildLanguageButton(
-                        label: 'English',
+                        label: tr('welcome_language_english'),
                         selected: lang == 'en',
                         onTap: () async =>
                             context.setLocale(const Locale('en')),

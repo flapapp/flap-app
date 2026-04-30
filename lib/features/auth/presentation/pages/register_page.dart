@@ -1,5 +1,4 @@
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -150,10 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            bilingual(
-                              'Створіть акаунт електронною поштою та паролем.',
-                              'Create an account with your email and password.',
-                            ),
+                            tr('register_subtitle_email'),
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.white.withOpacity(0.8),
@@ -242,10 +238,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               obscureText: true,
                               style: const TextStyle(color: Colors.white),
                               decoration: InputDecoration(
-                                labelText: bilingual(
-                                  'Підтвердіть пароль',
-                                  'Confirm password',
-                                ),
+                                labelText: tr('confirm_password'),
                                 labelStyle: TextStyle(
                                   color: Colors.white.withOpacity(0.7),
                                 ),
@@ -254,16 +247,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return bilingual(
-                                    'Підтвердіть пароль',
-                                    'Confirm your password',
-                                  );
+                                  return tr('register_confirm_password_empty');
                                 }
                                 if (value != _passwordController.text) {
-                                  return bilingual(
-                                    'Паролі не збігаються',
-                                    'Passwords do not match',
-                                  );
+                                  return tr('passwords_dont_match');
                                 }
                                 return null;
                               },

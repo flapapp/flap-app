@@ -27,15 +27,15 @@ class _MatchRatingScreenState extends State<MatchRatingScreen> {
   RatingsRepository get _ratingRepo => sl<RatingsRepository>();
   final SupabaseClient _sb = Supabase.instance.client;
   
-  // Оцінки для кожного гравця
+  // Per-player scores
   Map<String, Map<String, double>> _playerRatings = {};
   
-  // Критерії оцінювання
+  // Rating criteria
   final List<String> _criteria = [
-    'technical',    // Техніка
-    'physical',     // Фізика
-    'tactical',     // Тактика
-    'teamwork',     // Командна гра
+'technical',    // Technique
+'physical',     // Physical
+'tactical',     // Tactical
+'teamwork',     // Team play
   ];
   
   List<String> get _criteriaLabels => [
@@ -50,7 +50,7 @@ class _MatchRatingScreenState extends State<MatchRatingScreen> {
   
   
   bool _isSubmitting = false;
-  // Кеш профілів користувачів (displayName, photoUrl)
+  // User profile cache (displayName, photoUrl)
 final Map<String, Map<String, String>> _userCache = {};
 
 Future<Map<String, String>> _getUserProfile(String userId) async {
@@ -85,19 +85,19 @@ return profile;
 void initState() {
   super.initState();
   
-  // Завантажуємо гравців незалежно від статусу
-  // Перевірка статусу буде при збереженні оцінок
+  // Load players regardless of match status
+  // Status validated when saving ratings
   _initializeRatings();
 }
   
     Future<void> _initializeRatings() async {
-    print('🔴 RATING DEBUG: _initializeRatings() CALLED');
-    print('🔴 RATING DEBUG: match.id = ${widget.match.id}');
-    print('🔴 RATING DEBUG: match.status = ${widget.match.status}');
-    print('🔴 RATING DEBUG: match.title = ${widget.match.title}');
+    print('[match_rating] _initializeRatings() called');
+    print('[match_rating] match.id = ${widget.match.id}');
+    print('[match_rating] match.status = ${widget.match.status}');
+    print('[match_rating] match.title = ${widget.match.title}');
     
-    // Ініціалізуємо оцінки для всіх гравців
-    // Використовуємо participants як fallback, якщо teamA/teamB не існують
+    // Initialize ratings for all players
+    // Fallback to participants when teamA/teamB missing
     _playerRatings.clear();
     final currentUserId = AppAuth.currentUserId;
 final participantsSet = widget.match.participants.toSet();
@@ -132,7 +132,7 @@ final sanitizedPlayers = playersToRate.where((id) =>
   id != 'current_user_i' && id != 'current_user' && !id.startsWith('current_')
 ).toList();
 
-// виключаємо тих, кого ви вже оцінювали
+// Exclude already-rated opponents
 final existingRows = await _sb
     .from('match_player_ratings')
     .select('player_id')
@@ -141,32 +141,32 @@ final existingRows = await _sb
 final alreadyRatedIds = (existingRows as List<dynamic>)
     .map((d) => ((d as Map<String, dynamic>)['player_id'] as String?) ?? '')
     .toSet();
-    print('RATING DEBUG matchId=${widget.match.id}');
-    print('RATING DEBUG participants=${widget.match.participants.length}');
-    print('RATING DEBUG basePlayers=${basePlayers.length}');
-    print('RATING DEBUG playersToRate=${playersToRate.length}');
-    print('RATING DEBUG sanitizedPlayers=${sanitizedPlayers.length}');
-    print('RATING DEBUG alreadyRatedIds=${alreadyRatedIds.length}');
+    print('[match_rating] matchId=${widget.match.id}');
+    print('[match_rating] participants=${widget.match.participants.length}');
+    print('[match_rating] basePlayers=${basePlayers.length}');
+    print('[match_rating] playersToRate=${playersToRate.length}');
+    print('[match_rating] sanitizedPlayers=${sanitizedPlayers.length}');
+    print('[match_rating] alreadyRatedIds=${alreadyRatedIds.length}');
 
         for (final playerId in sanitizedPlayers) {
-      print('RATING DEBUG checking playerId=$playerId');
+      print('[match_rating] checking playerId=$playerId');
       if (currentUserId != null && playerId == currentUserId) {
-        print('RATING DEBUG SKIP: playerId == currentUserId');
+        print('[match_rating] SKIP: playerId == currentUserId');
         continue;
       }
       if (alreadyRatedIds.contains(playerId)) {
-        print('RATING DEBUG SKIP: already rated');
+        print('[match_rating] SKIP: already rated');
         continue;
       }
       _simpleRating[playerId] = 2.5;
-      print('RATING DEBUG ADDING playerId=$playerId to _playerRatings');
+      print('[match_rating] ADDING playerId=$playerId to _playerRatings');
       _playerRatings[playerId] = {};
       for (final criterion in _criteria) {
-        _playerRatings[playerId]![criterion] = 2.5; // Середня оцінка за замовчуванням
+        _playerRatings[playerId]![criterion] = 2.5; // default mid rating
       }
     }
-    print('RATING DEBUG FINAL _playerRatings.length=${_playerRatings.length}');
-    print('RATING DEBUG FINAL _playerRatings.keys=${_playerRatings.keys.toList()}');
+    print('[match_rating] FINAL _playerRatings.length=${_playerRatings.length}');
+    print('[match_rating] FINAL _playerRatings.keys=${_playerRatings.keys.toList()}');
     setState(() {});
    
   }
@@ -230,7 +230,7 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
       ),
       body: Column(
         children: [
-          // Інформація про матч
+          // Match info
           Container(
             margin: const EdgeInsets.all(15),
             padding: const EdgeInsets.all(16),
@@ -408,7 +408,7 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
     );
   }
   
-  // Картка оцінювання гравця
+  // Player rating card
   Widget _buildPlayerRatingCard(String playerId, Map<String, double> ratings) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -432,7 +432,7 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Заголовок гравця
+            // Player header
             Row(
   children: [
     FutureBuilder<Map<String, String>>(
@@ -466,7 +466,7 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
 )
             ),
             const SizedBox(width: 12),
-            // Імʼя гравця
+            // Player name
             Text(
               displayName.isNotEmpty
                   ? displayName
@@ -565,7 +565,7 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
     );
   }
   
-  // Збереження всіх оцінок
+  // Save all ratings
   Future<void> _submitAllRatings() async {
     setState(() {
       _isSubmitting = true;
@@ -645,7 +645,7 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
       }
       
     } catch (e) {
-      print('Error submitting ratings: $e');
+      print('[match_rating] ERROR submitting ratings: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -666,7 +666,7 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
     return raw.replaceFirst(RegExp(r'^Exception:\s*'), '').trim();
   }
   
-  // Форматування дати
+  // Date formatting
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);

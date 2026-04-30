@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:flap_app/city_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -51,7 +51,7 @@ class _MatchInviteSearchScreenState extends State<MatchInviteSearchScreen> {
 
   Future<void> _searchUsers() async {
     final q = _searchController.text.trim();
-    print('🔍 Searching for: "$q"');
+    print('[match_invite_search] Searching for: "$q"');
     if (q.isEmpty) {
       if (!mounted) return;
       setState(() => _results = <Map<String, dynamic>>[]);
@@ -78,7 +78,7 @@ class _MatchInviteSearchScreenState extends State<MatchInviteSearchScreen> {
           .limit(30);
       final merged = <dynamic>[...byName as List<dynamic>, ...byEmail as List<dynamic>];
       final dedup = <String, Map<String, dynamic>>{};
-      print(merged);
+      print('[match_invite_search] Raw merged result count: ${merged.length}');
       for (final raw in merged) {
         final row = Map<String, dynamic>.from(raw as Map);
         final id = (row['id'] ?? '').toString();
@@ -91,11 +91,11 @@ class _MatchInviteSearchScreenState extends State<MatchInviteSearchScreen> {
           .where((row) => (row['id']?.toString().isNotEmpty ?? false))
           .where((row) => !_excluded.contains(row['id'].toString()))
           .toList(growable: false);
-      print(mapped);
+      print('[match_invite_search] Mapped results count: ${mapped.length}');
       setState(() => _results = mapped);
     } catch (e) {
       if (!mounted) return;
-      print('❌ Error: ${e.toString()}');
+      print('[match_invite_search] ERROR: ${e.toString()}');
       setState(() => _results = <Map<String, dynamic>>[]);
     } finally {
       if (mounted) setState(() => _searching = false);
@@ -128,12 +128,7 @@ class _MatchInviteSearchScreenState extends State<MatchInviteSearchScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            bilingual(
-              'Запрошення надіслані',
-              'Invitations sent',
-            ),
-          ),
+          content: Text(tr('match_invitations_sent')),
           backgroundColor: const Color(0xFF4caf50),
         ),
       );
@@ -238,9 +233,9 @@ class _MatchInviteSearchScreenState extends State<MatchInviteSearchScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  bilingual(
-                    'Обрано для запрошення: ${_selectedIds.length}',
-                    'Selected to invite: ${_selectedIds.length}',
+                  tr(
+                    'match_invite_selected_count',
+                    namedArgs: {'count': '${_selectedIds.length}'},
                   ),
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
@@ -285,7 +280,7 @@ class _MatchInviteSearchScreenState extends State<MatchInviteSearchScreen> {
                         subtitle: city.isEmpty
                             ? null
                             : Text(
-                                city,
+                                localizeCity(city),
                                 style: const TextStyle(
                                   color: Colors.white54,
                                   fontSize: 12,

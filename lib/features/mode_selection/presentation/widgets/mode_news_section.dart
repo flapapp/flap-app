@@ -1,7 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../app_locale_access.dart';
 import '../../domain/entities/mode_news_icon_kind.dart';
 import '../../domain/entities/mode_news_item.dart';
 import '../navigation/mode_selection_router.dart';
@@ -142,7 +141,9 @@ class _NewsCardItem extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            bilingual(entry.titleUa, entry.titleEn),
+            context.locale.languageCode == 'uk'
+                ? entry.titleUa
+                : entry.titleEn,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -151,7 +152,9 @@ class _NewsCardItem extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            bilingual(entry.subtitleUa, entry.subtitleEn),
+            context.locale.languageCode == 'uk'
+                ? entry.subtitleUa
+                : entry.subtitleEn,
             style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
           const SizedBox(height: 18),

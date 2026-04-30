@@ -134,10 +134,10 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
           _isLoading = false;
         });
         
-        // Завантажуємо переможців
+        // Load winners
         await _loadWinners();
         
-        // Запускаємо анімації
+        // Start animations
         _startAnimations();
       }
     } catch (e) {
@@ -222,11 +222,11 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
     
     switch (position) {
       case 1:
-        return totalPrize * 0.5; // 50% за 1 місце
+        return totalPrize * 0.5; // 50% for 1st place
       case 2:
-        return totalPrize * 0.3; // 30% за 2 місце
+        return totalPrize * 0.3; // 30% for 2nd place
       case 3:
-        return totalPrize * 0.2; // 20% за 3 місце
+        return totalPrize * 0.2; // 20% for 3rd place
       default:
         return 0.0;
     }
@@ -287,7 +287,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
                 scale: _scaleAnimation,
                 child: Column(
                   children: [
-                    // Заголовок
+                    // Title
                     Padding(
                       padding: const EdgeInsets.all(20),
                       child: Column(
@@ -314,7 +314,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
                       ),
                     ),
                     
-                    // Переможці
+                    // Winners
                     Expanded(
                       child: AnimatedBuilder(
                         animation: _winnerController,
@@ -327,7 +327,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
                       ),
                     ),
                     
-                    // Кнопка закриття
+                    // Close button
                     Padding(
                       padding: const EdgeInsets.all(20),
                       child: AnimatedBuilder(
@@ -402,15 +402,15 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
     
     switch (position) {
       case 1:
-        positionColor = const Color(0xFFFFD700); // Золото
+        positionColor = const Color(0xFFFFD700); // Gold
         positionIcon = Icons.emoji_events;
         break;
       case 2:
-        positionColor = const Color(0xFFC0C0C0); // Срібло
+        positionColor = const Color(0xFFC0C0C0); // Silver
         positionIcon = Icons.emoji_events;
         break;
       case 3:
-        positionColor = const Color(0xFFCD7F32); // Бронза
+        positionColor = const Color(0xFFCD7F32); // Bronze
         positionIcon = Icons.emoji_events;
         break;
       default:
@@ -438,7 +438,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
       ),
       child: Row(
         children: [
-          // Позиція
+          // Position
           Container(
             width: 60,
             height: 60,
@@ -455,7 +455,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
           
           const SizedBox(width: 16),
           
-          // Аватар
+          // Avatar
           CircleAvatar(
             radius: 25,
             backgroundImage: userAvatar.isNotEmpty
@@ -475,7 +475,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
           
           const SizedBox(width: 16),
           
-          // Інформація
+          // Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -500,7 +500,7 @@ class _ChallengeCompletionScreenState extends State<ChallengeCompletionScreen>
             ),
           ),
           
-          // Нагорода
+          // Prize
           Column(
             children: [
               Icon(

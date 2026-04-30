@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -71,9 +70,9 @@ class _AvatarRequiredScreenState extends State<AvatarRequiredScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            bilingual(
-              'Не вдалося вибрати фото: $e',
-              'Could not pick a photo: $e',
+            tr(
+              'avatar_pick_photo_failed',
+              namedArgs: {'error': e.toString()},
             ),
           ),
         ),
@@ -184,10 +183,7 @@ class _AvatarRequiredScreenState extends State<AvatarRequiredScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  bilingual(
-                    'Додайте фото профілю',
-                    'Add a profile photo',
-                  ),
+                  tr('avatar_required_title'),
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
@@ -197,10 +193,7 @@ class _AvatarRequiredScreenState extends State<AvatarRequiredScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  bilingual(
-                    'Щоб продовжити, завантажте своє фото. Це допоможе іншим гравцям вас впізнати.',
-                    'Upload a photo to continue. This helps other players recognize you.',
-                  ),
+                  tr('avatar_required_subtitle'),
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.white.withValues(alpha: 0.85),
@@ -324,14 +317,14 @@ class _AvatarRequiredScreenState extends State<AvatarRequiredScreen> {
                       : _upload,
                   child: _uploading
                       ? Text(
-                          bilingual('Завантаження…', 'Uploading…'),
+                          tr('uploading'),
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         )
                       : Text(
-                          bilingual('Продовжити', 'Continue'),
+                          tr('il_31fbef1625'),
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,

@@ -1,7 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../ratings/domain/repositories/ratings_repository.dart';
@@ -19,6 +18,7 @@ import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:flap_app/city_localization.dart';
 import '../../../../core/supabase/public_video_feed.dart';
 
 @RoutePage()
@@ -217,7 +217,7 @@ void dispose() {
   @override
 Widget build(BuildContext context) {
   return Scaffold(
-    backgroundColor: const Color(0xFF0f0f23), // Темний фон як у HTML MVP
+    backgroundColor: const Color(0xFF0f0f23), // Dark background (HTML MVP style)
     appBar: AppBar(
       backgroundColor: const Color(0xFF0f0f23).withValues(alpha: 0.95),
       elevation: 0,
@@ -366,7 +366,7 @@ Widget build(BuildContext context) {
               ),
             ),
 
-          // Filters (тільки для відео та трендів)
+          // Filters (videos and trends only)
           if (_selectedTab != 'challenges' &&
               !_showOnlyMyVideos &&
               !_showOnlyMyChallenges)
@@ -374,7 +374,7 @@ Widget build(BuildContext context) {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Column(
                 children: [
-                  // Швидкі категорії
+                  // Quick categories
                   SizedBox(
                     height: 36,
                     child: ListView(
@@ -443,8 +443,7 @@ Widget build(BuildContext context) {
                         final v = value.trim();
                         final allValues = <String>{
                           tr('all_cities').toLowerCase(),
-                          'all cities',
-                          'всі міста',
+                          tr('filter_all_cities_alt').toLowerCase(),
                         };
 
                         if (v.isEmpty) {
@@ -626,7 +625,9 @@ Widget build(BuildContext context) {
 
   bool _isUnknownLabel(String value) {
     final normalized = value.toLowerCase().trim();
+    final unknownLocalized = tr('unknown').toLowerCase().trim();
     return normalized.isEmpty ||
+        normalized == unknownLocalized ||
         normalized == 'невідомо' ||
         normalized == 'unknown';
   }
@@ -1537,9 +1538,9 @@ Widget build(BuildContext context) {
                       borderRadius: BorderRadius.circular(25),
                     ),
                   ),
-                  child: const Text(
-                    'Завантажити відео',
-                    style: TextStyle(color: Colors.white),
+                  child: Text(
+                    tr('upload_video'),
+                    style: const TextStyle(color: Colors.white),
                   ),
                 ),
               ],
@@ -1618,10 +1619,14 @@ Widget build(BuildContext context) {
     final rawCity = (data['city'] ?? '').toString();
     String locationLabel = rawCity.trim();
     if (locationLabel.isEmpty || _isUnknownLabel(locationLabel)) {
-      final fallbackCity = cachedProfile?.city?.trim() ?? '';
-      locationLabel = fallbackCity.isNotEmpty
-          ? fallbackCity
-          : tr('il_b764cdc0ea');
+      final fallbackCity = cachedProfile?.city.trim() ?? '';
+      if (fallbackCity.isNotEmpty && !_isUnknownLabel(fallbackCity)) {
+        locationLabel = localizeCity(fallbackCity);
+      } else {
+        locationLabel = tr('il_b764cdc0ea');
+      }
+    } else {
+      locationLabel = localizeCity(locationLabel);
     }
     final createdAt = asDateTimeOrNull(data['createdAt']);
     final bool serverIsLiked = data['isLikedByCurrentUser'] == true;
@@ -1637,8 +1642,13 @@ Widget build(BuildContext context) {
     final categoryColor = _videoCategoryColor(rawCategory);
     String resolvedChallengeId = (data['challengeId'] ?? '').toString();
     String resolvedChallengeTitle = (data['challengeTitle'] ?? '').toString();
-    final bool isChallengeVideo = title == 'Відео челенджу' ||
+    final marker = tr('video_challenge_marker_title');
+    final bool isChallengeVideo = title.trim() == marker ||
+        description.trim() == marker ||
+        title == 'Відео челенджу' ||
         description == 'Відео челенджу' ||
+        title == 'Challenge video' ||
+        description == 'Challenge video' ||
         (data['isChallengeVideo'] == true);
     final bool hasChallengeInfo = isChallengeVideo || resolvedChallengeTitle.isNotEmpty;
 
@@ -2018,9 +2028,9 @@ Widget build(BuildContext context) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            bilingual(
-              'Не вдалося відкрити челендж: $e',
-              'Unable to open challenge: $e',
+            tr(
+              'challenges_open_failed',
+              namedArgs: {'error': e.toString()},
             ),
           ),
           backgroundColor: Colors.redAccent,
@@ -2037,20 +2047,11 @@ Widget build(BuildContext context) {
     final difference = now.difference(date);
     
     if (difference.inDays > 0) {
-      return bilingual(
-        '${difference.inDays} дн. тому',
-        '${difference.inDays} d ago',
-      );
+      return tr('il_adf8ee5f65', args: ['${difference.inDays}']);
     } else if (difference.inHours > 0) {
-      return bilingual(
-        '${difference.inHours} год. тому',
-        '${difference.inHours} h ago',
-      );
+      return tr('il_7634d1849f', args: ['${difference.inHours}']);
     } else if (difference.inMinutes > 0) {
-      return bilingual(
-        '${difference.inMinutes} хв. тому',
-        '${difference.inMinutes} min ago',
-      );
+      return tr('il_e0b53645d6', args: ['${difference.inMinutes}']);
     } else {
       return tr('il_66f53417d3');
     }
@@ -2089,7 +2090,7 @@ Widget build(BuildContext context) {
     );
   }
 
-  // Список челенджів
+  // Challenge list
   Widget _buildChallengesList() {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: (() {
@@ -2216,7 +2217,7 @@ Widget build(BuildContext context) {
     };
   }
 
-  // Картка челенджу
+  // Challenge card
   Widget _buildChallengeCard(Map<String, dynamic> challenge, String challengeId) {
     final status = (challenge['status'] ?? 'recruiting').toString();
     final type = (challenge['type'] ?? 'goal').toString();
@@ -2297,7 +2298,7 @@ Widget build(BuildContext context) {
       ),
       child: Column(
         children: [
-          // Заголовок челенджу
+          // Challenge title
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -2444,7 +2445,7 @@ Widget build(BuildContext context) {
             ),
           ],
 
-          // Інформація про челендж
+          // Challenge info
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -2467,9 +2468,9 @@ Widget build(BuildContext context) {
                           Text(
                             isCompleted
                                 ? tr('il_5042fbee3b')
-                                : bilingual(
-                                    'До завершення голосування: $remainingDays дн.',
-                                    'Voting ends in: $remainingDays days',
+                                : tr(
+                                    'video_voting_ends_in_days',
+                                    namedArgs: {'days': '$remainingDays'},
                                   ),
                             style: const TextStyle(
                               color: Colors.white,
@@ -2541,7 +2542,7 @@ Widget build(BuildContext context) {
                 // Action Buttons Row
                 Row(
                   children: [
-                    // Переглянути челендж
+                    // View challenge
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
@@ -2584,7 +2585,7 @@ Widget build(BuildContext context) {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Приєднатися
+                    // Join
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
@@ -2842,19 +2843,19 @@ Widget build(BuildContext context) {
   String _getStatusText(String status) {
     switch (status) {
       case 'recruiting':
-        return 'Збір';
+        return tr('challenge_status_recruiting');
       case 'submission':
-        return 'Відео';
+        return tr('challenge_status_submission');
       case 'voting':
-        return 'Голосування';
+        return tr('challenge_status_voting');
       case 'completed':
-        return 'Завершено';
+        return tr('challenge_status_completed');
       default:
-        return 'Активний';
+        return tr('challenge_status_active');
     }
   }
 
-  // Мої відео
+  // My videos
   Widget _buildMyVideosList() {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) {
@@ -3031,7 +3032,7 @@ Widget build(BuildContext context) {
     }
   }
 
-  // Трендові відео
+  // Trending videos
   Widget _buildTrendingVideos() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       key: ValueKey<String>(
@@ -3093,9 +3094,9 @@ Widget build(BuildContext context) {
     );
   }
 
-  // Методи для роботи з челенджами
+  // Challenge helpers
   void _joinChallenge(String challengeId, Map<String, dynamic> challenge) {
-    // Перевірити чи користувач вже учасник
+    // Check if user is already a participant
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
     final votingDeadline = asDateTimeOrNull(challenge['votingDeadline']);
@@ -3114,7 +3115,7 @@ Widget build(BuildContext context) {
       return;
     }
     
-    // Показуємо підтвердження участі
+    // Show join confirmation
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -3127,18 +3128,22 @@ Widget build(BuildContext context) {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              bilingual(
-                'Ви приєднуєтеся до челенджу "${challenge['title']}"',
-                'You are joining the challenge "${challenge['title']}"',
+              tr(
+                'video_challenge_join_intro',
+                namedArgs: {
+                  'title': (challenge['title'] ?? '').toString(),
+                },
               ),
               style: const TextStyle(color: Colors.white),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             Text(
-              bilingual(
-                'Ставка входу: ${challenge['entryFee'] ?? 0} монет',
-                'Entry fee: ${challenge['entryFee'] ?? 0} coins',
+              tr(
+                'video_challenge_join_entry_fee',
+                namedArgs: {
+                  'fee': '${challenge['entryFee'] ?? 0}',
+                },
               ),
               style: const TextStyle(color: Colors.white70),
             ),
@@ -3174,7 +3179,7 @@ Widget build(BuildContext context) {
   }
 
   void _viewChallengeDetails(String challengeId, Map<String, dynamic> challengeData) {
-    // Створюємо Challenge об'єкт з даних
+    // Build Challenge from row data
     final challenge = Challenge(
       id: challengeId,
       title: challengeData['title'] ?? '',
@@ -3216,7 +3221,7 @@ Widget build(BuildContext context) {
       tags: List<String>.from(challengeData['tags'] ?? []),
     );
     
-    // Переходимо на екран деталей челенджу
+    // Navigate to challenge details
     context.router.push(ChallengeDetailsRoute(challenge: challenge));
   }
 
@@ -3592,20 +3597,11 @@ Widget build(BuildContext context) {
     final difference = now.difference(commentTime);
 
     if (difference.inDays > 0) {
-      return bilingual(
-        '${difference.inDays} днів тому',
-        '${difference.inDays} d ago',
-      );
+      return tr('il_adf8ee5f65', args: ['${difference.inDays}']);
     } else if (difference.inHours > 0) {
-      return bilingual(
-        '${difference.inHours} годин тому',
-        '${difference.inHours} h ago',
-      );
+      return tr('il_7634d1849f', args: ['${difference.inHours}']);
     } else if (difference.inMinutes > 0) {
-      return bilingual(
-        '${difference.inMinutes} хвилин тому',
-        '${difference.inMinutes} min ago',
-      );
+      return tr('il_e0b53645d6', args: ['${difference.inMinutes}']);
     } else {
       return tr('il_66f53417d3');
     }
@@ -3615,7 +3611,7 @@ Widget build(BuildContext context) {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
 
-    // Перевірка чи videoId не порожній
+    // Ensure videoId is non-empty
     if (videoId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -3628,7 +3624,7 @@ Widget build(BuildContext context) {
     }
 
     try {
-      // Додати коментар
+      // Add comment
       await _sb.from('video_comments').insert({
         'video_id': videoId,
         'user_id': currentUser.id,
@@ -3944,9 +3940,11 @@ Widget build(BuildContext context) {
                             ),
                           ),
                           Text(
-                            bilingual(
-                              'Поточний рейтинг: ${currentRating.toStringAsFixed(2)}',
-                              'Current rating: ${currentRating.toStringAsFixed(2)}',
+                            tr(
+                              'video_current_rating_value',
+                              namedArgs: {
+                                'rating': currentRating.toStringAsFixed(2),
+                              },
                             ),
                             style: const TextStyle(
                               color: Color(0xFF4caf50),
@@ -4100,44 +4098,44 @@ Widget build(BuildContext context) {
       case 'video_vote':
       case 'video_rating':
         if (voterName.isNotEmpty && challengeTitle.isNotEmpty) {
-          return bilingual(
-            '$voterName оцінив ваше відео "$challengeTitle"',
-            '$voterName rated your video "$challengeTitle"',
+          return tr(
+            'il_a97735a0aa',
+            namedArgs: {
+              'voterName': voterName,
+              'challengeTitle': challengeTitle,
+            },
           );
         }
         if (voterName.isNotEmpty) {
-          return bilingual(
-            '$voterName оцінив ваше відео',
-            '$voterName rated your video',
-          );
+          return tr('il_b4ce1ec898', namedArgs: {'voterName': voterName});
         }
         if (challengeTitle.isNotEmpty) {
-          return bilingual(
-            'Отримано оцінку за відео "$challengeTitle"',
-            'Received a rating for video "$challengeTitle"',
+          return tr(
+            'il_73abcbe250',
+            namedArgs: {'challengeTitle': challengeTitle},
           );
         }
         return tr('il_29262e8a7e');
       case 'challenge_win':
-        return bilingual(
-          'Перемога в челенджі "$challengeTitle"',
-          'Challenge win "$challengeTitle"',
+        return tr(
+          'il_f6317c6873',
+          namedArgs: {'challengeTitle': challengeTitle},
         );
       case 'challenge_second':
-        return bilingual(
-          '2-е місце в челенджі "$challengeTitle"',
-          '2nd place in challenge "$challengeTitle"',
+        return tr(
+          'il_90e7c87869',
+          namedArgs: {'challengeTitle': challengeTitle},
         );
       case 'challenge_third':
-        return bilingual(
-          '3-є місце в челенджі "$challengeTitle"',
-          '3rd place in challenge "$challengeTitle"',
+        return tr(
+          'il_414a7e49e3',
+          namedArgs: {'challengeTitle': challengeTitle},
         );
       case 'match_rating':
         if (voterName.isNotEmpty) {
-          return bilingual(
-            '$voterName оцінив вас після матчу',
-            '$voterName rated you after the match',
+          return tr(
+            'video_rating_after_match_by',
+            namedArgs: {'voter': voterName},
           );
         }
         return tr('il_64d8152d62');
@@ -4150,11 +4148,13 @@ Widget build(BuildContext context) {
       case 'bonus':
         return tr('il_c88734b3ea');
       default:
-        if (reason == 'Оцінка після матчу') {
+        if (reason == tr('rating_reason_post_match_legacy') ||
+            reason == 'Оцінка після матчу' ||
+            reason == 'Post-match rating') {
           return voterName.isNotEmpty
-              ? bilingual(
-                  '$voterName оцінив вас після матчу',
-                  '$voterName rated you after the match',
+              ? tr(
+                  'video_rating_after_match_by',
+                  namedArgs: {'voter': voterName},
                 )
               : tr('il_64d8152d62');
         }

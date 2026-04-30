@@ -122,7 +122,7 @@ class ModeHeroPanel extends StatelessWidget {
               child: _HeroPill(
                 icon: Icons.monetization_on_outlined,
                 value: coinsLabel,
-                label: 'FL Coins',
+                label: tr('mode_fl_coins_label'),
               ),
             ),
           ],

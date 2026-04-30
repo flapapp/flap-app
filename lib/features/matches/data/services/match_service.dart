@@ -297,8 +297,8 @@ class MatchService {
           teamBId = row['id'].toString();
         }
       }
-      teamAId ??= await _createMatchTeam(matchId, 1, 'Команда A');
-      teamBId ??= await _createMatchTeam(matchId, 2, 'Команда B');
+      teamAId ??= await _createMatchTeam(matchId, 1, tr('match_default_team_a'));
+      teamBId ??= await _createMatchTeam(matchId, 2, tr('match_default_team_b'));
 
       await _sb.from('match_team_rosters').delete().eq('match_team_id', teamAId);
       await _sb.from('match_team_rosters').delete().eq('match_team_id', teamBId);
@@ -360,8 +360,8 @@ class MatchService {
         'status': row['status'],
         'scoreA': row['home_score'],
         'scoreB': row['away_score'],
-        'teamAName': ((row['match_teams'] as Map?)?['display_name'] ?? 'Team A').toString(),
-        'teamBName': ((row['away'] as Map?)?['display_name'] ?? 'Team B').toString(),
+        'teamAName': ((row['match_teams'] as Map?)?['display_name'] ?? tr('match_default_team_a')).toString(),
+        'teamBName': ((row['away'] as Map?)?['display_name'] ?? tr('match_default_team_b')).toString(),
       };
     }).toList();
   }
@@ -593,9 +593,13 @@ class MatchService {
     required bool accept,
   }) async {
     final uid = AppAuth.currentUserId;
-    if (uid == null) throw Exception('Потрібна авторизація');
+    if (uid == null) throw Exception(tr('match_error_auth_required'));
     final slot = teamKey == 'teamA' ? 1 : 2;
-    final teamId = await _ensureMatchTeam(matchId, slot, slot == 1 ? 'Команда A' : 'Команда B');
+    final teamId = await _ensureMatchTeam(
+      matchId,
+      slot,
+      slot == 1 ? tr('match_default_team_a') : tr('match_default_team_b'),
+    );
     await _sb.from('match_team_rosters').update({
       'status': accept ? 'confirmed' : 'declined',
       'updated_at': DateTime.now().toUtc().toIso8601String(),

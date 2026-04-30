@@ -113,7 +113,7 @@ class Challenge extends ChallengeEntity {
     return DateTime.now();
   }
 
-  // Конструктор з Firestore / remote-like documents
+  // Constructor from Firestore / remote-like documents
   factory Challenge.fromFirestore(dynamic doc) {
     final raw = doc.data();
     final data = raw is Map<String, dynamic>
@@ -186,7 +186,7 @@ class Challenge extends ChallengeEntity {
 
   Map<String, dynamic> toJson() => _$ChallengeToJson(this);
 
-  // Конвертація в Map для Firestore-like clients
+  // Convert to Map for Firestore-like clients
   Map<String, dynamic> toFirestore() {
     return {
       'title': title,
@@ -221,7 +221,7 @@ class Challenge extends ChallengeEntity {
     };
   }
 
-  // Копіювання з змінами
+  // Copy with changes
   Challenge copyWith({
     String? id,
     String? title,
@@ -288,23 +288,23 @@ class Challenge extends ChallengeEntity {
     );
   }
 
-  // Геттери для статусу
+  // Status getters
   bool get isRecruiting => status == ChallengeStatus.recruiting;
   bool get isSubmissionOpen => status == ChallengeStatus.submission;
   bool get isVotingOpen => status == ChallengeStatus.voting;
   bool get isCompleted => status == ChallengeStatus.completed;
 
-  // Геттери для часу
+  // Time getters
   bool get canJoin => (isRecruiting || isSubmissionOpen) && currentParticipants < maxParticipants;
   bool get canSubmit => isSubmissionOpen && participants.isNotEmpty;
   bool get canVote => isVotingOpen;
 
-  // Геттери для призів
+  // Prize getters
   double get firstPlacePrize => prizePool * 0.5;
   double get secondPlacePrize => prizePool * 0.3;
   double get thirdPlacePrize => prizePool * 0.2;
 
-  // Геттери для прогресу
+  // Progress getters
   double get recruitmentProgress => 
       currentParticipants / maxParticipants;
   double get submissionProgress => 
@@ -312,7 +312,7 @@ class Challenge extends ChallengeEntity {
   double get votingProgress => 
       votes.length / submissions.length;
 
-  // Геттери для часу
+  // Time getters
   Duration get timeUntilSubmission => 
       submissionDeadline.difference(DateTime.now());
   Duration get timeUntilVoting => 
@@ -320,21 +320,21 @@ class Challenge extends ChallengeEntity {
   Duration get timeUntilEnd => 
       endDate.difference(DateTime.now());
 
-  // Геттери для статусу тексту
+  // Status text getters
   String get statusText {
     switch (status) {
       case ChallengeStatus.recruiting:
-        return 'Збір учасників';
+        return tr('challenge_status_recruiting');
       case ChallengeStatus.submission:
-        return 'Подання відео';
+        return tr('challenge_status_submission');
       case ChallengeStatus.voting:
-        return 'Голосування';
+        return tr('challenge_status_voting');
       case ChallengeStatus.completed:
-        return 'Завершено';
+        return tr('challenge_status_completed');
     }
   }
 
-  // Геттери для типу тексту
+  // Type text getters
   String get typeText {
     switch (type) {
       case ChallengeType.goal:
@@ -366,17 +366,17 @@ class Challenge extends ChallengeEntity {
     }
   }
 
-  // Геттери для аудиторії
+  // Audience getters
   String get audienceText {
     switch (audience) {
       case ChallengeAudience.friends:
-        return 'Моїм друзям';
+        return tr('my_friends_audience');
       case ChallengeAudience.city:
-        return 'Моєму місту';
+        return tr('my_city_audience');
       case ChallengeAudience.country:
-        return 'Моїй країні';
+        return tr('my_country_audience');
       case ChallengeAudience.world:
-        return 'Усьому світу';
+        return tr('whole_world_audience');
     }
   }
 
@@ -393,7 +393,7 @@ class Challenge extends ChallengeEntity {
     }
   }
 
-  // Геттери для іконок
+  // Icon getters
   String get typeIcon {
     switch (type) {
       case ChallengeType.goal:
@@ -425,17 +425,17 @@ class Challenge extends ChallengeEntity {
     }
   }
 
-  // Геттери для кольорів статусу
+  // Status color getters
   int get statusColor {
     switch (status) {
       case ChallengeStatus.recruiting:
-        return 0xFF4CAF50; // Зелений
+        return 0xFF4CAF50; // Green
       case ChallengeStatus.submission:
-        return 0xFFFF9800; // Оранжевий
+        return 0xFFFF9800; // Orange
       case ChallengeStatus.voting:
-        return 0xFF2196F3; // Синій
+        return 0xFF2196F3; // Blue
       case ChallengeStatus.completed:
-        return 0xFF9E9E9E; // Сірий
+        return 0xFF9E9E9E; // Gray
     }
   }
 }

@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:flap_app/city_localization.dart';
+
 import '../../utils/city_catalog.dart';
 
 /// Server-side video feed (see [public.get_videos_feed] migration).
@@ -61,7 +63,7 @@ Map<String, dynamic> mapVideoFeedRow(Map<String, dynamic> row) {
     'authorName': row['author_name'],
     'author_name': row['author_name'],
     'author_city': row['author_city'] ?? '',
-    'city': CityCatalog.labelForDisplay((row['author_city'] ?? '').toString()),
+    'city': localizeCity((row['author_city'] ?? '').toString()),
     'rating': _toDouble(row['average_rating'] ?? row['avg_rating'] ?? 0.0),
     'averageRating': _toDouble(row['average_rating'] ?? row['avg_rating'] ?? 0.0),
     'views': (row['view_count'] is num) ? (row['view_count'] as num).toInt() : int.tryParse('${row['view_count'] ?? 0}') ?? 0,

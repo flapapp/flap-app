@@ -270,7 +270,7 @@ class _VideosScreenState extends State<VideosScreen> {
           ),
         ],
       ),
-      // Видаляю FloatingActionButton - він вже є в MainScreen
+      // No FloatingActionButton here — MainScreen already provides one
     );
   }
 
@@ -426,8 +426,8 @@ class _VideosScreenState extends State<VideosScreen> {
           const SizedBox(height: 16),
           Text(
             _selectedTab == 'my'
-                ? 'Ви ще не завантажили жодного відео'
-                : 'Немає відео',
+                ? tr('videos_empty_my_uploads')
+                : tr('videos_empty_all'),
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 18,
@@ -588,7 +588,7 @@ class _VideosScreenState extends State<VideosScreen> {
                                         ?.toString()
                                         .split('@')
                                         .first ??
-                                    'Користувач')
+                                    tr('il_b512d97e7c'))
                                 .toString();
                         await sl<NotificationService>().sendRatingRequest(
                           toUserIds: selected.toList(),
@@ -645,7 +645,10 @@ class _VideosScreenState extends State<VideosScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Коментарі до "$title"',
+                          tr(
+                            'videos_comments_title',
+                            namedArgs: {'title': title},
+                          ),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -936,13 +939,25 @@ class _VideosScreenState extends State<VideosScreen> {
     final difference = now.difference(date);
 
     if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} хв тому';
+      return tr(
+        'relative_minutes_ago',
+        namedArgs: {'n': '${difference.inMinutes}'},
+      );
     } else if (difference.inHours < 24) {
-      return '${difference.inHours} год тому';
+      return tr(
+        'relative_hours_ago',
+        namedArgs: {'n': '${difference.inHours}'},
+      );
     } else if (difference.inDays < 7) {
-      return '${difference.inDays} дн тому';
+      return tr(
+        'relative_days_ago',
+        namedArgs: {'n': '${difference.inDays}'},
+      );
     } else {
-      return '${(difference.inDays / 7).floor()} тиж тому';
+      return tr(
+        'relative_weeks_ago',
+        namedArgs: {'n': '${(difference.inDays / 7).floor()}'},
+      );
     }
   }
 
@@ -955,7 +970,7 @@ class _VideosScreenState extends State<VideosScreen> {
 
   Widget _buildVideoCard(Map<String, dynamic> videoData) {
     final videoId = videoData['id'];
-    final title = videoData['title'] ?? 'Без назви';
+    final title = videoData['title'] ?? tr('il_f59ab8d133');
     final userId = videoData['userId'] ?? '';
     final videoUrl = videoData['videoUrl'] ?? '';
     final thumbnailUrl = videoData['thumbnailUrl'];
@@ -1150,7 +1165,7 @@ class _VideosScreenState extends State<VideosScreen> {
                         ),
                         if (AppAuth.currentUserId == userId)
                           IconButton(
-                            tooltip: 'Запросити оцінку',
+                            tooltip: tr('videos_request_rating_tooltip'),
                             onPressed: () =>
                                 _requestRatingForVideo(videoId, title),
                             icon: const Icon(
@@ -1216,7 +1231,10 @@ class _VideosScreenState extends State<VideosScreen> {
             : double.parse((sum / snap.data!.length).toStringAsFixed(2));
         if (avg <= 0) return const SizedBox.shrink();
         return _buildChip(
-          label: '⭐ ${avg.toStringAsFixed(2)}',
+          label: tr(
+            'video_avg_rating_label',
+            namedArgs: {'rating': avg.toStringAsFixed(2)},
+          ),
           color: Colors.black.withOpacity(0.7),
         );
       },

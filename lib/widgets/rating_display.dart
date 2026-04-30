@@ -161,7 +161,7 @@ class RatingDisplay extends StatelessWidget {
   }
 }
 
-// Компактний варіант тільки з числом
+// Compact variant: numeric rating only
 class CompactRatingDisplay extends StatelessWidget {
   final String userId;
   final double? rating;

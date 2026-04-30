@@ -12,17 +12,17 @@ class ThumbnailService {
 
   SupabaseClient get _sb => Supabase.instance.client;
 
-  /// Генерує thumbnail для відео та зберігає його в Firebase Storage
+  /// Generates a video thumbnail and uploads it to Firebase Storage
   Future<String?> generateAndUploadThumbnail({
     required String videoUrl,
     required String videoId,
     required String userId,
   }) async {
     try {
-      print('🎬 Starting thumbnail generation for video: $videoId');
+      print('[thumb] Starting thumbnail generation for video: $videoId');
       
       if (kIsWeb) {
-        // На веб-платформі використовуємо WebThumbnailService
+        // On web, use WebThumbnailService
         final webService = WebThumbnailService();
         return await webService.generateWebThumbnail(
           videoUrl: videoUrl,
@@ -31,16 +31,16 @@ class ThumbnailService {
         );
       }
       
-      // На мобільних платформах використовуємо video_thumbnail
+      // On mobile, use video_thumbnail
       final thumbnailData = await _generateThumbnail(videoUrl);
       if (thumbnailData == null) {
-        print('❌ Failed to generate thumbnail data');
+        print('[thumb] ERROR: Failed to generate thumbnail data');
         return null;
       }
 
-      print('✅ Thumbnail generated, size: ${thumbnailData.length} bytes');
+      print('[thumb] Thumbnail generated, size: ${thumbnailData.length} bytes');
 
-      // Завантажуємо thumbnail в Firebase Storage
+      // Upload thumbnail to Firebase Storage
       final thumbnailUrl = await _uploadThumbnail(
         thumbnailData: thumbnailData,
         videoId: videoId,
@@ -48,45 +48,45 @@ class ThumbnailService {
       );
 
       if (thumbnailUrl != null) {
-        // Оновлюємо документ відео з URL thumbnail
+        // Update video document with thumbnail URL
         await _updateVideoThumbnail(videoId, thumbnailUrl);
-        print('✅ Thumbnail uploaded and video updated: $thumbnailUrl');
+        print('[thumb] Thumbnail uploaded and video updated: $thumbnailUrl');
       }
 
       return thumbnailUrl;
     } catch (e) {
-      print('❌ Error in generateAndUploadThumbnail: $e');
+      print('[thumb] ERROR in generateAndUploadThumbnail: $e');
       return null;
     }
   }
 
-  /// Генерує thumbnail з відео URL
+  /// Generates a thumbnail from a video URL
   Future<Uint8List?> _generateThumbnail(String videoUrl) async {
     try {
       if (kIsWeb) {
-        // На веб-платформі video_thumbnail не підтримується
-        // Використовуємо заглушку або інший підхід
-        print('⚠️ Web platform: thumbnail generation not supported, using placeholder');
+        // video_thumbnail is not supported on web
+        // Use a stub or alternate approach
+        print('[thumb] WARN: Web platform thumbnail generation not supported, using placeholder');
         return null;
       }
 
-      // Генеруємо thumbnail
+      // Generate thumbnail
       final thumbnailData = await VideoThumbnail.thumbnailData(
         video: videoUrl,
         imageFormat: ImageFormat.JPEG,
-        maxHeight: 720, // Висока якість для гарного превью
+        maxHeight: 720, // Higher quality for clearer preview
         quality: 85,
-        timeMs: 1000, // Беремо кадр з 1-ї секунди
+        timeMs: 1000, // Sample frame at 1s
       );
 
       return thumbnailData;
     } catch (e) {
-      print('❌ Error generating thumbnail: $e');
+      print('[thumb] ERROR generating thumbnail: $e');
       return null;
     }
   }
 
-  /// Завантажує thumbnail в Firebase Storage
+  /// Uploads thumbnail to Firebase Storage
   Future<String?> _uploadThumbnail({
     required Uint8List thumbnailData,
     required String videoId,
@@ -97,7 +97,7 @@ class ThumbnailService {
       final fileName = 'thumbnail_${videoId}_$timestamp.jpg';
       final objectPath = '$userId/$fileName';
 
-      print('📤 Uploading thumbnail: $objectPath');
+      print('[thumb] Uploading thumbnail: $objectPath');
 
       final downloadUrl = await SupabaseAppStorage.uploadPublicBytes(
         _sb,
@@ -107,15 +107,15 @@ class ThumbnailService {
         contentType: 'image/jpeg',
       );
       
-      print('✅ Thumbnail uploaded successfully: $downloadUrl');
+      print('[thumb] Thumbnail uploaded successfully: $downloadUrl');
       return downloadUrl;
     } catch (e) {
-      print('❌ Error uploading thumbnail: $e');
+      print('[thumb] ERROR uploading thumbnail: $e');
       return null;
     }
   }
 
-  /// Оновлює документ відео з URL thumbnail
+  /// Updates the video document with the thumbnail URL
   Future<void> _updateVideoThumbnail(String videoId, String thumbnailUrl) async {
     try {
       await _sb.from('videos').update(<String, dynamic>{
@@ -123,23 +123,23 @@ class ThumbnailService {
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', videoId);
 
-      print('✅ Video document updated with thumbnail URL');
+      print('[thumb] Video document updated with thumbnail URL');
     } catch (e) {
-      print('❌ Error updating video with thumbnail: $e');
+      print('[thumb] ERROR updating video with thumbnail: $e');
     }
   }
 
-  /// Генерує thumbnail для челенджу (відео творця)
+  /// Generates thumbnail for challenge creator video
   Future<String?> generateChallengeThumbnail({
     required String videoUrl,
     required String challengeId,
     required String userId,
   }) async {
     try {
-      print('🏆 Generating challenge thumbnail for: $challengeId');
+      print('[thumb] Generating challenge thumbnail for: $challengeId');
       
       if (kIsWeb) {
-        // На веб-платформі використовуємо WebThumbnailService
+        // On web, use WebThumbnailService
         final webService = WebThumbnailService();
         return await webService.generateWebChallengeThumbnail(
           videoUrl: videoUrl,
@@ -163,21 +163,21 @@ class ThumbnailService {
         contentType: 'image/jpeg',
       );
 
-      // Оновлюємо челендж з thumbnail
+      // Update challenge with thumbnail
       await _sb.from('challenges').update(<String, dynamic>{
         'image_url': downloadUrl,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', challengeId);
 
-      print('✅ Challenge thumbnail generated: $downloadUrl');
+      print('[thumb] Challenge thumbnail generated: $downloadUrl');
       return downloadUrl;
     } catch (e) {
-      print('❌ Error generating challenge thumbnail: $e');
+      print('[thumb] ERROR generating challenge thumbnail: $e');
       return null;
     }
   }
 
-  /// Генерує thumbnail для відео учасника челенджу
+  /// Generates thumbnail for a challenge submission video
   Future<String?> generateSubmissionThumbnail({
     required String videoUrl,
     required String challengeId,
@@ -200,20 +200,20 @@ class ThumbnailService {
         contentType: 'image/jpeg',
       );
 
-      // Оновлюємо submission з thumbnail
+      // Update submission with thumbnail
       await _sb.from('challenge_submissions').update(<String, dynamic>{
         'thumbnail_url': downloadUrl,
       }).eq('id', submissionId);
 
-      print('✅ Submission thumbnail generated: $downloadUrl');
+      print('[thumb] Submission thumbnail generated: $downloadUrl');
       return downloadUrl;
     } catch (e) {
-      print('❌ Error generating submission thumbnail: $e');
+      print('[thumb] ERROR generating submission thumbnail: $e');
       return null;
     }
   }
 
-  /// Перевіряє чи потрібно генерувати thumbnail для відео
+  /// Whether a thumbnail should be generated for the video
   Future<bool> needsThumbnail(String videoId) async {
     try {
       final row =
@@ -221,29 +221,29 @@ class ThumbnailService {
       if (row == null) return false;
       final thumbnailUrl = row['thumbnail_url'] as String?;
 
-      // Потрібен thumbnail якщо його немає або він не згенерований
+      // Need thumbnail when missing or not generated
       return thumbnailUrl == null || thumbnailUrl.isEmpty;
     } catch (e) {
       print('Error checking thumbnail status: $e');
-      return true; // Якщо помилка, краще згенерувати
+      return true; // On error, prefer generating
     }
   }
 
-  /// Масове генерування thumbnails для існуючих відео
+  /// Batch-generate thumbnails for existing videos
   Future<void> generateMissingThumbnails() async {
     try {
-      print('🔄 Starting bulk thumbnail generation...');
+      print('[thumb] Starting bulk thumbnail generation...');
       
-      // Отримуємо відео без thumbnails
+      // Fetch videos missing thumbnails
       final videosQuery = await _sb
           .from('videos')
           .select('id,video_url,user_id,thumbnail_url')
           .isFilter('thumbnail_url', null)
-          .limit(10) // Обробляємо по 10 за раз
+          .limit(10) // Process 10 at a time
           ;
 
       final rows = videosQuery as List<dynamic>;
-      print('📊 Found ${rows.length} videos without thumbnails');
+      print('[thumb] Found ${rows.length} videos without thumbnails');
 
       for (final doc in rows) {
         final data = doc as Map<String, dynamic>;
@@ -257,14 +257,14 @@ class ThumbnailService {
             userId: userId,
           );
           
-          // Невелика затримка між генераціями
+          // Small delay between generations
           await Future.delayed(const Duration(seconds: 2));
         }
       }
 
-      print('✅ Bulk thumbnail generation completed');
+      print('[thumb] Bulk thumbnail generation completed');
     } catch (e) {
-      print('❌ Error in bulk thumbnail generation: $e');
+      print('[thumb] ERROR in bulk thumbnail generation: $e');
     }
   }
 }

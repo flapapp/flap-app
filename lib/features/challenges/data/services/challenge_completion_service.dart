@@ -2,7 +2,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/coin_ledger.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 class ChallengeCompletionService {
   final SupabaseClient _sb = Supabase.instance.client;
@@ -75,9 +74,12 @@ class ChallengeCompletionService {
             winnerId,
             'challenge_prize',
             amount,
-            bilingual(
-              'Приз за ${i + 1}-е місце в челенджі: $amount монет',
-              'Prize for ${i + 1} place in the challenge: $amount coins',
+            tr(
+              'coin_ledger_challenge_prize',
+              namedArgs: {
+                'place': '${i + 1}',
+                'amount': '$amount',
+              },
             ),
           );
         }
@@ -115,7 +117,7 @@ class ChallengeCompletionService {
       await _sb.from('challenges').update(<String, dynamic>{
         'status': 'cancelled',
         'cancelled_at': DateTime.now().toUtc().toIso8601String(),
-        'cancellation_reason': 'Недостатньо учасників',
+        'cancellation_reason': 'insufficient_participants',
       }).eq('id', challengeId);
     } catch (e) {
       print('Error refunding challenge: $e');

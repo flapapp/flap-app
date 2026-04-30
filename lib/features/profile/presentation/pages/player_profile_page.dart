@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +8,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/locale/football_position.dart';
-import '../../../../utils/city_catalog.dart';
+import 'package:flap_app/city_localization.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../../../badges/data/models/badge.dart' as app_badge;
 import '../../../auth/domain/repositories/auth_session_repository.dart';
@@ -51,9 +50,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   bool _isSendingRequest = false;
   int _friendshipUiEpoch = 0;
   bool _friendshipActionBusy = false;
-  // Пікер та локальний буфер аватару
+  // Avatar picker and local buffer
   final ImagePicker _picker = ImagePicker();
-  XFile? _pickedAvatar; // web-safe файл
+  XFile? _pickedAvatar; // web-safe file
   bool _uploadingAvatar = false;
   List<String> _myVideoIds = [];
   bool _loadingMyVideos = false;
@@ -66,20 +65,6 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   List<app_badge.Badge> _userBadges = [];
   int _badgeEndorseVersion = 0;
   List<AppTeam> _playerTeams = [];
-  // Опції як у реєстрації
-  List<String> get _positions => [
-        bilingual('Воротар', 'Goalkeeper'),
-        bilingual('Захисник', 'Defender'),
-        bilingual('Півзахисник', 'Midfielder'),
-        bilingual('Нападник', 'Forward'),
-        bilingual('Універсал', 'Utility player'),
-      ];
-  List<String> get _experiences => [
-        bilingual('Початківець', 'Beginner'),
-        bilingual('Аматор', 'Amateur'),
-        bilingual('Досвідчений', 'Experienced'),
-        bilingual('Професіонал', 'Professional'),
-      ];
 
   @override
   void initState() {
@@ -248,7 +233,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     if (_myVideoIds.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(parentContext).showSnackBar(
-        SnackBar(content: Text(bilingual('Немає ваших відео для запиту оцінки', 'No videos available for a rating request'))),
+        SnackBar(content: Text(tr('player_rate_me_no_videos'))),
       );
       return;
     }
@@ -268,7 +253,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 
           return AlertDialog(
             backgroundColor: const Color(0xFF1a1a2e),
-            title: Text(bilingual('Оберіть мої відео для оцінки', 'Select my videos to rate'), style: const TextStyle(color: Colors.white)),
+            title: Text(tr('player_rate_me_pick_videos_title'), style: const TextStyle(color: Colors.white)),
             content: SizedBox(
               width: double.maxFinite,
               child: _loadingMyVideos
@@ -279,7 +264,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                       itemBuilder: (context, index) {
                         final v = videos[index];
                         final id = (v['id'] ?? '').toString();
-                        final title = (v['title'] ?? bilingual('Відео', 'Video')).toString();
+                        final title = (v['title'] ?? tr('il_d534be829e')).toString();
                         final isSel = selected.contains(id);
                         return CheckboxListTile(
                           value: isSel,
@@ -313,7 +298,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                         final myName = (meProfile?.displayName.isNotEmpty == true
                                 ? meProfile!.displayName
                                 : null) ??
-                            bilingual('Користувач', 'User');
+                            tr('il_b512d97e7c');
                         await sl<PlayerNotificationActionsRepository>().sendRatingRequest(
                           toUserIds: [widget.playerId],
                           fromUserName: myName,
@@ -324,10 +309,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                         Navigator.pop(ctx, true);
                         if (!mounted) return;
                         ScaffoldMessenger.of(parentContext).showSnackBar(
-                          SnackBar(content: Text(bilingual('✅ Запит на оцінку надіслано', '✅ Rating request sent'))),
+                          SnackBar(content: Text(tr('player_rating_request_sent'))),
                         );
                       },
-                child: Text(bilingual('Надіслати', 'Send')),
+                child: Text(tr('send')),
               ),
             ],
           );
@@ -353,8 +338,8 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         SnackBar(
           content: Text(
             accept
-                ? bilingual('✅ Запрошення прийнято!', '✅ Invitation accepted!')
-                : bilingual('❌ Запрошення відхилено', '❌ Invitation declined'),
+                ? tr('player_invitation_accepted')
+                : tr('player_invitation_declined'),
           ),
           backgroundColor: accept ? Colors.green : Colors.red,
         ),
@@ -381,7 +366,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            bilingual('✅ Запрошення скасовано', '✅ Invitation cancelled'),
+            tr('player_invitation_cancelled'),
           ),
           backgroundColor: Colors.orange,
         ),
@@ -412,7 +397,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(bilingual('✅ Запрошення надіслано!', '✅ Invitation sent!')),
+            content: Text(tr('player_invitation_sent_snackbar')),
             backgroundColor: Colors.green,
           ),
         );
@@ -458,7 +443,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            widget.playerName ?? bilingual('Профіль гравця', 'Player profile'),
+            widget.playerName ?? tr('player_profile_title'),
             style: const TextStyle(color: Colors.white),
           ),
         ),
@@ -485,7 +470,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         ),
         body: Center(
           child: Text(
-            bilingual('Профіль гравця не знайдено', 'Player profile not found'),
+            tr('player_profile_not_found_body'),
             style: const TextStyle(color: Colors.white70, fontSize: 16),
           ),
         ),
@@ -500,9 +485,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     final position = positionLabelForDisplay(
       playerData!['position']?.toString(),
     );
-    final cityLabel = CityCatalog.labelForDisplay(
-      (playerData!['city'] ?? '').toString(),
-    );
+    final cityLabel = localizeCity((playerData!['city'] ?? '').toString());
     final rating = (playerData!['rating'] ?? 0.0).toDouble();
     final matchesFromProfile = ((playerData!['totalMatches'] ?? playerData!['matches'] ?? playerData!['matchesPlayed'] ?? 0) as num).toInt();
     final averageRating = (playerData!['averageRating'] ?? rating).toDouble();
@@ -526,14 +509,14 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(widget.playerName ?? bilingual('Профіль гравця', 'Player profile'), style: const TextStyle(color: Colors.white)),
+        title: Text(widget.playerName ?? tr('player_profile_title'), style: const TextStyle(color: Colors.white)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Аватар
+            // Avatar
             Container(
               width: 96,
               height: 96,
@@ -570,7 +553,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               ),
             const SizedBox(height: 20),
 
-            // Рейтинг
+            // Rating
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
@@ -581,11 +564,11 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
             ),
             const SizedBox(height: 12),
             Row(children: [
-              Expanded(child: _statBox(value: matches.toString(), label: bilingual('Матчі', 'Matches'), icon: Icons.sports_soccer, color: const Color(0xFF4CAF50))),
+              Expanded(child: _statBox(value: matches.toString(), label: tr('matches'), icon: Icons.sports_soccer, color: const Color(0xFF4CAF50))),
               const SizedBox(width: 10),
-              Expanded(child: _statBox(value: averageRating.toStringAsFixed(2), label: bilingual('Середня', 'Average'), icon: Icons.star_border, color: const Color(0xFFFFD54F))),
+              Expanded(child: _statBox(value: averageRating.toStringAsFixed(2), label: tr('player_stat_average_rating'), icon: Icons.star_border, color: const Color(0xFFFFD54F))),
               const SizedBox(width: 10),
-              Expanded(child: _statBox(value: '${_winRate.toStringAsFixed(0)}%', label: 'Win rate', icon: Icons.percent, color: const Color(0xFF64B5F6))),
+              Expanded(child: _statBox(value: '${_winRate.toStringAsFixed(0)}%', label: tr('profile_win_rate_label'), icon: Icons.percent, color: const Color(0xFF64B5F6))),
               const SizedBox(width: 10),
               Expanded(child: _statBox(value: goals.toString(), label: tr('il_116cd3982a'), icon: Icons.sports, color: const Color(0xFFFF7043))),
             ]),
@@ -605,7 +588,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               ],
             ),
 
-            // Win Rate + останні 5
+            // Win rate + last 5
 Container(
   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
   decoration: BoxDecoration(
@@ -688,7 +671,7 @@ const SizedBox(height: 12),
               const SizedBox(height: 20),
             ],
 
-            // Кнопки (приховані на власному профілі)
+            // Buttons (hidden on own profile)
             Builder(
               builder: (context) {
                 final me = sl<AuthSessionRepository>().peekCurrentUser?.uid;
@@ -783,10 +766,7 @@ const SizedBox(height: 12),
                               onPressed: null,
                               icon: const Icon(Icons.schedule),
                               label: Text(
-                                bilingual(
-                                  'Запрошення надіслано',
-                                  'Invitation sent',
-                                ),
+                                tr('player_invitation_pending_label'),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF4caf50),
@@ -820,8 +800,8 @@ const SizedBox(height: 12),
                         icon: const Icon(Icons.person_add),
                         label: Text(
                           _isSendingRequest
-                              ? bilingual('Надсилання...', 'Sending...')
-                              : bilingual('Додати в друзі', 'Add friend'),
+                              ? tr('player_add_friend_sending')
+                              : tr('add_friend'),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF4caf50),
@@ -862,7 +842,7 @@ const SizedBox(height: 12),
                               borderRadius: BorderRadius.circular(18),
                             ),
                           ),
-                          child: Text(bilingual('Оціни мене', 'Rate me')),
+                          child: Text(tr('player_rate_me_button')),
                         ),
                       ],
                     );
@@ -871,7 +851,7 @@ const SizedBox(height: 12),
               },
             ),
 
-            // Бейджі
+            // Badges
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -885,7 +865,7 @@ const SizedBox(height: 12),
                   Text(tr('badges'), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   if (_userBadges.isEmpty)
-                    Text(bilingual('Бейджів поки немає', 'No badges yet'), style: const TextStyle(color: Colors.white54))
+                    Text(tr('player_no_badges_yet'), style: const TextStyle(color: Colors.white54))
                   else
                     SizedBox(
                       height: 82,
@@ -1003,7 +983,7 @@ const SizedBox(height: 12),
 
             const SizedBox(height: 12),
 
-            // Відео гравця
+            // Player videos
             if (playerVideos.isNotEmpty) ...[
               Align(
                 alignment: Alignment.centerLeft,
@@ -1019,7 +999,7 @@ const SizedBox(height: 12),
                     final v = playerVideos[index];
                     final thumb = (v['thumbnailUrl'] ?? '').toString();
                     final vUrl = (v['videoUrl'] ?? '').toString();
-                    final title = (v['title'] ?? bilingual('Відео', 'Video')).toString();
+                    final title = (v['title'] ?? tr('il_d534be829e')).toString();
                     return SizedBox(
                       width: 170,
                       child: VideoPreviewBox(
@@ -1053,7 +1033,7 @@ const SizedBox(height: 12),
                   color: Colors.white.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(bilingual('Поки що немає відео', 'No videos yet'), style: const TextStyle(color: Colors.white54)),
+                child: Text(tr('no_videos_yet'), style: const TextStyle(color: Colors.white54)),
               ),
             ],
           ],
@@ -1191,7 +1171,7 @@ const SizedBox(height: 12),
       if (all.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(parentContext).showSnackBar(
-          SnackBar(content: Text(bilingual('Немає доступних ваших челенджів для запрошення.', 'No available challenges to invite.'))),
+          SnackBar(content: Text(tr('player_invite_to_challenge_none'))),
         );
         return;
       }
@@ -1208,7 +1188,7 @@ const SizedBox(height: 12),
 
             return AlertDialog(
               backgroundColor: const Color(0xFF1a1a2e),
-              title: Text(bilingual('Запросити до челенджу', 'Invite to challenge'), style: const TextStyle(color: Colors.white)),
+              title: Text(tr('player_invite_to_challenge_title'), style: const TextStyle(color: Colors.white)),
               content: SizedBox(
                 width: double.maxFinite,
                 child: ListView.builder(
@@ -1220,11 +1200,14 @@ const SizedBox(height: 12),
                       value: index,
                       groupValue: selectedIndex,
                       onChanged: (v) => safeDialogSetState(() => selectedIndex = v ?? -1),
-                      title: Text(c['title'] ?? bilingual('Челендж', 'Challenge'), style: const TextStyle(color: Colors.white)),
+                      title: Text(c['title'] ?? tr('il_27cf1792f7'), style: const TextStyle(color: Colors.white)),
                       subtitle: Text(
-                        bilingual(
-                          'Учасників: ${(c['participants'] as List?)?.length ?? 0}',
-                          'Participants: ${(c['participants'] as List?)?.length ?? 0}',
+                        tr(
+                          'player_challenge_participants_count',
+                          namedArgs: {
+                            'count':
+                                '${(c['participants'] as List?)?.length ?? 0}',
+                          },
                         ),
                         style: const TextStyle(color: Colors.white54, fontSize: 12),
                       ),
@@ -1251,8 +1234,12 @@ const SizedBox(height: 12),
                               .sendChallengeInvitation(
                             toUserId: widget.playerId,
                             challengeId: (selected['id'] ?? '').toString(),
-                            challengeTitle: (selected['title'] ?? bilingual('Челендж', 'Challenge')).toString(),
-                            creatorName: (playerData?['displayName'] ?? bilingual('Користувач', 'User')).toString(),
+                            challengeTitle:
+                                (selected['title'] ?? tr('il_27cf1792f7'))
+                                    .toString(),
+                            creatorName: (playerData?['displayName'] ??
+                                    tr('il_b512d97e7c'))
+                                .toString(),
                             challengeType: (selected['type'] ?? 'goal').toString(),
                           );
                           if (!mounted || dialogClosed) return;
@@ -1260,10 +1247,16 @@ const SizedBox(height: 12),
                           Navigator.pop(ctx, true);
                           if (!mounted) return;
                           ScaffoldMessenger.of(parentContext).showSnackBar(
-                            SnackBar(content: Text(ok ? bilingual('✅ Запрошення надіслано', '✅ Invitation sent') : bilingual('❌ Не вдалося надіслати', '❌ Failed to send'))),
+                            SnackBar(
+                              content: Text(
+                                ok
+                                    ? tr('player_invitation_sent_snackbar')
+                                    : tr('player_invite_challenge_send_failed'),
+                              ),
+                            ),
                           );
                         },
-                  child: Text(bilingual('Запросити', 'Invite')),
+                  child: Text(tr('player_invite_challenge_cta')),
                 ),
               ],
             );
@@ -1279,7 +1272,7 @@ const SizedBox(height: 12),
       );
     }
   }
-  // Універсальний текстовий інпут для форм модалки
+  // Shared text field for modal forms
   Widget _textField(String label, TextEditingController c, {bool requiredField = true}) {
     return TextFormField(
       controller: c,
@@ -1302,7 +1295,7 @@ const SizedBox(height: 12),
         ),
       ),
       validator: requiredField
-          ? (v) => (v == null || v.trim().isEmpty) ? bilingual('Обов’язкове поле', 'This field is required') : null
+          ? (v) => (v == null || v.trim().isEmpty) ? tr('field_required') : null
           : null,
     );
   }
@@ -1311,13 +1304,13 @@ const SizedBox(height: 12),
     final currentUserId = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     if (currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(bilingual('Увійдіть, щоб підтверджувати бейджі', 'Sign in to endorse badges'))),
+        SnackBar(content: Text(tr('player_endorse_sign_in'))),
       );
       return;
     }
     if (currentUserId == ownerId) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(bilingual('Не можна підтверджувати власні бейджі', 'You cannot endorse your own badges'))),
+        SnackBar(content: Text(tr('il_472d788d72'))),
       );
       return;
     }
@@ -1346,11 +1339,10 @@ const SizedBox(height: 12),
       failure: (f) {
         if (!mounted) return;
         final message = f.when(
-          cache: () => bilingual('Помилка підтвердження', 'Endorsement error'),
-          network: (m) => m ?? bilingual('Помилка мережі', 'Network error'),
-          unexpected: (m) =>
-              m ?? bilingual('Помилка підтвердження', 'Endorsement error'),
-          auth: (_, m) => m ?? bilingual('Помилка авторизації', 'Auth error'),
+          cache: () => tr('something_went_wrong'),
+          network: (m) => m ?? tr('connection_error'),
+          unexpected: (m) => m ?? tr('something_went_wrong'),
+          auth: (_, m) => m ?? tr('login_error'),
         );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),

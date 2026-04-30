@@ -95,7 +95,7 @@ class SubscriptionService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('submission_error_not_signed_in'));
       }
 
       // Check if user already had trial
@@ -108,7 +108,7 @@ class SubscriptionService {
       for (final row in existingSubscriptions as List<dynamic>) {
         final map = row as Map<String, dynamic>;
         if (map['trial_ends_at'] != null) {
-          throw Exception('Ви вже використали пробний період');
+          throw Exception(tr('subscription_error_trial_already_used'));
         }
       }
 
@@ -155,7 +155,7 @@ class SubscriptionService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('submission_error_not_signed_in'));
       }
 
       // Deactivate current subscription
@@ -236,12 +236,12 @@ class SubscriptionService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('submission_error_not_signed_in'));
       }
 
       final subscription = await getUserSubscription(currentUser.id);
       if (subscription == null || subscription.type == SubscriptionType.free) {
-        throw Exception('У вас немає активної підписки');
+        throw Exception(tr('subscription_error_no_active_subscription'));
       }
 
       // Update subscription status
@@ -312,11 +312,11 @@ class SubscriptionService {
   String getSubscriptionBenefits(SubscriptionType type) {
     switch (type) {
       case SubscriptionType.europa:
-        return 'Europa League: Розширені можливості, 5 челенджів/місяць, +30 монет';
+        return tr('subscription_benefits_europa');
       case SubscriptionType.champions:
-        return 'Champions League: Преміум досвід, необмежені челенджі, +60 монет';
+        return tr('subscription_benefits_champions');
       default:
-        return 'Безкоштовна: Базовий функціонал, 1 челендж/місяць';
+        return tr('subscription_benefits_free');
     }
   }
 

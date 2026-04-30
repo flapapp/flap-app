@@ -1,7 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/core/supabase/supabase_date.dart';
 
@@ -314,7 +313,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
                 Tab(text: tr('settings')),
               ];
               if (_isOwner) {
-                tabs.add(Tab(text: bilingual('Запрошення', 'Invitations')));
+                tabs.add(Tab(text: tr('invitations')));
               }
 
               return TabBar(
@@ -395,7 +394,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
     if (!_isOwner) {
       return Center(
         child: Text(
-          bilingual('Недоступно', 'Not available'),
+          tr('match_mgmt_not_available'),
           style: const TextStyle(color: Colors.white70),
         ),
       );
@@ -431,7 +430,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
         if (items.isEmpty) {
           return Center(
             child: Text(
-              bilingual('Запрошень ще немає', 'No invitations sent yet'),
+              tr('match_invitations_tab_empty'),
               style: const TextStyle(color: Colors.white70),
             ),
           );
@@ -513,16 +512,16 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
     String label = normalized;
     if (normalized == 'pending') {
       bg = Colors.orange;
-      label = bilingual('Очікує', 'Pending');
+      label = tr('match_invite_status_pending');
     } else if (normalized == 'accepted') {
       bg = const Color(0xFF4caf50);
-      label = bilingual('Прийнято', 'Accepted');
+      label = tr('match_invite_status_accepted');
     } else if (normalized == 'declined') {
       bg = Colors.redAccent;
-      label = bilingual('Відхилено', 'Declined');
+      label = tr('match_invite_status_declined');
     } else if (normalized == 'cancelled') {
       bg = Colors.grey;
-      label = bilingual('Скасовано', 'Cancelled');
+      label = tr('match_invite_status_cancelled');
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1863,7 +1862,7 @@ Widget _buildSettingsTab() {
     },
   );
 }
-// Картка заявки
+// Application card
 Widget _buildApplicationCard(String userId) {
   return Container(
     margin: EdgeInsets.only(bottom: 12),
@@ -1876,7 +1875,7 @@ Widget _buildApplicationCard(String userId) {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Заголовок заявки з даними користувача (імʼя/аватар/рейтинг)
+        // Application header with user name, avatar, and rating
         FutureBuilder<Map<String, dynamic>?>(
           future: _sb.from('profiles').select().eq('id', userId).maybeSingle(),
           builder: (context, snap) {
@@ -1987,7 +1986,10 @@ Widget _buildApplicationCard(String userId) {
             Expanded(
               child: ElevatedButton(
                 onPressed: _busyUserIds.contains(userId) ? null : () async {
-                  final sure = await _confirm('Відхилити заявку?', 'Перемістити користувача до відхилених');
+                  final sure = await _confirm(
+                    tr('match_reject_application_title'),
+                    tr('match_reject_application_body'),
+                  );
                   if (sure != true) return;
                   setState(() => _busyUserIds.add(userId));
                   await _rejectApplication(userId);
@@ -2046,7 +2048,7 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
   }
   return hasData ? sum : remoteAvg * players.length;
 }
-  // Прийняття заявки
+  // Accept application
   Future<void> _acceptApplication(String userId) async {
     try {
       final success = await _managementActions.acceptApplication(
@@ -2061,7 +2063,7 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
             backgroundColor: Color(0xFF4caf50),
           ),
         );
-        _loadMatchData(); // Оновлюємо дані
+        _loadMatchData(); // Reload data
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2080,7 +2082,7 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
     }
   }
   
-  // Відхилення заявки
+  // Reject application
   Future<void> _rejectApplication(String userId) async {
     try {
       final success = await _managementActions.rejectApplication(
@@ -2095,7 +2097,7 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
             backgroundColor: Colors.orange,
           ),
         );
-        _loadMatchData(); // Оновлюємо дані
+        _loadMatchData(); // Reload data
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2166,7 +2168,7 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
             child: FutureBuilder<Map<String, dynamic>>(
               future: _getUserProfile(id),
               builder: (context, snap) {
-                final name = (snap.data?['displayName'] ?? 'Гравець') as String;
+                final name = (snap.data?['displayName'] ?? tr('player')) as String;
                 final avatarUrl = ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '') as String;
                 final realRating = ((snap.data?['rating'] ?? r) as num).toDouble();
                 final winRate = _calculateWinRateFromProfile(snap.data);
@@ -2322,9 +2324,9 @@ double _teamTotalRating(List<String> players, Map<String, double> ratings, doubl
           ),
         );
         
-        // Перезавантажуємо дані
+        // Reload data
 await _loadMatchData();
-// Скидаємо локальні тимчасові склади
+// Reset local temporary lineups
 setState(() {
   _editingTeams = [];
   _editingTeamA = [];
@@ -2363,7 +2365,7 @@ setState(() {
         ),
       );
       
-      // Перезавантажуємо дані
+      // Reload data
       await _loadMatchData();
 
       
@@ -2523,7 +2525,7 @@ setState(() {
     setState(() => _isLoading = true);
     
     try {
-      // Визначаємо результат матчу
+      // Resolve match outcome
       MatchResult result;
       if (_teamAScore > _teamBScore) {
         result = MatchResult.teamAWins;
@@ -2555,7 +2557,7 @@ setState(() {
           ),
         );
         
-        // Перезавантажуємо дані
+        // Reload data
         await _loadMatchData();
         await context.router.push(
           MatchRatingRoute(match: _latestMatch ?? widget.match),
@@ -2705,9 +2707,14 @@ setState(() {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      bilingual(
-                        'Розподіліть рівно $_teamAScore голів для $teamAName і $_teamBScore голів для $teamBName.',
-                        'Assign exactly $_teamAScore goals to $teamAName and $_teamBScore goals to $teamBName.',
+                      tr(
+                        'match_goals_assign_intro',
+                        namedArgs: {
+                          'teamAScore': '$_teamAScore',
+                          'teamAName': teamAName,
+                          'teamBScore': '$_teamBScore',
+                          'teamBName': teamBName,
+                        },
                       ),
                       style: const TextStyle(color: Colors.white70),
                     ),

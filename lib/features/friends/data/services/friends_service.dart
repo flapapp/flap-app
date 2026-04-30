@@ -1,5 +1,4 @@
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/core/supabase/coin_ledger.dart';
 import 'package:flap_app/core/supabase/supabase_date.dart';
@@ -17,15 +16,15 @@ class FriendsService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('friend_error_not_signed_in'));
       }
       if (toUserId == currentUser.id) {
-        throw Exception('Неможливо додати себе у друзі');
+        throw Exception(tr('friend_error_cannot_add_self'));
       }
 
       final areFriends = await areUsersFriends(currentUser.id, toUserId);
       if (areFriends) {
-        throw Exception('Ви вже друзі з цим користувачем');
+        throw Exception(tr('friend_error_already_friends'));
       }
 
       final pendingBetween =
@@ -34,14 +33,9 @@ class FriendsService {
         final p = pendingBetween.first;
         final from = p['from_user_id'].toString();
         if (from == currentUser.id) {
-          throw Exception('Запрошення вже надіслано');
+          throw Exception(tr('friend_error_invite_already_sent'));
         }
-        throw Exception(
-          bilingual(
-            'Цей користувач уже надіслав вам запрошення. Відповідайте у розділі Друзі.',
-            'This user already sent you a request. Respond in Friends.',
-          ),
-        );
+        throw Exception(tr('friend_error_respond_in_friends'));
       }
 
       final fromProfile = await _client
@@ -56,7 +50,7 @@ class FriendsService {
           .maybeSingle();
 
       if (fromProfile == null || toProfile == null) {
-        throw Exception('Користувача не знайдено');
+        throw Exception(tr('friend_error_profile_not_found'));
       }
 
       final toName = _profileDisplayName(toProfile);
@@ -77,21 +71,13 @@ class FriendsService {
         currentUser.id,
         'friend_request_sent',
         3,
-        bilingual(
-          'Надіслано запрошення в друзі: $toName',
-          'Friend invite sent to: $toName',
-        ),
+        tr('friend_coin_invite_sent', namedArgs: {'name': toName}),
       );
 
       return true;
     } on PostgrestException catch (e) {
       if (e.code == '23505') {
-        throw Exception(
-          bilingual(
-            'Запрошення вже існує або очікує відповіді',
-            'A friend request already exists or is pending',
-          ),
-        );
+        throw Exception(tr('friend_error_request_exists'));
       }
       print('Error sending friend request: $e');
       rethrow;
@@ -183,7 +169,7 @@ class FriendsService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('friend_error_not_signed_in'));
       }
 
       final row = await _client
@@ -203,17 +189,17 @@ class FriendsService {
           .maybeSingle();
 
       if (row == null) {
-        throw Exception('Запрошення не знайдено');
+        throw Exception(tr('friend_error_request_not_found'));
       }
 
       final request = FriendRequest.fromSupabase(Map<String, dynamic>.from(row));
 
       if (request.toUserId != currentUser.id) {
-        throw Exception('Це не ваше запрошення');
+        throw Exception(tr('friend_error_not_your_request'));
       }
 
       if (!request.isPending) {
-        throw Exception('Запрошення вже оброблено');
+        throw Exception(tr('friend_error_request_processed'));
       }
 
       try {
@@ -234,9 +220,9 @@ class FriendsService {
           request.toUserId,
           'friend_added',
           5,
-          bilingual(
-            'Новий друг: ${request.fromUserName}',
-            'New friend: ${request.fromUserName}',
+          tr(
+            'friend_coin_new_friend',
+            namedArgs: {'name': request.fromUserName},
           ),
         );
       }
@@ -252,7 +238,7 @@ class FriendsService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('friend_error_not_signed_in'));
       }
 
       final row = await _client
@@ -262,15 +248,15 @@ class FriendsService {
           .maybeSingle();
 
       if (row == null) {
-        throw Exception('Запрошення не знайдено');
+        throw Exception(tr('friend_error_request_not_found'));
       }
 
       if (row['from_user_id'].toString() != currentUser.id) {
-        throw Exception('Це не ваше запрошення');
+        throw Exception(tr('friend_error_not_your_request'));
       }
 
       if (row['status'] != 'pending') {
-        throw Exception('Запрошення вже оброблено');
+        throw Exception(tr('friend_error_request_processed'));
       }
 
       await _client.from('friend_requests').update(<String, dynamic>{
@@ -377,18 +363,15 @@ class FriendsService {
   String _translateFriendRpcError(PostgrestException e) {
     final m = e.message;
     if (m.contains('Friend request not found')) {
-      return bilingual('Запрошення не знайдено', 'Friend request not found');
+      return tr('friend_error_request_not_found');
     }
     if (m.contains('Not your friend request')) {
-      return bilingual('Це не ваше запрошення', 'Not your friend request');
+      return tr('friend_error_not_your_request');
     }
     if (m.contains('Friend request already processed')) {
-      return bilingual(
-        'Запрошення вже оброблено',
-        'Friend request already processed',
-      );
+      return tr('friend_error_request_processed');
     }
-    return bilingual('Помилка: $m', m);
+    return tr('friend_error_with_message', namedArgs: {'message': m});
   }
 
   Future<bool> areUsersFriends(String userId1, String userId2) async {
@@ -417,12 +400,12 @@ class FriendsService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('friend_error_not_signed_in'));
       }
 
       final areFriends = await areUsersFriends(currentUser.id, friendId);
       if (!areFriends) {
-        throw Exception('Ви не друзі з цим користувачем');
+        throw Exception(tr('friend_error_not_friends'));
       }
 
       await _client

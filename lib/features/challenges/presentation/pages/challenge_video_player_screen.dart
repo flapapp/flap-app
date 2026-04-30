@@ -40,9 +40,9 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   bool _isLoading = true;
   String? _error;
   
-  // Голосування за відео в челенджі (0.00 - 5.00 з кроком 0.01) - ОДНИМ повзунком
+  // Challenge video vote (0.00–5.00, step 0.01) — single slider
   double _rating = 2.50;
-  double _tempRating = 2.50; // Тимчасове значення для плавності
+  double _tempRating = 2.50; // Temporary value for smooth slider updates
   bool _hasVoted = false;
   bool _isVoting = false;
   final ValueNotifier<double> _tempRatingNotifier = ValueNotifier<double>(2.50);
@@ -366,7 +366,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
               ),
             ),
 
-          // Voting Section - ОДНИМ повзунком для челенджів
+          // Voting section — single slider for challenges
           Expanded(
             flex: 2,
             child: SingleChildScrollView(

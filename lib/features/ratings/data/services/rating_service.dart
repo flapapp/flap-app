@@ -116,14 +116,16 @@ class RatingService {
     required Map<String, double> criteria,
   }) async {
     if (playerId == ratedBy) {
-      throw Exception('Не можна оцінювати самого себе');
+      throw Exception(tr('rating_error_cannot_rate_self'));
     }
     for (final criterion in _matchCriteria) {
       if (!criteria.containsKey(criterion)) {
-        throw Exception('Відсутній критерій: $criterion');
+        throw Exception(
+          tr('rating_error_missing_criterion', namedArgs: {'criterion': criterion}),
+        );
       }
       if (criteria[criterion]! < 0.0 || criteria[criterion]! > 5.0) {
-        throw Exception('Оцінка має бути від 0.0 до 5.0');
+        throw Exception(tr('submission_error_rating_range'));
       }
     }
 
@@ -136,7 +138,7 @@ class RatingService {
         .map((r) => (r as Map<String, dynamic>)['user_id'].toString())
         .toSet();
     if (!ids.contains(playerId) || !ids.contains(ratedBy)) {
-      throw Exception('Лише учасники можуть оцінювати');
+      throw Exception(tr('rating_error_match_participants_only'));
     }
 
     double total = 0.0;
@@ -202,10 +204,12 @@ class RatingService {
     try {
       for (final criterion in _videoCriteria) {
         if (!criteria.containsKey(criterion)) {
-          throw Exception('Відсутній критерій: $criterion');
+          throw Exception(
+            tr('rating_error_missing_criterion', namedArgs: {'criterion': criterion}),
+          );
         }
         if (criteria[criterion]! < 0.0 || criteria[criterion]! > 5.0) {
-          throw Exception('Оцінка має бути від 0.0 до 5.0');
+          throw Exception(tr('submission_error_rating_range'));
         }
       }
 
@@ -244,9 +248,9 @@ class RatingService {
           .maybeSingle();
       if (video != null) {
         final authorId = (video['user_id'] ?? '').toString();
-        final videoTitle = (video['title'] ?? 'Відео').toString();
+        final videoTitle = (video['title'] ?? tr('video_fallback_title')).toString();
         if (authorId.isNotEmpty && authorId != ratedBy) {
-          var voterName = 'Користувач';
+          var voterName = tr('anonymous_user');
           try {
             final voter = await _sb
                 .from('profiles')
@@ -260,7 +264,7 @@ class RatingService {
                           '${voter['first_name'] ?? ''} ${voter['last_name'] ?? ''}'
                               .trim() ??
                           AppAuth.currentUserEmail?.split('@')[0] ??
-                          'Користувач')
+                          tr('anonymous_user'))
                       .toString();
             }
           } catch (_) {}
@@ -268,7 +272,10 @@ class RatingService {
           final oldRating = await getUserRating(authorId);
           await _updatePlayerRating(
             authorId,
-            reason: 'Оцінка відео ${weightedRating.toStringAsFixed(1)}',
+            reason: tr(
+              'rating_reason_video_score',
+              namedArgs: {'rating': weightedRating.toStringAsFixed(1)},
+            ),
             source: voterName,
             sourceType: 'video',
             sourceId: videoId,
@@ -376,6 +383,24 @@ class RatingService {
     return row?['id']?.toString();
   }
 
+  /// Matches UI filter values across locales and legacy literals.
+  bool _meansAllCitiesFilter(String? value) {
+    if (value == null || value.trim().isEmpty) return true;
+    final v = value.trim();
+    return v == tr('all_cities') ||
+        v == tr('filter_all_cities_alt') ||
+        v == 'All cities' ||
+        v == 'Всі міста';
+  }
+
+  bool _meansAllPositionsFilter(String? value) {
+    if (value == null || value.trim().isEmpty) return true;
+    final v = value.trim();
+    return v == tr('il_0e333190c1') ||
+        v == 'All positions' ||
+        v == 'Всі позиції';
+  }
+
   Future<List<Map<String, dynamic>>> getTopPlayers({
     int limit = 50,
     String? city,
@@ -391,16 +416,10 @@ class RatingService {
         final rating = await getUserRating(id);
         final userCity = (p['city'] ?? '').toString();
         final userPosition = (p['position'] ?? '').toString();
-        if (city != null &&
-            city.isNotEmpty &&
-            city != 'Всі міста' &&
-            userCity != city) {
+        if (!_meansAllCitiesFilter(city) && userCity != city) {
           continue;
         }
-        if (position != null &&
-            position.isNotEmpty &&
-            position != 'Всі позиції' &&
-            userPosition != position) {
+        if (!_meansAllPositionsFilter(position) && userPosition != position) {
           continue;
         }
         final matches = await _sb
@@ -416,8 +435,8 @@ class RatingService {
               p['nickname'] ??
               '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}'.trim(),
           'rating': rating,
-          'city': userCity.isNotEmpty ? userCity : 'Невідомо',
-          'position': userPosition.isNotEmpty ? userPosition : 'Невідомо',
+          'city': userCity.isNotEmpty ? userCity : tr('unknown'),
+          'position': userPosition.isNotEmpty ? userPosition : tr('unknown'),
           'totalMatches': (matches as List<dynamic>).length,
           'totalVideos': (videos as List<dynamic>).length,
           'avatarUrl': p['avatar_url'] ?? '',
@@ -512,7 +531,7 @@ class RatingService {
         await recomputeOverallRating(
           uid,
           reason: 'manual_recompute',
-          source: 'Адмін',
+          source: tr('admin_display_name'),
           sourceType: 'system',
           sourceId: matchId,
         );
@@ -529,7 +548,7 @@ class RatingService {
         await recomputeOverallRating(
           id,
           reason: 'manual_recompute',
-          source: 'Адмін',
+          source: tr('admin_display_name'),
           sourceType: 'system',
           sourceId: 'bulk',
         );

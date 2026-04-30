@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +23,7 @@ import '../../data/models/team_stats.dart';
 import '../../../friends/data/models/friend_request.dart';
 import '../../data/models/team_join_request.dart';
 import '../../../../widgets/team_logo_button.dart';
+import 'package:flap_app/city_localization.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../matches/presentation/pages/create_match_screen.dart';
 import '../../../matches/presentation/pages/match_details_screen.dart';
@@ -197,8 +197,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
             runSpacing: 8,
             children: [
               if (team.city != null)
-                _infoChip(Icons.location_on,
-                    bilingual(team.city!, team.city!)),
+                _infoChip(Icons.location_on, localizeCity(team.city!)),
               _infoChip(
                 Icons.public,
                 team.isPublic
@@ -376,7 +375,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                 setState(() => _isLeavingTeam = true);
                 await _teamsRepo.leaveTeam(teamId: team.id, userId: userId);
                 if (!mounted) return;
-                Navigator.pop(context); // назад зі сторінки команди
+                Navigator.pop(context); // Back from team page
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(

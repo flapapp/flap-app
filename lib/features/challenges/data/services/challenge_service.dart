@@ -94,20 +94,18 @@ class ChallengeService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('submission_error_not_signed_in'));
       }
 
       final allowed = await _canCreateBySubscription(currentUser.id);
       if (!allowed) {
-        throw Exception(
-          'Ліміт челенджів на місяць вичерпано. Оформіть підписку для необмежених челенджів!',
-        );
+        throw Exception(tr('challenge_error_monthly_limit'));
       }
 
       final entryFee = challenge.entryFee;
       final coins = await coinBalance(_sb, currentUser.id);
       if (coins < entryFee) {
-        throw Exception('Недостатньо монет для створення челенджу');
+        throw Exception(tr('challenge_error_insufficient_coins_create'));
       }
       if (entryFee > 0) {
         await insertCoinTransaction(
@@ -115,7 +113,7 @@ class ChallengeService {
           currentUser.id,
           'challenge_create_fee',
           -entryFee,
-          'Challenge creation fee: ${challenge.title}',
+          tr('coin_ledger_challenge_create_fee', namedArgs: {'title': challenge.title}),
         );
       }
 
@@ -164,19 +162,25 @@ class ChallengeService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('submission_error_not_signed_in'));
       }
       final challenge = await _loadChallenge(challengeId);
-      if (challenge == null) throw Exception('Челендж не знайдено');
-      if (!challenge.canJoin) throw Exception('Не можна приєднатися до цього челенджу');
+      if (challenge == null) throw Exception(tr('challenge_error_not_found'));
+      if (!challenge.canJoin) throw Exception(tr('challenge_error_cannot_join'));
       if (challenge.participants.contains(currentUser.id)) {
-        throw Exception('Ви вже учасник цього челенджу');
+        throw Exception(tr('challenge_error_already_participant'));
       }
 
       final coins = await coinBalance(_sb, currentUser.id);
       if (coins < challenge.entryFee) {
         throw Exception(
-          'Недостатньо монет! Потрібно: ${challenge.entryFee}, у вас: $coins',
+          tr(
+            'challenge_error_join_insufficient_coins',
+            namedArgs: {
+              'required': '${challenge.entryFee}',
+              'balance': '$coins',
+            },
+          ),
         );
       }
 
@@ -192,7 +196,7 @@ class ChallengeService {
           currentUser.id,
           'challenge_entry_fee',
           -challenge.entryFee,
-          'Challenge entry fee: ${challenge.title}',
+          tr('coin_ledger_challenge_entry_fee', namedArgs: {'title': challenge.title}),
         );
       }
       return true;
@@ -206,18 +210,18 @@ class ChallengeService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('submission_error_not_signed_in'));
       }
       final challenge = await _loadChallenge(challengeId);
-      if (challenge == null) throw Exception('Челендж не знайдено');
+      if (challenge == null) throw Exception(tr('challenge_error_not_found'));
       if (!challenge.canSubmit) {
-        throw Exception('Не можна подати відео на цей челендж');
+        throw Exception(tr('challenge_error_cannot_submit_video'));
       }
       if (!challenge.participants.contains(currentUser.id)) {
-        throw Exception('Ви не учасник цього челенджу');
+        throw Exception(tr('challenge_error_not_participant'));
       }
       if (challenge.submissions.contains(currentUser.id)) {
-        throw Exception('Ви вже подали відео на цей челендж');
+        throw Exception(tr('challenge_error_already_submitted_video'));
       }
 
       final subDesc = challenge.description.trim();
@@ -252,15 +256,15 @@ class ChallengeService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('submission_error_not_signed_in'));
       }
-      if (currentUser.id == userId) throw Exception('Не можна голосувати за себе');
+      if (currentUser.id == userId) throw Exception(tr('challenge_error_cannot_vote_self'));
 
       final challenge = await _loadChallenge(challengeId);
-      if (challenge == null) throw Exception('Челендж не знайдено');
-      if (!challenge.canVote) throw Exception('Голосування не відкрите');
+      if (challenge == null) throw Exception(tr('challenge_error_not_found'));
+      if (!challenge.canVote) throw Exception(tr('challenge_error_voting_not_open'));
       if (challenge.votes.containsKey(currentUser.id)) {
-        throw Exception('Ви вже голосували за це відео');
+        throw Exception(tr('challenge_error_already_voted'));
       }
 
       final submission = await _sb
@@ -269,7 +273,7 @@ class ChallengeService {
           .eq('challenge_id', challengeId)
           .eq('user_id', userId)
           .maybeSingle();
-      if (submission == null) throw Exception('Submission not found');
+      if (submission == null) throw Exception(tr('challenge_error_submission_not_found'));
 
       final totalRating = ((criteria['technical'] ?? 0) * 0.4 +
               (criteria['creativity'] ?? 0) * 0.3 +
@@ -301,15 +305,15 @@ class ChallengeService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('submission_error_not_signed_in'));
       }
       final challenge = await _loadChallenge(challengeId);
-      if (challenge == null) throw Exception('Челендж не знайдено');
+      if (challenge == null) throw Exception(tr('challenge_error_not_found'));
       if (challenge.creatorId != currentUser.id) {
-        throw Exception('Тільки створювач може завершити челендж');
+        throw Exception(tr('challenge_error_only_creator_complete'));
       }
       if (challenge.status == ChallengeStatus.completed) {
-        throw Exception('Челендж вже завершено');
+        throw Exception(tr('challenge_error_already_completed'));
       }
 
       final result = await _finalizeChallenge(challenge);
@@ -361,12 +365,12 @@ class ChallengeService {
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) {
-        throw Exception('Користувач не авторизований');
+        throw Exception(tr('submission_error_not_signed_in'));
       }
       final challenge = await _loadChallenge(challengeId);
-      if (challenge == null) throw Exception('Челендж не знайдено');
+      if (challenge == null) throw Exception(tr('challenge_error_not_found'));
       if (challenge.creatorId != currentUser.id) {
-        throw Exception('Тільки створювач може видалити челендж');
+        throw Exception(tr('challenge_error_only_creator_delete'));
       }
       await _sb.from('challenges').delete().eq('id', challengeId);
       return true;
@@ -395,9 +399,9 @@ class ChallengeService {
   Future<bool> addVideoToChallenge(String challengeId, String userId) async {
     try {
       final challenge = await _loadChallenge(challengeId);
-      if (challenge == null) throw Exception('Челендж не знайдено');
+      if (challenge == null) throw Exception(tr('challenge_error_not_found'));
       if (challenge.status == ChallengeStatus.completed) {
-        throw Exception('Челендж неактивний. Не можна додавати відео.');
+        throw Exception(tr('challenge_error_challenge_inactive_no_video'));
       }
 
       try {
@@ -466,7 +470,7 @@ class ChallengeService {
           final countryUsers = await _sb
               .from('profiles')
               .select('id')
-              .eq('country', 'Україна')
+              .or('country.eq.Ukraine,country.eq.Україна')
               .limit(100);
           for (final raw in countryUsers as List<dynamic>) {
             targetUserIds.add((raw as Map<String, dynamic>)['id'].toString());

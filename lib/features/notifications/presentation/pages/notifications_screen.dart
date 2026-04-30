@@ -2,7 +2,6 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/di/injection.dart';
@@ -107,7 +106,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             final notifications =
                 state is NotificationLoaded ? state.notifications : <AppNotification>[];
             if (notifications.isEmpty) return _buildEmptyState();
-            return _buildNotificationsList(notifications);
+            return _buildNotificationsList(context, notifications);
           },
         ),
       ),
@@ -155,9 +154,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildNotificationsList(List<AppNotification> notifications) {
+  Widget _buildNotificationsList(
+    BuildContext context,
+    List<AppNotification> notifications,
+  ) {
     // Group notifications by date
-    final groupedNotifications = _groupNotificationsByDate(notifications);
+    final groupedNotifications = _groupNotificationsByDate(context, notifications);
     
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -364,7 +366,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  List<Map<String, dynamic>> _groupNotificationsByDate(List<AppNotification> notifications) {
+  List<Map<String, dynamic>> _groupNotificationsByDate(
+    BuildContext context,
+    List<AppNotification> notifications,
+  ) {
     final groups = <Map<String, dynamic>>[];
     final now = DateTime.now();
     
@@ -379,10 +384,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       } else if (_isSameDay(date, now.subtract(const Duration(days: 1)))) {
         dateKey = tr('il_566181254b');
       } else if (now.difference(date).inDays < 7) {
-        final weekdays = currentAppLanguageCode() == 'en' 
-            ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-            : ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота'];
-        dateKey = weekdays[date.weekday % 7];
+        dateKey = DateFormat.EEEE(context.locale.toString()).format(date);
       } else {
         dateKey = '${date.day}.${date.month.toString().padLeft(2, '0')}.${date.year}';
       }
@@ -444,7 +446,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return;
     }
 
-    // Fallback by type if actionUrl відсутній у старих записах
+    // Fallback by type when actionUrl is missing in legacy records
     switch (notification.type) {
       case NotificationType.challengeInvitation:
       case NotificationType.challengeUpdate:
@@ -574,10 +576,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   
     Future<void> _openMatchById(String matchId) async {
-    print('🔍 NOTIFICATION: Opening match with ID: $matchId');
+    print('[notification] Opening match with ID: $matchId');
     try {
       final row = await _sb.from('matches').select().eq('id', matchId).maybeSingle();
-      print('🔍 NOTIFICATION: Match doc exists: ${row != null}');
+      print('[notification] Match doc exists: ${row != null}');
       if (row == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -603,13 +605,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'createdAt': row['created_at'],
         'status': row['status'],
       }));
-      print('🔍 NOTIFICATION: Match loaded: ${match.title}');
+      print('[notification] Match loaded: ${match.title}');
       if (!mounted) return;
-      print('🔍 NOTIFICATION: Navigating to match-details...');
+      print('[notification] Navigating to match-details...');
       context.router.push(MatchDetailsRoute(match: match));
-      print('✅ NOTIFICATION: Navigation complete');
+      print('[notification] Navigation complete');
     } catch (e) {
-      print('❌ NOTIFICATION: Error opening match: $e');
+      print('[notification] ERROR opening match: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

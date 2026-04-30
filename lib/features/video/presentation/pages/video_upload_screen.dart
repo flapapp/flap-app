@@ -1,7 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -125,7 +124,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Заголовок
+                // Header
                 Text(
                   widget.challengeId != null 
                     ? tr('il_cde4c7cfff')
@@ -148,7 +147,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                 ),
                 const SizedBox(height: 30),
 
-                // Вибір відео
+                // Video selection
                 GestureDetector(
                   onTap: _isUploading ? null : () => _pickVideo(fromCamera: false),
                   child: Container(
@@ -220,7 +219,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                   ),
                 ),
                 const SizedBox(height: 30),
-                // Швидкий вибір джерела: Галерея / Камера
+                // Quick source: gallery / camera
                 Row(
                   children: [
                     Expanded(
@@ -250,9 +249,9 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Поля тільки для звичайних відео (не для челенджів)
+                // Fields for normal videos only (not challenges)
                 if (widget.challengeId == null) ...[
-                  // Назва відео
+                  // Video title
                   Container(
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.15),
@@ -280,7 +279,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Опис
+                // Description
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.15),
@@ -300,7 +299,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Категорія
+                // Category
                 StyledDropdownFormField<String>(
                   value: _selectedCategory ?? '',
                   labelText: tr('il_292c06f004'),
@@ -384,7 +383,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Складність
+                // Difficulty
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.15),
@@ -423,9 +422,9 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                   ),
                 ),
                 const SizedBox(height: 30),
-                ], // Закриваємо блок полів для звичайних відео
+                ], // End normal-video fields block
 
-                // Прогрес завантаження
+                // Upload progress
                 if (_isUploading) ...[
                   Column(
                     children: [
@@ -436,9 +435,11 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        bilingual(
-                          'Завантаження: ${(_uploadProgress * 100).toInt()}%',
-                          'Uploading: ${(_uploadProgress * 100).toInt()}%',
+                        tr(
+                          'upload_progress_percent',
+                          namedArgs: {
+                            'percent': '${(_uploadProgress * 100).toInt()}',
+                          },
                         ),
                         style: const TextStyle(
                           color: Colors.white,
@@ -450,7 +451,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
                   ),
                 ],
 
-                // Кнопка завантаження
+                // Upload button
                 Container(
                   width: double.infinity,
                   height: 50,
@@ -514,13 +515,13 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         );
       }
 
-      // Генеруємо унікальні імена файлів
+      // Generate unique file names
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'video_${user.id}_$timestamp.mp4';
       
-      print('🎬 Starting video upload: $fileName');
+      print('[video_upload] Starting video upload: $fileName');
 
-      // Завантажуємо відео (на всіх платформах через байти для веб-сумісності)
+      // Upload video bytes (web-compatible)
       final bytes = await _pickedVideo!.readAsBytes();
       if (!mounted) return;
       setState(() => _uploadProgress = 0.15);
@@ -537,7 +538,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       if (!mounted) return;
       setState(() => _uploadProgress = 1.0);
       
-      print('✅ Video uploaded successfully: $videoUrl');
+      print('[video_upload] Video uploaded successfully: $videoUrl');
 
       if (widget.challengeId != null) {
         await _submitVideoToChallengeOnly(client, videoUrl, user.id);
@@ -585,11 +586,11 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
 
         final videoDoc = await client.from('videos').insert(videoData).select('id').single();
         final videoId = (videoDoc['id'] ?? '').toString();
-        print('✅ Video document created: $videoId');
+        print('[video_upload] Video document created: $videoId');
         _generateThumbnailInBackground(videoId, videoUrl, user.id);
       }
 
-      // Показуємо успішне повідомлення
+      // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -598,12 +599,12 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
           ),
         );
 
-        // Повертаємося на попередній екран
+        // Pop back to previous screen
         Navigator.pop(context);
       }
 
     } catch (e) {
-      print('❌ Error uploading video: $e');
+      print('[video_upload] ERROR uploading video: $e');
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -647,7 +648,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       onConflict: 'challenge_id,user_id',
     );
 
-    print('✅ Video submitted to challenge (submission only): ${widget.challengeId}');
+    print('[video_upload] Video submitted to challenge (submission only): ${widget.challengeId}');
   }
 
   void _generateChallengeSubmissionThumbnailInBackground(
@@ -666,19 +667,19 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
           userId: userId,
         );
         if (thumbnailUrl != null) {
-          print('✅ Challenge submission thumbnail: $thumbnailUrl');
+          print('[video_upload] Challenge submission thumbnail: $thumbnailUrl');
         }
       } catch (e) {
-        print('❌ Challenge submission thumbnail error: $e');
+        print('[video_upload] ERROR challenge submission thumbnail: $e');
       }
     });
   }
 
   void _generateThumbnailInBackground(String videoId, String videoUrl, String userId) {
-    // Генеруємо thumbnail в фоновому режимі, не блокуючи UI
+    // Generate thumbnail in background without blocking UI
     Future.delayed(const Duration(seconds: 2), () async {
       try {
-        print('🎬 Starting background thumbnail generation for: $videoId');
+        print('[video_upload] Starting background thumbnail generation for: $videoId');
         
         final thumbnailService = ThumbnailService();
         final thumbnailUrl = await thumbnailService.generateAndUploadThumbnail(
@@ -688,13 +689,13 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         );
 
         if (thumbnailUrl != null) {
-          print('✅ Thumbnail generated successfully: $thumbnailUrl');
+          print('[video_upload] Thumbnail generated successfully: $thumbnailUrl');
         } else {
-          print('⚠️ Thumbnail generation failed, but video upload was successful');
+          print('[video_upload] WARN: Thumbnail generation failed, but video upload was successful');
         }
       } catch (e) {
-        print('❌ Background thumbnail generation error: $e');
-        // Не показуємо помилку користувачу, оскільки відео вже завантажено
+        print('[video_upload] ERROR background thumbnail generation: $e');
+        // Swallow thumbnail errors; video already uploaded
       }
     });
   }

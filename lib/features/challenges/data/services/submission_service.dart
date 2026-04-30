@@ -5,7 +5,6 @@ import '../../../../core/supabase/coin_ledger.dart';
 import '../../../../core/di/injection.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../data/models/submission.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
 class SubmissionService {
@@ -58,7 +57,7 @@ class SubmissionService {
   }) async {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) {
-      throw Exception('Користувач не авторизований');
+      throw Exception(tr('submission_error_not_signed_in'));
     }
 
     final profile = await _sb
@@ -67,7 +66,7 @@ class SubmissionService {
         .eq('id', currentUser.id)
         .maybeSingle();
     if (profile == null) {
-      throw Exception('Дані користувача не знайдено');
+      throw Exception(tr('submission_error_user_not_found'));
     }
 
     final existing = await _sb
@@ -77,7 +76,7 @@ class SubmissionService {
         .eq('user_id', currentUser.id)
         .limit(1);
     if ((existing as List<dynamic>).isNotEmpty) {
-      throw Exception('Ви вже подали відео до цього челенджу');
+      throw Exception(tr('submission_error_already_submitted'));
     }
 
     final d = description?.trim() ?? '';
@@ -100,7 +99,7 @@ class SubmissionService {
       currentUser.id,
       'challenge_submission',
       20,
-      bilingual('Участь в челенджі: $title', 'Challenge entry: $title'),
+      tr('coin_ledger_challenge_entry', namedArgs: {'title': title}),
     );
 
     return submissionId;
@@ -109,10 +108,10 @@ class SubmissionService {
   Future<bool> voteForSubmission(String submissionId, double rating) async {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) {
-      throw Exception('Користувач не авторизований');
+      throw Exception(tr('submission_error_not_signed_in'));
     }
     if (rating < 0.0 || rating > 5.0) {
-      throw Exception('Оцінка має бути від 0.0 до 5.0');
+      throw Exception(tr('submission_error_rating_range'));
     }
 
     final row = await _sb
@@ -121,11 +120,11 @@ class SubmissionService {
         .eq('id', submissionId)
         .maybeSingle();
     if (row == null) {
-      throw Exception('Відео не знайдено');
+      throw Exception(tr('submission_error_video_not_found'));
     }
     final ownerId = (row['user_id'] ?? '').toString();
     if (ownerId == currentUser.id) {
-      throw Exception('Ви не можете голосувати за власне відео');
+      throw Exception(tr('submission_error_cannot_vote_own'));
     }
 
     await _sb.from('challenge_submission_ratings').upsert(<String, dynamic>{
@@ -144,7 +143,7 @@ class SubmissionService {
 
     await _notificationService.sendVideoVoteNotification(
       toUserId: ownerId,
-      videoTitle: ((row['title'] ?? 'Ваше відео')).toString(),
+      videoTitle: ((row['title'] ?? tr('video_your_video_fallback'))).toString(),
       voterName: voterName,
       rating: rating,
     );
@@ -168,7 +167,7 @@ class SubmissionService {
   Future<bool> deleteSubmission(String submissionId) async {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) {
-      throw Exception('Користувач не авторизований');
+      throw Exception(tr('submission_error_not_signed_in'));
     }
     final row = await _sb
         .from('challenge_submissions')
@@ -176,10 +175,10 @@ class SubmissionService {
         .eq('id', submissionId)
         .maybeSingle();
     if (row == null) {
-      throw Exception('Відео не знайдено');
+      throw Exception(tr('submission_error_video_not_found'));
     }
     if ((row['user_id'] ?? '').toString() != currentUser.id) {
-      throw Exception('Ви можете видаляти тільки свої відео');
+      throw Exception(tr('submission_error_delete_own_only'));
     }
     await _sb.from('challenge_submissions').delete().eq('id', submissionId);
     return true;

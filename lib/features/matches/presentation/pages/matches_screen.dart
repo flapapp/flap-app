@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:flap_app/city_localization.dart';
+import '../../../../core/locale/football_position.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -33,7 +34,7 @@ class MatchesScreen extends StatefulWidget {
 
 class _MatchesScreenState extends State<MatchesScreen>
     with TickerProviderStateMixin {
-  // Назви вкладок
+  // Tab titles
   final List<String> _tabKeys = [
     'find_match',
     'my_matches',
@@ -41,7 +42,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     'ratings',
   ];
 
-  // Змінні для фільтрів
+  // Filter state variables
   late String _selectedCity;
   late String _selectedLevel;
   late String _selectedTime;
@@ -51,7 +52,7 @@ class _MatchesScreenState extends State<MatchesScreen>
   final TextEditingController _cityFilterController = TextEditingController();
   String _currentUserCity = '';
 
-  // Списки опцій для фільтрів
+  // Filter option lists
   List<String> get _cityOptions => [
     tr('all_cities'),
     tr('kyiv'),
@@ -78,11 +79,11 @@ class _MatchesScreenState extends State<MatchesScreen>
 
   List<String> get _sortOptions => ['newest', 'my_city'];
 
-  // Змінні для "Мої матчі"
+  // "My matches" state variables
   String _selectedMyMatchesFilter =
       'all'; // 'all' | 'organized' | 'participation'
 
-  // TabController для керування вкладками
+  // TabController for tab switching
   late TabController _tabController;
   bool _isLeaving = false;
   Timer? _searchDebounce;
@@ -114,7 +115,7 @@ class _MatchesScreenState extends State<MatchesScreen>
   RatingsRepository get _ratingsRepo => sl<RatingsRepository>();
   final SupabaseClient _sb = Supabase.instance.client;
   final NotificationService _notificationService = sl<NotificationService>();
-  // Стан фільтрів рейтингів (замість ValueNotifier використовуємо звичайний state)
+  // Rating filter state (plain setState instead of ValueNotifier)
   String _ratingsSelectedCity = tr('all_cities');
   String _ratingsSelectedPosition = tr('il_0e333190c1');
   Future<List<Map<String, dynamic>>>? _ratingsTopPlayersFuture;
@@ -124,14 +125,14 @@ class _MatchesScreenState extends State<MatchesScreen>
     super.initState();
     _tabController = TabController(length: _tabKeys.length, vsync: this);
 
-    // Ініціалізуємо фільтри
+    // Initialize filters
     _selectedCity = tr('all_cities');
     _selectedLevel = tr('all_levels');
     _selectedTime = tr('anytime');
     _selectedSort = 'newest';
     _loadCurrentUserCity();
 
-    // Завантажуємо топ гравців один раз
+    // Load top players once
     _ratingsTopPlayersFuture = _ratingsRepo.getTopPlayers(limit: 300);
 
     final idx = widget.initialTabIndex;
@@ -181,7 +182,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     });
   }
 
-  // Метод для створення фільтрів
+  // Build filter chips
   bool get _hasActiveFilters =>
       _cityFilterController.text.trim().isNotEmpty ||
       _selectedLevel != tr('all_levels') ||
@@ -482,7 +483,7 @@ class _MatchesScreenState extends State<MatchesScreen>
             },
           ),
 
-          // Кнопка скидання фільтрів
+          // Reset filters button
           SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -694,16 +695,16 @@ class _MatchesScreenState extends State<MatchesScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // ВКЛАДКА 1: Знайти матч
+          // TAB 1: Find match
           _buildFindMatchTab(),
 
-          // ВКЛАДКА 2: Мої матчі
+          // TAB 2: My matches
           _buildMyMatchesTab(),
 
-          // ВКЛАДКА 3: Історія
+          // TAB 3: History
           _buildHistoryTab(),
 
-          // ВКЛАДКА 4: Рейтинги
+          // TAB 4: Ratings
           _buildRatingsTab(),
         ],
       ),
@@ -808,7 +809,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                   ),
                   const SizedBox(height: 8),
 
-                  // Поточний рейтинг
+                  // Current rating
                   Row(
                     children: [
                       const Icon(
@@ -866,7 +867,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
                   const SizedBox(height: 16),
 
-                  // Як формується рейтинг (детально)
+                  // How the rating is calculated (detail)
                   Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
@@ -901,7 +902,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                         ),
                         const SizedBox(height: 10),
 
-                        // Формула
+                        // Formula
                         Text(
                           tr('formula'),
                           style: const TextStyle(
@@ -920,7 +921,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                         ),
 
                         const SizedBox(height: 10),
-                        // Ваги
+                        // Weights
                         Text(
                           tr('weights'),
                           style: const TextStyle(
@@ -946,7 +947,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                         ),
 
                         const SizedBox(height: 10),
-                        // Матчі
+                        // Matches
                         Text(
                           tr('il_8cb5668888'),
                           style: const TextStyle(
@@ -979,7 +980,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                         ),
 
                         const SizedBox(height: 10),
-                        // Відео/челенджі
+                        // Videos / challenges
                         Text(
                           tr('il_4f71cbdf42'),
                           style: const TextStyle(
@@ -998,7 +999,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                         ),
 
                         const SizedBox(height: 10),
-                        // Захист
+                        // Defense / anti-abuse
                         Text(
                           tr('il_b679eb4ef3'),
                           style: const TextStyle(
@@ -1017,7 +1018,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                         ),
 
                         const SizedBox(height: 10),
-                        // Рівні гравців
+                        // Player tiers
                         Text(
                           tr('il_8ea73ba2a4'),
                           style: const TextStyle(
@@ -1040,7 +1041,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
                   const SizedBox(height: 24),
 
-                  // Історія змін рейтингу (нове)
+                  // Rating change history (new)
                   StreamBuilder<List<Map<String, dynamic>>>(
                     stream: _sb
                         .from('profiles')
@@ -1056,7 +1057,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                           );
                       if (history.isEmpty) return const SizedBox.shrink();
 
-                      // нові зверху
+                      // Newest first
                       history.sort((a, b) {
                         final ta = _readDate(a['timestamp']);
                         final tb = _readDate(b['timestamp']);
@@ -1264,10 +1265,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                     if (txDocs.isEmpty) {
                       return Center(
                         child: Text(
-                          bilingual(
-                            'Поки немає транзакцій',
-                            'No transactions yet',
-                          ),
+                          tr('matches_no_transactions'),
                           style: const TextStyle(color: Colors.white70),
                         ),
                       );
@@ -1378,36 +1376,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     final now = DateTime.now();
     final difference = now.difference(dateTime);
     if (difference.inDays > 7) {
-      final months = currentAppLanguageCode() == 'en'
-          ? [
-              'Jan',
-              'Feb',
-              'Mar',
-              'Apr',
-              'May',
-              'Jun',
-              'Jul',
-              'Aug',
-              'Sep',
-              'Oct',
-              'Nov',
-              'Dec',
-            ]
-          : [
-              'січ',
-              'лют',
-              'бер',
-              'квіт',
-              'трав',
-              'черв',
-              'лип',
-              'серп',
-              'вер',
-              'жовт',
-              'лист',
-              'груд',
-            ];
-      return '${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}';
+      return DateFormat.yMMMd(context.locale.toString()).format(dateTime);
     } else if (difference.inDays > 0) {
       return tr('il_adf8ee5f65', args: ['${difference.inDays}']);
     } else if (difference.inHours > 0) {
@@ -1419,7 +1388,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
   }
 
-  // ВКЛАДКА 1: Знайти матч
+  // TAB 1: Find match
   Widget _buildFindMatchTab() {
     return SingleChildScrollView(
       child: Column(
@@ -1427,7 +1396,7 @@ class _MatchesScreenState extends State<MatchesScreen>
           _buildFilterToggle(),
           if (_filtersExpanded) _buildFilters(),
 
-          // Список доступних матчів
+          // Available matches list
           StreamBuilder<List<Match>>(
             stream: _getFilteredMatches(),
             builder: (context, snapshot) {
@@ -1461,10 +1430,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        bilingual(
-                          'Немає доступних матчів',
-                          'No matches available',
-                        ),
+                        tr('matches_no_available'),
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 18,
@@ -1472,10 +1438,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        bilingual(
-                          'Створіть новий матч або зачекайте',
-                          'Create a new match or check back later',
-                        ),
+                        tr('matches_no_available_hint'),
                         style: const TextStyle(
                           color: Colors.white54,
                           fontSize: 14,
@@ -1486,7 +1449,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                 );
               }
 
-              // Лічильник + список матчів
+              // Counter + match list
               final items = snapshot.data!;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1575,14 +1538,14 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
-  // ВКЛАДКА 2: Мої матчі
+  // TAB 2: My matches
   Widget _buildMyMatchesTab() {
     return Column(
       children: [
-        // Заголовок секції з кнопкою "Створити матч"
+        // Section header with Create match button
         _buildMyMatchesHeader(),
 
-        // Фільтри "Мої матчі"
+        // My matches filters
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
           child: Row(
@@ -1611,12 +1574,12 @@ class _MatchesScreenState extends State<MatchesScreen>
           ),
         ),
 
-        // Список матчів користувача
+        // User's match list
         Expanded(
           child: StreamBuilder<List<Match>>(
             stream: _getUserMatches(),
             builder: (context, snapshot) {
-              // Показуємо помилку, якщо є
+              // Show error if present
               if (snapshot.hasError) {
                 return Center(
                   child: Text(
@@ -1629,14 +1592,14 @@ class _MatchesScreenState extends State<MatchesScreen>
                 );
               }
 
-              // Показуємо індикатор завантаження
+              // Show loading indicator
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(
                   child: CircularProgressIndicator(color: Color(0xFF4caf50)),
                 );
               }
 
-              // Показуємо повідомлення, якщо немає матчів
+              // Empty state when no matches
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return Center(
                   child: Column(
@@ -1645,10 +1608,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                       Icon(Icons.people, size: 64, color: Colors.white54),
                       SizedBox(height: 16),
                       Text(
-                        bilingual(
-                          'У вас поки немає матчів',
-                          'You don’t have any matches yet',
-                        ),
+                        tr('matches_no_user_matches'),
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 18,
@@ -1656,10 +1616,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        bilingual(
-                          'Створіть новий матч або приєднайтеся до існуючого',
-                          'Create a new match or join an existing one',
-                        ),
+                        tr('matches_no_user_matches_hint'),
                         style: const TextStyle(
                           color: Colors.white54,
                           fontSize: 14,
@@ -1670,7 +1627,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                 );
               }
 
-              // Фільтрація за чіпами
+              // Chip-based filtering
               final all = snapshot.data!;
               final currentUserId = AppAuth.currentUserId;
               List<Match> filtered = all;
@@ -1689,8 +1646,8 @@ class _MatchesScreenState extends State<MatchesScreen>
                     )
                     .toList();
               }
-              // Найближчі зверху
-              // Незіграні прострочені — вниз списку, далі найближчі зверху.
+              // Nearest matches first
+              // Unplayed overdue at bottom; nearest upcoming at top
               filtered.sort((a, b) {
                 if (a.isUnplayedByTimeout != b.isUnplayedByTimeout) {
                   return a.isUnplayedByTimeout ? 1 : -1;
@@ -1698,7 +1655,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                 return b.date.compareTo(a.date);
               });
 
-              // Показуємо список матчів користувача
+              // Render user match list
               return ListView.builder(
                 itemCount: filtered.length,
                 itemBuilder: (context, index) {
@@ -1713,7 +1670,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
-  // ВКЛАДКА 3: Історія
+  // TAB 3: History
   Widget _buildHistoryTab() {
     return StreamBuilder<List<Match>>(
       stream: _getHistoryMatches(),
@@ -1749,7 +1706,7 @@ class _MatchesScreenState extends State<MatchesScreen>
         }
         return Column(
           children: [
-            // Заголовок секції як у MVP
+            // Section header (MVP style)
             Container(
               margin: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Text(
@@ -1761,7 +1718,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                 ),
               ),
             ),
-            // Список матчів
+            // Match list
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1778,17 +1735,17 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
-  // ВКЛАДКА 4: Рейтинги (MVP)
+  // TAB 4: Ratings (MVP)
   Widget _buildRatingsTab() {
-    // Використовуємо кешований Future замість створення нового
+    // Reuse cached Future instead of creating a new one
     final topFuture =
         _ratingsTopPlayersFuture ?? Future.value(<Map<String, dynamic>>[]);
     final allPositionsLabel = tr('il_0e333190c1');
 
-    // Локальні хелпери для фільтрації (не залежать від наявності зовнішніх функцій)
+    // Local filter helpers (no dependency on external helpers)
     String norm(String? s) => (s ?? '').trim().toLowerCase();
 
-    // Синоніми міст для надійного матчінгу
+    // City synonyms for reliable matching
     final Map<String, List<String>> cityAliases = {
       'Київ': ['київ', 'kyiv', 'kiev'],
       'Kyiv': ['київ', 'kyiv', 'kiev'],
@@ -1810,32 +1767,12 @@ class _MatchesScreenState extends State<MatchesScreen>
       return aliases.contains(db);
     }
 
-    // Коди позицій
+    // Position codes
     String toCode(String uiOrCode) {
-      // Якщо вже код — повертаємо
-      switch (uiOrCode) {
-        case 'goalkeeper':
-        case 'defender':
-        case 'midfielder':
-        case 'forward':
-          return uiOrCode;
-      }
-      // Українська → код
-      switch (uiOrCode) {
-        case 'Воротар':
-          return 'goalkeeper';
-        case 'Захисник':
-          return 'defender';
-        case 'Півзахисник':
-          return 'midfielder';
-        case 'Нападник':
-          return 'forward';
-        default:
-          return uiOrCode;
-      }
+      return positionToEnglishDb(uiOrCode) ?? uiOrCode;
     }
 
-    // Побудова вузького дропдауна без підпису
+    // Compact unlabeled dropdown
     Widget narrowDropdown({
       required String value,
       required List<String> options,
@@ -1896,7 +1833,7 @@ class _MatchesScreenState extends State<MatchesScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Заголовок + ручний перерахунок
+          // Header + manual recount
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Row(
@@ -1914,7 +1851,7 @@ class _MatchesScreenState extends State<MatchesScreen>
             ),
           ),
 
-          // Підтаби
+          // Sub-tabs
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Container(
@@ -1923,7 +1860,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: SizedBox(
-                height: 56, // місце для 2 рядків
+                height: 56, // Room for two lines
                 child: TabBar(
                   isScrollable: false,
                   labelPadding: const EdgeInsets.symmetric(vertical: 6),
@@ -1996,7 +1933,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
           const SizedBox(height: 8),
 
-          // Вміст
+          // Body content
           Expanded(
             child: FutureBuilder<List<Map<String, dynamic>>>(
               future: topFuture,
@@ -2009,7 +1946,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                 final all = (snap.data ?? const <Map<String, dynamic>>[])
                     .toList();
 
-                // Гарантоване сортування за рейтингом спадаючим
+                // Sort by rating descending
                 all.sort((a, b) {
                   final ar = ((a['rating'] ?? 0) as num).toDouble();
                   final br = ((b['rating'] ?? 0) as num).toDouble();
@@ -2021,7 +1958,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                     'ratings_${_ratingsSelectedCity}_${_ratingsSelectedPosition}',
                   ),
                   children: [
-                    // 1) Загальний рейтинг
+                    // 1) Overall rating
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -2047,7 +1984,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                       ],
                     ),
 
-                    // 2) За містом
+                    // 2) By city
                     Column(
                       children: [
                         Padding(
@@ -2113,7 +2050,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                       ],
                     ),
 
-                    // 3) За позицією
+                    // 3) By position
                     Column(
                       children: [
                         Padding(
@@ -2192,7 +2129,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                       ],
                     ),
 
-                    // 4) Моя статистика
+                    // 4) My stats
                     Builder(
                       builder: (context) {
                         final uid = AppAuth.currentUserId;
@@ -2277,10 +2214,10 @@ class _MatchesScreenState extends State<MatchesScreen>
     Share.share(tr('il_df5a71b7ac') + url);
   }
 
-  // Метод для розрахунку середнього рейтингу учасників
+  // Average participant rating
   Future<double> _calculateAverageRating(List<String> participantIds) async {
     try {
-      if (participantIds.isEmpty) return 3.0; // Початковий рейтинг
+      if (participantIds.isEmpty) return 3.0; // Default rating
 
       double totalRating = 0.0;
       int ratedParticipants = 0;
@@ -2298,7 +2235,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
   }
 
-  // Метод для створення картки матчу
+  // Match card builder
   Widget _buildMatchCard(Match match) {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return SizedBox.shrink();
@@ -2346,12 +2283,12 @@ class _MatchesScreenState extends State<MatchesScreen>
 
           SizedBox(height: 12),
 
-          // Деталі матчу
+          // Match details
           _buildMatchDetails(match),
 
           SizedBox(height: 16),
 
-          // Кнопки дій
+          // Action buttons
           _buildActionButtons(match, currentUser.id),
           if (match.coverPhotoUrl?.isNotEmpty == true) ...[
             const SizedBox(height: 16),
@@ -2378,7 +2315,7 @@ class _MatchesScreenState extends State<MatchesScreen>
           const Icon(Icons.check_circle, size: 14, color: Color(0xFF81C784)),
           const SizedBox(width: 6),
           Text(
-            bilingual('Учасник', 'Joined'),
+            tr('match_joined_short'),
             style: const TextStyle(
               color: Color(0xFFE8F5E9),
               fontSize: 11.5,
@@ -2474,7 +2411,7 @@ class _MatchesScreenState extends State<MatchesScreen>
   // ... existing code ...
 
   Widget _buildMatchDetails(Match match) {
-    // Діагностика
+    // Debug / diagnostics
     print('DEBUG: Building match details for ${match.title}');
     final totalParticipants = match.participants.length;
     final confirmedCount = match.isTeamMatch
@@ -2485,7 +2422,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
     return Column(
       children: [
-        // Дата та час
+        // Date and time
         Row(
           children: [
             Icon(Icons.calendar_today, color: Colors.white70, size: 16),
@@ -2506,7 +2443,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
         SizedBox(height: 6),
 
-        // Локація
+        // Location
         Row(
           children: [
             Icon(Icons.location_city, color: Colors.white70, size: 16),
@@ -2524,7 +2461,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
         SizedBox(height: 6),
 
-        // Рівень складності
+        // Difficulty level
         Row(
           children: [
             Icon(Icons.star, color: Colors.amber, size: 16),
@@ -2538,7 +2475,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
         SizedBox(height: 8),
 
-        // Сер. рейтинг учасників (додано під MVP)
+        // Avg. participant rating (MVP)
         FutureBuilder<double>(
           future: _calculateAverageRating(match.participants),
           builder: (context, snap) {
@@ -2558,8 +2495,8 @@ class _MatchesScreenState extends State<MatchesScreen>
 
         SizedBox(height: 8),
 
-        // Кількість гравців з аватарками
-        // Кількість гравців + плашка статусу (в один ряд)
+        // Players with avatars
+        // Player count + status chip (single row)
         Row(
           children: [
             Icon(Icons.people, color: Colors.white70, size: 16),
@@ -2607,7 +2544,7 @@ class _MatchesScreenState extends State<MatchesScreen>
           _buildTeamMatchBanner(match),
         ],
 
-        // Аватарки окремим рядком, щоб не було переповнення
+        // Avatars on their own row to avoid overflow
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.only(top: 4, bottom: 4),
@@ -2623,7 +2560,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
         SizedBox(height: 8),
 
-        // Організатор
+        // Organizer
         Row(
           children: [
             PlayerAvatarButton(
@@ -2667,10 +2604,10 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   Widget _buildActionButtons(Match match, String currentUserId) {
-    // Перевіряємо статус користувача в матчі
+    // User status in this match
     final rawUserStatus = match.getUserStatus(currentUserId);
 
-    // Діагностика
+    // Debug / diagnostics
     print('DEBUG: Match ${match.title}');
     print('DEBUG: Raw user status: $rawUserStatus');
     print('DEBUG: Match status: ${match.status}');
@@ -2711,7 +2648,7 @@ class _MatchesScreenState extends State<MatchesScreen>
       );
     }
 
-    // Приватний матч — лише за запрошенням
+    // Private match — invite only
     if (match.isPrivate && !match.invitedFriends.contains(currentUserId)) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2983,14 +2920,14 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
   }
 
-  // Метод для отримання матчів користувача
+  // Fetch user's matches
   Stream<List<Match>> _getUserMatches() {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return Stream.value([]);
     return _matchRepo.getUserMatches(currentUser.id);
   }
 
-  // ІСТОРІЯ: завершені матчі користувача (новіші зверху)
+  // HISTORY: user's finished matches (newest first)
   Stream<List<Match>> _getHistoryMatches() {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return Stream.value([]);
@@ -3003,7 +2940,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     });
   }
 
-  // Метод для отримання кольору статусу
+  // Status color helper
   Color _getStatusColor(MatchStatus status, {Match? match}) {
     return buildMatchListStatusUi(status, match: match).color;
   }
@@ -3025,7 +2962,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
   }
 
-  // Заголовок секції "Мої матчі"
+  // My matches section header
   Widget _buildMyMatchesHeader() {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -3063,7 +3000,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
-  // Картка матчу для "Мої матчі"
+  // My matches card
   // version_0.1/lib/screens/matches_screen.dart
 
   Widget _buildMyMatchCard(Match match) {
@@ -3082,7 +3019,7 @@ class _MatchesScreenState extends State<MatchesScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Шапка картки: статус окремим рядком, щоб уникнути overflow
+          // Card header: status on its own row to avoid overflow
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -3097,7 +3034,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              // Дата/час + локація у Wrap: перенос і еліпсиси на вузьких екранах
+              // Date/time + location in Wrap for narrow screens
               Wrap(
                 spacing: 8,
                 runSpacing: 4,
@@ -3114,7 +3051,14 @@ class _MatchesScreenState extends State<MatchesScreen>
                       maxWidth: MediaQuery.of(context).size.width - 140,
                     ),
                     child: Text(
-                      '${match.date.day}.${match.date.month} о ${match.time}',
+                      tr(
+                        'match_card_short_date_time',
+                        namedArgs: {
+                          'day': '${match.date.day}',
+                          'month': '${match.date.month}',
+                          'time': match.time,
+                        },
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -3199,7 +3143,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
           const SizedBox(height: 8),
 
-          // Аватарки учасників (ініціали)
+          // Participant avatars (initials)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.only(top: 4, bottom: 4),
@@ -3209,7 +3153,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                   margin: const EdgeInsets.only(right: 6),
                   child: UserChip(
                     userId: id,
-                    size: 24, // ≈ радіус 12
+                    size: 24, // ~ radius 12
                     showName: false,
                   ),
                 );
@@ -3219,7 +3163,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
           SizedBox(height: 16),
 
-          // Кнопки дій
+          // Action buttons
           Row(
             children: [
               if (isOrganizer &&
@@ -3271,7 +3215,7 @@ class _MatchesScreenState extends State<MatchesScreen>
             ],
           ),
 
-          // Кнопка "Вийти з матчу" (учасник, не організатор, відкритий матч)
+          // Leave match (participant, not organizer, open match)
           if (!isOrganizer &&
               match.status == MatchStatus.open &&
               !match.isUnplayedByTimeout &&
@@ -3313,7 +3257,7 @@ class _MatchesScreenState extends State<MatchesScreen>
             ),
           ],
 
-          // Швидкі дії для організатора
+          // Quick organizer actions
           if (isOrganizer &&
               match.status != MatchStatus.cancelled &&
               !match.isUnplayedByTimeout) ...[
@@ -3334,8 +3278,8 @@ class _MatchesScreenState extends State<MatchesScreen>
                           ElevatedButton(
                             onPressed: () async {
                               final sure = await _confirm(
-                                'Сформувати команди?',
-                                'Буде виконано автобаланс за рейтингом.',
+                                tr('matches_autobalance_confirm_title'),
+                                tr('matches_autobalance_confirm_body'),
                               );
                               if (sure != true) return;
                               await _onAutoBalance(match);
@@ -3350,9 +3294,9 @@ class _MatchesScreenState extends State<MatchesScreen>
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            child: const Text(
-                              'Автобаланс',
-                              style: TextStyle(
+                            child: Text(
+                              tr('matches_autobalance_action'),
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -3368,8 +3312,8 @@ class _MatchesScreenState extends State<MatchesScreen>
                             onPressed: canStartNow
                                 ? () async {
                                     final sure = await _confirm(
-                                      'Почати матч?',
-                                      'Після початку рахунок стане доступним і дії зміняться.',
+                                      tr('matches_start_confirm_title'),
+                                      tr('matches_start_confirm_body'),
                                     );
                                     if (sure != true) return;
                                     await _onStartMatch(match);
@@ -3449,7 +3393,7 @@ class _MatchesScreenState extends State<MatchesScreen>
             ),
           ],
 
-          // Інфо для неорганізаторів
+          // Info for non-organizers
           if (!isOrganizer) ...[
             const SizedBox(height: 12),
             Row(
@@ -3471,7 +3415,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
-  // Вихід з матчу
+  // Leave match flow
   Future<void> _onLeaveMatch(Match match) async {
     try {
       final currentUser = AppAuth.currentUser;
@@ -3503,7 +3447,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
   }
 
-  // Дії організатора
+  // Organizer actions
   Future<void> _onAutoBalance(Match match) async {
     final ok = await _matchRepo.autoBalanceTeams(match.id);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -3788,12 +3732,12 @@ class _MatchesScreenState extends State<MatchesScreen>
     return names;
   }
 
-  // Картка матчу для історії (детальна як у MVP)
+  // History match card (MVP detail)
   Widget _buildHistoryMatchCard(Match match) {
     final currentUserId = AppAuth.currentUserId;
     if (currentUserId == null) return const SizedBox.shrink();
 
-    // Визначаємо результат матчу для поточного користувача
+    // Outcome for current user
     final matchResult = _getMatchResultForUser(match, currentUserId);
     final resultColor = _getResultColor(matchResult);
     final resultText = _getResultText(matchResult);
@@ -3827,7 +3771,7 @@ class _MatchesScreenState extends State<MatchesScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Заголовок та результат
+            // Header and result
             Row(
               children: [
                 Expanded(
@@ -3840,7 +3784,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                     ),
                   ),
                 ),
-                // Результат матчу
+                // Match result
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -3867,7 +3811,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
             const SizedBox(height: 12),
 
-            // Мета-інформація
+            // Meta info
             Row(
               children: [
                 const Icon(
@@ -3904,7 +3848,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
             const SizedBox(height: 8),
 
-            // Рахунок (якщо є)
+            // Score (if available)
             if (match.teamAScore != null && match.teamBScore != null) ...[
               Row(
                 children: [
@@ -3923,7 +3867,7 @@ class _MatchesScreenState extends State<MatchesScreen>
               const SizedBox(height: 8),
             ],
 
-            // Рейтинг користувача після матчу
+            // User rating after match
             FutureBuilder<double>(
               future: _ratingsRepo.getUserRating(currentUserId),
               builder: (context, snapshot) {
@@ -3951,7 +3895,7 @@ class _MatchesScreenState extends State<MatchesScreen>
               const SizedBox(height: 12),
             ],
 
-            // Кнопка деталей
+            // Details button
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -3991,7 +3935,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
-  // Визначення результату матчу для користувача
+  // User-facing match outcome
   String _getMatchResultForUser(Match match, String userId) {
     if (match.teamAScore == null || match.teamBScore == null) {
       return 'unknown';
@@ -4013,21 +3957,21 @@ class _MatchesScreenState extends State<MatchesScreen>
     return 'unknown';
   }
 
-  // Кольори для результатів
+  // Outcome colors
   Color _getResultColor(String result) {
     switch (result) {
       case 'win':
-        return const Color(0xFF4CAF50); // Зелений
+        return const Color(0xFF4CAF50); // Green
       case 'loss':
-        return const Color(0xFFf44336); // Червоний
+        return const Color(0xFFf44336); // Red
       case 'draw':
-        return const Color(0xFFFFC107); // Жовтий
+        return const Color(0xFFFFC107); // Yellow
       default:
-        return const Color(0xFF9E9E9E); // Сірий
+        return const Color(0xFF9E9E9E); // Gray
     }
   }
 
-  // Текст для результатів
+  // Outcome label text
   String _getResultText(String result) {
     switch (result) {
       case 'win':
@@ -4053,14 +3997,13 @@ class _MatchesScreenState extends State<MatchesScreen>
 
     final double rating = ((p['rating'] ?? 0) as num).toDouble();
     final String rawPosition = (p['position'] ?? '').toString();
-    final String position = _humanPosition(rawPosition);
-    final String city = (p['city'] ?? tr('unknown')).toString();
+    final String city = localizeCity((p['city'] ?? '').toString());
     final String avatar = (p['avatarUrl'] ?? p['photoUrl'] ?? '').toString();
     final _Level lvl = _levelFor(rating);
     final int matchesCount =
         ((p['totalMatches'] ?? p['matches'] ?? p['matchesPlayed'] ?? 0) as num)
             .toInt();
-    final positionLabel = _localizedPosition(position); // додаємо над Text
+    final positionLabel = positionLabelForDisplay(rawPosition);
 
     return InkWell(
       onTap: () => context.router.push(
@@ -4283,28 +4226,6 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
-  String _localizedPosition(String raw) {
-    switch (raw.toLowerCase()) {
-      case 'goalkeeper':
-      case 'воротар':
-        return tr('il_f2d20c7ee1');
-      case 'defender':
-      case 'захисник':
-        return tr('il_157ddc59b5');
-      case 'midfielder':
-      case 'півзахисник':
-        return tr('il_d332e47845');
-      case 'forward':
-      case 'нападник':
-        return tr('il_f1c65e1481');
-      case 'universal':
-      case 'універсал':
-        return tr('il_ab28eea9ef');
-      default:
-        return tr('il_a62e8c639a');
-    }
-  }
-
   Widget _chipStat(IconData icon, String label, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -4339,17 +4260,3 @@ _Level _levelFor(double rating) {
   return _Level(tr('il_ea0bedb7c8'), 0xFF9E9E9E);
 }
 
-String _humanPosition(String raw) {
-  switch (raw) {
-    case 'goalkeeper':
-      return tr('il_f2d20c7ee1');
-    case 'defender':
-      return tr('il_157ddc59b5');
-    case 'midfielder':
-      return tr('il_d332e47845');
-    case 'forward':
-      return tr('il_f1c65e1481');
-    default:
-      return raw.isEmpty ? tr('unknown') : raw;
-  }
-}

@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/common/unit.dart';
@@ -101,9 +100,12 @@ class PlayerBadgeEndorsementRepositoryImpl
           'p_target_user_id': ownerUserId,
           'p_type_code': 'badge_endorsed',
           'p_title': tr('il_cd519087d2'),
-          'p_message': bilingual(
-            '$currentName підтвердив ваш бейдж "$badgeLocalizedName"',
-            '$currentName confirmed your badge "$badgeLocalizedName"',
+          'p_message': tr(
+            'notif_badge_endorsed_by',
+            namedArgs: {
+              'name': currentName,
+              'badge': badgeLocalizedName,
+            },
           ),
           'p_data': <String, dynamic>{
             'badgeId': badgeId,

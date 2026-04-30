@@ -10,6 +10,7 @@ import '../../../video/data/services/thumbnail_service.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:flap_app/city_localization.dart';
 
 import '../cubit/challenge_details_cubit.dart';
 
@@ -252,7 +253,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
         final videos = state.submissions;
 
-        // Сортуємо клієнтською стороною: відео створювача першим
+        // Client-side sort: creator video first
         final sortedVideos = videos.toList()
           ..sort((a, b) {
             final aIsCreator = a['isCreatorVideo'] ?? false;
@@ -282,7 +283,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  // Окремий метод для модального вікна з повноширінними прев'ю
+  // Separate method for modal with full-width previews
   Widget _buildVideosListForModal(BuildContext context) {
     return BlocBuilder<ChallengeDetailsCubit, ChallengeDetailsState>(
       builder: (context, state) {
@@ -310,7 +311,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
         final videos = state.submissions;
 
-        // Сортуємо клієнтською стороною: відео створювача першим
+        // Client-side sort: creator video first
         final sortedVideos = videos.toList()
           ..sort((a, b) {
             final aIsCreator = a['isCreatorVideo'] ?? false;
@@ -335,7 +336,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  // Відео картка для модального вікна з повноширінним прев'ю
+  // Video card for modal with full-width preview
   Widget _buildModalVideoCard(
     Map<String, dynamic> data, {
     required Map<String, Map<String, dynamic>> submitterProfilesByUserId,
@@ -767,12 +768,12 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     );
   }
 
-  // Показати список учасників
+  // Show participants list
   Widget _buildActionButtons() {
     final isFinished = widget.challenge.status == ChallengeStatus.completed;
 
     if (isFinished) {
-      // Показуємо кнопку результатів для завершених челенджів
+      // Results button for completed challenges
       return ElevatedButton.icon(
         onPressed: _showResults,
         icon: const Icon(Icons.emoji_events),
@@ -790,7 +791,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       );
     }
 
-    // Для активних челенджів - звичайні кнопки
+    // Active challenges: default action buttons
     return Row(
       children: [
         Expanded(
@@ -902,7 +903,13 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Учасники челенджу (${widget.challenge.participants.length})',
+                        tr(
+                          'challenge_participants_title',
+                          namedArgs: {
+                            'count':
+                                '${widget.challenge.participants.length}',
+                          },
+                        ),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
@@ -984,8 +991,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                               final rating = (r is num)
                                   ? r.toDouble()
                                   : (double.tryParse(r.toString()) ?? 0.0);
-                              final city =
-                                  userData['city'] ?? tr('il_2491fe94a7');
+                              final city = localizeCity(
+                                (userData['city'] ?? '').toString(),
+                              );
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -1130,7 +1138,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     final nameForPlayer =
         (authorDisplayName != null && authorDisplayName.isNotEmpty)
         ? authorDisplayName
-        : 'Автор відео';
+        : tr('video_author_display_name');
     final av = authorAvatarUrl ?? '';
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1185,7 +1193,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     value: value,
                     min: 0.0,
                     max: 5.0,
-                    // без divisions для плавності
+                    // No dividers for smoother scrolling
                     activeColor: const Color(0xFF4caf50),
                     inactiveColor: Colors.white.withOpacity(0.2),
                     onChanged: hasVoted
@@ -1273,7 +1281,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
 
-    // Перевіряємо чи користувач не голосує за себе
+    // Block voting for own submission
     final submissionRow = await _sb
         .from('challenge_submissions')
         .select('id,user_id')
@@ -1344,7 +1352,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       submissionId: videoId,
       authorName: (authorName != null && authorName.isNotEmpty)
           ? authorName
-          : 'Автор відео',
+          : tr('video_author_display_name'),
       thumbnailUrl: thumbnailUrl,
     );
   }
@@ -1399,7 +1407,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           return thumbnailUrl;
         }
       } catch (e) {
-        print('⚠️ Error generating submission thumbnail: $e');
+        print('[challenge_details] WARN: Error generating submission thumbnail: $e');
       }
     }
     return null;

@@ -1,6 +1,5 @@
 import 'dart:math';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/locale/football_position.dart';
-import '../../../../utils/city_catalog.dart';
+import 'package:flap_app/city_localization.dart';
 import '../../../../core/progress/progress_status.dart';
 import '../../../../router/app_router.dart';
 import '../../../auth/domain/repositories/auth_session_repository.dart';
@@ -295,7 +294,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                         if (city.isNotEmpty) ...[
                           const SizedBox(height: 2),
                           Text(
-                            '📍 $city',
+                            '📍 ${localizeCity(city)}',
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 12,
@@ -435,7 +434,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     if (state.profile == null) {
       return Center(
         child: Text(
-          bilingual('Профіль не знайдено', 'Profile not found'),
+          tr('profile_not_found'),
           style: const TextStyle(color: Colors.white),
         ),
       );
@@ -637,7 +636,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${positionLabelForDisplay(userData['position']?.toString())} • ${CityCatalog.labelForDisplay((userData['city'] ?? '').toString())}',
+                              '${positionLabelForDisplay(userData['position']?.toString())} • ${localizeCity((userData['city'] ?? '').toString())}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -677,7 +676,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                   ),
                                   _profilePill(
                                     icon: Icons.percent,
-                                    label: 'Win rate',
+                                    label: tr('profile_win_rate_label'),
                                     value: '${winRate.toStringAsFixed(0)}%',
                                     accent: const Color(0xFF64B5F6),
                                   ),
@@ -1149,25 +1148,25 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
       child: Column(
         children: [
           _buildActionItem(
-            bilingual('👥 Друзі', '👥 Friends'),
+            tr('profile_menu_friends'),
             tr('manage_friends'),
             Icons.people,
             () => _openFriends(),
           ),
           _buildActionItem(
-            bilingual('⚽ Мої матчі', '⚽ My matches'),
+            tr('my_matches_title'),
             tr('il_224b3a8c5d'),
             Icons.sports_soccer,
             () => _openMyMatches(),
           ),
           _buildActionItem(
-            bilingual('🏆 Мої відео', '🏆 My videos'),
+            tr('my_videos_title'),
             tr('view_uploaded_videos'),
             Icons.videocam,
             () => _openMyVideos(),
           ),
           _buildActionItem(
-            bilingual('⚔️ Мої челенджі', '⚔️ My challenges'),
+            tr('my_challenges_title'),
             tr('view_challenges'),
             Icons.emoji_events,
             () => _openMyChallenges(),
@@ -1281,12 +1280,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     if (currentUserId == userId) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            bilingual(
-              'Не можна підтверджувати свої бейджі',
-              'You cannot endorse your own badges',
-            ),
-          ),
+          content: Text(tr('il_472d788d72')),
         ),
       );
       return;
@@ -1316,15 +1310,10 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           SnackBar(
             content: Text(
               f.when(
-                cache: () =>
-                    bilingual('Помилка підтвердження', 'Endorsement error'),
-                network: (m) =>
-                    m ?? bilingual('Помилка мережі', 'Network error'),
-                unexpected: (m) =>
-                    m ??
-                    bilingual('Помилка підтвердження', 'Endorsement error'),
-                auth: (_, m) =>
-                    m ?? bilingual('Помилка авторизації', 'Auth error'),
+                cache: () => tr('something_went_wrong'),
+                network: (m) => m ?? tr('connection_error'),
+                unexpected: (m) => m ?? tr('something_went_wrong'),
+                auth: (_, m) => m ?? tr('login_error'),
               ),
             ),
             backgroundColor: Colors.orange,
@@ -1369,7 +1358,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
 
   void _openBadgesStore() {
     context.router.push(const BadgesStoreRoute()).then((_) {
-      // Оновлюємо дані після повернення з магазину
+      // Refresh data after returning from store
       setState(() {});
     });
   }
@@ -1388,10 +1377,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           style: TextStyle(color: Colors.white),
         ),
         content: Text(
-          bilingual(
-            'Ви впевнені, що хочете вийти?',
-            'Are you sure you want to log out?',
-          ),
+          tr('logout_confirm_body'),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [

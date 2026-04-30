@@ -62,7 +62,7 @@ DateTime? _matchReadDateOrNull(dynamic v) {
   return null;
 }
 
-// Основний клас матчу
+// Main match model
 @JsonSerializable(explicitToJson: true)
 class Match extends MatchEntity {
   Match({
@@ -305,7 +305,7 @@ class Match extends MatchEntity {
   /// Alias retained while migrating call sites.
   Map<String, dynamic> toFirestore() => toLegacyMap();
 
-  // Копіювання з змінами
+  // copyWith
   Match copyWith({
     String? id,
     String? title,
@@ -408,14 +408,14 @@ class Match extends MatchEntity {
     );
   }
 
-  // Геттери для зручності
+  // Convenience getters
 bool get isOpen => status == MatchStatus.open;
 bool get isFull => status == MatchStatus.full;
 bool get isInProgress => status == MatchStatus.inProgress;
 bool get isFinished => status == MatchStatus.finished;
 bool get isCancelled => status == MatchStatus.cancelled;
 
-/// Нормалізований запланований час матчу (date + time).
+/// Normalized scheduled match time (date + time).
 DateTime get scheduledDateTime {
   final raw = time.trim();
   final match = RegExp(r'^(\d{1,2}):(\d{1,2})$').firstMatch(raw);
@@ -433,7 +433,7 @@ DateTime get scheduledDateTime {
   );
 }
 
-/// Незапущений матч, який "прострочився" більше ніж на 24 години.
+/// Unstarted match overdue by more than 24 hours.
 bool get isUnplayedByTimeout {
   final isStillNotStarted = status == MatchStatus.open || status == MatchStatus.full;
   if (!isStillNotStarted) return false;
@@ -495,7 +495,7 @@ bool get isUnplayedByTimeout {
     return assignments;
   }
   
-  // Перевірка ролі користувача
+  // User role checks
   bool isOrganizer(String userId) => organizerId == userId;
   bool isParticipant(String userId) => participants.contains(userId);
   bool hasPendingApplication(String userId) => pendingApplications.contains(userId);
@@ -506,7 +506,7 @@ bool get isUnplayedByTimeout {
                               !rejectedApplications.contains(userId) &&
                               currentPlayers < maxPlayers;
   
-  // Перевірка чи є команди
+  // Whether teams exist
   bool get hasTeams => teamA != null && teamB != null;
 
   List<MatchTeamEntity> get allTeams {
@@ -517,7 +517,7 @@ bool get isUnplayedByTimeout {
     return result;
   }
   
-  // Статус для конкретного користувача
+  // Status for the current user
   String getUserStatus(String userId) {
     if (organizerId == userId) {
       return 'organizer';
@@ -534,16 +534,16 @@ bool get isUnplayedByTimeout {
     return 'none';
   }
 
-  // Кількість вільних місць
+  // Open slots count
   int get availableSpots => maxPlayers - currentPlayers;
 
-  // Відсоток заповнення
+  // Fill percentage
   double get fillPercentage {
     if (maxPlayers <= 0) return 0.0;
     return (currentPlayers / maxPlayers) * 100;
   }
 
-  // Перевірка чи може користувач оцінювати
+  // Whether the user can rate
   bool canRate(String userId) => 
       participants.contains(userId) && 
       !playerRatings.any((rating) => rating.ratedBy == userId);
@@ -578,7 +578,7 @@ bool get isUnplayedByTimeout {
   
   String get costText => cost > 0 ? '${cost.toInt()} грн' : 'Безкоштовно';
   
-  // Перевірка чи можна керувати
+  // Whether the user can manage
   bool canManage(String userId) => isOrganizer(userId);
 
   @override
@@ -587,9 +587,9 @@ bool get isUnplayedByTimeout {
   }
 }
 
-// Утиліти для роботи з матчами
+// Match utilities
 class MatchUtils {
-  // Генерація назв команд
+  // Default team name generation
   static final List<String> teamNames = [
     'Blaze Foxes',
     'Storm Wolves',
@@ -632,7 +632,7 @@ class MatchUtils {
     return result;
   }
   
-  // Розрахунок середнього рейтингу команди
+  // Average team rating
   static double calculateTeamAverageRating(List<String> playerIds, Map<String, double> playerRatings) {
     if (playerIds.isEmpty) return 0.0;
     
@@ -649,7 +649,7 @@ class MatchUtils {
     return ratedPlayers > 0 ? totalRating / ratedPlayers : 0.0;
   }
   
-  // Перевірка чи матч можна почати
+  // Whether the match can be started
   static bool canStartMatch(Match match) {
     final rosterA =
         match.teamRosters['teamA'] ?? match.teamA?.playerIds ?? const <String>[];
@@ -671,7 +671,7 @@ class MatchUtils {
         rosterB.isNotEmpty;
   }
   
-  // Перевірка чи матч можна завершити
+  // Whether the match can be finished
   static bool canFinishMatch(Match match) {
     return match.isInProgress && 
            match.hasTeams && 

@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -131,7 +130,7 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
       initialDate: initial.isBefore(now) ? initial : DateTime(now.year - 18, 6, 15),
       firstDate: DateTime(1900),
       lastDate: now,
-      helpText: bilingual('Дата народження', 'Date of birth'),
+      helpText: tr('date_of_birth'),
     );
     if (picked != null && mounted) {
       setState(() {
@@ -615,10 +614,7 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    bilingual(
-                                      'Дата народження',
-                                      'Date of birth',
-                                    ),
+                                    tr('date_of_birth'),
                                     style: TextStyle(
                                       fontFamily: robotoFamily,
                                       fontSize: 12,
@@ -632,10 +628,7 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
                                             Localizations.localeOf(context)
                                                 .toString(),
                                           ).format(_dateOfBirth!)
-                                        : bilingual(
-                                            'Оберіть дату',
-                                            'Select date',
-                                          ),
+                                        : tr('select_date'),
                                     style: TextStyle(
                                       fontFamily: robotoFamily,
                                       fontSize: 16,
@@ -702,10 +695,7 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    bilingual(
-                                      'Оберіть дату народження',
-                                      'Please select your date of birth',
-                                    ),
+                                    tr('profile_select_dob_required'),
                                   ),
                                 ),
                               );
@@ -732,9 +722,9 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      bilingual(
-                                        'Не вдалося прочитати фото: $e',
-                                        'Failed to read photo: $e',
+                                      tr(
+                                        'profile_avatar_read_failed',
+                                        namedArgs: {'detail': e.toString()},
                                       ),
                                     ),
                                   ),

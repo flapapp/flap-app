@@ -14,6 +14,7 @@ import '../../data/models/team_stats.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/team_logo_button.dart';
+import 'package:flap_app/city_localization.dart';
 @RoutePage()
 class TeamHubScreen extends StatefulWidget {
   const TeamHubScreen({super.key});
@@ -651,7 +652,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
                         ),
                         if (team.city != null && team.city!.isNotEmpty)
                           Text(
-                            team.city!,
+                            localizeCity(team.city!),
                             style: const TextStyle(
                               color: Colors.white54,
                               fontSize: 11,

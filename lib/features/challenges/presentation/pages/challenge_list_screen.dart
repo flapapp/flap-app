@@ -78,10 +78,10 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Фільтри
+            // Filters
             _buildFilters(),
 
-            // Список челенджів
+            // Challenge list
             Expanded(child: _buildChallengesList()),
           ],
         ),
@@ -100,7 +100,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          // Пошук
+          // Search
           Container(
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.9),
@@ -126,7 +126,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
 
           const SizedBox(height: 15),
 
-          // Фільтри в ряд
+          // Filters row
           Row(
             children: [
               Expanded(
@@ -161,7 +161,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
 
           const SizedBox(height: 15),
 
-          // Фільтр по місту
+          // Filter by city
           _buildFilterDropdown(
             _cities,
             _cities.map((c) => c == tr('all_cities') ? '' : c).toList(),
@@ -336,7 +336,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Заголовок та тип
+                // Title and type
                 Row(
                   children: [
                     Text(
@@ -392,7 +392,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
 
                 const SizedBox(height: 15),
 
-                // Опис
+                // Description
                 if (challenge.description.isNotEmpty) ...[
                   Text(
                     challenge.description,
@@ -407,7 +407,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                   const SizedBox(height: 15),
                 ],
 
-                // Статистика
+                // Stats
                 Row(
                   children: [
                     _buildStatItem(
@@ -426,7 +426,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
 
                 const SizedBox(height: 10),
 
-                // Аудиторія та ставка
+                // Audience and entry fee
                 Row(
                   children: [
                     _buildStatItem(
@@ -448,12 +448,12 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
 
                 const SizedBox(height: 15),
 
-                // Прогрес бар
+                // Progress bar
                 _buildProgressBar(challenge),
 
                 const SizedBox(height: 15),
 
-                // Інформація про створювача та час
+                // Creator and time
                 Row(
                   children: [
                     PlayerAvatarButton(
@@ -647,7 +647,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   Stream<List<Challenge>> _getFilteredChallengesStream() {
     Stream<List<Challenge>> stream = _challengesRepo.getActiveChallenges();
 
-    // Фільтр по статусу
+    // Filter by status
     if (_selectedStatus != 'all') {
       final status = ChallengeStatus.values.firstWhere(
         (s) => s.toString().split('.').last == _selectedStatus,
@@ -656,19 +656,19 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
       stream = _challengesRepo.getChallengesByStatus(status);
     }
 
-    // Фільтр по типу
+    // Filter by type
     if (_selectedType != 'all') {
       final type = parseChallengeType(_selectedType);
       stream = _challengesRepo.getChallengesByType(type);
     }
 
-    // Фільтр по місту
+    // Filter by city
     if (_selectedCity.isNotEmpty) {
       stream = _challengesRepo.getChallengesByCity(_selectedCity);
     }
 
     return stream.map((challenges) {
-      // Фільтр по пошуковому запиту
+      // Filter by search query
       if (_searchQuery.isNotEmpty) {
         return challenges.where((challenge) {
           final query = _searchQuery.toLowerCase();

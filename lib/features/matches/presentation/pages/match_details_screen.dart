@@ -4,7 +4,6 @@ import '../../../../core/supabase/supabase_app_storage.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../router/app_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,6 +19,8 @@ import '../../../notifications/data/services/notification_service.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/user_chip.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+import 'package:flap_app/city_localization.dart';
+import '../../../../core/locale/football_position.dart';
 
 @RoutePage()
 class MatchDetailsScreen extends StatefulWidget {
@@ -45,7 +46,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   bool _isUploadingCover = false;
   final ImagePicker _imagePicker = ImagePicker();
 
-  // Кеш профілів для уникнення повторних запитів
+  // Profile cache to avoid duplicate fetches
   final Map<String, Map<String, dynamic>> _profileCache = {};
   final Map<String, AppTeam> _teamCache = {};
   final Map<String, String> _playerNameCache = {};
@@ -115,12 +116,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Заголовок та статус
+            // Title and status
             _buildHeaderSection(),
             SizedBox(height: 20),
             _buildCoverPhotoSection(),
 
-            // Основна інформація
+            // Main info
             _buildInfoSection(),
             SizedBox(height: 20),
 
@@ -131,17 +132,17 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               _buildRosterInviteBanner(),
             ],
 
-            // Склади та рахунок для завершених матчів (MVP-стиль)
+            // Lineups and score for finished matches (MVP style)
             if (widget.match.status == MatchStatus.finished)
               _buildFinishedTeamsAndScoreSection(),
             if (widget.match.status == MatchStatus.finished)
               SizedBox(height: 20),
 
-            // Учасники з детальною інформацією
+            // Participants with detail
             _buildParticipantsSection(),
             SizedBox(height: 20),
 
-            // Кнопки дій (тільки Приєднатися та Поділитися)
+            // Actions (Join and Share only)
             _buildActionButtons(),
           ],
         ),
@@ -410,9 +411,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            bilingual(
-              'Не вдалося завантажити фото: $e',
-              'Failed to upload photo: $e',
+            tr(
+              'match_photo_upload_failed',
+              namedArgs: {'detail': e.toString()},
             ),
           ),
           backgroundColor: Colors.redAccent,
@@ -456,7 +457,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           ),
           SizedBox(height: 16),
 
-          // Статистика в рядках
+          // Stats rows
           Row(
             children: [
               Expanded(
@@ -490,7 +491,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               Expanded(
                 child: _buildStatCard(
                   '💰',
-                  '${widget.match.cost} грн',
+                  tr(
+                    'match_cost_uah',
+                    namedArgs: {'amount': '${widget.match.cost}'},
+                  ),
                   tr('il_204a5eb2cd'),
                 ),
               ),
@@ -510,7 +514,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               Expanded(
                 child: _buildStatCard(
                   '🏙️',
-                  widget.match.city,
+                  localizeCity(widget.match.city),
                   tr('il_fc33f73246'),
                 ),
               ),
@@ -518,7 +522,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           ),
           SizedBox(height: 16),
 
-          // Локація
+          // Location
           Container(
             padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -975,9 +979,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             ? tr('il_d585866af0')
             : tr('il_d3bcba9446');
         final description = isPending
-            ? bilingual(
-                'Капітан "$teamName" додав вас до складу. Підтвердіть, що ви готові грати.',
-                'Captain of "$teamName" added you to the roster. Confirm you are ready to play.',
+            ? tr(
+                'match_roster_captain_added_you',
+                namedArgs: {'teamName': teamName},
               )
             : playerStatus == 'confirmed'
             ? tr('il_cf3c929b1b')
@@ -1677,7 +1681,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         }
 
         final userData = snapshot.data!;
-        final positionLabel = _localizedPosition(
+        final positionLabel = positionLabelForDisplay(
           userData['position'] as String?,
         );
         final cityLabel = _localizedCity(userData['city'] as String?);
@@ -1736,7 +1740,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 ),
                 const SizedBox(width: 12),
 
-                // Інформація про гравця
+                // Player info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1777,7 +1781,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   ),
                 ),
 
-                // Рейтинг
+                // Rating
                 const SizedBox(width: 12),
                 _buildRatingChip(ratingValue),
               ],
@@ -1849,30 +1853,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
-  String _localizedPosition(String? raw) {
-    switch ((raw ?? '').toLowerCase()) {
-      case 'goalkeeper':
-      case 'воротар':
-        return tr('il_f2d20c7ee1');
-      case 'defender':
-      case 'захисник':
-        return tr('il_157ddc59b5');
-      case 'midfielder':
-      case 'півзахисник':
-        return tr('il_d332e47845');
-      case 'forward':
-      case 'нападник':
-        return tr('il_f1c65e1481');
-      default:
-        return tr('il_ab28eea9ef');
-    }
-  }
-
   String _localizedCity(String? raw) {
     if (raw == null || raw.trim().isEmpty) {
       return tr('il_49980d893f');
     }
-    return raw;
+    return localizeCity(raw);
   }
 
   Widget _buildParticipantCardPlaceholder(String participantId) {
@@ -2543,12 +2528,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(tr('confirm')),
-        content: Text(
-          bilingual(
-            'Ви впевнені, що хочете відхилити запрошення на матч?',
-            'Are you sure you want to decline the match invitation?',
-          ),
-        ),
+        content: Text(tr('match_decline_invite_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -2615,12 +2595,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
     final aName = (widget.match.teamA?.name.isNotEmpty == true)
         ? widget.match.teamA!.name
-        : 'Команда A';
+        : tr('team_name_default_a');
     final bName = (widget.match.teamB?.name.isNotEmpty == true)
         ? widget.match.teamB!.name
-        : 'Команда B';
-    // Якщо команди відсутні або порожні, показуємо всіх учасників, розбитих навпіл,
-    // щоб уникнути розсинхрону з учасниками (MVP-фолбек лише для відображення)
+        : tr('team_name_default_b');
+    // If teams are missing or empty, show all participants split in half
+    // to avoid desync with participants (MVP display-only fallback)
     List<String> aPlayers = List<String>.from(
       widget.match.teamA?.playerIds ?? const <String>[],
     );
@@ -2654,7 +2634,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Рахунок і заголовок
+          // Score and header
           Row(
             children: [
               Expanded(
@@ -2700,7 +2680,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           ),
           SizedBox(height: 12),
 
-          // Дві колонки зі складами
+          // Two lineup columns
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -3066,7 +3046,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.white.withOpacity(0.08)),
         ),
-        child: Text('Склад відсутній', style: TextStyle(color: Colors.white70)),
+        child: Text(
+          tr('match_roster_missing'),
+          style: TextStyle(color: Colors.white70),
+        ),
       );
     }
 
@@ -3076,8 +3059,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         return FutureBuilder<Map<String, dynamic>>(
           future: _fetchUserProfile(id),
           builder: (context, snap) {
-            final profile =
-                snap.data ?? const {'displayName': 'Гравець', 'avatarUrl': ''};
+            final profile = snap.data ??
+                {'displayName': tr('player'), 'avatarUrl': ''};
             final displayName = (profile['displayName'] as String).trim();
             final avatarUrl = (profile['avatarUrl'] as String).trim();
             final initials =
@@ -3121,7 +3104,16 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       child: Text(
                         displayName.isNotEmpty
                             ? displayName
-                            : 'Гравець ${id.substring(0, id.length >= 6 ? 6 : id.length)}…',
+                            : tr(
+                                'player_display_id_fallback',
+                                namedArgs: {
+                                  'label': tr('player'),
+                                  'id': id.substring(
+                                    0,
+                                    id.length >= 6 ? 6 : id.length,
+                                  ),
+                                },
+                              ),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,

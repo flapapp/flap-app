@@ -1,8 +1,8 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/coin_ledger.dart';
 import '../../data/models/badge.dart';
-import 'package:flap_app/app_locale_access.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
 class BadgeService {
@@ -73,29 +73,37 @@ class BadgeService {
   Future<bool> purchaseBadge(String badgeId) async {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) {
-      throw Exception('Користувач не авторизований');
+      throw Exception(tr('badge_error_not_signed_in'));
     }
 
     final badgeRow = await _badgeByCodeOrId(badgeId);
     if (badgeRow == null) {
-      throw Exception('Бейдж не знайдено');
+      throw Exception(tr('badge_error_not_found'));
     }
     final badge = _badgeFromRow(badgeRow).copyWith(
       price: _resolveEffectiveBadgePrice(_badgeFromRow(badgeRow)),
     );
     if (!badge.isAvailable) {
-      throw Exception('Цей бейдж недоступний для покупки');
+      throw Exception(tr('badge_error_not_for_sale'));
     }
 
     final alreadyOwned = await userOwnsBadge(currentUser.id, badgeId);
     if (alreadyOwned) {
-      throw Exception('Ви вже маєте цей бейдж');
+      throw Exception(tr('badge_error_already_owned'));
     }
 
     final balance = await coinBalance(_sb, currentUser.id);
     final effectivePrice = _resolveEffectiveBadgePrice(badge);
     if (balance < effectivePrice) {
-      throw Exception('Недостатньо монет. Потрібно: $effectivePrice, у вас: $balance');
+      throw Exception(
+        tr(
+          'badge_error_insufficient_coins',
+          namedArgs: {
+            'required': '$effectivePrice',
+            'balance': '$balance',
+          },
+        ),
+      );
     }
 
     await _sb.from('user_badges').insert(<String, dynamic>{
@@ -110,7 +118,10 @@ class BadgeService {
       currentUser.id,
       'badge_purchase',
       -effectivePrice,
-      bilingual('Покупка бейджу: $localizedBadgeName', 'Badge purchase: $localizedBadgeName'),
+      tr(
+        'coin_ledger_badge_purchase',
+        namedArgs: {'name': localizedBadgeName},
+      ),
     );
     return true;
   }
@@ -139,7 +150,7 @@ class BadgeService {
         userId,
         'badge_awarded',
         0,
-        bilingual('Отримано бейдж: $reason', 'Badge received: $reason'),
+        tr('coin_ledger_badge_awarded', namedArgs: {'reason': reason}),
       );
       return true;
     } catch (e) {
@@ -188,37 +199,37 @@ class BadgeService {
   String getCategoryDisplayName(String category) {
     switch (category) {
       case 'starter':
-        return 'Початкові';
+        return tr('badge_tab_starter');
       case 'skill':
-        return 'Навички';
+        return tr('badge_tab_skills');
       case 'achievement':
-        return 'Досягнення';
+        return tr('badge_tab_achievements');
       case 'legendary':
-        return 'Легендарні';
+        return tr('badge_tab_legendary');
       case 'special':
-        return 'Спеціальні';
+        return tr('badge_category_special');
       default:
-        return 'Інші';
+        return tr('badge_category_other');
     }
   }
 
   Future<void> checkAndAwardActivityBadges(String userId) async {
     try {
       if (!await userOwnsBadge(userId, 'rookie')) {
-        await awardBadge(userId, 'rookie', 'Перший крок у FLAP');
+        await awardBadge(userId, 'rookie', tr('badge_award_reason_rookie'));
       }
 
       final friendsRows = await _sb.from('friendships').select('friend_user_id').eq('user_id', userId);
       final friendsCount = (friendsRows as List<dynamic>).length;
       if (friendsCount >= 5 && !await userOwnsBadge(userId, 'social')) {
-        await awardBadge(userId, 'social', '5+ друзів');
+        await awardBadge(userId, 'social', tr('badge_award_reason_social'));
       }
 
       final matchesRows =
           await _sb.from('match_participants').select('id').eq('user_id', userId).eq('status', 'accepted');
       final matchesPlayed = (matchesRows as List<dynamic>).length;
       if (matchesPlayed >= 50 && !await userOwnsBadge(userId, 'veteran')) {
-        await awardBadge(userId, 'veteran', '50+ матчів');
+        await awardBadge(userId, 'veteran', tr('badge_award_reason_veteran'));
       }
 
       final ratings = await _sb
@@ -235,7 +246,7 @@ class BadgeService {
         avgVideoRating = sum / rr.length;
       }
       if (avgVideoRating >= 4.0 && !await userOwnsBadge(userId, 'skillful')) {
-        await awardBadge(userId, 'skillful', 'Середня оцінка відео 4.0+');
+        await awardBadge(userId, 'skillful', tr('badge_award_reason_skillful'));
       }
     } catch (e) {
       print('Error checking activity badges: $e');

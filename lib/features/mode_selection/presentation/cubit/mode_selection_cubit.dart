@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:bloc/bloc.dart';
 import 'package:easy_localization/easy_localization.dart';
 
-import '../../../../app_locale_access.dart';
 import '../../../../core/auth/app_auth.dart';
 import '../../../profile/domain/entities/user_profile.dart';
 import '../../../profile/domain/repositories/profile_repository.dart';
@@ -71,11 +70,15 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
     String? uid, {
     UserProfile? preloaded,
   }) async {
-    final phrase = _motivationPhrases[_random.nextInt(_motivationPhrases.length)];
+    final keys =
+        _motivationPhraseKeys[_random.nextInt(_motivationPhraseKeys.length)];
+    final baseGreeting = '${tr(keys.headKey)} ${tr(keys.tailKey)}';
+    String greetingForUser(String name) =>
+        baseGreeting.replaceAll('{name}', name);
     if (uid == null) {
       emit(
         state.copyWith(
-          greetingText: bilingual(phrase.ua, phrase.en),
+          greetingText: baseGreeting,
           ratingLineText: tr('il_70cd076bd7'),
         ),
       );
@@ -106,10 +109,7 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
 
     emit(
       state.copyWith(
-        greetingText: bilingual(
-          phrase.ua.replaceAll('{name}', name),
-          phrase.en.replaceAll('{name}', name),
-        ),
+        greetingText: greetingForUser(name),
         ratingLineText: tr(
           'il_9ed771006a',
           namedArgs: {'rating': ratingStr, 'matches': matchesStr},
@@ -132,56 +132,42 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
 
 }
 
-class _LocalizedPair {
-  final String ua;
-  final String en;
-  const _LocalizedPair(this.ua, this.en);
+class _MotivationPhraseKeys {
+  final String headKey;
+  final String tailKey;
+  const _MotivationPhraseKeys(this.headKey, this.tailKey);
 }
 
-final List<_MotivationPhrase> _motivationPhrases = _buildMotivationPhrases();
+final List<_MotivationPhraseKeys> _motivationPhraseKeys =
+    _buildMotivationPhraseKeys();
 
-class _MotivationPhrase {
-  final String ua;
-  final String en;
-
-  const _MotivationPhrase({
-    required this.ua,
-    required this.en,
-  });
-}
-
-List<_MotivationPhrase> _buildMotivationPhrases() {
-  const heads = [
-    _LocalizedPair('Грай', 'Play'),
-    _LocalizedPair('Тренуйся', 'Train'),
-    _LocalizedPair('Створюй моменти', 'Create moments'),
-    _LocalizedPair('Палаєш', 'Burn bright'),
-    _LocalizedPair('Дихай грою', 'Breathe the game'),
-    _LocalizedPair('Керуєш темпом', 'Command the tempo'),
+List<_MotivationPhraseKeys> _buildMotivationPhraseKeys() {
+  const headKeys = <String>[
+    'mode_motivation_head_0',
+    'mode_motivation_head_1',
+    'mode_motivation_head_2',
+    'mode_motivation_head_3',
+    'mode_motivation_head_4',
+    'mode_motivation_head_5',
   ];
-  const tails = [
-    _LocalizedPair('на повну — поле відповість.', 'at full volume — the pitch will answer.'),
-    _LocalizedPair('без страху — FLAP прикриє тил.', 'fearless — FLAP guards your back.'),
-    _LocalizedPair('як чемпіон щодня.', 'like a champion every day.'),
-    _LocalizedPair('з холодною головою й гарячим серцем.', 'with a cool head and a blazing heart.'),
-    _LocalizedPair('тут і зараз — без пауз.', 'here and now — no pauses.'),
-    _LocalizedPair('на рівні свого майбутнього.', 'at the level of your future self.'),
-    _LocalizedPair('з повнотою контролю.', 'with total control.'),
-    _LocalizedPair('у ритмі міста.', 'in the rhythm of the city.'),
-    _LocalizedPair('за межами комфорту.', 'beyond the comfort zone.'),
-    _LocalizedPair('якщо хочеш легендарних цифр.', 'if you want legendary numbers.'),
+  const tailKeys = <String>[
+    'mode_motivation_tail_0',
+    'mode_motivation_tail_1',
+    'mode_motivation_tail_2',
+    'mode_motivation_tail_3',
+    'mode_motivation_tail_4',
+    'mode_motivation_tail_5',
+    'mode_motivation_tail_6',
+    'mode_motivation_tail_7',
+    'mode_motivation_tail_8',
+    'mode_motivation_tail_9',
   ];
 
-  final result = <_MotivationPhrase>[];
-  for (final head in heads) {
-    for (final tail in tails) {
-      result.add(
-        _MotivationPhrase(
-          ua: '${head.ua} ${tail.ua}',
-          en: '${head.en} ${tail.en}',
-        ),
-      );
-      if (result.length == 60) {
+  final result = <_MotivationPhraseKeys>[];
+  for (final headKey in headKeys) {
+    for (final tailKey in tailKeys) {
+      result.add(_MotivationPhraseKeys(headKey, tailKey));
+      if (result.length >= 60) {
         return result;
       }
     }

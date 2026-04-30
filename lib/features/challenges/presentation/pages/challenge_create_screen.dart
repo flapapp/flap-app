@@ -1,7 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -41,7 +40,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   ChallengeAudience _selectedAudience = ChallengeAudience.city;
   String _selectedCity = tr('kyiv_city');
   int _selectedEntryFee = 10;
-  int _recruitmentHours = 24; // 1 доба за замовчуванням
+  int _recruitmentHours = 24; // Default: 1 day (24 hours)
   int _submissionHours = 24;
   int _votingHours = 24;
   bool _isCreating = false;
@@ -139,11 +138,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Заголовок
+                // Title
                 _buildSectionTitle(Icons.info, tr('il_d094b334d8')),
                 const SizedBox(height: 15),
 
-                // Завантаження відео для челенджу
+                // Challenge video upload
                 _buildSectionTitle(Icons.video_library, tr('il_af9d7e3d65')),
                 const SizedBox(height: 15),
 
@@ -276,7 +275,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
                 const SizedBox(height: 20),
 
-                // Назва челенджу
+                // Challenge name
                 _buildTextField(
                   controller: _titleController,
                   label: tr('il_1b64eea021'),
@@ -294,7 +293,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
                 const SizedBox(height: 20),
 
-                // Опис
+                // Description
                 _buildTextField(
                   controller: _descriptionController,
                   label: tr('il_d1b6cdb562'),
@@ -311,7 +310,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 ),
 
                 const SizedBox(height: 25),
-                // Тип та аудиторія
+                // Type and audience
                 _buildSectionTitle(Icons.settings, tr('settings')),
                 const SizedBox(height: 15),
                 StyledDropdownFormField<String>(
@@ -396,7 +395,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                   icon: '👥',
                 ),
 
-                // Тип та аудиторія
+                // Type and audience
                 // _buildSectionTitle(Icons.settings, tr('settings')),
                 // const SizedBox(height: 15),
                 // Row(
@@ -484,7 +483,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 // ),
                 const SizedBox(height: 20),
 
-                // Окремі друзі для запрошення (мульти-вибір)
+                // Selected friends to invite (multi-select)
                 Row(
                   children: [
                     Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
@@ -632,7 +631,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                   },
                 ),
 
-                // Ставка входу
+                // Entry fee
                 _buildDropdownField(
                   label: tr('il_8ef4bf1d45'),
                   value: _selectedEntryFee,
@@ -649,7 +648,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
                 const SizedBox(height: 20),
 
-                // Тривалості етапів
+                // Stage durations
                 _buildSectionTitle(Icons.schedule, tr('il_8c56789629')),
                 const SizedBox(height: 15),
 
@@ -714,7 +713,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
                 const SizedBox(height: 25),
 
-                // Інформація про етапи
+                // Stage info
                 _buildSectionTitle(Icons.schedule, tr('il_d35fa97769')),
                 const SizedBox(height: 15),
 
@@ -722,7 +721,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
                 const SizedBox(height: 25),
 
-                // Призовий фонд розподіл
+                // Prize pool split
                 _buildSectionTitle(Icons.monetization_on, tr('il_54d3171fd8')),
                 const SizedBox(height: 15),
 
@@ -730,7 +729,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
                 const SizedBox(height: 30),
 
-                // Кнопка створення
+                // Create button
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -748,9 +747,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                                   style: const TextStyle(color: Colors.white),
                                 ),
                                 content: Text(
-                                  bilingual(
-                                    'Буде списано ${_selectedEntryFee} монет за створення челенджу. Продовжити?',
-                                    '${_selectedEntryFee} coins will be charged to create the challenge. Continue?',
+                                  tr(
+                                    'challenge_create_fee_confirm',
+                                    namedArgs: {
+                                      'coins': '$_selectedEntryFee',
+                                    },
                                   ),
                                   style: const TextStyle(color: Colors.white70),
                                 ),
@@ -817,7 +818,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
                 const SizedBox(height: 20),
 
-                // Пояснення
+                // Help text
                 Container(
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
@@ -1010,7 +1011,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         ),
         const SizedBox(height: 8),
         ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 44), // єдина висота
+          constraints: const BoxConstraints(minHeight: 44), // Uniform min height
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.9),
@@ -1028,7 +1029,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                   color: Colors.black87,
                   fontSize: 14,
                   height: 1.05,
-                ), // єдиний розмір шрифту
+                ), // Uniform font size
                 items: items.map((item) {
                   return DropdownMenuItem<T>(
                     value: item,
@@ -1043,7 +1044,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                           child: DefaultTextStyle.merge(
                             style: const TextStyle(
                               fontSize: 14,
-                            ), // єдиний розмір у списку
+                            ), // Uniform size in list
                             child: itemBuilder(item),
                           ),
                         ),
@@ -1149,7 +1150,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   }
 
   Widget _buildPrizeDistribution() {
-    final prizePool = _selectedEntryFee * 20; // Призовий фонд = ставка × 20
+    final prizePool = _selectedEntryFee * 20; // Prize pool = entry fee × 20
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1355,7 +1356,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         throw Exception(tr('il_76144c407d'));
       }
 
-      // Отримати дані користувача
+      // Load user profile
       final userData = await _sb
           .from('profiles')
           .select('display_name,city,email')
@@ -1371,7 +1372,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               .toString();
       final userCity = (userData['city'] ?? _selectedCity).toString();
 
-      // Розрахунок дат з окремими тривалостями
+      // Compute dates from stage durations
       final now = DateTime.now();
       final startDate = now;
       final submissionDeadline = now.add(Duration(hours: _recruitmentHours));
@@ -1380,19 +1381,19 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       );
       final endDate = votingDeadline.add(Duration(hours: _votingHours));
 
-      // Розрахунок призового фонду
-      final prizePool = _selectedEntryFee * 20; // Призовий фонд = ставка × 20
+      // Compute prize pool
+      final prizePool = _selectedEntryFee * 20; // Prize pool = entry fee × 20
 
-      // Створення челенджу
+      // Create challenge
       final challenge = Challenge(
-        id: '', // Буде встановлено Firestore
+        id: '', // Assigned by Firestore
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         type: _selectedType,
         audience: _selectedAudience,
         creatorId: currentUser.id,
         creatorName: userName,
-        creatorVideoUrl: null, // Буде оновлено після завантаження відео
+        creatorVideoUrl: null, // Set after video upload
         city: userCity,
         entryFee: _selectedEntryFee,
         duration: challengeDurationDaysFromSpan(startDate, endDate),
@@ -1402,7 +1403,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         votingDeadline: votingDeadline,
         endDate: endDate,
         status: ChallengeStatus.submission,
-        maxParticipants: 100, // Максимум учасників
+        maxParticipants: 100, // Max participants
         currentParticipants: 0,
         prizePool: prizePool.toDouble(),
         participants: [],
@@ -1418,7 +1419,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       final challengeId = await _challengesRepo.createChallenge(challenge);
 
       if (challengeId != null) {
-        // Надсилаємо інвайти обраним друзям (якщо обрали)
+        // Send invites to selected friends (if any)
         if (_selectedInviteFriendIds.isNotEmpty) {
           try {
             await sl<NotificationService>().sendBulkChallengeInvitations(
@@ -1431,7 +1432,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           } catch (_) {}
         }
 
-        // Потім завантажуємо відео створювача
+        // Then upload creator video
         if (_selectedVideoFile != null) {
           print('Starting creator video upload for challenge: $challengeId');
           try {
@@ -1445,7 +1446,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 'Creator video upload completed successfully with URL: $creatorVideoUrl',
               );
 
-              // Оновлюємо челендж з URL відео творця
+              // Update challenge with creator video URL
               await _sb
                   .from('challenges')
                   .update({'video_url': creatorVideoUrl})
@@ -1482,7 +1483,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             ),
           );
         }
-        // Показати повідомлення про успіх та запитати про завантаження відео
+        // Show success message and prompt about video upload
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -1515,8 +1516,8 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               actions: [
                 ElevatedButton(
                   onPressed: () {
-                    Navigator.pop(context); // Закрити діалог
-                    Navigator.pop(context); // Повернутися назад
+                    Navigator.pop(context); // Close dialog
+                    Navigator.pop(context); // Go back
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
@@ -1538,7 +1539,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         throw Exception(tr('il_0d4aef73b7'));
       }
     } catch (e) {
-      // Показати помилку
+      // Show error
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -1570,14 +1571,14 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   List<String> _generateTags() {
     final tags = <String>[];
 
-    // Тип і ключові слова
+    // Type and keyword tags
     tags.add(_typeTagValue(_selectedType));
     tags.addAll(_typeKeywordTags(_selectedType));
 
-    // Додати місто
+    // Add city
     tags.add(_selectedCity.toLowerCase());
 
-    // Додати теги з назви та опису
+    // Add tags from title and description
     final title = _titleController.text.toLowerCase();
     final description = _descriptionController.text.toLowerCase();
 
@@ -1678,7 +1679,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         throw Exception(tr('il_cc3ca4e740', args: [e.toString()]));
       }
 
-      // Зберігаємо відео створювача в submissions (без [videos]: окремий [video_url]).
+      // Save creator video in submissions (no videos relation: standalone video_url).
       print('Saving creator video to submissions collection...');
       try {
         final creatorSubDesc = _descriptionController.text.trim();
@@ -1695,19 +1696,24 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         print('Creator video saved to submissions collection');
       } catch (e) {
         print('ERROR saving to submissions collection: $e');
-        throw Exception('Помилка збереження в submissions: $e');
+        throw Exception(
+          tr(
+            'challenge_submission_save_error',
+            namedArgs: {'error': e.toString()},
+          ),
+        );
       }
 
       print('Successfully uploaded creator video: $videoUrl');
 
-      // Генеруємо thumbnail для відео творця в фоновому режимі
+      // Generate creator video thumbnail in the background
       _generateCreatorThumbnailInBackground(challengeId, videoUrl, userId);
 
-      return videoUrl; // Повертаємо URL відео
+      return videoUrl; // Return video URL
     } catch (e) {
       print('Error uploading creator video: $e');
 
-      // Показуємо помилку користувачу
+      // Show error to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1719,7 +1725,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         );
       }
 
-      return null; // Помилка завантаження
+      return null; // Upload failed
     }
   }
 
@@ -1742,7 +1748,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             .maybeSingle();
         final submissionId = (sub?['id'] ?? '').toString();
         if (submissionId.isEmpty) {
-          print('❌ No submission row for creator thumbnail');
+          print('[challenge_create] ERROR: No submission row for creator thumbnail');
           return;
         }
 
@@ -1761,10 +1767,10 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 'updated_at': DateTime.now().toUtc().toIso8601String(),
               })
               .eq('id', challengeId);
-          print('✅ Creator video thumbnail: $thumbnailUrl');
+          print('[challenge_create] Creator video thumbnail: $thumbnailUrl');
         }
       } catch (e) {
-        print('❌ Background creator thumbnail generation error: $e');
+        print('[challenge_create] ERROR background creator thumbnail generation: $e');
       }
     });
   }

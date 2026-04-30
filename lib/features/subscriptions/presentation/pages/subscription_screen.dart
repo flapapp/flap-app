@@ -1,7 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flap_app/app_locale_access.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../data/models/subscription.dart';
@@ -129,16 +128,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          bilingual(
-    '• Підписки оновлюються автоматично\n'
-    '• Ви можете скасувати підписку в будь-який момент\n'
-    '• Пробний період доступний лише один раз\n'
-    '• Ціни вказані в гривнях (UAH)',
-    '• Subscriptions renew automatically\n'
-    '• You can cancel your subscription anytime\n'
-    '• The trial period is available only once\n'
-    '• Prices are shown in Ukrainian hryvnia (UAH)',
-  ),
+                          tr('subscriptions_policy_bullets'),
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 14,

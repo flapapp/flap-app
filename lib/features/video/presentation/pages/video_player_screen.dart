@@ -20,8 +20,8 @@ class VideoPlayerScreen extends StatefulWidget {
   final String title;
   final String authorName;
   final String videoId;
-  final String? challengeId; // якщо це відео з челенджу
-  final String? submissionUserId; // автор submission для голосування
+  final String? challengeId; // Set when video is from a challenge
+  final String? submissionUserId; // Submission author for voting
   final bool autoOpenRating;
 
   const VideoPlayerScreen({
@@ -46,20 +46,20 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _isLoading = true;
   String? _error;
   
-  // Лайки та коментарі
+  // Likes and comments
   bool _isLiked = false;
   int _likesCount = 0;
   List<Map<String, dynamic>> _comments = [];
   final TextEditingController _commentController = TextEditingController();
 
-  // Голосування за відео (0.00 - 5.00 з кроком 0.01)
+  // Video vote (0.00–5.00, step 0.01)
   double _technical = 2.50;
   double _creativity = 2.50;
   double _difficulty = 2.50;
   double _quality = 2.50;
   bool _hasVoted = false;
   bool _isSubmittingVote = false;
-  bool _isAdvancedVoting = false; // Простий (false) або Розширений (true)
+  bool _isAdvancedVoting = false; // Simple (false) vs advanced (true)
   String? _videoAuthorId;
   String? _videoAuthorName;
   String? _videoAuthorAvatar;
@@ -80,7 +80,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   Future<void> _loadVideoData() async {
     try {
       if (_isChallengeSubmission) {
-        // Для submission з челенджу — автор відомий
+        // For challenge submissions, author is known
         setState(() {
           _videoAuthorId = widget.submissionUserId;
         });
@@ -100,7 +100,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           }
         }
       } else {
-        // Завантажуємо дані про лайки/автора з колекції videos
+        // Load likes/author from videos collection
         final data = await _sb
             .from('videos')
             .select('user_id')
@@ -161,7 +161,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             }
           }
         }
-        // Коментарі актуальні лише для загальних відео
+        // Comments only for general (non-challenge) videos
         _loadComments();
       }
     } catch (e) {
@@ -229,7 +229,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     });
 
     try {
-      // Голосування через RatingsRepository
+      // Voting via RatingsRepository
       final criteria = {
         'technical': _technical,
         'creativity': _creativity,
@@ -249,14 +249,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           _hasVoted = true;
         });
         
-        // Показуємо сповіщення про успішне голосування
+        // Show vote success feedback
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr('il_7ffa23afac')),
             backgroundColor: Colors.green,
           ),
         );
-        // Ніяких додаткових сповіщень для того, хто голосує
+        // No extra notifications for the voter
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -297,7 +297,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
     setState(() { _isSubmittingVote = true; });
     try {
-      // Зважений рейтинг як у відео
+      // Weighted rating like feed videos
       final weighted = (_technical * 0.4) + (_creativity * 0.3) + (_difficulty * 0.2) + (_quality * 0.1);
       final challengeId = widget.challengeId!;
       final targetUserId = widget.submissionUserId!;
@@ -319,7 +319,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       }
       final submissionId = submission['id'].toString();
 
-      // Уникнути дублю голосів
+      // Avoid duplicate votes
       final voteDoc = await _sb
           .from('challenge_submission_ratings')
           .select('id')
@@ -490,7 +490,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       if (currentUser == null) return;
 
       if (_isLiked) {
-        // Видаляємо лайк
+        // Remove like
         await _sb
             .from('video_likes')
             .delete()
@@ -501,7 +501,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           _likesCount = (_likesCount - 1).clamp(0, 1 << 30);
         });
       } else {
-        // Додаємо лайк
+        // Add like
         await _sb.from('video_likes').upsert({
           'video_id': widget.videoId,
           'user_id': currentUser.id,
@@ -526,7 +526,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   Future<void> _addComment() async {
     if (_commentController.text.trim().isEmpty) return;
     
-    // Перевірка чи videoId не порожній
+    // Ensure videoId is non-empty
     if (widget.videoId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -541,14 +541,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;
       
-      // Додаємо коментар
+      // Add comment
       await _sb.from('video_comments').insert({
         'video_id': widget.videoId,
         'user_id': currentUser.id,
         'body': _commentController.text.trim(),
       });
       
-      // Очищаємо поле та перезавантажуємо коментарі
+      // Clear field and reload comments
       _commentController.clear();
       await _loadComments();
       
@@ -602,7 +602,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       value: value.clamp(0.0, 5.0),
       min: 0.0,
       max: 5.0,
-      divisions: 500, // крок ~0.01
+      divisions: 500, // step ~0.01
       label: value.toStringAsFixed(2),
       onChanged: enabled ? onChanged : null,
       activeColor: const Color(0xFF4caf50),
@@ -719,7 +719,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 children: [
                   // Video player with fixed aspect ratio
                   AspectRatio(
-                    aspectRatio: 9 / 16, // Фіксоване співвідношення для всіх відео
+                    aspectRatio: 9 / 16, // Fixed aspect for all videos
                     child: Chewie(controller: _chewieController!),
                   ),
                   
@@ -1116,7 +1116,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 ),
                 const SizedBox(height: 16),
                 
-                // Вибір режиму голосування
+                // Voting mode selector
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.05),
