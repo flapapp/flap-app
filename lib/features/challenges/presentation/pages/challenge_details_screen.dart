@@ -6,10 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../router/app_router.dart';
 import '../../data/models/challenge.dart';
-import '../../../video/presentation/pages/video_upload_screen.dart';
-import 'challenge_video_player_screen.dart';
 import '../../../video/data/services/thumbnail_service.dart';
-import 'challenge_completion_screen.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -19,11 +16,11 @@ import '../cubit/challenge_details_cubit.dart';
 @RoutePage()
 class ChallengeDetailsScreen extends StatefulWidget {
   final Challenge challenge;
-  
-  const ChallengeDetailsScreen({Key? key, required this.challenge}) : super(key: key);
+
+  const ChallengeDetailsScreen({super.key, required this.challenge});
 
   @override
-  _ChallengeDetailsScreenState createState() => _ChallengeDetailsScreenState();
+  State<ChallengeDetailsScreen> createState() => _ChallengeDetailsScreenState();
 }
 
 class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
@@ -114,81 +111,84 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     return BlocProvider.value(
       value: _detailsCubit,
       child: Scaffold(
-      backgroundColor: const Color(0xFF0f0f23),
-      appBar: AppBar(
         backgroundColor: const Color(0xFF0f0f23),
-        elevation: 0,
-        title: Text(
-          '🏆 ${widget.challenge.title}',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0f0f23),
+          elevation: 0,
+          title: Text(
+            '🏆 ${widget.challenge.title}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Challenge info card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.challenge.description,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Challenge info card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.challenge.description,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: _showParticipants,
-                        child: _buildStatChip(
-                          tr(
-                            'il_467d80c72d',
-                            args: ['${widget.challenge.participants.length}'],
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: _showParticipants,
+                          child: _buildStatChip(
+                            tr(
+                              'il_467d80c72d',
+                              args: ['${widget.challenge.participants.length}'],
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      _buildStatChip(
-                        tr(
-                          'il_bb1d0b2b0e',
-                          args: ['${widget.challenge.submissions.length}'],
+                        const SizedBox(width: 8),
+                        _buildStatChip(
+                          tr(
+                            'il_bb1d0b2b0e',
+                            args: ['${widget.challenge.submissions.length}'],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      _buildStatChip('💰 ${widget.challenge.prizePool}'),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 8),
+                        _buildStatChip('💰 ${widget.challenge.prizePool}'),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Action buttons - exactly like MVP
-            _buildActionButtons(),
-            const SizedBox(height: 24),
+              // Action buttons - exactly like MVP
+              _buildActionButtons(),
+              const SizedBox(height: 24),
 
-            // Videos list (like MVP)
-            _buildVideosList(context),
-          ],
+              // Videos list (like MVP)
+              _buildVideosList(context),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 
@@ -215,7 +215,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     return BlocBuilder<ChallengeDetailsCubit, ChallengeDetailsState>(
       builder: (context, state) {
         if (state.isLoading && state.submissions.isEmpty) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+          );
         }
 
         if (state.error != null && state.submissions.isEmpty) {
@@ -239,7 +241,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             child: Center(
               child: Column(
                 children: [
-                  const Icon(Icons.video_library_outlined, size: 48, color: Colors.white30),
+                  const Icon(
+                    Icons.video_library_outlined,
+                    size: 48,
+                    color: Colors.white30,
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     tr('il_7b1fd32345'),
@@ -273,10 +279,12 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         final myRatings = state.myRatingsBySubmissionId;
         return Column(
           children: sortedVideos
-              .map((row) => _buildVideoCard(
-                    row,
-                    myRatingRow: myRatings[row['id']?.toString() ?? ''],
-                  ))
+              .map(
+                (row) => _buildVideoCard(
+                  row,
+                  myRatingRow: myRatings[row['id']?.toString() ?? ''],
+                ),
+              )
               .toList(),
         );
       },
@@ -288,7 +296,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     return BlocBuilder<ChallengeDetailsCubit, ChallengeDetailsState>(
       builder: (context, state) {
         if (state.isLoading && state.submissions.isEmpty) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+          );
         }
 
         if (state.submissions.isEmpty) {
@@ -321,7 +331,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           });
 
         return Column(
-          children: sortedVideos.map((row) => _buildModalVideoCard(row)).toList(),
+          children: sortedVideos
+              .map((row) => _buildModalVideoCard(row))
+              .toList(),
         );
       },
     );
@@ -369,14 +381,14 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     },
                     borderRadius: 12,
                     topLeft: isCreatorVideo
-                        ? _badge(tr('il_88447b8309'),
-                            color: const Color(0xFF4caf50))
+                        ? _badge(
+                            tr('il_88447b8309'),
+                            color: const Color(0xFF4caf50),
+                          )
                         : null,
                     bottomLeft: userId.isEmpty
                         ? null
-                        : _submitterAvatarOnVideo(
-                            userId, userName, avatarUrl,
-                          ),
+                        : _submitterAvatarOnVideo(userId, userName, avatarUrl),
                     bottomRight: _badge(
                       tr('il_22f29c1ea8', args: [rating.toStringAsFixed(1)]),
                       color: Colors.black.withOpacity(0.6),
@@ -425,7 +437,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                               Container(
                                 margin: const EdgeInsets.only(left: 8),
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF4caf50),
                                   borderRadius: BorderRadius.circular(8),
@@ -498,9 +512,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         color: Colors.white.withOpacity(isCreatorVideo ? 0.08 : 0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isCreatorVideo 
-            ? const Color(0xFF4caf50).withOpacity(0.3)
-            : Colors.white.withOpacity(0.1),
+          color: isCreatorVideo
+              ? const Color(0xFF4caf50).withOpacity(0.3)
+              : Colors.white.withOpacity(0.1),
           width: isCreatorVideo ? 2 : 1,
         ),
       ),
@@ -562,7 +576,10 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                               if (isCreatorVideo)
                                 Container(
                                   margin: const EdgeInsets.only(left: 6),
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF4caf50),
                                     borderRadius: BorderRadius.circular(8),
@@ -638,77 +655,104 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
 
               // Action buttons
               LayoutBuilder(
-  builder: (context, constraints) {
-    final isNarrow = constraints.maxWidth < 360;
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 360;
 
-    final buttons = <Widget>[
-      ElevatedButton.icon(
-        onPressed: () => _playVideo(
-          videoUrl,
-          title,
-          videoId,
-          userId,
-          thumbnailUrl: thumb,
-          authorName: userName,
-        ),
-        icon: const Icon(Icons.play_arrow, size: 16),
-        label: Text(tr('il_a71e757324'), style: const TextStyle(fontSize: 12)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withOpacity(0.1),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withOpacity(0.2)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-          minimumSize: const Size(0, 36),
-        ),
-      ),
-      ElevatedButton.icon(
-        onPressed: () => _shareVideo(videoId),
-        icon: const Icon(Icons.share, size: 16),
-        label: Text(tr('share'), style: const TextStyle(fontSize: 12)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withOpacity(0.1),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withOpacity(0.2)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-          minimumSize: const Size(0, 36),
-        ),
-      ),
-      ElevatedButton.icon(
-        onPressed: () => _saveVideo(videoId),
-        icon: const Icon(Icons.bookmark_outline, size: 16),
-        label: Text(tr('save'), style: const TextStyle(fontSize: 12)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withOpacity(0.1),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withOpacity(0.2)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-          minimumSize: const Size(0, 36),
-        ),
-      ),
-    ];
+                  final buttons = <Widget>[
+                    ElevatedButton.icon(
+                      onPressed: () => _playVideo(
+                        videoUrl,
+                        title,
+                        videoId,
+                        userId,
+                        thumbnailUrl: thumb,
+                        authorName: userName,
+                      ),
+                      icon: const Icon(Icons.play_arrow, size: 16),
+                      label: Text(
+                        tr('il_a71e757324'),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white.withOpacity(0.1),
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        minimumSize: const Size(0, 36),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => _shareVideo(videoId),
+                      icon: const Icon(Icons.share, size: 16),
+                      label: Text(
+                        tr('share'),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white.withOpacity(0.1),
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        minimumSize: const Size(0, 36),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => _saveVideo(videoId),
+                      icon: const Icon(Icons.bookmark_outline, size: 16),
+                      label: Text(
+                        tr('save'),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white.withOpacity(0.1),
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        minimumSize: const Size(0, 36),
+                      ),
+                    ),
+                  ];
 
-    if (isNarrow) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final b in buttons)
-            Padding(padding: const EdgeInsets.only(bottom: 6), child: b),
-        ],
-      );
-    }
+                  if (isNarrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final b in buttons)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: b,
+                          ),
+                      ],
+                    );
+                  }
 
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: buttons
-          .map((b) => SizedBox(height: 36, child: b))
-          .toList(),
-    );
-  },
-)
+                  return Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: buttons
+                        .map((b) => SizedBox(height: 36, child: b))
+                        .toList(),
+                  );
+                },
+              ),
             ],
           );
         },
@@ -723,9 +767,17 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         if (index < rating.floor()) {
           return const Icon(Icons.star, color: Color(0xFF4caf50), size: 16);
         } else if (index < rating) {
-          return const Icon(Icons.star_half, color: Color(0xFF4caf50), size: 16);
+          return const Icon(
+            Icons.star_half,
+            color: Color(0xFF4caf50),
+            size: 16,
+          );
         } else {
-          return Icon(Icons.star_outline, color: Colors.white.withOpacity(0.3), size: 16);
+          return Icon(
+            Icons.star_outline,
+            color: Colors.white.withOpacity(0.3),
+            size: 16,
+          );
         }
       }),
     );
@@ -734,25 +786,26 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   // Показати список учасників
   Widget _buildActionButtons() {
     final isFinished = widget.challenge.status == ChallengeStatus.completed;
-    
+
     if (isFinished) {
       // Показуємо кнопку результатів для завершених челенджів
       return ElevatedButton.icon(
         onPressed: _showResults,
         icon: const Icon(Icons.emoji_events),
-        label: Text(tr('il_82389e3a90'), style: const TextStyle(fontWeight: FontWeight.w600)),
+        label: Text(
+          tr('il_82389e3a90'),
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFFD700),
           foregroundColor: Colors.black,
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           minimumSize: const Size(double.infinity, 48),
         ),
       );
     }
-    
+
     // Для активних челенджів - звичайні кнопки
     return Row(
       children: [
@@ -767,7 +820,10 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: Text(tr('il_b0237f6faf'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              tr('il_b0237f6faf'),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -797,11 +853,8 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   }
 
   void _showResults() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChallengeCompletionScreen(challengeId: widget.challenge.id),
-      ),
+    context.router.push(
+      ChallengeCompletionRoute(challengeId: widget.challenge.id),
     );
   }
 
@@ -828,22 +881,16 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           .eq('challenge_id', widget.challenge.id);
       final winnerIds = <String>{};
       for (final raw in (prizeRows as List<dynamic>)) {
-        final uid = (raw as Map<String, dynamic>)['winner_user_id']?.toString() ?? '';
+        final uid =
+            (raw as Map<String, dynamic>)['winner_user_id']?.toString() ?? '';
         if (uid.isNotEmpty) winnerIds.add(uid);
       }
       if (!winnerIds.contains(currentUser.id)) return;
 
       if (!mounted) return;
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => ChallengeCompletionScreen(
-            challengeId: widget.challenge.id,
-          ),
-        ),
+      await context.router.push(
+        ChallengeCompletionRoute(challengeId: widget.challenge.id),
       );
-
     } catch (e) {
       print('Failed to show celebration: $e');
     }
@@ -914,37 +961,56 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                         padding: const EdgeInsets.all(16),
                         itemCount: widget.challenge.participants.length,
                         itemBuilder: (context, index) {
-                          final participantId = widget.challenge.participants[index];
+                          final participantId =
+                              widget.challenge.participants[index];
                           return FutureBuilder<Map<String, dynamic>?>(
                             future: _sb
                                 .from('profiles')
-                                .select('display_name,email,avatar_url,overall_rating,city')
+                                .select(
+                                  'display_name,email,avatar_url,overall_rating,city',
+                                )
                                 .eq('id', participantId)
                                 .maybeSingle(),
                             builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
                                 return ListTile(
                                   leading: const CircleAvatar(
                                     backgroundColor: Color(0xFF4caf50),
-                                    child: Icon(Icons.person, color: Colors.white),
+                                    child: Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                    ),
                                   ),
-                                  title: Text(tr('il_47d2a515ef'), style: const TextStyle(color: Colors.white)),
+                                  title: Text(
+                                    tr('il_47d2a515ef'),
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
                                 );
                               }
 
-                              final userData = snapshot.data ?? <String, dynamic>{};
+                              final userData =
+                                  snapshot.data ?? <String, dynamic>{};
                               final userName = _profileDisplayName(userData);
                               final avatarUrl = _profileAvatarUrl(userData);
-                              final r = userData['overall_rating'] ?? userData['rating'] ?? 0.0;
-                              final rating = (r is num) ? r.toDouble() : (double.tryParse(r.toString()) ?? 0.0);
-                              final city = userData['city'] ?? tr('il_2491fe94a7');
+                              final r =
+                                  userData['overall_rating'] ??
+                                  userData['rating'] ??
+                                  0.0;
+                              final rating = (r is num)
+                                  ? r.toDouble()
+                                  : (double.tryParse(r.toString()) ?? 0.0);
+                              final city =
+                                  userData['city'] ?? tr('il_2491fe94a7');
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 8),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withOpacity(0.05),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.1),
+                                  ),
                                 ),
                                 child: ListTile(
                                   onTap: () {
@@ -970,7 +1036,8 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                                     ),
                                   ),
                                   subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         city,
@@ -982,7 +1049,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                                       const SizedBox(height: 4),
                                       Row(
                                         children: [
-                                          const Icon(Icons.star, color: Color(0xFF4caf50), size: 14),
+                                          const Icon(
+                                            Icons.star,
+                                            color: Color(0xFF4caf50),
+                                            size: 14,
+                                          ),
                                           const SizedBox(width: 4),
                                           Text(
                                             rating.toStringAsFixed(1),
@@ -996,12 +1067,21 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                                       ),
                                     ],
                                   ),
-                                  trailing: participantId == widget.challenge.creatorId
+                                  trailing:
+                                      participantId ==
+                                          widget.challenge.creatorId
                                       ? Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF4caf50).withOpacity(0.2),
-                                            borderRadius: BorderRadius.circular(8),
+                                            color: const Color(
+                                              0xFF4caf50,
+                                            ).withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                           child: Text(
                                             tr('il_88447b8309'),
@@ -1012,7 +1092,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                                             ),
                                           ),
                                         )
-                                      : const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
+                                      : const Icon(
+                                          Icons.arrow_forward_ios,
+                                          color: Colors.white54,
+                                          size: 16,
+                                        ),
                                 ),
                               );
                             },
@@ -1054,13 +1138,15 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       }
     } else {
       _voteNotifiers.putIfAbsent(
-          videoId, () => ValueNotifier<double>(currentVote));
+        videoId,
+        () => ValueNotifier<double>(currentVote),
+      );
     }
 
     final nameForPlayer =
         (authorDisplayName != null && authorDisplayName.isNotEmpty)
-            ? authorDisplayName
-            : 'Автор відео';
+        ? authorDisplayName
+        : 'Автор відео';
     final av = authorAvatarUrl ?? '';
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1089,15 +1175,13 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             aspectRatio: 16 / 9,
             borderRadius: 12,
             bottomLeft: (userId.isNotEmpty)
-                ? _submitterAvatarOnVideo(
-                    userId,
-                    nameForPlayer,
-                    av,
-                  )
+                ? _submitterAvatarOnVideo(userId, nameForPlayer, av)
                 : null,
             topRight: hasVoted
-                ? _badge(tr('il_24e6347ec5'),
-                    color: const Color(0xFF4caf50).withOpacity(0.8))
+                ? _badge(
+                    tr('il_24e6347ec5'),
+                    color: const Color(0xFF4caf50).withOpacity(0.8),
+                  )
                 : null,
           ),
           Row(
@@ -1120,13 +1204,17 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                     // без divisions для плавності
                     activeColor: const Color(0xFF4caf50),
                     inactiveColor: Colors.white.withOpacity(0.2),
-                    onChanged: hasVoted ? null : (v) {
-                      _voteNotifiers[videoId]!.value = v;
-                    },
-                    onChangeEnd: hasVoted ? null : (v) {
-                      final rounded = (v * 100).round() / 100;
-                      _voteNotifiers[videoId]!.value = rounded;
-                    },
+                    onChanged: hasVoted
+                        ? null
+                        : (v) {
+                            _voteNotifiers[videoId]!.value = v;
+                          },
+                    onChangeEnd: hasVoted
+                        ? null
+                        : (v) {
+                            final rounded = (v * 100).round() / 100;
+                            _voteNotifiers[videoId]!.value = rounded;
+                          },
                   ),
                 ),
               ),
@@ -1147,16 +1235,29 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                onPressed: hasVoted ? null : () => _submitVote(videoId, _voteNotifiers[videoId]!.value),
+                onPressed: hasVoted
+                    ? null
+                    : () =>
+                          _submitVote(videoId, _voteNotifiers[videoId]!.value),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: hasVoted ? Colors.grey : const Color(0xFF4caf50),
+                  backgroundColor: hasVoted
+                      ? Colors.grey
+                      : const Color(0xFF4caf50),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
                 ),
                 child: Text(
                   hasVoted ? tr('il_9cf238dedb') : tr('il_cd5588db6f'),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -1247,9 +1348,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     String? authorName,
   }) {
     if (videoUrl.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_fc512c458e'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('il_fc512c458e'))));
       return;
     }
 
@@ -1274,17 +1375,14 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     if (_isOpeningVideoPlayer || videoUrl.isEmpty) return;
     _isOpeningVideoPlayer = true;
     try {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChallengeVideoPlayerScreen(
-            videoUrl: videoUrl,
-            title: title,
-            authorName: authorName,
-            challengeId: widget.challenge.id,
-            submissionId: submissionId,
-            thumbnailUrl: thumbnailUrl,
-          ),
+      await context.router.push(
+        ChallengeVideoPlayerRoute(
+          videoUrl: videoUrl,
+          title: title,
+          authorName: authorName,
+          challengeId: widget.challenge.id,
+          submissionId: submissionId,
+          thumbnailUrl: thumbnailUrl,
         ),
       );
     } finally {
@@ -1324,30 +1422,29 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   }
 
   void _shareVideo(String videoId) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(tr('il_68d6f33dd6'))),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(tr('il_68d6f33dd6'))));
   }
 
   void _saveVideo(String videoId) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(tr('il_f2d73b37cf'))),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(tr('il_f2d73b37cf'))));
   }
 
   void _uploadVideo() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VideoUploadScreen(
-          challengeId: widget.challenge.id,
-          challengeTitle: widget.challenge.title,
-        ),
-      ),
-    ).then((_) {
-      if (!mounted) return;
-      _detailsCubit.refresh();
-    });
+    context.router
+        .push(
+          VideoUploadRoute(
+            challengeId: widget.challenge.id,
+            challengeTitle: widget.challenge.title,
+          ),
+        )
+        .then((_) {
+          if (!mounted) return;
+          _detailsCubit.refresh();
+        });
   }
 
   void _showChallengeVideos() {

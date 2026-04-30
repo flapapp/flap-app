@@ -146,7 +146,7 @@ class ChallengeCreateRoute extends PageRouteInfo<void> {
   static PageInfo page = PageInfo(
     name,
     builder: (data) {
-      return ChallengeCreateScreen();
+      return const ChallengeCreateScreen();
     },
   );
 }
@@ -211,7 +211,7 @@ class ChallengeListRoute extends PageRouteInfo<void> {
   static PageInfo page = PageInfo(
     name,
     builder: (data) {
-      return ChallengeListScreen();
+      return const ChallengeListScreen();
     },
   );
 }
@@ -736,6 +736,58 @@ class ProfileSettingsRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [ProfileStatsScreen]
+class ProfileStatsRoute extends PageRouteInfo<ProfileStatsRouteArgs> {
+  ProfileStatsRoute({
+    Key? key,
+    required Future<Map<String, dynamic>> statsFuture,
+    required Map<String, dynamic> userData,
+    List<PageRouteInfo>? children,
+  }) : super(
+          ProfileStatsRoute.name,
+          args: ProfileStatsRouteArgs(
+            key: key,
+            statsFuture: statsFuture,
+            userData: userData,
+          ),
+          initialChildren: children,
+        );
+
+  static const String name = 'ProfileStatsRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      final args = data.argsAs<ProfileStatsRouteArgs>();
+      return ProfileStatsScreen(
+        key: args.key,
+        statsFuture: args.statsFuture,
+        userData: args.userData,
+      );
+    },
+  );
+}
+
+class ProfileStatsRouteArgs {
+  const ProfileStatsRouteArgs({
+    this.key,
+    required this.statsFuture,
+    required this.userData,
+  });
+
+  final Key? key;
+
+  final Future<Map<String, dynamic>> statsFuture;
+
+  final Map<String, dynamic> userData;
+
+  @override
+  String toString() {
+    return 'ProfileStatsRouteArgs{key: $key, statsFuture: $statsFuture, userData: $userData}';
+  }
+}
+
+/// generated route for
 /// [RatingsScreen]
 class RatingsRoute extends PageRouteInfo<void> {
   const RatingsRoute({List<PageRouteInfo>? children})
@@ -749,7 +801,7 @@ class RatingsRoute extends PageRouteInfo<void> {
   static PageInfo page = PageInfo(
     name,
     builder: (data) {
-      return RatingsScreen();
+      return const RatingsScreen();
     },
   );
 }

@@ -38,6 +38,7 @@ Match _$MatchFromJson(Map<String, dynamic> json) => Match(
               ?.map((e) => e as String)
               .toList() ??
           const [],
+      sentInvitesCount: (json['sentInvitesCount'] as num?)?.toInt() ?? 0,
       status: $enumDecode(_$MatchStatusEnumMap, json['status']),
       teamA: const MatchTeamEntityConverter().fromJson(json['teamA']),
       teamB: const MatchTeamEntityConverter().fromJson(json['teamB']),
@@ -105,6 +106,7 @@ Map<String, dynamic> _$MatchToJson(Match instance) => <String, dynamic>{
       'autoBalance': instance.autoBalance,
       'isPrivate': instance.isPrivate,
       'invitedFriends': instance.invitedFriends,
+      'sentInvitesCount': instance.sentInvitesCount,
       'status': _$MatchStatusEnumMap[instance.status]!,
       'teamA': const MatchTeamEntityConverter().toJson(instance.teamA),
       'teamB': const MatchTeamEntityConverter().toJson(instance.teamB),

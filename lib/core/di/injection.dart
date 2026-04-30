@@ -108,6 +108,9 @@ import '../../features/teams/domain/repositories/teams_repository.dart';
 final sl = GetIt.instance;
 
 Future<void> configureDependencies() async {
+  if (sl.isRegistered<AuthRepository>()) {
+    return;
+  }
   sl
     ..registerLazySingleton<AuthSessionRemoteDataSource>(
       AuthSessionRemoteDataSourceImpl.new,

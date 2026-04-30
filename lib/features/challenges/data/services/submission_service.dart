@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/coin_ledger.dart';
+import '../../../../core/di/injection.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../data/models/submission.dart';
 import 'package:flap_app/app_locale_access.dart';
@@ -9,7 +10,10 @@ import 'package:flap_app/core/auth/app_auth.dart';
 
 class SubmissionService {
   final SupabaseClient _sb = Supabase.instance.client;
-  final NotificationService _notificationService = NotificationService();
+  final NotificationService _notificationService;
+
+  SubmissionService({NotificationService? notificationService})
+    : _notificationService = notificationService ?? sl<NotificationService>();
 
   Stream<List<Submission>> getChallengeSubmissions(String challengeId) {
     return _sb
@@ -17,15 +21,15 @@ class SubmissionService {
         .stream(primaryKey: ['id'])
         .order('submitted_at', ascending: false)
         .asyncMap((rows) async {
-      final filtered = rows
-          .where((r) => (r['challenge_id'] ?? '').toString() == challengeId)
-          .toList(growable: false);
-      final out = <Submission>[];
-      for (final row in filtered) {
-        out.add(await _toSubmissionWithRatings(row));
-      }
-      return out.where((s) => s.isActive).toList(growable: false);
-    });
+          final filtered = rows
+              .where((r) => (r['challenge_id'] ?? '').toString() == challengeId)
+              .toList(growable: false);
+          final out = <Submission>[];
+          for (final row in filtered) {
+            out.add(await _toSubmissionWithRatings(row));
+          }
+          return out.where((s) => s.isActive).toList(growable: false);
+        });
   }
 
   Stream<List<Submission>> getUserSubmissions(String userId) {
@@ -34,15 +38,15 @@ class SubmissionService {
         .stream(primaryKey: ['id'])
         .order('submitted_at', ascending: false)
         .asyncMap((rows) async {
-      final filtered = rows
-          .where((r) => (r['user_id'] ?? '').toString() == userId)
-          .toList(growable: false);
-      final out = <Submission>[];
-      for (final row in filtered) {
-        out.add(await _toSubmissionWithRatings(row));
-      }
-      return out.where((s) => s.isActive).toList(growable: false);
-    });
+          final filtered = rows
+              .where((r) => (r['user_id'] ?? '').toString() == userId)
+              .toList(growable: false);
+          final out = <Submission>[];
+          for (final row in filtered) {
+            out.add(await _toSubmissionWithRatings(row));
+          }
+          return out.where((s) => s.isActive).toList(growable: false);
+        });
   }
 
   Future<String?> submitVideoToChallenge({
@@ -135,7 +139,8 @@ class SubmissionService {
         .select('display_name, nickname')
         .eq('id', currentUser.id)
         .maybeSingle();
-    final voterName = (voter?['display_name'] ?? voter?['nickname'] ?? 'Анонім').toString();
+    final voterName = (voter?['display_name'] ?? voter?['nickname'] ?? tr('anonymous_user')).toString();
+   
 
     await _notificationService.sendVideoVoteNotification(
       toUserId: ownerId,
@@ -192,7 +197,14 @@ class SubmissionService {
   }
 
   Map<String, int> _calculateRatingDistribution(Map<String, double> votes) {
-    final distribution = <String, int>{'5': 0, '4': 0, '3': 0, '2': 0, '1': 0, '0': 0};
+    final distribution = <String, int>{
+      '5': 0,
+      '4': 0,
+      '3': 0,
+      '2': 0,
+      '1': 0,
+      '0': 0,
+    };
     for (final rating in votes.values) {
       final rounded = rating.round().toString();
       distribution[rounded] = (distribution[rounded] ?? 0) + 1;
@@ -234,7 +246,11 @@ class SubmissionService {
     }
   }
 
-  Future<void> rateSubmission(String submissionId, double rating, String userId) async {
+  Future<void> rateSubmission(
+    String submissionId,
+    double rating,
+    String userId,
+  ) async {
     await _sb.from('challenge_submission_ratings').upsert(<String, dynamic>{
       'challenge_submission_id': submissionId,
       'voter_user_id': userId,
@@ -270,7 +286,8 @@ class SubmissionService {
       title: (row['title'] ?? '').toString(),
       description: row['description']?.toString(),
       submittedAt:
-          DateTime.tryParse((row['submitted_at'] ?? '').toString()) ?? DateTime.now(),
+          DateTime.tryParse((row['submitted_at'] ?? '').toString()) ??
+          DateTime.now(),
       votes: votes,
       averageRating: avg,
       totalVotes: totalVotes,

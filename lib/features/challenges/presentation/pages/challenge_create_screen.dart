@@ -21,8 +21,10 @@ import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class ChallengeCreateScreen extends StatefulWidget {
+  const ChallengeCreateScreen({super.key});
+
   @override
-  _ChallengeCreateScreenState createState() => _ChallengeCreateScreenState();
+  State<ChallengeCreateScreen> createState() => _ChallengeCreateScreenState();
 }
 
 class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
@@ -34,7 +36,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   final _descriptionController = TextEditingController();
   final _prizePoolController = TextEditingController();
   final _maxParticipantsController = TextEditingController();
-  
+
   ChallengeType _selectedType = ChallengeType.goal;
   ChallengeAudience _selectedAudience = ChallengeAudience.city;
   String _selectedCity = tr('kyiv_city');
@@ -44,7 +46,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   int _votingHours = 24;
   bool _isCreating = false;
   XFile? _selectedVideoFile;
-  
+
   ChallengesRepository get _challengesRepo => sl<ChallengesRepository>();
 
   final Set<String> _selectedInviteFriendIds = <String>{};
@@ -173,10 +175,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         Text(
                           tr('il_55d7bf332a'),
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
+                          style: TextStyle(color: Colors.white70, fontSize: 14),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -198,7 +197,10 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF4caf50),
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
@@ -214,7 +216,10 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white24,
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
@@ -255,8 +260,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                               ),
                             ),
                             IconButton(
-                              onPressed: () => setState(() => _selectedVideoFile = null),
-                              icon: const Icon(Icons.close, color: Colors.white70),
+                              onPressed: () =>
+                                  setState(() => _selectedVideoFile = null),
+                              icon: const Icon(
+                                Icons.close,
+                                color: Colors.white70,
+                              ),
                             ),
                           ],
                         ),
@@ -266,7 +275,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                
+
                 // Назва челенджу
                 _buildTextField(
                   controller: _titleController,
@@ -282,9 +291,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     return null;
                   },
                 ),
-                
+
                 const SizedBox(height: 20),
-                
+
                 // Опис
                 _buildTextField(
                   controller: _descriptionController,
@@ -300,83 +309,93 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     return null;
                   },
                 ),
-                
+
                 const SizedBox(height: 25),
                 // Тип та аудиторія
                 _buildSectionTitle(Icons.settings, tr('settings')),
                 const SizedBox(height: 15),
                 StyledDropdownFormField<String>(
-                        value: challengeTypeToSlug(_selectedType),
-                        labelText: tr('il_9a2597b919'),
-                        items: kVideoCategories.map((category) => category.id).toList(),
-                        itemBuilder: (categoryId) {
-                          final category = videoCategoryById(categoryId);
-                          final label =
-                              category?.label() ?? videoCategoryLabel(categoryId);
-                          final description = category?.description() ?? '';
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                label,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              if (description.isNotEmpty) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  description,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ],
-                          );
-                        },
-                        selectedItemBuilder: (categoryId) {
-                          final category = videoCategoryById(categoryId);
-                          final label =
-                              category?.label() ?? videoCategoryLabel(categoryId);
-                          return Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          );
-                        },
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() {
-                            _selectedType = parseChallengeType(value);
-                          });
-                        },
-                      ),
-                    const SizedBox(width: 12),
-                _buildDropdownField(
-                        label: tr('il_3013c7e4fa'),
-                        value: _selectedAudience,
-                        items: ChallengeAudience.values,
-                        onChanged: (value) { setState(() { _selectedAudience = value!; }); },
-                        itemBuilder: (audience) => Text(
-                          audience == ChallengeAudience.friends ? tr('il_1419851d1b')
-                          : audience == ChallengeAudience.city ? tr('il_eb5e5b054b')
-                          : audience == ChallengeAudience.country ? tr('il_beba73d45d')
-                          : tr('il_42605c01fa'),
+                  value: challengeTypeToSlug(_selectedType),
+                  labelText: tr('il_9a2597b919'),
+                  items: kVideoCategories
+                      .map((category) => category.id)
+                      .toList(),
+                  itemBuilder: (categoryId) {
+                    final category = videoCategoryById(categoryId);
+                    final label =
+                        category?.label() ?? videoCategoryLabel(categoryId);
+                    final description = category?.description() ?? '';
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        icon: '👥',
+                        if (description.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            description,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                  selectedItemBuilder: (categoryId) {
+                    final category = videoCategoryById(categoryId);
+                    final label =
+                        category?.label() ?? videoCategoryLabel(categoryId);
+                    return Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
                       ),
+                    );
+                  },
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _selectedType = parseChallengeType(value);
+                    });
+                  },
+                ),
+                const SizedBox(width: 12),
+                _buildDropdownField(
+                  label: tr('il_3013c7e4fa'),
+                  value: _selectedAudience,
+                  items: ChallengeAudience.values,
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedAudience = value!;
+                    });
+                  },
+                  itemBuilder: (audience) => Text(
+                    audience == ChallengeAudience.friends
+                        ? tr('il_1419851d1b')
+                        : audience == ChallengeAudience.city
+                        ? tr('il_eb5e5b054b')
+                        : audience == ChallengeAudience.country
+                        ? tr('il_beba73d45d')
+                        : tr('il_42605c01fa'),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  icon: '👥',
+                ),
+
                 // Тип та аудиторія
                 // _buildSectionTitle(Icons.settings, tr('settings')),
                 // const SizedBox(height: 15),
@@ -384,7 +403,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 //   children: [
                 //     Expanded(
                 //       flex: 1,
-                //       child: 
+                //       child:
                 //       StyledDropdownFormField<String>(
                 //         value: challengeTypeToSlug(_selectedType),
                 //         labelText: tr('il_9a2597b919'),
@@ -463,7 +482,6 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 //     ),
                 //   ],
                 // ),
-                
                 const SizedBox(height: 20),
 
                 // Окремі друзі для запрошення (мульти-вибір)
@@ -473,7 +491,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     const SizedBox(width: 8),
                     Text(
                       tr('il_2614b42d84'),
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -481,16 +503,22 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 FutureBuilder<List<Map<String, dynamic>>>(
                   future: _loadMyFriends(),
                   builder: (context, snapshot) {
-                    final friends = snapshot.data ?? const <Map<String, dynamic>>[];
+                    final friends =
+                        snapshot.data ?? const <Map<String, dynamic>>[];
                     if (friends.isEmpty) {
-                      return Text(tr('il_3f6a83aa65'), style: TextStyle(color: Colors.white.withOpacity(0.7)));
+                      return Text(
+                        tr('il_3f6a83aa65'),
+                        style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      );
                     }
                     return Container(
                       constraints: const BoxConstraints(maxHeight: 300),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withOpacity(0.1)),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                        ),
                       ),
                       child: ListView.builder(
                         shrinkWrap: true,
@@ -498,14 +526,27 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         itemBuilder: (context, index) {
                           final f = friends[index];
                           final id = f['id'] as String;
-                          final name = (f['displayName'] ?? f['name'] ?? tr('il_b512d97e7c')).toString();
-                          final photoUrl = (f['avatarUrl'] ?? f['photoUrl'] ?? '').toString();
-                          final position = (f['position'] ?? f['role'] ?? '').toString();
-                          final rating = ((f['rating'] ?? f['averageRating'] ?? 0) as num).toDouble();
-                          final selected = _selectedInviteFriendIds.contains(id);
+                          final name =
+                              (f['displayName'] ??
+                                      f['name'] ??
+                                      tr('il_b512d97e7c'))
+                                  .toString();
+                          final photoUrl =
+                              (f['avatarUrl'] ?? f['photoUrl'] ?? '')
+                                  .toString();
+                          final position = (f['position'] ?? f['role'] ?? '')
+                              .toString();
+                          final rating =
+                              ((f['rating'] ?? f['averageRating'] ?? 0) as num)
+                                  .toDouble();
+                          final selected = _selectedInviteFriendIds.contains(
+                            id,
+                          );
 
                           return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                            ),
                             leading: PlayerAvatarButton(
                               userId: id,
                               displayName: name,
@@ -514,19 +555,30 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                             ),
                             title: Text(
                               name,
-                              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: Row(
                               children: [
                                 if (position.isNotEmpty) ...[
-                                  Icon(Icons.sports_soccer, color: Colors.white54, size: 12),
+                                  Icon(
+                                    Icons.sports_soccer,
+                                    color: Colors.white54,
+                                    size: 12,
+                                  ),
                                   const SizedBox(width: 4),
                                   Flexible(
                                     child: Text(
                                       position,
-                                      style: TextStyle(color: Colors.white54, fontSize: 11),
+                                      style: TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 11,
+                                      ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -534,11 +586,18 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                                   const SizedBox(width: 8),
                                 ],
                                 if (rating > 0) ...[
-                                  Icon(Icons.star, color: Colors.amber, size: 12),
+                                  Icon(
+                                    Icons.star,
+                                    color: Colors.amber,
+                                    size: 12,
+                                  ),
                                   const SizedBox(width: 2),
                                   Text(
                                     rating.toStringAsFixed(1),
-                                    style: TextStyle(color: Colors.white54, fontSize: 11),
+                                    style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 11,
+                                    ),
                                   ),
                                 ],
                               ],
@@ -572,7 +631,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     );
                   },
                 ),
-                
+
                 // Ставка входу
                 _buildDropdownField(
                   label: tr('il_8ef4bf1d45'),
@@ -583,23 +642,27 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                       _selectedEntryFee = value!;
                     });
                   },
-                  itemBuilder: (fee) => Text(
-                    tr('il_eae716cab3', namedArgs: {'fee': '$fee'}),
-                  ),
+                  itemBuilder: (fee) =>
+                      Text(tr('il_eae716cab3', namedArgs: {'fee': '$fee'})),
                   icon: Icons.monetization_on,
                 ),
-                
+
                 const SizedBox(height: 20),
-                
+
                 // Тривалості етапів
                 _buildSectionTitle(Icons.schedule, tr('il_8c56789629')),
                 const SizedBox(height: 15),
-                
+
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final double maxWidth = constraints.maxWidth;
-                    final int columns = maxWidth >= 900 ? 3 : maxWidth >= 600 ? 2 : 1;
-                    final double itemWidth = (maxWidth - 10 * (columns - 1)) / columns;
+                    final int columns = maxWidth >= 900
+                        ? 3
+                        : maxWidth >= 600
+                        ? 2
+                        : 1;
+                    final double itemWidth =
+                        (maxWidth - 10 * (columns - 1)) / columns;
 
                     return Wrap(
                       spacing: 10,
@@ -648,57 +711,72 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     );
                   },
                 ),
-                
+
                 const SizedBox(height: 25),
-                
+
                 // Інформація про етапи
                 _buildSectionTitle(Icons.schedule, tr('il_d35fa97769')),
                 const SizedBox(height: 15),
-                
+
                 _buildStageInfo(),
-                
+
                 const SizedBox(height: 25),
-                
+
                 // Призовий фонд розподіл
                 _buildSectionTitle(Icons.monetization_on, tr('il_54d3171fd8')),
                 const SizedBox(height: 15),
-                
+
                 _buildPrizeDistribution(),
-                
+
                 const SizedBox(height: 30),
-                
+
                 // Кнопка створення
                 SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: _isCreating ? null : () async {
-                      // Confirm fee charge
-                      final ok = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          backgroundColor: const Color(0xFF1e7d32),
-                          title: Text(
-                            tr('il_d743070540'),
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          content: Text(
-                            bilingual(
-                              'Буде списано ${_selectedEntryFee} монет за створення челенджу. Продовжити?',
-                              '${_selectedEntryFee} coins will be charged to create the challenge. Continue?',
-                            ),
-                            style: const TextStyle(color: Colors.white70),
-                          ),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70))),
-                            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: Text(tr('confirm'))),
-                          ],
-                        ),
-                      );
-                      if (ok == true) {
-                        await _createChallenge();
-                      }
-                    },
+                    onPressed: _isCreating
+                        ? null
+                        : () async {
+                            // Confirm fee charge
+                            final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                backgroundColor: const Color(0xFF1e7d32),
+                                title: Text(
+                                  tr('il_d743070540'),
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                content: Text(
+                                  bilingual(
+                                    'Буде списано ${_selectedEntryFee} монет за створення челенджу. Продовжити?',
+                                    '${_selectedEntryFee} coins will be charged to create the challenge. Continue?',
+                                  ),
+                                  style: const TextStyle(color: Colors.white70),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: Text(
+                                      tr('cancel'),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: Text(tr('confirm')),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (ok == true) {
+                              await _createChallenge();
+                            }
+                          },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFF9800),
                       shape: RoundedRectangleBorder(
@@ -718,7 +796,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.emoji_events, color: Colors.white, size: 20),
+                              Icon(
+                                Icons.emoji_events,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               Text(
                                 tr('create_challenge'),
@@ -732,9 +814,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                           ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 20),
-                
+
                 // Пояснення
                 Container(
                   padding: const EdgeInsets.all(15),
@@ -748,7 +830,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.info_outline, color: Colors.white70, size: 20),
+                          const Icon(
+                            Icons.info_outline,
+                            color: Colors.white70,
+                            size: 20,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             tr('il_7a26875758'),
@@ -764,8 +850,10 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                       Text(
                         tr('il_b288ca1f0f') +
                             tr('il_82a07f2980', args: ['$_selectedEntryFee']) +
-                            tr('il_c96602cb3a',
-                                args: ['${_selectedEntryFee * 20}']) +
+                            tr(
+                              'il_c96602cb3a',
+                              args: ['${_selectedEntryFee * 20}'],
+                            ) +
                             tr(
                               'il_f1b4cbd59c',
                               args: [
@@ -826,7 +914,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           'avatarUrl': data['avatar_url'],
         };
       }).toList();
-      result.sort((a, b) => (a['displayName'] ?? a['name'] ?? '').toString().compareTo((b['displayName'] ?? b['name'] ?? '').toString()));
+      result.sort(
+        (a, b) => (a['displayName'] ?? a['name'] ?? '').toString().compareTo(
+          (b['displayName'] ?? b['name'] ?? '').toString(),
+        ),
+      );
       return result;
     } catch (_) {
       return [];
@@ -867,7 +959,6 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             color: Colors.white,
             fontSize: 14,
             fontWeight: FontWeight.w600,
-
           ),
         ),
         const SizedBox(height: 8),
@@ -882,18 +973,15 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             validator: validator,
             maxLines: maxLines,
             keyboardType: keyboardType,
-            style: const TextStyle(
-              color: Colors.black87,
-              fontSize: 16,
-            ),
+            style: const TextStyle(color: Colors.black87, fontSize: 16),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-              ),
+              hintStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
             ),
           ),
         ),
@@ -902,69 +990,75 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   }
 
   Widget _buildDropdownField<T>({
-  required String label,
-  required T value,
-  required List<T> items,
-  required ValueChanged<T?> onChanged,
-  required Widget Function(T) itemBuilder,
-  required dynamic icon,
-}) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      const SizedBox(height: 8),
-      ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 44), // єдина висота
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.9),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.3)),
+    required String label,
+    required T value,
+    required List<T> items,
+    required ValueChanged<T?> onChanged,
+    required Widget Function(T) itemBuilder,
+    required dynamic icon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<T>(
-              value: value,
-              isExpanded: true,
-              isDense: true,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              dropdownColor: Colors.white,
-              style: const TextStyle(color: Colors.black87, fontSize: 14, height: 1.05), // єдиний розмір шрифту
-              items: items.map((item) {
-                return DropdownMenuItem<T>(
-                  value: item,
-                  child: Row(
-                    children: [
-                      if (icon is IconData)
-                        Icon(icon, size: 18, color: Colors.grey[700])
-                      else if (icon is String)
-                        Text(icon),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: DefaultTextStyle.merge(
-                          style: const TextStyle(fontSize: 14), // єдиний розмір у списку
-                          child: itemBuilder(item),
+        ),
+        const SizedBox(height: 8),
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44), // єдина висота
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.3)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<T>(
+                value: value,
+                isExpanded: true,
+                isDense: true,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                dropdownColor: Colors.white,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontSize: 14,
+                  height: 1.05,
+                ), // єдиний розмір шрифту
+                items: items.map((item) {
+                  return DropdownMenuItem<T>(
+                    value: item,
+                    child: Row(
+                      children: [
+                        if (icon is IconData)
+                          Icon(icon, size: 18, color: Colors.grey[700])
+                        else if (icon is String)
+                          Text(icon),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DefaultTextStyle.merge(
+                            style: const TextStyle(
+                              fontSize: 14,
+                            ), // єдиний розмір у списку
+                            child: itemBuilder(item),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-              onChanged: onChanged,
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: onChanged,
+              ),
             ),
           ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
 
   Widget _buildStageInfo() {
     return Container(
@@ -976,19 +1070,44 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       ),
       child: Column(
         children: [
-          _buildStageItem(Icons.people, tr('participant_recruitment'), _formatDuration(_recruitmentHours), Colors.green),
+          _buildStageItem(
+            Icons.people,
+            tr('participant_recruitment'),
+            _formatDuration(_recruitmentHours),
+            Colors.green,
+          ),
           const Divider(color: Colors.white24, height: 20),
-          _buildStageItem(Icons.video_library, tr('video_submission_stage'), _formatDuration(_submissionHours), Colors.orange),
+          _buildStageItem(
+            Icons.video_library,
+            tr('video_submission_stage'),
+            _formatDuration(_submissionHours),
+            Colors.orange,
+          ),
           const Divider(color: Colors.white24, height: 20),
-          _buildStageItem(Icons.how_to_vote, tr('voting'), _formatDuration(_votingHours), Colors.blue),
+          _buildStageItem(
+            Icons.how_to_vote,
+            tr('voting'),
+            _formatDuration(_votingHours),
+            Colors.blue,
+          ),
           const Divider(color: Colors.white24, height: 20),
-          _buildStageItem(Icons.emoji_events, tr('il_c2f88479d7'), tr('il_d461a493a3'), Colors.purple),
+          _buildStageItem(
+            Icons.emoji_events,
+            tr('il_c2f88479d7'),
+            tr('il_d461a493a3'),
+            Colors.purple,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStageItem(dynamic icon, String title, String duration, Color color) {
+  Widget _buildStageItem(
+    dynamic icon,
+    String title,
+    String duration,
+    Color color,
+  ) {
     return Row(
       children: [
         Container(
@@ -1000,12 +1119,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             border: Border.all(color: color.withOpacity(0.5)),
           ),
           child: Center(
-            child: icon is IconData 
-              ? Icon(icon, size: 18, color: color)
-              : Text(
-                  icon,
-                  style: const TextStyle(fontSize: 18),
-                ),
+            child: icon is IconData
+                ? Icon(icon, size: 18, color: color)
+                : Text(icon, style: const TextStyle(fontSize: 18)),
           ),
         ),
         const SizedBox(width: 15),
@@ -1023,10 +1139,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               ),
               Text(
                 duration,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
           ),
@@ -1037,7 +1150,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
   Widget _buildPrizeDistribution() {
     final prizePool = _selectedEntryFee * 20; // Призовий фонд = ставка × 20
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1047,17 +1160,41 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       ),
       child: Column(
         children: [
-          _buildPrizeItem('🥇', tr('il_6b25a21b71'), '50%', (prizePool * 0.5).toInt(), Colors.amber),
+          _buildPrizeItem(
+            '🥇',
+            tr('il_6b25a21b71'),
+            '50%',
+            (prizePool * 0.5).toInt(),
+            Colors.amber,
+          ),
           const SizedBox(height: 15),
-          _buildPrizeItem('🥈', tr('il_aaeaebca09'), '30%', (prizePool * 0.3).toInt(), Colors.grey),
+          _buildPrizeItem(
+            '🥈',
+            tr('il_aaeaebca09'),
+            '30%',
+            (prizePool * 0.3).toInt(),
+            Colors.grey,
+          ),
           const SizedBox(height: 15),
-          _buildPrizeItem('🥉', tr('il_bb8a4734dc'), '20%', (prizePool * 0.2).toInt(), Colors.orange),
+          _buildPrizeItem(
+            '🥉',
+            tr('il_bb8a4734dc'),
+            '20%',
+            (prizePool * 0.2).toInt(),
+            Colors.orange,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildPrizeItem(String icon, String place, String percentage, int coins, Color color) {
+  Widget _buildPrizeItem(
+    String icon,
+    String place,
+    String percentage,
+    int coins,
+    Color color,
+  ) {
     return Row(
       children: [
         Container(
@@ -1069,10 +1206,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             border: Border.all(color: color.withOpacity(0.5)),
           ),
           child: Center(
-            child: Text(
-              icon,
-              style: const TextStyle(fontSize: 24),
-            ),
+            child: Text(icon, style: const TextStyle(fontSize: 24)),
           ),
         ),
         const SizedBox(width: 15),
@@ -1090,10 +1224,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
               ),
               Text(
                 percentage,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
           ),
@@ -1135,20 +1266,20 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-  children: [
-    Icon(icon, color: Colors.white, size: 16),
-    const SizedBox(width: 8),
-    Expanded(
-      child: Text(
-        label,
-        style: const TextStyle(color: Colors.white70, fontSize: 14),
-        maxLines: 2,
-        softWrap: true,
-        overflow: TextOverflow.ellipsis,
-      ),
-    ),
-  ],
-),
+            children: [
+              Icon(icon, color: Colors.white, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  maxLines: 2,
+                  softWrap: true,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           DropdownButtonFormField<int>(
             value: value,
@@ -1233,17 +1364,20 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       if (userData == null) {
         throw Exception(tr('il_9ea4a0bb3d'));
       }
-      final userName = (userData['display_name'] ??
-              userData['email']?.toString().split('@').first ??
-              tr('il_b764cdc0ea'))
-          .toString();
+      final userName =
+          (userData['display_name'] ??
+                  userData['email']?.toString().split('@').first ??
+                  tr('il_b764cdc0ea'))
+              .toString();
       final userCity = (userData['city'] ?? _selectedCity).toString();
 
       // Розрахунок дат з окремими тривалостями
       final now = DateTime.now();
       final startDate = now;
       final submissionDeadline = now.add(Duration(hours: _recruitmentHours));
-      final votingDeadline = submissionDeadline.add(Duration(hours: _submissionHours));
+      final votingDeadline = submissionDeadline.add(
+        Duration(hours: _submissionHours),
+      );
       final endDate = votingDeadline.add(Duration(hours: _votingHours));
 
       // Розрахунок призового фонду
@@ -1282,12 +1416,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       );
 
       final challengeId = await _challengesRepo.createChallenge(challenge);
-      
+
       if (challengeId != null) {
         // Надсилаємо інвайти обраним друзям (якщо обрали)
         if (_selectedInviteFriendIds.isNotEmpty) {
           try {
-            await NotificationService().sendBulkChallengeInvitations(
+            await sl<NotificationService>().sendBulkChallengeInvitations(
               userIds: _selectedInviteFriendIds.toList(),
               challengeId: challengeId,
               challengeTitle: _titleController.text.trim(),
@@ -1301,16 +1435,24 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         if (_selectedVideoFile != null) {
           print('Starting creator video upload for challenge: $challengeId');
           try {
-            final creatorVideoUrl = await _uploadCreatorVideo(challengeId, currentUser.id, userName);
+            final creatorVideoUrl = await _uploadCreatorVideo(
+              challengeId,
+              currentUser.id,
+              userName,
+            );
             if (creatorVideoUrl != null && creatorVideoUrl.isNotEmpty) {
-              print('Creator video upload completed successfully with URL: $creatorVideoUrl');
-              
+              print(
+                'Creator video upload completed successfully with URL: $creatorVideoUrl',
+              );
+
               // Оновлюємо челендж з URL відео творця
-              await _sb.from('challenges').update({
-                'video_url': creatorVideoUrl,
-              }).eq('id', challengeId);
-              print('Updated challenge $challengeId with video_url: $creatorVideoUrl');
-              
+              await _sb
+                  .from('challenges')
+                  .update({'video_url': creatorVideoUrl})
+                  .eq('id', challengeId);
+              print(
+                'Updated challenge $challengeId with video_url: $creatorVideoUrl',
+              );
             } else {
               print('WARNING: Creator video upload returned null/empty URL');
               ScaffoldMessenger.of(context).showSnackBar(
@@ -1365,13 +1507,10 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                 ],
               ),
               content: Text(
-                _selectedVideoFile != null 
-                  ? tr('il_b80e3f2d55')
-                  : tr('il_dff6be6f34'),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                ),
+                _selectedVideoFile != null
+                    ? tr('il_b80e3f2d55')
+                    : tr('il_dff6be6f34'),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
               ),
               actions: [
                 ElevatedButton(
@@ -1388,10 +1527,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                   ),
                   child: Text(
                     tr('il_11a6767d56'),
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
@@ -1433,18 +1569,18 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
   List<String> _generateTags() {
     final tags = <String>[];
-    
+
     // Тип і ключові слова
     tags.add(_typeTagValue(_selectedType));
     tags.addAll(_typeKeywordTags(_selectedType));
 
     // Додати місто
     tags.add(_selectedCity.toLowerCase());
-    
+
     // Додати теги з назви та опису
     final title = _titleController.text.toLowerCase();
     final description = _descriptionController.text.toLowerCase();
-    
+
     if (title.contains('дриблінг') || description.contains('дриблінг')) {
       tags.add('дриблінг');
     }
@@ -1460,7 +1596,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     if (title.contains('захист') || description.contains('захист')) {
       tags.add('захист');
     }
-    
+
     return tags;
   }
 
@@ -1471,7 +1607,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         source: fromCamera ? ImageSource.camera : ImageSource.gallery,
         maxDuration: _maxVideoDuration,
       );
-      
+
       if (video != null) {
         final fileSize = await video.length();
         if (fileSize > _maxVideoBytes) {
@@ -1479,9 +1615,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: Colors.redAccent,
-              content: Text(
-                tr('il_c5e57856db'),
-              ),
+              content: Text(tr('il_c5e57856db')),
             ),
           );
           return;
@@ -1501,17 +1635,21 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     }
   }
 
-  Future<String?> _uploadCreatorVideo(String challengeId, String userId, String authorName) async {
+  Future<String?> _uploadCreatorVideo(
+    String challengeId,
+    String userId,
+    String authorName,
+  ) async {
     if (_selectedVideoFile == null) {
       print('ERROR: _selectedVideoFile is null in _uploadCreatorVideo');
       return null;
     }
-    
+
     try {
       print('Uploading creator video for challenge: $challengeId');
-      
+
       print('Picked file name: ${_selectedVideoFile!.name}');
-      
+
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'creator_video_$timestamp.mp4';
       final objectPath = '$userId/$fileName';
@@ -1523,9 +1661,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         print('Reading video file as bytes...');
         final bytes = await _selectedVideoFile!.readAsBytes();
         if (bytes.length > _maxVideoBytes) {
-          throw Exception(
-            tr('il_8af3536c64'),
-          );
+          throw Exception(tr('il_8af3536c64'));
         }
         print('Video file size: ${bytes.length} bytes');
 
@@ -1541,58 +1677,62 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         print('ERROR during upload: $e');
         throw Exception(tr('il_cc3ca4e740', args: [e.toString()]));
       }
-      
+
       // Зберігаємо відео створювача в submissions (без [videos]: окремий [video_url]).
       print('Saving creator video to submissions collection...');
       try {
         final creatorSubDesc = _descriptionController.text.trim();
-        await _sb.from('challenge_submissions').upsert(
-          {
-            'challenge_id': challengeId,
-            'user_id': userId,
-            'title': _titleController.text.trim().isNotEmpty
-                ? _titleController.text.trim()
-                : tr('il_b51a6ac57e'),
-            'video_url': videoUrl,
-            'thumbnail_url': null,
-            if (creatorSubDesc.isNotEmpty) 'description': creatorSubDesc,
-          },
-          onConflict: 'challenge_id,user_id',
-        );
+        await _sb.from('challenge_submissions').upsert({
+          'challenge_id': challengeId,
+          'user_id': userId,
+          'title': _titleController.text.trim().isNotEmpty
+              ? _titleController.text.trim()
+              : tr('il_b51a6ac57e'),
+          'video_url': videoUrl,
+          'thumbnail_url': null,
+          if (creatorSubDesc.isNotEmpty) 'description': creatorSubDesc,
+        }, onConflict: 'challenge_id,user_id');
         print('Creator video saved to submissions collection');
       } catch (e) {
         print('ERROR saving to submissions collection: $e');
         throw Exception('Помилка збереження в submissions: $e');
       }
-      
+
       print('Successfully uploaded creator video: $videoUrl');
-      
+
       // Генеруємо thumbnail для відео творця в фоновому режимі
       _generateCreatorThumbnailInBackground(challengeId, videoUrl, userId);
-      
+
       return videoUrl; // Повертаємо URL відео
-      
     } catch (e) {
       print('Error uploading creator video: $e');
-      
+
       // Показуємо помилку користувачу
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(tr('video_upload_error_detail', args: [e.toString()])),
+            content: Text(
+              tr('video_upload_error_detail', args: [e.toString()]),
+            ),
             backgroundColor: Colors.red,
           ),
         );
       }
-      
+
       return null; // Помилка завантаження
     }
   }
 
-  void _generateCreatorThumbnailInBackground(String challengeId, String videoUrl, String userId) {
+  void _generateCreatorThumbnailInBackground(
+    String challengeId,
+    String videoUrl,
+    String userId,
+  ) {
     Future.delayed(const Duration(seconds: 3), () async {
       try {
-        print('🎬 Starting creator thumbnail generation for challenge: $challengeId');
+        print(
+          '🎬 Starting creator thumbnail generation for challenge: $challengeId',
+        );
 
         final sub = await _sb
             .from('challenge_submissions')
@@ -1614,10 +1754,13 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
           userId: userId,
         );
         if (thumbnailUrl != null) {
-          await _sb.from('challenges').update({
-            'video_thumbnail_url': thumbnailUrl,
-            'updated_at': DateTime.now().toUtc().toIso8601String(),
-          }).eq('id', challengeId);
+          await _sb
+              .from('challenges')
+              .update({
+                'video_thumbnail_url': thumbnailUrl,
+                'updated_at': DateTime.now().toUtc().toIso8601String(),
+              })
+              .eq('id', challengeId);
           print('✅ Creator video thumbnail: $thumbnailUrl');
         }
       } catch (e) {

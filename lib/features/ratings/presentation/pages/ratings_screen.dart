@@ -3,14 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../router/app_router.dart';
 import '../../domain/repositories/ratings_repository.dart';
-import '../../../profile/presentation/pages/player_profile_page.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class RatingsScreen extends StatefulWidget {
+  const RatingsScreen({super.key});
+
   @override
-  _RatingsScreenState createState() => _RatingsScreenState();
+  State<RatingsScreen> createState() => _RatingsScreenState();
 }
 
 class _RatingsScreenState extends State<RatingsScreen>
@@ -18,19 +20,18 @@ class _RatingsScreenState extends State<RatingsScreen>
   RatingsRepository get _ratingRepo => sl<RatingsRepository>();
 
   late TabController _tabController;
-  int _currentTabIndex = 0;
-  
+
   final List<String> _tabTitles = [
     tr('overall_rating'),
     tr('by_city'),
     tr('by_position'),
     tr('my_stats'),
   ];
-  
+
   // Фільтри
   String _selectedCity = tr('all_cities');
   String _selectedPosition = tr('il_0e333190c1');
-  
+
   List<String> get _cityOptions => [
     tr('all_cities'),
     tr('kyiv'),
@@ -40,7 +41,7 @@ class _RatingsScreenState extends State<RatingsScreen>
     tr('lviv'),
     tr('il_d13f986228'),
   ];
-  
+
   List<String> get _positionOptions => [
     tr('il_0e333190c1'),
     tr('il_f2d20c7ee1'),
@@ -48,28 +49,25 @@ class _RatingsScreenState extends State<RatingsScreen>
     tr('il_d332e47845'),
     tr('il_f1c65e1481'),
   ];
-  
+
   // Дані
   List<Map<String, dynamic>> _topPlayers = [];
   List<Map<String, dynamic>> _cityPlayers = [];
   List<Map<String, dynamic>> _positionPlayers = [];
   Map<String, dynamic> _myStats = {};
-  
+
   bool _isLoading = false;
   bool _isCityLoading = false;
   bool _isPositionLoading = false;
-  
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-      length: _tabTitles.length,
-      vsync: this,
-    );
-    
+    _tabController = TabController(length: _tabTitles.length, vsync: this);
+
     _loadData();
   }
-  
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -77,53 +75,50 @@ class _RatingsScreenState extends State<RatingsScreen>
   }
 
   List<Map<String, dynamic>> _dedupeById(List<Map<String, dynamic>> players) {
-  final Map<String, Map<String, dynamic>> byId = {};
-  for (final p in players) {
-    final id = (p['id'] ?? '').toString();
-    if (id.isEmpty) continue;
-    byId[id] = p; // залишаємо останній екземпляр
+    final Map<String, Map<String, dynamic>> byId = {};
+    for (final p in players) {
+      final id = (p['id'] ?? '').toString();
+      if (id.isEmpty) continue;
+      byId[id] = p; // залишаємо останній екземпляр
+    }
+    return byId.values.toList();
   }
-  return byId.values.toList();
-}
-  
+
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
     });
-    
+
     try {
       // Завантажуємо топ гравців
-_topPlayers = await _ratingRepo.getTopPlayers(limit: 50);
-_topPlayers = _dedupeById(_topPlayers);
+      _topPlayers = await _ratingRepo.getTopPlayers(limit: 50);
+      _topPlayers = _dedupeById(_topPlayers);
 
-// Завантажуємо гравців за містом
-if (_selectedCity != tr('all_cities')) {
-  _cityPlayers = await _ratingRepo.getTopPlayers(
-    limit: 50,
-    city: _selectedCity,
-  );
-  _cityPlayers = _dedupeById(_cityPlayers);
-}
-      
+      // Завантажуємо гравців за містом
+      if (_selectedCity != tr('all_cities')) {
+        _cityPlayers = await _ratingRepo.getTopPlayers(
+          limit: 50,
+          city: _selectedCity,
+        );
+        _cityPlayers = _dedupeById(_cityPlayers);
+      }
+
       // Завантажуємо гравців за позицією
-if (_selectedPosition != tr('il_0e333190c1')) {
-  _positionPlayers = await _ratingRepo.getTopPlayers(
-    limit: 50,
-    position: _selectedPosition,
-  );
-  _positionPlayers = _dedupeById(_positionPlayers);
-}
-      
+      if (_selectedPosition != tr('il_0e333190c1')) {
+        _positionPlayers = await _ratingRepo.getTopPlayers(
+          limit: 50,
+          position: _selectedPosition,
+        );
+        _positionPlayers = _dedupeById(_positionPlayers);
+      }
+
       // Завантажуємо мою статистику
       await _loadMyStats();
-      
     } catch (e) {
       print('Error loading ratings data: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            tr('il_e4fdc41fe4', namedArgs: {'e': e.toString()}),
-          ),
+          content: Text(tr('il_e4fdc41fe4', namedArgs: {'e': e.toString()})),
         ),
       );
     } finally {
@@ -132,28 +127,26 @@ if (_selectedPosition != tr('il_0e333190c1')) {
       });
     }
   }
-  
+
   Future<void> _loadMyStats() async {
-  final currentUser = AppAuth.currentUser;
-  if (currentUser == null) {
-    setState(() => _myStats = {});
-    return;
-  }
-  try {
-    final stats = await _ratingRepo.getUserRatingStats(currentUser.id);
-    setState(() => _myStats = stats);
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          tr('il_4cb10b7873', namedArgs: {'e': e.toString()}),
+    final currentUser = AppAuth.currentUser;
+    if (currentUser == null) {
+      setState(() => _myStats = {});
+      return;
+    }
+    try {
+      final stats = await _ratingRepo.getUserRatingStats(currentUser.id);
+      setState(() => _myStats = stats);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('il_4cb10b7873', namedArgs: {'e': e.toString()})),
         ),
-      ),
-    );
+      );
+    }
   }
-}
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -194,7 +187,8 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
                     fontSize: 20,
-                  )),
+                  ),
+                ),
                 Text(
                   tr('il_bc93181f0a'),
                   style: TextStyle(
@@ -240,16 +234,13 @@ if (_selectedPosition != tr('il_0e333190c1')) {
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
               labelStyle: const TextStyle(fontWeight: FontWeight.w600),
-              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w400),
-              onTap: (index) {
-                setState(() {
-                  _currentTabIndex = index;
-                });
-              },
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.w400,
+              ),
               tabs: _tabTitles.map((title) => Tab(text: title)).toList(),
             ),
           ),
-          
+
           // Content
           Expanded(
             child: TabBarView(
@@ -266,13 +257,15 @@ if (_selectedPosition != tr('il_0e333190c1')) {
       ),
     );
   }
-  
+
   // Загальний рейтинг
   Widget _buildOverallRatingsTab() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white));
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
     }
-    
+
     return ListView.builder(
       padding: const EdgeInsets.all(15),
       itemCount: _topPlayers.length,
@@ -281,7 +274,7 @@ if (_selectedPosition != tr('il_0e333190c1')) {
         final rating = player['rating'] as double;
         final level = _ratingRepo.getPlayerLevel(rating);
         final levelColor = Color(_ratingRepo.getPlayerLevelColor(rating));
-        
+
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
@@ -294,26 +287,32 @@ if (_selectedPosition != tr('il_0e333190c1')) {
               ],
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.1),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
           ),
           child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
             leading: Stack(
               clipBehavior: Clip.none,
               children: [
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: levelColor.withOpacity(0.2),
-                  backgroundImage: (player['avatarUrl'] ?? '').toString().isNotEmpty
+                  backgroundImage:
+                      (player['avatarUrl'] ?? '').toString().isNotEmpty
                       ? NetworkImage(player['avatarUrl'])
                       : null,
                   child: (player['avatarUrl'] ?? '').toString().isEmpty
                       ? Text(
-                          (player['name'] ?? 'U').toString().isNotEmpty ? (player['name'] as String)[0].toUpperCase() : 'U',
-                          style: TextStyle(color: levelColor, fontWeight: FontWeight.bold),
+                          (player['name'] ?? 'U').toString().isNotEmpty
+                              ? (player['name'] as String)[0].toUpperCase()
+                              : 'U',
+                          style: TextStyle(
+                            color: levelColor,
+                            fontWeight: FontWeight.bold,
+                          ),
                         )
                       : null,
                 ),
@@ -321,7 +320,10 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                   bottom: -4,
                   right: -4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: levelColor,
                       borderRadius: BorderRadius.circular(10),
@@ -329,7 +331,11 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                     ),
                     child: Text(
                       '${index + 1}',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -351,7 +357,10 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: levelColor.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
@@ -393,19 +402,26 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                 ),
               ],
             ),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Text('⭐', style: TextStyle(fontSize: 14)),
-              const SizedBox(width: 4),
-              Text(rating.toStringAsFixed(2), style: const TextStyle(color: Color(0xFFFFD700), fontSize: 16, fontWeight: FontWeight.bold)),
-            ]),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PlayerProfileScreen(
-                    playerId: player['id'],
-                    playerName: player['name'] ?? 'Невідомий',
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('⭐', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 4),
+                Text(
+                  rating.toStringAsFixed(2),
+                  style: const TextStyle(
+                    color: Color(0xFFFFD700),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
+                ),
+              ],
+            ),
+            onTap: () {
+              context.router.push(
+                PlayerProfileRoute(
+                  playerId: player['id'],
+                  playerName: player['name'] ?? tr('unknown'),
                 ),
               );
             },
@@ -414,7 +430,7 @@ if (_selectedPosition != tr('il_0e333190c1')) {
       },
     );
   }
-  
+
   // Рейтинг за містом
   Widget _buildCityRatingsTab() {
     return Column(
@@ -426,10 +442,7 @@ if (_selectedPosition != tr('il_0e333190c1')) {
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.1),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,11 +463,15 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                   fillColor: Colors.white.withOpacity(0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.2),
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.2),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -464,10 +481,7 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                 dropdownColor: const Color(0xFF1a1a2e),
                 style: const TextStyle(color: Colors.white),
                 items: _cityOptions.map((city) {
-                  return DropdownMenuItem(
-                    value: city,
-                    child: Text(city),
-                  );
+                  return DropdownMenuItem(value: city, child: Text(city));
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
@@ -481,7 +495,7 @@ if (_selectedPosition != tr('il_0e333190c1')) {
             ],
           ),
         ),
-        
+
         // Список гравців
         Expanded(
           child: _selectedCity == tr('all_cities')
@@ -495,25 +509,25 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                   ),
                 )
               : _isCityLoading
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(color: Color(0xFF4caf50)),
-                          SizedBox(height: 16),
-                          Text(
-                            'Завантаження гравців...',
-                            style: TextStyle(color: Colors.white70, fontSize: 14),
-                          ),
-                        ],
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(color: Color(0xFF4caf50)),
+                      SizedBox(height: 16),
+                      Text(
+                        'Завантаження гравців...',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
                       ),
-                    )
-                  : _buildPlayersList(_cityPlayers),
+                    ],
+                  ),
+                )
+              : _buildPlayersList(_cityPlayers),
         ),
       ],
     );
   }
-  
+
   // Рейтинг за позицією
   Widget _buildPositionRatingsTab() {
     return Column(
@@ -525,10 +539,7 @@ if (_selectedPosition != tr('il_0e333190c1')) {
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.1),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -549,11 +560,15 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                   fillColor: Colors.white.withOpacity(0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.2),
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.2),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -580,9 +595,9 @@ if (_selectedPosition != tr('il_0e333190c1')) {
             ],
           ),
         ),
-        
+
         // Список гравців
-                // Список гравців
+        // Список гравців
         Expanded(
           child: _selectedPosition == tr('il_0e333190c1')
               ? Center(
@@ -595,25 +610,25 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                   ),
                 )
               : _isPositionLoading
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(color: Color(0xFF4caf50)),
-                          SizedBox(height: 16),
-                          Text(
-                            'Завантаження гравців...',
-                            style: TextStyle(color: Colors.white70, fontSize: 14),
-                          ),
-                        ],
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(color: Color(0xFF4caf50)),
+                      SizedBox(height: 16),
+                      Text(
+                        'Завантаження гравців...',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
                       ),
-                    )
-                  : _buildPlayersList(_positionPlayers),
+                    ],
+                  ),
+                )
+              : _buildPlayersList(_positionPlayers),
         ),
       ],
     );
   }
-  
+
   // Моя статистика
   Widget _buildMyStatsTab() {
     if (_myStats.isEmpty) {
@@ -621,16 +636,16 @@ if (_selectedPosition != tr('il_0e333190c1')) {
         child: CircularProgressIndicator(color: Colors.white),
       );
     }
-    
+
     final currentRating = (_myStats['currentRating'] ?? 3.0).toDouble();
     final matchRating = (_myStats['matchRating'] ?? 3.0).toDouble();
     final videoRating = (_myStats['videoRating'] ?? 3.0).toDouble();
     final totalMatches = (_myStats['totalMatches'] ?? 0) as int;
     final totalVideos = (_myStats['totalVideos'] ?? 0) as int;
-    
+
     final level = _ratingRepo.getPlayerLevel(currentRating);
     final levelColor = Color(_ratingRepo.getPlayerLevelColor(currentRating));
-    
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(15),
       child: Column(
@@ -649,10 +664,7 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                 ],
               ),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: levelColor.withOpacity(0.3),
-                width: 2,
-              ),
+              border: Border.all(color: levelColor.withOpacity(0.3), width: 2),
             ),
             child: Column(
               children: [
@@ -682,7 +694,10 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: levelColor.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
@@ -700,9 +715,9 @@ if (_selectedPosition != tr('il_0e333190c1')) {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Детальна статистика
           Row(
             children: [
@@ -727,9 +742,9 @@ if (_selectedPosition != tr('il_0e333190c1')) {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Кількість матчів та відео
           Row(
             children: [
@@ -754,9 +769,9 @@ if (_selectedPosition != tr('il_0e333190c1')) {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Графік прогресу (заглушка)
           Container(
             width: double.infinity,
@@ -808,18 +823,21 @@ if (_selectedPosition != tr('il_0e333190c1')) {
       ),
     );
   }
-  
+
   // Картка статистики
-  Widget _buildStatCard(String title, String value, String subtitle, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    String subtitle,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
       ),
       child: Column(
         children: [
@@ -855,21 +873,18 @@ if (_selectedPosition != tr('il_0e333190c1')) {
       ),
     );
   }
-  
+
   // Список гравців
   Widget _buildPlayersList(List<Map<String, dynamic>> players) {
     if (players.isEmpty) {
       return Center(
         child: Text(
           'Гравців не знайдено',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.7),
-            fontSize: 16,
-          ),
+          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 16),
         ),
       );
     }
-    
+
     return ListView.builder(
       padding: const EdgeInsets.all(15),
       itemCount: players.length,
@@ -878,7 +893,7 @@ if (_selectedPosition != tr('il_0e333190c1')) {
         final rating = player['rating'] as double;
         final level = _ratingRepo.getPlayerLevel(rating);
         final levelColor = Color(_ratingRepo.getPlayerLevelColor(rating));
-        
+
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
@@ -891,26 +906,32 @@ if (_selectedPosition != tr('il_0e333190c1')) {
               ],
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.1),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
           ),
           child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
             leading: Stack(
               clipBehavior: Clip.none,
               children: [
                 CircleAvatar(
                   radius: 22,
                   backgroundColor: levelColor.withOpacity(0.2),
-                  backgroundImage: (player['avatarUrl'] ?? '').toString().isNotEmpty
+                  backgroundImage:
+                      (player['avatarUrl'] ?? '').toString().isNotEmpty
                       ? NetworkImage(player['avatarUrl'])
                       : null,
                   child: (player['avatarUrl'] ?? '').toString().isEmpty
                       ? Text(
-                          (player['name'] ?? 'U').toString().isNotEmpty ? (player['name'] as String)[0].toUpperCase() : 'U',
-                          style: TextStyle(color: levelColor, fontWeight: FontWeight.bold),
+                          (player['name'] ?? 'U').toString().isNotEmpty
+                              ? (player['name'] as String)[0].toUpperCase()
+                              : 'U',
+                          style: TextStyle(
+                            color: levelColor,
+                            fontWeight: FontWeight.bold,
+                          ),
                         )
                       : null,
                 ),
@@ -918,7 +939,10 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                   bottom: -4,
                   right: -4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: levelColor,
                       borderRadius: BorderRadius.circular(10),
@@ -926,7 +950,11 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                     ),
                     child: Text(
                       '${index + 1}',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -948,7 +976,10 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: levelColor.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
@@ -972,19 +1003,26 @@ if (_selectedPosition != tr('il_0e333190c1')) {
                 fontSize: 11,
               ),
             ),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Text('⭐', style: TextStyle(fontSize: 14)),
-              const SizedBox(width: 4),
-              Text(rating.toStringAsFixed(2), style: const TextStyle(color: Color(0xFFFFD700), fontSize: 16, fontWeight: FontWeight.bold)),
-            ]),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PlayerProfileScreen(
-                    playerId: player['id'],
-                    playerName: player['name'] ?? 'Невідомий',
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('⭐', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 4),
+                Text(
+                  rating.toStringAsFixed(2),
+                  style: const TextStyle(
+                    color: Color(0xFFFFD700),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
+                ),
+              ],
+            ),
+            onTap: () {
+              context.router.push(
+                PlayerProfileRoute(
+                  playerId: player['id'],
+                  playerName: player['name'] ?? tr('unknown'),
                 ),
               );
             },
@@ -993,21 +1031,18 @@ if (_selectedPosition != tr('il_0e333190c1')) {
       },
     );
   }
-  
-    // Завантаження гравців за містом
+
+  // Завантаження гравців за містом
   Future<void> _loadCityPlayers(String city) async {
     setState(() {
       _isCityLoading = true;
     });
-    
+
     try {
       print('🔍 Loading players for city: $city');
-      final players = await _ratingRepo.getTopPlayers(
-        limit: 50,
-        city: city,
-      );
+      final players = await _ratingRepo.getTopPlayers(limit: 50, city: city);
       print('✅ Loaded ${players.length} players for city: $city');
-      
+
       setState(() {
         _cityPlayers = _dedupeById(players);
         _isCityLoading = false;
@@ -1017,26 +1052,24 @@ if (_selectedPosition != tr('il_0e333190c1')) {
       setState(() {
         _isCityLoading = false;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              tr('il_c487fc4cab', namedArgs: {'e': e.toString()}),
-            ),
+            content: Text(tr('il_c487fc4cab', namedArgs: {'e': e.toString()})),
             backgroundColor: Colors.red,
           ),
         );
       }
     }
   }
-  
-    // Завантаження гравців за позицією
+
+  // Завантаження гравців за позицією
   Future<void> _loadPositionPlayers(String position) async {
     setState(() {
       _isPositionLoading = true;
     });
-    
+
     try {
       print('🔍 Loading players for position: $position');
       final players = await _ratingRepo.getTopPlayers(
@@ -1044,7 +1077,7 @@ if (_selectedPosition != tr('il_0e333190c1')) {
         position: position,
       );
       print('✅ Loaded ${players.length} players for position: $position');
-      
+
       setState(() {
         _positionPlayers = _dedupeById(players);
         _isPositionLoading = false;
@@ -1054,13 +1087,11 @@ if (_selectedPosition != tr('il_0e333190c1')) {
       setState(() {
         _isPositionLoading = false;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              tr('il_c487fc4cab', namedArgs: {'e': e.toString()}),
-            ),
+            content: Text(tr('il_c487fc4cab', namedArgs: {'e': e.toString()})),
             backgroundColor: Colors.red,
           ),
         );

@@ -22,8 +22,6 @@ import '../../domain/repositories/player_social_repository.dart';
 import '../../domain/repositories/profile_team_membership_repository.dart';
 import '../../domain/repositories/team_stats_repository.dart';
 import '../../domain/repositories/user_badges_repository.dart';
-import '../../../teams/presentation/pages/team_details_screen.dart';
-import '../../../teams/presentation/pages/team_create_screen.dart';
 import '../bloc/profile_bloc.dart';
 
 @RoutePage()
@@ -129,11 +127,8 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                     onPressed: canCreate
                         ? () async {
                             if (_userId == null) return;
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    TeamCreateScreen(existingTeams: teams.length),
-                              ),
+                            await context.router.push(
+                              TeamCreateRoute(existingTeams: teams.length),
                             );
                           }
                         : null,
@@ -153,7 +148,10 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
               )
             else if (teams.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -175,20 +173,14 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                       const SizedBox(height: 8),
                       Text(
                         tr('il_747ca024e8'),
-                        style: const TextStyle(
-                          color: Colors.white70,
-                        ),
+                        style: const TextStyle(color: Colors.white70),
                       ),
                       const SizedBox(height: 12),
                       ElevatedButton(
                         onPressed: canCreate
                             ? () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => TeamCreateScreen(
-                                      existingTeams: teams.length,
-                                    ),
-                                  ),
+                                context.router.push(
+                                  TeamCreateRoute(existingTeams: teams.length),
                                 );
                               }
                             : null,
@@ -203,21 +195,19 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                 height: 210,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                   itemBuilder: (context, index) {
                     final team = teams[index];
                     return _TeamCard(
                       team: team,
-                      teamStatsStream:
-                          sl<TeamStatsRepository>().watchTeamStats(team.id),
+                      teamStatsStream: sl<TeamStatsRepository>().watchTeamStats(
+                        team.id,
+                      ),
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => TeamDetailsScreen(teamId: team.id),
-                          ),
-                        );
+                        context.router.push(TeamDetailsRoute(teamId: team.id));
                       },
                     );
                   },
@@ -267,9 +257,8 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
         final team = snapshot.data;
         final logoUrl = (team?.logoUrl ?? '').toString();
         final city = (team?.city ?? '').toString();
-        final motto = (team?.description.isNotEmpty == true
-                ? team!.description
-                : null) ??
+        final motto =
+            (team?.description.isNotEmpty == true ? team!.description : null) ??
             tr('il_e6c2280de7');
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -287,18 +276,16 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                 children: [
                   GestureDetector(
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TeamDetailsScreen(teamId: invite.teamId),
-                        ),
+                      context.router.push(
+                        TeamDetailsRoute(teamId: invite.teamId),
                       );
                     },
                     child: CircleAvatar(
                       radius: 28,
                       backgroundColor: const Color(0xFF1A2737),
-                      backgroundImage:
-                          logoUrl.isNotEmpty ? NetworkImage(logoUrl) : null,
+                      backgroundImage: logoUrl.isNotEmpty
+                          ? NetworkImage(logoUrl)
+                          : null,
                       child: logoUrl.isEmpty
                           ? Text(
                               invite.teamName.isNotEmpty
@@ -358,15 +345,15 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                   final isTight = constraints.maxWidth < 320;
                   final cancelButton = TextButton(
                     onPressed: () async {
-                      await sl<ProfileTeamMembershipRepository>().respondToInvite(
-                        invite: invite,
-                        accept: false,
-                      );
+                      await sl<ProfileTeamMembershipRepository>()
+                          .respondToInvite(invite: invite, accept: false);
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.white70,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 10),
+                        horizontal: 18,
+                        vertical: 10,
+                      ),
                       backgroundColor: Colors.white.withOpacity(0.04),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
@@ -377,23 +364,21 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                   final joinButton = ElevatedButton(
                     onPressed: () async {
                       try {
-                        await sl<ProfileTeamMembershipRepository>().respondToInvite(
-                          invite: invite,
-                          accept: true,
-                        );
+                        await sl<ProfileTeamMembershipRepository>()
+                            .respondToInvite(invite: invite, accept: true);
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(tr('il_b7b3f790f9')),
-                          ),
+                          SnackBar(content: Text(tr('il_b7b3f790f9'))),
                         );
                       } catch (e) {
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              tr('il_e69e7edfdf',
-                                  namedArgs: {'e': e.toString()}),
+                              tr(
+                                'il_e69e7edfdf',
+                                namedArgs: {'e': e.toString()},
+                              ),
                             ),
                           ),
                         );
@@ -403,7 +388,9 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                       backgroundColor: const Color(0xFF36D399),
                       foregroundColor: const Color(0xFF041013),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 12),
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -449,7 +436,8 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   }
 
   Widget _buildProfileBody(ProfileState state) {
-    if (state.streamProgress == ProgressStatus.loading && state.profile == null) {
+    if (state.streamProgress == ProgressStatus.loading &&
+        state.profile == null) {
       return const Center(
         child: CircularProgressIndicator(color: Color(0xFF4caf50)),
       );
@@ -481,26 +469,29 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     if (userId.isEmpty) return;
     if (_matchStatsUserId == userId && _matchStatsFuture != null) return;
     _matchStatsUserId = userId;
-    _matchStatsFuture =
-        sl<MatchParticipationStatsRepository>().loadFinishedMatchStats(userId);
+    _matchStatsFuture = sl<MatchParticipationStatsRepository>()
+        .loadFinishedMatchStats(userId);
   }
 
   Widget _buildProfileContent(Map<String, dynamic> userData) {
-    final displayName = userData['name'] ?? userData['displayName'] ?? tr('player');
+    final displayName =
+        userData['name'] ?? userData['displayName'] ?? tr('player');
     final avatarUrl = userData['avatar'] ?? userData['avatarUrl'];
     final rating = (userData['rating'] ?? 0.0).toDouble();
     final coins = userData['coins'] ?? 0;
     final profileUserId =
-        userData['uid'] ?? sl<AuthSessionRepository>().peekCurrentUser?.uid ?? '';
+        userData['uid'] ??
+        sl<AuthSessionRepository>().peekCurrentUser?.uid ??
+        '';
     if (profileUserId.isNotEmpty) {
       _ensureMatchStatsFuture(profileUserId);
     }
     final statsFuture = _matchStatsFuture;
-    
+
     return CustomScrollView(
       slivers: [
         // App bar with gradient
-                SliverAppBar(
+        SliverAppBar(
           pinned: true,
           elevation: 0,
           backgroundColor: const Color(0xFF0f0f23),
@@ -512,7 +503,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           ],
         ),
 
-                SliverToBoxAdapter(
+        SliverToBoxAdapter(
           child: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -535,19 +526,19 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
             ),
           ),
         ),
-        
+
         // Content
         SliverToBoxAdapter(
           child: Column(
             children: [
-  _buildStatsCards(userData),
-  _buildBadgesSection(userData),
-  _buildTeamsSection(),
-  const SizedBox(height: 20),
-  _buildTeamInvitesSection(),
-  _buildActionsMenu(userData),
-  const SizedBox(height: 20),
-],
+              _buildStatsCards(userData),
+              _buildBadgesSection(userData),
+              _buildTeamsSection(),
+              const SizedBox(height: 20),
+              _buildTeamInvitesSection(),
+              _buildActionsMenu(userData),
+              const SizedBox(height: 20),
+            ],
           ),
         ),
       ],
@@ -555,19 +546,26 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   }
 
   Widget _buildProfileHeader(
-      Map<String, dynamic> userData,
-      String displayName,
-      String? avatarUrl,
-      double rating,
-      int coins,
-      Future<Map<String, dynamic>>? statsFuture) {
+    Map<String, dynamic> userData,
+    String displayName,
+    String? avatarUrl,
+    double rating,
+    int coins,
+    Future<Map<String, dynamic>>? statsFuture,
+  ) {
     final userId =
-        userData['uid'] ?? sl<AuthSessionRepository>().peekCurrentUser?.uid ?? '';
+        userData['uid'] ??
+        sl<AuthSessionRepository>().peekCurrentUser?.uid ??
+        '';
     return FutureBuilder<Map<String, dynamic>>(
-      future: statsFuture ??
-          sl<MatchParticipationStatsRepository>().loadFinishedMatchStats(userId),
+      future:
+          statsFuture ??
+          sl<MatchParticipationStatsRepository>().loadFinishedMatchStats(
+            userId,
+          ),
       builder: (context, snapshot) {
-        final stats = snapshot.data ??
+        final stats =
+            snapshot.data ??
             {
               'winRate': 0.0,
               'recentResults': ['-', '-', '-', '-', '-'],
@@ -618,10 +616,14 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                  color: Colors.white.withOpacity(0.2), width: 2),
+                                color: Colors.white.withOpacity(0.2),
+                                width: 2,
+                              ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF4caf50).withOpacity(0.35),
+                                  color: const Color(
+                                    0xFF4caf50,
+                                  ).withOpacity(0.35),
                                   blurRadius: 20,
                                   offset: const Offset(0, 8),
                                 ),
@@ -690,7 +692,8 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                     icon: Icons.sports_soccer,
                                     label: tr('matches'),
                                     value:
-                                        ((userData['matchesPlayed'] ?? 0) as num)
+                                        ((userData['matchesPlayed'] ?? 0)
+                                                as num)
                                             .toString(),
                                     accent: const Color(0xFF4CAF50),
                                   ),
@@ -703,8 +706,8 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                   _profilePill(
                                     icon: Icons.sports,
                                     label: tr('il_116cd3982a'),
-                                    value:
-                                        ((userData['goals'] ?? 0) as num).toString(),
+                                    value: ((userData['goals'] ?? 0) as num)
+                                        .toString(),
                                     accent: const Color(0xFFFF7043),
                                   ),
                                 ];
@@ -714,8 +717,8 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                 final itemWidth = columns == 1
                                     ? constraints.maxWidth
                                     : (constraints.maxWidth -
-                                            spacing * (columns - 1)) /
-                                        columns;
+                                              spacing * (columns - 1)) /
+                                          columns;
                                 return Wrap(
                                   spacing: spacing,
                                   runSpacing: spacing,
@@ -738,7 +741,9 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                   const SizedBox(height: 18),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.03),
                       borderRadius: BorderRadius.circular(16),
@@ -814,10 +819,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 11,
-                ),
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
               ),
               Text(
                 value,
@@ -844,9 +846,8 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
               (userData['matchesPlayed'] ?? 0).toString(),
               Icons.sports_soccer,
               const Color(0xFF4caf50),
-              onTap: () => context.router.push(
-                MatchesRoute(initialTabIndex: 1),
-              ),
+              onTap: () =>
+                  context.router.push(MatchesRoute(initialTabIndex: 1)),
             ),
           ),
           const SizedBox(width: 12),
@@ -875,7 +876,13 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color, {VoidCallback? onTap}) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color, {
+    VoidCallback? onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -884,10 +891,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              color.withOpacity(0.25),
-              Colors.white.withOpacity(0.02),
-            ],
+            colors: [color.withOpacity(0.25), Colors.white.withOpacity(0.02)],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withOpacity(0.4)),
@@ -934,9 +938,11 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   }
 
   Widget _buildBadgesSection(Map<String, dynamic> userData) {
-  final String userId =
-      userData['uid'] ?? sl<AuthSessionRepository>().peekCurrentUser?.uid ?? '';
-  return Padding(
+    final String userId =
+        userData['uid'] ??
+        sl<AuthSessionRepository>().peekCurrentUser?.uid ??
+        '';
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -962,7 +968,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           if (_userBadges.isEmpty)
             Container(
               width: double.infinity,
@@ -1002,12 +1008,13 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                 itemBuilder: (context, index) {
                   final badge = _userBadges[index];
                   return FutureBuilder<BadgeEndorsementInfo>(
-                    future: sl<PlayerBadgeEndorsementRepository>().getEndorsementInfo(
-                      ownerUserId: userId,
-                      badgeId: badge.id,
-                      currentUserId:
-                          sl<AuthSessionRepository>().peekCurrentUser?.uid,
-                    ),
+                    future: sl<PlayerBadgeEndorsementRepository>()
+                        .getEndorsementInfo(
+                          ownerUserId: userId,
+                          badgeId: badge.id,
+                          currentUserId:
+                              sl<AuthSessionRepository>().peekCurrentUser?.uid,
+                        ),
                     builder: (context, endorsementSnapshot) {
                       final endorsementCount =
                           endorsementSnapshot.data?.count ?? 0;
@@ -1021,7 +1028,9 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.04),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.white.withOpacity(0.08)),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.08),
+                              ),
                             ),
                             child: Row(
                               children: [
@@ -1030,9 +1039,13 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                   height: 54,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: Color(badge.categoryColor).withOpacity(0.15),
+                                    color: Color(
+                                      badge.categoryColor,
+                                    ).withOpacity(0.15),
                                     border: Border.all(
-                                      color: Color(badge.categoryColor).withOpacity(0.5),
+                                      color: Color(
+                                        badge.categoryColor,
+                                      ).withOpacity(0.5),
                                     ),
                                   ),
                                   child: Center(
@@ -1045,7 +1058,8 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
@@ -1060,11 +1074,22 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                       ),
                                       const SizedBox(height: 6),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: Color(badge.categoryColor).withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: Color(badge.categoryColor).withOpacity(0.4)),
+                                          color: Color(
+                                            badge.categoryColor,
+                                          ).withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: Color(
+                                              badge.categoryColor,
+                                            ).withOpacity(0.4),
+                                          ),
                                         ),
                                         child: Text(
                                           badge.rarityText,
@@ -1079,14 +1104,24 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                       Row(
                                         children: [
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
                                             decoration: BoxDecoration(
                                               color: const Color(0xFF1F2A44),
-                                              borderRadius: BorderRadius.circular(10),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
                                             ),
                                             child: Row(
                                               children: [
-                                                Icon(Icons.thumb_up, size: 14, color: Colors.blueAccent.shade100),
+                                                Icon(
+                                                  Icons.thumb_up,
+                                                  size: 14,
+                                                  color: Colors
+                                                      .blueAccent
+                                                      .shade100,
+                                                ),
                                                 const SizedBox(width: 4),
                                                 Text(
                                                   '$endorsementCount',
@@ -1136,12 +1171,12 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
             Icons.people,
             () => _openFriends(),
           ),
-             _buildActionItem(
-     bilingual('⚽ Мої матчі', '⚽ My matches'),
-     tr('il_224b3a8c5d'),
-     Icons.sports_soccer,
-     () => _openMyMatches(),
-   ),
+          _buildActionItem(
+            bilingual('⚽ Мої матчі', '⚽ My matches'),
+            tr('il_224b3a8c5d'),
+            Icons.sports_soccer,
+            () => _openMyMatches(),
+          ),
           _buildActionItem(
             bilingual('🏆 Мої відео', '🏆 My videos'),
             tr('view_uploaded_videos'),
@@ -1184,7 +1219,13 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     );
   }
 
-  Widget _buildActionItem(String title, String subtitle, IconData icon, VoidCallback onTap, {bool isDestructive = false}) {
+  Widget _buildActionItem(
+    String title,
+    String subtitle,
+    IconData icon,
+    VoidCallback onTap, {
+    bool isDestructive = false,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -1193,7 +1234,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: isDestructive 
+            color: isDestructive
                 ? Colors.red.withOpacity(0.2)
                 : const Color(0xFF4caf50).withOpacity(0.2),
             borderRadius: BorderRadius.circular(20),
@@ -1213,10 +1254,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
         ),
         subtitle: Text(
           subtitle,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.7),
-            fontSize: 12,
-          ),
+          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
         ),
         trailing: Icon(
           Icons.arrow_forward_ios,
@@ -1253,21 +1291,20 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     );
   }
 
-  Color _getRatingColor(double rating) {
-    if (rating >= 4.5) return const Color(0xFF4CAF50);
-    if (rating >= 3.5) return const Color(0xFF8BC34A);
-    if (rating >= 2.5) return const Color(0xFFFFC107);
-    if (rating >= 1.5) return const Color(0xFFFF9800);
-    return const Color(0xFFF44336);
-  }
-
   Future<void> _endorseBadge(String userId, app_badge.Badge badge) async {
     final currentUserId = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     if (currentUserId == null) return;
 
     if (currentUserId == userId) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(bilingual('Не можна підтверджувати свої бейджі', 'You cannot endorse your own badges'))),
+        SnackBar(
+          content: Text(
+            bilingual(
+              'Не можна підтверджувати свої бейджі',
+              'You cannot endorse your own badges',
+            ),
+          ),
+        ),
       );
       return;
     }
@@ -1296,11 +1333,15 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           SnackBar(
             content: Text(
               f.when(
-                cache: () => bilingual('Помилка підтвердження', 'Endorsement error'),
-                network: (m) => m ?? bilingual('Помилка мережі', 'Network error'),
+                cache: () =>
+                    bilingual('Помилка підтвердження', 'Endorsement error'),
+                network: (m) =>
+                    m ?? bilingual('Помилка мережі', 'Network error'),
                 unexpected: (m) =>
-                    m ?? bilingual('Помилка підтвердження', 'Endorsement error'),
-                auth: (_, m) => m ?? bilingual('Помилка авторизації', 'Auth error'),
+                    m ??
+                    bilingual('Помилка підтвердження', 'Endorsement error'),
+                auth: (_, m) =>
+                    m ?? bilingual('Помилка авторизації', 'Auth error'),
               ),
             ),
             backgroundColor: Colors.orange,
@@ -1314,9 +1355,9 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     context.router.push(const FriendsRoute());
   }
 
-     void _openMyMatches() {
-     context.router.push(MatchesRoute(initialTabIndex: 1));
-   }
+  void _openMyMatches() {
+    context.router.push(MatchesRoute(initialTabIndex: 1));
+  }
 
   void _openMyVideos() {
     context.router.push(VideoMainRoute(myContent: 'videos'));
@@ -1328,17 +1369,14 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
 
   void _openStats(Map<String, dynamic> userData) {
     final uid =
-        userData['uid'] ?? sl<AuthSessionRepository>().peekCurrentUser?.uid ?? '';
-    final statsFuture = _matchStatsFuture ??
+        userData['uid'] ??
+        sl<AuthSessionRepository>().peekCurrentUser?.uid ??
+        '';
+    final statsFuture =
+        _matchStatsFuture ??
         sl<MatchParticipationStatsRepository>().loadFinishedMatchStats(uid);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ProfileStatsPage(
-          statsFuture: statsFuture,
-          userData: userData,
-        ),
-      ),
+    context.router.push(
+      ProfileStatsRoute(statsFuture: statsFuture, userData: userData),
     );
   }
 
@@ -1363,63 +1401,35 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
         title: Text(
-  tr('logout_confirm'),
-  style: TextStyle(color: Colors.white),
-),
+          tr('logout_confirm'),
+          style: TextStyle(color: Colors.white),
+        ),
         content: Text(
-          bilingual('Ви впевнені, що хочете вийти?', 'Are you sure you want to log out?'),
+          bilingual(
+            'Ви впевнені, що хочете вийти?',
+            'Are you sure you want to log out?',
+          ),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70)),
+            child: Text(
+              tr('cancel'),
+              style: const TextStyle(color: Colors.white70),
+            ),
           ),
           TextButton(
             onPressed: () async {
               await sl<AuthSessionRepository>().signOut();
               context.router.replace(const LoginRoute());
             },
-            child: Text(tr('logout'), style: const TextStyle(color: Colors.red)),
+            child: Text(
+              tr('logout'),
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ProfileField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final IconData icon;
-  final int maxLines;
-  final String? Function(String?)? validator;
-
-  const _ProfileField({
-    required this.controller,
-    required this.label,
-    required this.icon,
-    this.maxLines = 1,
-    this.validator,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      maxLines: maxLines,
-      style: const TextStyle(color: Colors.white),
-      validator: validator,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: Colors.white70),
-        filled: true,
-        fillColor: Colors.white.withOpacity(0.05),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
-        labelStyle: const TextStyle(color: Colors.white70),
       ),
     );
   }
@@ -1446,11 +1456,7 @@ class _TeamCard extends StatelessWidget {
           snapshot.data,
           fallbackName: team.name,
         );
-        return _TeamCardBody(
-          team: team,
-          stats: stats,
-          onTap: onTap,
-        );
+        return _TeamCardBody(team: team, stats: stats, onTap: onTap);
       },
     );
   }
@@ -1461,11 +1467,7 @@ class _TeamCardBody extends StatelessWidget {
   final TeamStats stats;
   final VoidCallback? onTap;
 
-  const _TeamCardBody({
-    required this.team,
-    required this.stats,
-    this.onTap,
-  });
+  const _TeamCardBody({required this.team, required this.stats, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1473,8 +1475,9 @@ class _TeamCardBody extends StatelessWidget {
     final draws = stats.draws != 0 ? stats.draws : team.draws;
     final losses = stats.losses != 0 ? stats.losses : team.losses;
     final totalMatches = max<int>(wins + draws + losses, 0);
-    final winRate =
-        totalMatches > 0 ? ((wins / totalMatches) * 100).toStringAsFixed(0) : '0';
+    final winRate = totalMatches > 0
+        ? ((wins / totalMatches) * 100).toStringAsFixed(0)
+        : '0';
 
     return GestureDetector(
       onTap: onTap,
@@ -1494,11 +1497,14 @@ class _TeamCardBody extends StatelessWidget {
                 CircleAvatar(
                   radius: 26,
                   backgroundColor: const Color(0xFF4caf50),
-                  backgroundImage:
-                      team.logoUrl != null ? NetworkImage(team.logoUrl!) : null,
+                  backgroundImage: team.logoUrl != null
+                      ? NetworkImage(team.logoUrl!)
+                      : null,
                   child: team.logoUrl == null
                       ? Text(
-                          team.name.isNotEmpty ? team.name[0].toUpperCase() : 'T',
+                          team.name.isNotEmpty
+                              ? team.name[0].toUpperCase()
+                              : 'T',
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -1524,7 +1530,10 @@ class _TeamCardBody extends StatelessWidget {
                       ),
                       Text(
                         tr('il_3ac75e6772', args: ['${team.memberIds.length}']),
-                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -1534,17 +1543,11 @@ class _TeamCardBody extends StatelessWidget {
             const Spacer(),
             Row(
               children: [
-                Expanded(
-                  child: _teamStatChip('W', wins, Colors.greenAccent),
-                ),
+                Expanded(child: _teamStatChip('W', wins, Colors.greenAccent)),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: _teamStatChip('D', draws, Colors.orangeAccent),
-                ),
+                Expanded(child: _teamStatChip('D', draws, Colors.orangeAccent)),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: _teamStatChip('L', losses, Colors.redAccent),
-                ),
+                Expanded(child: _teamStatChip('L', losses, Colors.redAccent)),
               ],
             ),
             const SizedBox(height: 8),
@@ -1592,11 +1595,12 @@ class _TeamCardBody extends StatelessWidget {
   }
 }
 
-class ProfileStatsPage extends StatelessWidget {
+@RoutePage()
+class ProfileStatsScreen extends StatelessWidget {
   final Future<Map<String, dynamic>> statsFuture;
   final Map<String, dynamic> userData;
 
-  const ProfileStatsPage({
+  const ProfileStatsScreen({
     super.key,
     required this.statsFuture,
     required this.userData,
@@ -1625,7 +1629,8 @@ class ProfileStatsPage extends StatelessWidget {
               child: CircularProgressIndicator(color: Color(0xFF4caf50)),
             );
           }
-          final stats = snapshot.data ??
+          final stats =
+              snapshot.data ??
               {
                 'winRate': 0.0,
                 'wins': 0,
@@ -1637,10 +1642,12 @@ class ProfileStatsPage extends StatelessWidget {
           final wins = (stats['wins'] ?? 0).toString();
           final draws = (stats['draws'] ?? 0).toString();
           final losses = (stats['losses'] ?? 0).toString();
-          final goalsPerMatch =
-              totalMatches > 0 ? (goalsValue / totalMatches).toStringAsFixed(2) : '0.0';
+          final goalsPerMatch = totalMatches > 0
+              ? (goalsValue / totalMatches).toStringAsFixed(2)
+              : '0.0';
           final recent = List<String>.from(
-              stats['recentResults'] ?? const ['-', '-', '-', '-', '-']);
+            stats['recentResults'] ?? const ['-', '-', '-', '-', '-'],
+          );
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -1720,10 +1727,12 @@ class ProfileStatsPage extends StatelessWidget {
                 Row(
                   children: recent
                       .take(5)
-                      .map((r) => Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: buildResultTile(r),
-                          ))
+                      .map(
+                        (r) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: buildResultTile(r),
+                        ),
+                      )
                       .toList(),
                 ),
               ],
@@ -1736,7 +1745,12 @@ class ProfileStatsPage extends StatelessWidget {
 }
 
 Widget buildPerformanceStat(
-    String title, String value, String caption, IconData icon, Color color) {
+  String title,
+  String value,
+  String caption,
+  IconData icon,
+  Color color,
+) {
   return ConstrainedBox(
     constraints: const BoxConstraints(minWidth: 140),
     child: Container(
@@ -1771,10 +1785,7 @@ Widget buildPerformanceStat(
           const SizedBox(height: 2),
           Text(
             caption,
-            style: const TextStyle(
-              color: Colors.white54,
-              fontSize: 11,
-            ),
+            style: const TextStyle(color: Colors.white54, fontSize: 11),
           ),
         ],
       ),
@@ -1810,12 +1821,8 @@ Widget buildResultTile(String result) {
     child: Center(
       child: Text(
         display,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w700,
-        ),
+        style: TextStyle(color: color, fontWeight: FontWeight.w700),
       ),
     ),
   );
 }
-

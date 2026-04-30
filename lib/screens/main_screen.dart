@@ -3,12 +3,11 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/di/injection.dart';
 import '../router/app_router.dart';
 import '../features/notifications/data/services/notification_service.dart';
 import '../features/video/presentation/pages/videos_screen.dart';
 import '../features/challenges/presentation/pages/challenges_screen.dart';
-import '../features/video/presentation/pages/video_upload_screen.dart';
-import '../features/challenges/presentation/pages/challenge_create_screen.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
 class MainScreen extends StatefulWidget {
@@ -16,25 +15,31 @@ class MainScreen extends StatefulWidget {
   final bool showOnlyMyVideos;
   final bool showOnlyMyChallenges;
 
-  const MainScreen({Key? key, this.initialTabIndex = 0, this.showOnlyMyVideos = false, this.showOnlyMyChallenges = false}) : super(key: key);
+  const MainScreen({
+    super.key,
+    this.initialTabIndex = 0,
+    this.showOnlyMyVideos = false,
+    this.showOnlyMyChallenges = false,
+  });
 
   @override
-  _MainScreenState createState() => _MainScreenState();
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
-  final NotificationService _notificationService = NotificationService();
+class _MainScreenState extends State<MainScreen>
+    with SingleTickerProviderStateMixin {
+  late final NotificationService _notificationService;
   final SupabaseClient _sb = Supabase.instance.client;
+  Stream<List<Map<String, dynamic>>>? _profileStream;
   late TabController _tabController;
-  bool _isVideoMode = true; // true = Videos, false = Challenges
 
   @override
   void initState() {
     super.initState();
+    _notificationService = sl<NotificationService>();
     _tabController = TabController(length: 2, vsync: this);
-    // Apply initial tab index from arguments (e.g., "My videos" / "My challenges")
     _tabController.index = widget.initialTabIndex;
-    _isVideoMode = widget.initialTabIndex == 0;
+    _profileStream = _profileDataStream();
   }
 
   @override
@@ -62,7 +67,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 ),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: const Icon(Icons.video_library, color: Colors.white, size: 14),
+              child: const Icon(
+                Icons.video_library,
+                color: Colors.white,
+                size: 14,
+              ),
             ),
             const SizedBox(width: 6),
             Flexible(
@@ -93,8 +102,20 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           ],
         ),
         actions: [
-      // User chips: coins and rating
-          _buildUserChips(),
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _profileStream,
+            builder: (context, snapshot) {
+              final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+              final userData = rows.isEmpty ? null : rows.first;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildUserChips(userData),
+                  _buildProfileButton(userData),
+                ],
+              );
+            },
+          ),
           // Notifications
           StreamBuilder<int>(
             stream: _notificationService.getUnreadCount(),
@@ -104,8 +125,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 children: [
                   IconButton(
                     tooltip: tr('notifications'),
-                    icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                    onPressed: () => context.router.push(const NotificationsRoute()),
+                    icon: const Icon(
+                      Icons.notifications_outlined,
+                      color: Colors.white,
+                    ),
+                    onPressed: () =>
+                        context.router.push(const NotificationsRoute()),
                   ),
                   if (unreadCount > 0)
                     Positioned(
@@ -142,44 +167,6 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             icon: const Icon(Icons.sports_soccer, color: Colors.white),
             onPressed: () => context.router.push(MatchesRoute()),
           ),
-          // Profile button with avatar
-          StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _sb
-                .from('profiles')
-                .stream(primaryKey: ['id'])
-                .eq('id', AppAuth.currentUserId ?? ''),
-            builder: (context, snapshot) {
-              final rows = snapshot.data ?? const <Map<String, dynamic>>[];
-              if (rows.isEmpty) {
-                return IconButton(
-                  icon: const Icon(Icons.person, color: Colors.white),
-                  onPressed: () => _showProfile(context),
-                );
-              }
-
-              final userData = rows.first;
-              final avatarUrl = (userData['avatar_url'] ?? '').toString();
-              final userName = (userData['display_name'] ??
-                      userData['email']?.toString().split('@')[0] ??
-                      tr('il_b512d97e7c'))
-                  .toString();
-
-              return IconButton(
-                onPressed: () => _showProfile(context),
-                icon: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: const Color(0xFF4caf50),
-                  backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                  child: avatarUrl.isEmpty
-                      ? Text(
-                          userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                        )
-                      : null,
-                ),
-              );
-            },
-          ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(50),
@@ -191,7 +178,6 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             ),
             child: TabBar(
               controller: _tabController,
-              onTap: (index) => setState(() => _isVideoMode = index == 0),
               indicator: BoxDecoration(
                 color: const Color(0xFF4caf50),
                 borderRadius: BorderRadius.circular(25),
@@ -242,88 +228,120 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     );
   }
 
-  // User chips with coins and rating
-  Widget _buildUserChips() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _sb
-          .from('profiles')
-          .stream(primaryKey: ['id'])
-          .eq('id', AppAuth.currentUserId ?? ''),
-      builder: (context, snapshot) {
-        final rows = snapshot.data ?? const <Map<String, dynamic>>[];
-        if (rows.isEmpty) {
-          return const SizedBox.shrink();
-        }
+  Widget _buildUserChips(Map<String, dynamic>? userData) {
+    if (userData == null) {
+      return const SizedBox.shrink();
+    }
 
-        final userData = rows.first;
-        final coins = ((userData['coins'] as num?) ?? 0).toInt();
-        final rating = ((userData['rating'] as num?) ?? 0.0).toDouble();
-
-        return Padding(
-          padding: const EdgeInsets.only(right: 8.0),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Coins chip - клікабельний
-              GestureDetector(
-                onTap: () => _showCoinsHistory(coins),
-                child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFffc107).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFffc107), width: 1),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.monetization_on, color: Color(0xFFffc107), size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      coins.toString(),
-                      style: const TextStyle(
-                        color: Color(0xFFffc107),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                  ),
-                ),
+    final coins = ((userData['coins'] as num?) ?? 0).toInt();
+    final rating = ((userData['rating'] as num?) ?? 0.0).toDouble();
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => _showCoinsHistory(coins),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFffc107).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFffc107), width: 1),
               ),
-              const SizedBox(width: 8),
-              // Rating chip - клікабельний
-              GestureDetector(
-                onTap: () => _showRatingHistory(rating),
-                child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4caf50).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF4caf50), width: 1),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                        rating.toStringAsFixed(2),
-                      style: const TextStyle(
-                        color: Color(0xFF4caf50),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.monetization_on,
+                    color: Color(0xFFffc107),
+                    size: 16,
                   ),
-                ),
+                  const SizedBox(width: 4),
+                  Text(
+                    coins.toString(),
+                    style: const TextStyle(
+                      color: Color(0xFFffc107),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        );
-      },
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => _showRatingHistory(rating),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4caf50).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF4caf50), width: 1),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    rating.toStringAsFixed(2),
+                    style: const TextStyle(
+                      color: Color(0xFF4caf50),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  Widget _buildProfileButton(Map<String, dynamic>? userData) {
+    if (userData == null) {
+      return IconButton(
+        icon: const Icon(Icons.person, color: Colors.white),
+        onPressed: () => _showProfile(context),
+      );
+    }
+    final avatarUrl = (userData['avatar_url'] ?? '').toString();
+    final userName =
+        (userData['display_name'] ??
+                userData['email']?.toString().split('@')[0] ??
+                tr('il_b512d97e7c'))
+            .toString();
+    return IconButton(
+      onPressed: () => _showProfile(context),
+      icon: CircleAvatar(
+        radius: 16,
+        backgroundColor: const Color(0xFF4caf50),
+        backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+        child: avatarUrl.isEmpty
+            ? Text(
+                userName.isNotEmpty
+                    ? userName[0].toUpperCase()
+                    : tr('il_a25513c7e0'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              )
+            : null,
+      ),
+    );
+  }
+
+  Stream<List<Map<String, dynamic>>> _profileDataStream() {
+    return _sb
+        .from('profiles')
+        .stream(primaryKey: ['id'])
+        .eq('id', AppAuth.currentUserId ?? '');
   }
 
   void _showCoinsHistory(int currentCoins) {
@@ -335,7 +353,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       ),
       isScrollControlled: true,
       builder: (context) {
-        return Container(
+        return SizedBox(
           height: MediaQuery.of(context).size.height * 0.7,
           child: Column(
             children: [
@@ -344,7 +362,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 padding: const EdgeInsets.all(20),
                 child: Row(
                   children: [
-                    const Icon(Icons.monetization_on, color: Color(0xFFffc107), size: 24),
+                    const Icon(
+                      Icons.monetization_on,
+                      color: Color(0xFFffc107),
+                      size: 24,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -380,7 +402,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 ),
               ),
               const Divider(color: Colors.white24, height: 1),
-              
+
               // Purchase coins button
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -403,7 +425,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   ),
                 ),
               ),
-              
+
               // Transaction history
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -420,7 +442,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 ),
               ),
               const SizedBox(height: 8),
-              
+
               // Transactions list
               Expanded(
                 child: StreamBuilder<List<Map<String, dynamic>>>(
@@ -430,49 +452,63 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       .eq('user_id', AppAuth.currentUserId ?? ''),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator(color: Color(0xFFffc107)));
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFffc107),
+                        ),
+                      );
                     }
-                    
-                    final txDocs = List<Map<String, dynamic>>.from(snapshot.data ?? const <Map<String, dynamic>>[]);
+
+                    final txDocs = List<Map<String, dynamic>>.from(
+                      snapshot.data ?? const <Map<String, dynamic>>[],
+                    );
                     txDocs.sort((a, b) {
                       final at = _readDate(a['created_at']);
                       final bt = _readDate(b['created_at']);
                       return bt.compareTo(at);
                     });
-                    
+
                     if (txDocs.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.history, size: 64, color: Colors.white54),
+                            const Icon(
+                              Icons.history,
+                              size: 64,
+                              color: Colors.white54,
+                            ),
                             const SizedBox(height: 16),
                             Text(
                               tr('il_f75dda0d2e'),
-                              style: const TextStyle(color: Colors.white70, fontSize: 16),
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                              ),
                             ),
                           ],
                         ),
                       );
                     }
-                    
+
                     return ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: txDocs.length,
                       itemBuilder: (context, index) {
                         final transaction = txDocs[index];
                         final amount = transaction['amount'] ?? 0;
-                        final type = transaction['type'] ?? transaction['transaction_type'] ?? '';
                         final description = transaction['description'] ?? '';
                         final timestamp = _readDate(transaction['created_at']);
-                        
+
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.05),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white.withOpacity(0.1)),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.1),
+                            ),
                           ),
                           child: Row(
                             children: [
@@ -480,14 +516,16 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: amount > 0 
+                                  color: amount > 0
                                       ? const Color(0xFF4caf50).withOpacity(0.2)
                                       : Colors.red.withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Icon(
                                   amount > 0 ? Icons.add : Icons.remove,
-                                  color: amount > 0 ? const Color(0xFF4caf50) : Colors.red,
+                                  color: amount > 0
+                                      ? const Color(0xFF4caf50)
+                                      : Colors.red,
                                   size: 20,
                                 ),
                               ),
@@ -517,7 +555,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                               Text(
                                 '${amount > 0 ? '+' : ''}$amount',
                                 style: TextStyle(
-                                  color: amount > 0 ? const Color(0xFF4caf50) : Colors.red,
+                                  color: amount > 0
+                                      ? const Color(0xFF4caf50)
+                                      : Colors.red,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -546,7 +586,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       ),
       isScrollControlled: true,
       builder: (context) {
-        return Container(
+        return SizedBox(
           height: MediaQuery.of(context).size.height * 0.7,
           child: Column(
             children: [
@@ -570,7 +610,10 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                             ),
                           ),
                           Text(
-                            tr('il_a763f1866c', args: [currentRating.toStringAsFixed(2)]),
+                            tr(
+                              'il_a763f1866c',
+                              args: [currentRating.toStringAsFixed(2)],
+                            ),
                             style: const TextStyle(
                               color: Color(0xFF4caf50),
                               fontSize: 14,
@@ -588,7 +631,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 ),
               ),
               const Divider(color: Colors.white24, height: 1),
-              
+
               // Rating info
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -597,7 +640,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   decoration: BoxDecoration(
                     color: const Color(0xFF4caf50).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF4caf50).withOpacity(0.3)),
+                    border: Border.all(
+                      color: const Color(0xFF4caf50).withOpacity(0.3),
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -611,10 +656,10 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        tr('il_140fc50c0d')
-                        + tr('il_ec6a74cc23')
-                        + tr('il_2231c771ca')
-                        + tr('il_2d817bcff6'),
+                        tr('il_140fc50c0d') +
+                            tr('il_ec6a74cc23') +
+                            tr('il_2231c771ca') +
+                            tr('il_2d817bcff6'),
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
@@ -625,7 +670,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   ),
                 ),
               ),
-              
+
               // Rating history list
               Expanded(
                 child: StreamBuilder<List<Map<String, dynamic>>>(
@@ -635,58 +680,87 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       .eq('user_id', AppAuth.currentUserId ?? ''),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF4caf50),
+                        ),
+                      );
                     }
-                    
-                    final docs = List<Map<String, dynamic>>.from(snapshot.data ?? const <Map<String, dynamic>>[]);
+
+                    final docs = List<Map<String, dynamic>>.from(
+                      snapshot.data ?? const <Map<String, dynamic>>[],
+                    );
                     docs.sort((a, b) {
                       final at = _readDate(a['created_at'] ?? a['timestamp']);
                       final bt = _readDate(b['created_at'] ?? b['timestamp']);
                       return bt.compareTo(at);
                     });
-                    
+
                     if (docs.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.timeline, size: 64, color: Colors.white54),
+                            const Icon(
+                              Icons.timeline,
+                              size: 64,
+                              color: Colors.white54,
+                            ),
                             const SizedBox(height: 16),
                             Text(
                               tr('il_8070bd0b10'),
-                              style: const TextStyle(color: Colors.white70, fontSize: 16),
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               tr('il_a1be7a8663'),
                               textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white54, fontSize: 14),
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 14,
+                              ),
                             ),
                           ],
                         ),
                       );
                     }
-                    
+
                     return ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: docs.length,
                       itemBuilder: (context, index) {
                         final change = docs[index];
-                        final ratingChange = (change['change'] ?? 0.0).toDouble();
-                        final newRating = (change['new_rating'] ?? change['newRating'] ?? 0.0).toDouble();
-                        final oldRating = (change['old_rating'] ?? change['oldRating'] ?? 0.0).toDouble();
+                        final ratingChange = (change['change'] ?? 0.0)
+                            .toDouble();
+                        final newRating =
+                            (change['new_rating'] ?? change['newRating'] ?? 0.0)
+                                .toDouble();
+                        final oldRating =
+                            (change['old_rating'] ?? change['oldRating'] ?? 0.0)
+                                .toDouble();
                         final reason = change['reason'] ?? '';
-                        final timestamp = _readDate(change['created_at'] ?? change['timestamp']);
-                        final challengeTitle = change['challenge_title'] ?? change['challengeTitle'] ?? '';
-                        final voterName = change['voter_name'] ?? change['voterName'] ?? '';
-                        
+                        final timestamp = _readDate(
+                          change['created_at'] ?? change['timestamp'],
+                        );
+                        final challengeTitle =
+                            change['challenge_title'] ??
+                            change['challengeTitle'] ??
+                            '';
+                        final voterName =
+                            change['voter_name'] ?? change['voterName'] ?? '';
+
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.05),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white.withOpacity(0.1)),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.1),
+                            ),
                           ),
                           child: Row(
                             children: [
@@ -694,24 +768,24 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: ratingChange > 0 
+                                  color: ratingChange > 0
                                       ? const Color(0xFF4caf50).withOpacity(0.2)
                                       : ratingChange < 0
-                                          ? Colors.red.withOpacity(0.2)
-                                          : Colors.grey.withOpacity(0.2),
+                                      ? Colors.red.withOpacity(0.2)
+                                      : Colors.grey.withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Icon(
-                                  ratingChange > 0 
-                                      ? Icons.trending_up 
-                                      : ratingChange < 0 
-                                          ? Icons.trending_down
-                                          : Icons.trending_flat,
-                                  color: ratingChange > 0 
-                                      ? const Color(0xFF4caf50) 
+                                  ratingChange > 0
+                                      ? Icons.trending_up
                                       : ratingChange < 0
-                                          ? Colors.red
-                                          : Colors.grey,
+                                      ? Icons.trending_down
+                                      : Icons.trending_flat,
+                                  color: ratingChange > 0
+                                      ? const Color(0xFF4caf50)
+                                      : ratingChange < 0
+                                      ? Colors.red
+                                      : Colors.grey,
                                   size: 20,
                                 ),
                               ),
@@ -721,7 +795,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      _formatRatingReason(reason, challengeTitle, voterName),
+                                      _formatRatingReason(
+                                        reason,
+                                        challengeTitle,
+                                        voterName,
+                                      ),
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 14,
@@ -734,7 +812,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                         Text(
                                           '${oldRating.toStringAsFixed(2)} → ${newRating.toStringAsFixed(2)}',
                                           style: TextStyle(
-                                            color: Colors.white.withOpacity(0.7),
+                                            color: Colors.white.withOpacity(
+                                              0.7,
+                                            ),
                                             fontSize: 12,
                                           ),
                                         ),
@@ -742,7 +822,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                         Text(
                                           _formatTransactionTime(timestamp),
                                           style: TextStyle(
-                                            color: Colors.white.withOpacity(0.5),
+                                            color: Colors.white.withOpacity(
+                                              0.5,
+                                            ),
                                             fontSize: 11,
                                           ),
                                         ),
@@ -754,11 +836,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                               Text(
                                 '${ratingChange > 0 ? '+' : ''}${ratingChange.toStringAsFixed(2)}',
                                 style: TextStyle(
-                                  color: ratingChange > 0 
-                                      ? const Color(0xFF4caf50) 
+                                  color: ratingChange > 0
+                                      ? const Color(0xFF4caf50)
                                       : ratingChange < 0
-                                          ? Colors.red
-                                          : Colors.grey,
+                                      ? Colors.red
+                                      : Colors.grey,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -781,12 +863,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   String _formatTransactionTime(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-    
+
     if (difference.inDays > 7) {
-      // Показуємо точну дату для старих транзакцій
-      final months = ['січ', 'лют', 'бер', 'квіт', 'трав', 'черв', 
-                     'лип', 'серп', 'вер', 'жовт', 'лист', 'груд'];
-      return '${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}';
+      return DateFormat.yMMMd(context.locale.toLanguageTag()).format(dateTime);
     } else if (difference.inDays > 0) {
       return tr('il_adf8ee5f65', args: ['${difference.inDays}']);
     } else if (difference.inHours > 0) {
@@ -798,7 +877,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     }
   }
 
-  String _formatRatingReason(String reason, String challengeTitle, String voterName) {
+  String _formatRatingReason(
+    String reason,
+    String challengeTitle,
+    String voterName,
+  ) {
     switch (reason) {
       case 'challenge_vote':
       case 'video_vote':
@@ -850,17 +933,19 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     }
   }
 
-  Future<void> _ensureTestTransactions() async {}
-
-  Future<void> _ensureTestRatingHistory() async {}
-
   DateTime _readDate(dynamic value) {
-    if (value is DateTime) return value;
-    if (value is String) return DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    if (value is DateTime) {
+      return value;
+    }
+    if (value is String) {
+      return DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    }
     try {
       final dynamic v = value;
       final d = v?.toDate();
-      if (d is DateTime) return d;
+      if (d is DateTime) {
+        return d;
+      }
     } catch (_) {}
     return DateTime.fromMillisecondsSinceEpoch(0);
   }
@@ -888,9 +973,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               Text(
-                'Створити контент',
+                tr('hub_create_content'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -898,7 +983,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               // Create Video
               ListTile(
                 leading: Container(
@@ -912,7 +997,10 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 ),
                 title: Text(
                   tr('create_video'),
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 subtitle: Text(
                   tr('il_8dfa00ec39'),
@@ -920,15 +1008,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => VideoUploadScreen()),
-                  );
+                  context.router.push(VideoUploadRoute());
                 },
               ),
-              
+
               const SizedBox(height: 8),
-              
+
               // Create Challenge
               ListTile(
                 leading: Container(
@@ -938,11 +1023,17 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     color: const Color(0xFF4caf50).withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.emoji_events, color: Color(0xFF4caf50)),
+                  child: const Icon(
+                    Icons.emoji_events,
+                    color: Color(0xFF4caf50),
+                  ),
                 ),
                 title: Text(
                   tr('create_challenge'),
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 subtitle: Text(
                   tr('invite_others'),
@@ -950,13 +1041,10 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => ChallengeCreateScreen()),
-                  );
+                  context.router.push(const ChallengeCreateRoute());
                 },
               ),
-              
+
               const SizedBox(height: 20),
             ],
           ),
@@ -969,6 +1057,3 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     context.router.push(const ProfileRoute());
   }
 }
-
-
-

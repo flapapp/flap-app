@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/di/injection.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import 'rating_tracking_service.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -30,6 +31,10 @@ class RatingService {
   };
 
   final SupabaseClient _sb = Supabase.instance.client;
+  final NotificationService _notificationService;
+
+  RatingService({NotificationService? notificationService})
+    : _notificationService = notificationService ?? sl<NotificationService>();
 
   Future<void> updateVideoAggregate(String videoId) async {
     try {
@@ -40,12 +45,18 @@ class RatingService {
       final rows = ratings as List<dynamic>;
       double sum = 0.0;
       for (final raw in rows) {
-        sum += ((raw as Map<String, dynamic>)['overall_rating'] as num).toDouble();
+        sum += ((raw as Map<String, dynamic>)['overall_rating'] as num)
+            .toDouble();
       }
-      final avg = rows.isEmpty ? 0.0 : double.parse((sum / rows.length).toStringAsFixed(2));
-      await _sb.from('videos').update(<String, dynamic>{
-        'description': 'rating:$avg;votes:${rows.length}',
-      }).eq('id', videoId);
+      final avg = rows.isEmpty
+          ? 0.0
+          : double.parse((sum / rows.length).toStringAsFixed(2));
+      await _sb
+          .from('videos')
+          .update(<String, dynamic>{
+            'description': 'rating:$avg;votes:${rows.length}',
+          })
+          .eq('id', videoId);
     } catch (_) {
       // non-fatal
     }
@@ -81,7 +92,10 @@ class RatingService {
           .select('id')
           .eq('user_id', userId)
           .eq('status', 'accepted');
-      final videos = await _sb.from('videos').select('id').eq('user_id', userId);
+      final videos = await _sb
+          .from('videos')
+          .select('id')
+          .eq('user_id', userId);
       return <String, dynamic>{
         'currentRating': current,
         'matchRating': matchR,
@@ -161,11 +175,13 @@ class RatingService {
           .eq('id', ratedBy)
           .maybeSingle();
       if (rater != null) {
-        raterName = (rater['display_name'] ??
-                rater['nickname'] ??
-                '${rater['first_name'] ?? ''} ${rater['last_name'] ?? ''}'.trim() ??
-                tr('il_64aee8c6cb'))
-            .toString();
+        raterName =
+            (rater['display_name'] ??
+                    rater['nickname'] ??
+                    '${rater['first_name'] ?? ''} ${rater['last_name'] ?? ''}'
+                        .trim() ??
+                    tr('il_64aee8c6cb'))
+                .toString();
       }
     } catch (_) {}
 
@@ -238,12 +254,14 @@ class RatingService {
                 .eq('id', ratedBy)
                 .maybeSingle();
             if (voter != null) {
-              voterName = (voter['display_name'] ??
-                      voter['nickname'] ??
-                      '${voter['first_name'] ?? ''} ${voter['last_name'] ?? ''}'.trim() ??
-                      AppAuth.currentUserEmail?.split('@')[0] ??
-                      'Користувач')
-                  .toString();
+              voterName =
+                  (voter['display_name'] ??
+                          voter['nickname'] ??
+                          '${voter['first_name'] ?? ''} ${voter['last_name'] ?? ''}'
+                              .trim() ??
+                          AppAuth.currentUserEmail?.split('@')[0] ??
+                          'Користувач')
+                      .toString();
             }
           } catch (_) {}
 
@@ -257,13 +275,13 @@ class RatingService {
           );
           final newRating = await getUserRating(authorId);
           final delta = newRating - oldRating;
-          await NotificationService().sendVideoVoteNotification(
+          await _notificationService.sendVideoVoteNotification(
             toUserId: authorId,
             videoTitle: videoTitle,
             voterName: voterName,
             rating: weightedRating,
           );
-          await NotificationService().sendRatingChangedNotification(
+          await _notificationService.sendRatingChangedNotification(
             toUserId: authorId,
             voterName: voterName,
             rating: weightedRating,
@@ -310,8 +328,10 @@ class RatingService {
       } catch (_) {}
 
       if (reason != null && source != null && reason != 'challenge_vote') {
-        final delta = double.parse((roundedOverall - oldRating).toStringAsFixed(2));
-        await NotificationService().sendRatingChangedNotification(
+        final delta = double.parse(
+          (roundedOverall - oldRating).toStringAsFixed(2),
+        );
+        await _notificationService.sendRatingChangedNotification(
           toUserId: userId,
           voterName: source,
           rating: 0.0,
@@ -371,7 +391,10 @@ class RatingService {
         final rating = await getUserRating(id);
         final userCity = (p['city'] ?? '').toString();
         final userPosition = (p['position'] ?? '').toString();
-        if (city != null && city.isNotEmpty && city != 'Всі міста' && userCity != city) {
+        if (city != null &&
+            city.isNotEmpty &&
+            city != 'Всі міста' &&
+            userCity != city) {
           continue;
         }
         if (position != null &&
@@ -388,7 +411,8 @@ class RatingService {
         final videos = await _sb.from('videos').select('id').eq('user_id', id);
         out.add(<String, dynamic>{
           'id': id,
-          'name': p['display_name'] ??
+          'name':
+              p['display_name'] ??
               p['nickname'] ??
               '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}'.trim(),
           'rating': rating,
@@ -399,7 +423,9 @@ class RatingService {
           'avatarUrl': p['avatar_url'] ?? '',
         });
       }
-      out.sort((a, b) => (b['rating'] as double).compareTo(a['rating'] as double));
+      out.sort(
+        (a, b) => (b['rating'] as double).compareTo(a['rating'] as double),
+      );
       return out.take(limit).toList(growable: false);
     } catch (e) {
       print('Error getting top players: $e');
@@ -441,20 +467,19 @@ class RatingService {
   double getDefaultRating() => _defaultRating;
 
   Stream<double> getMatchRating(String matchId) {
-    return _sb
-        .from('match_player_ratings')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) async {
-      final ratings = <double>[];
-      for (final raw in rows as List<dynamic>) {
-        final row = raw as Map<String, dynamic>;
-        if ((row['match_id'] ?? '').toString() != matchId) continue;
-        ratings.add(((row['overall_rating'] as num?) ?? 0).toDouble());
-      }
-      if (ratings.isEmpty) return 0.0;
-      final avg = ratings.reduce((a, b) => a + b) / ratings.length;
-      return double.parse(avg.toStringAsFixed(2));
-    });
+    return _sb.from('match_player_ratings').stream(primaryKey: ['id']).asyncMap(
+      (rows) async {
+        final ratings = <double>[];
+        for (final raw in rows as List<dynamic>) {
+          final row = raw as Map<String, dynamic>;
+          if ((row['match_id'] ?? '').toString() != matchId) continue;
+          ratings.add(((row['overall_rating'] as num?) ?? 0).toDouble());
+        }
+        if (ratings.isEmpty) return 0.0;
+        final avg = ratings.reduce((a, b) => a + b) / ratings.length;
+        return double.parse(avg.toStringAsFixed(2));
+      },
+    );
   }
 
   Future<void> recomputeOverallRating(

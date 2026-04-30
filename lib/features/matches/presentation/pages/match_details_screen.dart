@@ -24,11 +24,11 @@ import 'package:flap_app/core/auth/app_auth.dart';
 @RoutePage()
 class MatchDetailsScreen extends StatefulWidget {
   final Match match;
-  
-  const MatchDetailsScreen({Key? key, required this.match}) : super(key: key);
+
+  const MatchDetailsScreen({super.key, required this.match});
 
   @override
-  _MatchDetailsScreenState createState() => _MatchDetailsScreenState();
+  State<MatchDetailsScreen> createState() => _MatchDetailsScreenState();
 }
 
 class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
@@ -37,7 +37,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       sl<MatchParticipationActionsUseCase>();
   final SupabaseClient _sb = Supabase.instance.client;
 
-  final NotificationService _notificationService = NotificationService();
+  final NotificationService _notificationService = sl<NotificationService>();
   bool _isJoining = false;
   bool _isRespondingInvite = false;
   String? _inviteStatusOverride;
@@ -45,7 +45,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   bool _isUploadingCover = false;
   final ImagePicker _imagePicker = ImagePicker();
 
-    // Кеш профілів для уникнення повторних запитів
+  // Кеш профілів для уникнення повторних запитів
   final Map<String, Map<String, dynamic>> _profileCache = {};
   final Map<String, AppTeam> _teamCache = {};
   final Map<String, String> _playerNameCache = {};
@@ -74,19 +74,23 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     try {
       final data =
           await _sb.from('profiles').select().eq('id', userId).maybeSingle() ??
-              const <String, dynamic>{};
+          const <String, dynamic>{};
       final profile = <String, dynamic>{
-        'displayName': (data['display_name'] ??
-                data['first_name'] ??
-                data['author_name'] ??
-                tr('player'))
-            .toString(),
+        'displayName':
+            (data['display_name'] ??
+                    data['first_name'] ??
+                    data['author_name'] ??
+                    tr('player'))
+                .toString(),
         'avatarUrl': (data['avatar_url'] ?? '').toString(),
       };
       _profileCache[userId] = profile;
       return profile;
     } catch (_) {
-      final fallback = <String, dynamic>{'displayName': tr('player'), 'avatarUrl': ''};
+      final fallback = <String, dynamic>{
+        'displayName': tr('player'),
+        'avatarUrl': '',
+      };
       _profileCache[userId] = fallback;
       return fallback;
     }
@@ -115,7 +119,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             _buildHeaderSection(),
             SizedBox(height: 20),
             _buildCoverPhotoSection(),
-            
+
             // Основна інформація
             _buildInfoSection(),
             SizedBox(height: 20),
@@ -136,7 +140,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             // Учасники з детальною інформацією
             _buildParticipantsSection(),
             SizedBox(height: 20),
-            
+
             // Кнопки дій (тільки Приєднатися та Поділитися)
             _buildActionButtons(),
           ],
@@ -146,7 +150,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildHeaderSection() {
-    final statusUi = buildMatchStatusUi(widget.match.status, match: widget.match);
+    final statusUi = buildMatchStatusUi(
+      widget.match.status,
+      match: widget.match,
+    );
 
     return Container(
       padding: EdgeInsets.all(20),
@@ -154,10 +161,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF2D3748),
-            Color(0xFF1A202C),
-          ],
+          colors: [Color(0xFF2D3748), Color(0xFF1A202C)],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
@@ -183,10 +187,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           if (widget.match.description.isNotEmpty) ...[
             Text(
               widget.match.description,
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 16,
-              ),
+              style: TextStyle(color: Colors.white70, fontSize: 16),
             ),
             SizedBox(height: 12),
           ],
@@ -211,8 +212,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildCoverPhotoSection() {
-    final bool isOrganizer =
-        AppAuth.currentUserId == widget.match.organizerId;
+    final bool isOrganizer = AppAuth.currentUserId == widget.match.organizerId;
     return StreamBuilder<Match?>(
       stream: _liveMatchStream(),
       builder: (context, snapshot) {
@@ -250,7 +250,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                                 child: CircularProgressIndicator(
                                   value: progress.expectedTotalBytes != null
                                       ? progress.cumulativeBytesLoaded /
-                                          progress.expectedTotalBytes!
+                                            progress.expectedTotalBytes!
                                       : null,
                                 ),
                               );
@@ -276,9 +276,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                               ),
                               child: Row(
                                 children: [
-                                  Icon(Icons.photo_album,
-                                      color: Colors.white.withOpacity(0.9),
-                                      size: 18),
+                                  Icon(
+                                    Icons.photo_album,
+                                    color: Colors.white.withOpacity(0.9),
+                                    size: 18,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     tr('il_556df31ebb'),
@@ -301,8 +303,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: ElevatedButton.icon(
-                  onPressed:
-                      _isUploadingCover ? null : _handleUploadMatchPhoto,
+                  onPressed: _isUploadingCover ? null : _handleUploadMatchPhoto,
                   icon: _isUploadingCover
                       ? SizedBox(
                           width: 16,
@@ -313,14 +314,16 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                           ),
                         )
                       : const Icon(Icons.cloud_upload),
-                  label: Text(hasPhoto
-                      ? tr('il_7e683a862b')
-                      : tr('il_97572951db')),
+                  label: Text(
+                    hasPhoto ? tr('il_7e683a862b') : tr('il_97572951db'),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4caf50),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -342,8 +345,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.camera_alt_outlined,
-                color: Colors.white.withOpacity(0.6), size: 36),
+            Icon(
+              Icons.camera_alt_outlined,
+              color: Colors.white.withOpacity(0.6),
+              size: 36,
+            ),
             const SizedBox(height: 8),
             Text(
               tr('il_2f9b6b2d9d'),
@@ -395,9 +401,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            tr('il_af75da9942'),
-          ),
+          content: Text(tr('il_af75da9942')),
           backgroundColor: const Color(0xFF4caf50),
         ),
       );
@@ -428,10 +432,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF2D3748),
-            Color(0xFF1A202C),
-          ],
+          colors: [Color(0xFF2D3748), Color(0xFF1A202C)],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
@@ -454,7 +455,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             ),
           ),
           SizedBox(height: 16),
-          
+
           // Статистика в рядках
           Row(
             children: [
@@ -508,7 +509,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                   '🏙️',
+                  '🏙️',
                   widget.match.city,
                   tr('il_fc33f73246'),
                 ),
@@ -516,7 +517,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             ],
           ),
           SizedBox(height: 16),
-          
+
           // Локація
           Container(
             padding: EdgeInsets.all(12),
@@ -553,13 +554,17 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     final teamBName = (widget.match.teamB?.name.isNotEmpty ?? false)
         ? widget.match.teamB!.name
         : (widget.match.teamBId != null
-            ? tr('il_6b3e8cd77f')
-            : tr('il_324df4ad19'));
+              ? tr('il_6b3e8cd77f')
+              : tr('il_324df4ad19'));
 
     final rosterA =
-        widget.match.teamRosters['teamA'] ?? widget.match.teamA?.playerIds ?? const <String>[];
+        widget.match.teamRosters['teamA'] ??
+        widget.match.teamA?.playerIds ??
+        const <String>[];
     final rosterB =
-        widget.match.teamRosters['teamB'] ?? widget.match.teamB?.playerIds ?? const <String>[];
+        widget.match.teamRosters['teamB'] ??
+        widget.match.teamB?.playerIds ??
+        const <String>[];
     final rosterStatusA =
         widget.match.teamRosterStatus['teamA'] ?? const <String, String>{};
     final rosterStatusB =
@@ -574,10 +579,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF283046),
-            Color(0xFF1F2435),
-          ],
+          colors: [Color(0xFF283046), Color(0xFF1F2435)],
         ),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
@@ -613,7 +615,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildScorePill(teamAName, widget.match.teamAScore!, Colors.greenAccent),
+                _buildScorePill(
+                  teamAName,
+                  widget.match.teamAScore!,
+                  Colors.greenAccent,
+                ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Text(
@@ -625,7 +631,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                     ),
                   ),
                 ),
-                _buildScorePill(teamBName, widget.match.teamBScore!, Colors.lightBlueAccent),
+                _buildScorePill(
+                  teamBName,
+                  widget.match.teamBScore!,
+                  Colors.lightBlueAccent,
+                ),
               ],
             ),
           ],
@@ -641,7 +651,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           const SizedBox(height: 16),
           _buildTeamRow(
             label: teamBName,
-            status: widget.match.teamBStatus ??
+            status:
+                widget.match.teamBStatus ??
                 (widget.match.teamBId == null ? 'pending' : 'confirmed'),
             playerIds: rosterB,
             averageRating: widget.match.teamB?.averageRating,
@@ -673,12 +684,18 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         final liveMatch = snapshot.data!;
         final sections = <Widget>[];
 
-        final teamASection =
-            _buildCaptainSectionForTeam(liveMatch, 'teamA', currentUser.id);
+        final teamASection = _buildCaptainSectionForTeam(
+          liveMatch,
+          'teamA',
+          currentUser.id,
+        );
         if (teamASection != null) sections.add(teamASection);
 
-        final teamBSection =
-            _buildCaptainSectionForTeam(liveMatch, 'teamB', currentUser.id);
+        final teamBSection = _buildCaptainSectionForTeam(
+          liveMatch,
+          'teamB',
+          currentUser.id,
+        );
         if (teamBSection != null) sections.add(teamBSection);
 
         if (sections.isEmpty) return const SizedBox.shrink();
@@ -699,7 +716,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget? _buildCaptainSectionForTeam(
-      Match liveMatch, String teamKey, String currentUserId) {
+    Match liveMatch,
+    String teamKey,
+    String currentUserId,
+  ) {
     final teamId = teamKey == 'teamA' ? liveMatch.teamAId : liveMatch.teamBId;
     if (teamId == null || teamId.isEmpty) return null;
 
@@ -722,21 +742,23 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         final team = snapshot.data;
         if (team == null) return const SizedBox.shrink();
 
-        final isManager = team.captainId == currentUserId ||
+        final isManager =
+            team.captainId == currentUserId ||
             team.viceCaptainIds.contains(currentUserId);
         if (!isManager) return const SizedBox.shrink();
 
-    final roster =
-        liveMatch.teamRosters[teamKey] ?? team.memberIds;
+        final roster = liveMatch.teamRosters[teamKey] ?? team.memberIds;
         final rosterStatus =
             liveMatch.teamRosterStatus[teamKey] ?? const <String, String>{};
-        final teamStatus = (teamKey == 'teamA'
+        final teamStatus =
+            (teamKey == 'teamA'
                 ? liveMatch.teamAStatus
                 : liveMatch.teamBStatus) ??
             'pending';
 
         final allConfirmed =
-            roster.isNotEmpty && rosterStatus.values.every((s) => s == 'confirmed');
+            roster.isNotEmpty &&
+            rosterStatus.values.every((s) => s == 'confirmed');
 
         return Container(
           width: double.infinity,
@@ -767,7 +789,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                    tr('il_e411803602', args: ['${roster.length}']),
+                tr('il_e411803602', args: ['${roster.length}']),
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.8),
                   fontSize: 13,
@@ -788,15 +810,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 onPressed: _isProcessingRosterAction
                     ? null
                     : () => _openRosterPicker(
-                          teamKey: teamKey,
-                          team: team,
-                          liveMatch: liveMatch,
-                        ),
+                        teamKey: teamKey,
+                        team: team,
+                        liveMatch: liveMatch,
+                      ),
                 icon: const Icon(Icons.group_add),
                 label: Text(
-                  roster.isEmpty
-                      ? tr('il_6ae263d842')
-                      : tr('il_0474305707'),
+                  roster.isEmpty ? tr('il_6ae263d842') : tr('il_0474305707'),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4caf50),
@@ -805,9 +825,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                allConfirmed
-                    ? tr('il_42d5e0da31')
-                    : tr('il_253d26aef7'),
+                allConfirmed ? tr('il_42d5e0da31') : tr('il_253d26aef7'),
                 style: TextStyle(
                   color: allConfirmed
                       ? const Color(0xFF4caf50)
@@ -850,10 +868,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               const SizedBox(width: 4),
               Text(
                 averageRating.toStringAsFixed(1),
-                style: TextStyle(
-                  color: accent,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(color: accent, fontWeight: FontWeight.w700),
               ),
               const SizedBox(width: 12),
             ],
@@ -880,15 +895,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       Container(
                         padding: const EdgeInsets.all(3),
                         decoration: BoxDecoration(
-                          border:
-                              Border.all(color: accent.withValues(alpha: 0.35)),
+                          border: Border.all(
+                            color: accent.withValues(alpha: 0.35),
+                          ),
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: UserChip(
-                          userId: id,
-                          size: 32,
-                          showName: false,
-                        ),
+                        child: UserChip(userId: id, size: 32, showName: false),
                       ),
                       Positioned(
                         right: -2,
@@ -960,16 +972,16 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         final headline = isPending
             ? tr('il_a23b1c12bb')
             : playerStatus == 'confirmed'
-                ? tr('il_d585866af0')
-                : tr('il_d3bcba9446');
+            ? tr('il_d585866af0')
+            : tr('il_d3bcba9446');
         final description = isPending
             ? bilingual(
                 'Капітан "$teamName" додав вас до складу. Підтвердіть, що ви готові грати.',
                 'Captain of "$teamName" added you to the roster. Confirm you are ready to play.',
               )
             : playerStatus == 'confirmed'
-                ? tr('il_cf3c929b1b')
-                : tr('il_9a08914842');
+            ? tr('il_cf3c929b1b')
+            : tr('il_9a08914842');
         return Column(
           children: [
             Container(
@@ -985,8 +997,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.assignment_ind,
-                          color: Colors.white70),
+                      const Icon(Icons.assignment_ind, color: Colors.white70),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -1000,11 +1011,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 4),
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: _playerStatusColor(
-                                  playerStatus.isEmpty ? 'pending' : playerStatus)
-                              .withOpacity(0.2),
+                            playerStatus.isEmpty ? 'pending' : playerStatus,
+                          ).withOpacity(0.2),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
@@ -1020,10 +1033,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   const SizedBox(height: 10),
                   Text(
                     description,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                    ),
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -1031,12 +1041,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       Expanded(
                         child: ElevatedButton(
                           onPressed:
-                              (_isProcessingRosterAction || playerStatus == 'confirmed')
-                                  ? null
-                                  : () => _handleRosterResponse(
-                                        teamKey!,
-                                        true,
-                                      ),
+                              (_isProcessingRosterAction ||
+                                  playerStatus == 'confirmed')
+                              ? null
+                              : () => _handleRosterResponse(teamKey!, true),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF4caf50),
                             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1052,12 +1060,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       Expanded(
                         child: OutlinedButton(
                           onPressed:
-                              (_isProcessingRosterAction || playerStatus == 'declined')
-                                  ? null
-                                  : () => _handleRosterResponse(
-                                        teamKey!,
-                                        false,
-                                      ),
+                              (_isProcessingRosterAction ||
+                                  playerStatus == 'declined')
+                              ? null
+                              : () => _handleRosterResponse(teamKey!, false),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Colors.white24),
                             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1084,13 +1090,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   Widget _buildScorePill(String name, int score, Color color) {
     return Column(
       children: [
-        Text(
-          name,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 12,
-          ),
-        ),
+        Text(name, style: const TextStyle(color: Colors.white70, fontSize: 12)),
         const SizedBox(height: 4),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -1167,10 +1167,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         child: Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
       ),
     );
@@ -1190,14 +1187,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   Widget _buildRosterStatusLegend() {
     return Row(
       children: [
-        _legendChip(_playerStatusColor('confirmed'),
-            tr('il_fe00b67b6d')),
+        _legendChip(_playerStatusColor('confirmed'), tr('il_fe00b67b6d')),
         const SizedBox(width: 8),
-        _legendChip(_playerStatusColor('pending'),
-            tr('il_331551b0de')),
+        _legendChip(_playerStatusColor('pending'), tr('il_331551b0de')),
         const SizedBox(width: 8),
-        _legendChip(_playerStatusColor('declined'),
-            tr('il_dce083a2c4')),
+        _legendChip(_playerStatusColor('declined'), tr('il_dce083a2c4')),
       ],
     );
   }
@@ -1216,10 +1210,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Text(
@@ -1233,7 +1224,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
   Future<AppTeam?> _getTeam(String teamId) async {
     if (_teamCache.containsKey(teamId)) return _teamCache[teamId];
-    final teamRow = await _sb.from('teams').select().eq('id', teamId).maybeSingle();
+    final teamRow = await _sb
+        .from('teams')
+        .select()
+        .eq('id', teamId)
+        .maybeSingle();
     if (teamRow == null) return null;
     final members = await _sb
         .from('team_members')
@@ -1275,13 +1270,17 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       return _playerNameCache[userId]!;
     }
     try {
-      final data =
-          await _sb.from('profiles').select().eq('id', userId).maybeSingle();
-      final name = (data?['display_name'] ??
-              data?['first_name'] ??
-              data?['author_name'] ??
-              tr('player'))
-          .toString();
+      final data = await _sb
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      final name =
+          (data?['display_name'] ??
+                  data?['first_name'] ??
+                  data?['author_name'] ??
+                  tr('player'))
+              .toString();
       _playerNameCache[userId] = name;
       return name;
     } catch (_) {
@@ -1298,16 +1297,15 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }) async {
     final members = team.memberIds;
     if (members.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_208058ae7b')),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('il_208058ae7b'))));
       return;
     }
 
-    final previousSelection =
-        Set<String>.from(liveMatch.teamRosters[teamKey] ?? const <String>[]);
+    final previousSelection = Set<String>.from(
+      liveMatch.teamRosters[teamKey] ?? const <String>[],
+    );
 
     final memberNames = <String, String>{};
     for (final memberId in members) {
@@ -1437,11 +1435,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     required Set<String> previousSelection,
   }) async {
     if (playerIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_5eac012cf2')),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('il_5eac012cf2'))));
       return;
     }
 
@@ -1454,8 +1450,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         playerIds: playerIds,
       );
 
-      final newlyInvited =
-          playerIds.where((id) => !previousSelection.contains(id)).toList();
+      final newlyInvited = playerIds
+          .where((id) => !previousSelection.contains(id))
+          .toList();
       for (final playerId in newlyInvited) {
         await _notificationService.sendTeamRosterInvite(
           toUserId: playerId,
@@ -1466,11 +1463,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_80626508c7')),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('il_80626508c7'))));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1509,7 +1504,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildRosterStatusWrap(
-      List<String> roster, Map<String, String> rosterStatus) {
+    List<String> roster,
+    Map<String, String> rosterStatus,
+  ) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -1569,10 +1566,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       ),
       child: Column(
         children: [
-          Text(
-            icon,
-            style: TextStyle(fontSize: 20),
-          ),
+          Text(icon, style: TextStyle(fontSize: 20)),
           SizedBox(height: 4),
           Text(
             value,
@@ -1582,13 +1576,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-            ),
-          ),
+          Text(label, style: TextStyle(color: Colors.white70, fontSize: 12)),
         ],
       ),
     );
@@ -1601,10 +1589,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF2D3748),
-            Color(0xFF1A202C),
-          ],
+          colors: [Color(0xFF2D3748), Color(0xFF1A202C)],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
@@ -1647,7 +1632,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             ],
           ),
           SizedBox(height: 16),
-          
+
           if (_effectiveParticipants.isEmpty)
             Container(
               padding: EdgeInsets.all(20),
@@ -1658,10 +1643,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               child: Center(
                 child: Text(
                   tr('il_e051442724'),
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
                 ),
               ),
             )
@@ -1675,128 +1657,136 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       ),
     );
   }
+
   void _openPlayerProfile(String playerId, String displayName) {
     context.router.push(
-      PlayerProfileRoute(
-        playerId: playerId,
-        playerName: displayName,
-      ),
+      PlayerProfileRoute(playerId: playerId, playerName: displayName),
     );
   }
 
   Widget _buildParticipantCard(String participantId) {
-  return FutureBuilder<Map<String, dynamic>?>(
-    future: _sb.from('profiles').select().eq('id', participantId).maybeSingle(),
-    builder: (context, snapshot) {
-      if (!snapshot.hasData || snapshot.data == null) {
-        return _buildParticipantCardPlaceholder(participantId);
-      }
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _sb
+          .from('profiles')
+          .select()
+          .eq('id', participantId)
+          .maybeSingle(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data == null) {
+          return _buildParticipantCardPlaceholder(participantId);
+        }
 
-      final userData = snapshot.data!;
-      final positionLabel = _localizedPosition(userData['position'] as String?);
-      final cityLabel = _localizedCity(userData['city'] as String?);
-      final isOrganizer = participantId == widget.match.organizerId;
-      final displayName =
-          (userData['display_name'] ??
-                  userData['first_name'] ??
-                  userData['author_name'] ??
-                  tr('player'))
-              .toString()
-              .trim();
-      final avatarUrl = (userData['avatar_url'] ?? '').toString();
-      final ratingValue = (userData['rating'] is num)
-          ? (userData['rating'] as num).toDouble()
-          : 0.0;
+        final userData = snapshot.data!;
+        final positionLabel = _localizedPosition(
+          userData['position'] as String?,
+        );
+        final cityLabel = _localizedCity(userData['city'] as String?);
+        final isOrganizer = participantId == widget.match.organizerId;
+        final displayName =
+            (userData['display_name'] ??
+                    userData['first_name'] ??
+                    userData['author_name'] ??
+                    tr('player'))
+                .toString()
+                .trim();
+        final avatarUrl = (userData['avatar_url'] ?? '').toString();
+        final ratingValue = (userData['rating'] is num)
+            ? (userData['rating'] as num).toDouble()
+            : 0.0;
 
-      void handleTap() => _openPlayerProfile(participantId, displayName);
+        void handleTap() => _openPlayerProfile(participantId, displayName);
 
-      return GestureDetector(
-        onTap: handleTap,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.04),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isOrganizer
-                  ? const Color(0xFF4caf50)
-                  : Colors.white.withOpacity(0.08),
-              width: isOrganizer ? 1.8 : 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.12),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              PlayerAvatarButton(
-                userId: participantId,
-                displayName: displayName.isNotEmpty ? displayName : tr('player'),
-                avatarUrl: avatarUrl,
-                size: 48,
-                borderColor: isOrganizer
+        return GestureDetector(
+          onTap: handleTap,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isOrganizer
                     ? const Color(0xFF4caf50)
-                    : Colors.white.withOpacity(0.2),
-                borderWidth: 2,
-                onTap: handleTap,
+                    : Colors.white.withOpacity(0.08),
+                width: isOrganizer ? 1.8 : 1,
               ),
-              const SizedBox(width: 12),
-              
-              // Інформація про гравця
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            displayName.isNotEmpty ? displayName : tr('player'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.12),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                PlayerAvatarButton(
+                  userId: participantId,
+                  displayName: displayName.isNotEmpty
+                      ? displayName
+                      : tr('player'),
+                  avatarUrl: avatarUrl,
+                  size: 48,
+                  borderColor: isOrganizer
+                      ? const Color(0xFF4caf50)
+                      : Colors.white.withOpacity(0.2),
+                  borderWidth: 2,
+                  onTap: handleTap,
+                ),
+                const SizedBox(width: 12),
+
+                // Інформація про гравця
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              displayName.isNotEmpty
+                                  ? displayName
+                                  : tr('player'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
-                        if (isOrganizer) ...[
-                          const SizedBox(width: 8),
-                          _buildOrganizerBadge(),
+                          if (isOrganizer) ...[
+                            const SizedBox(width: 8),
+                            _buildOrganizerBadge(),
+                          ],
                         ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$positionLabel • $cityLabel',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12.5,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        '$positionLabel • $cityLabel',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              
-              // Рейтинг
-              const SizedBox(width: 12),
-              _buildRatingChip(ratingValue),
-            ],
+
+                // Рейтинг
+                const SizedBox(width: 12),
+                _buildRatingChip(ratingValue),
+              ],
+            ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
   Widget _buildOrganizerBadge() {
     return Container(
@@ -1859,35 +1849,35 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
-String _localizedPosition(String? raw) {
-  switch ((raw ?? '').toLowerCase()) {
-    case 'goalkeeper':
-    case 'воротар':
-      return tr('il_f2d20c7ee1');
-    case 'defender':
-    case 'захисник':
-      return tr('il_157ddc59b5');
-    case 'midfielder':
-    case 'півзахисник':
-      return tr('il_d332e47845');
-    case 'forward':
-    case 'нападник':
-      return tr('il_f1c65e1481');
-    default:
-      return tr('il_ab28eea9ef');
+  String _localizedPosition(String? raw) {
+    switch ((raw ?? '').toLowerCase()) {
+      case 'goalkeeper':
+      case 'воротар':
+        return tr('il_f2d20c7ee1');
+      case 'defender':
+      case 'захисник':
+        return tr('il_157ddc59b5');
+      case 'midfielder':
+      case 'півзахисник':
+        return tr('il_d332e47845');
+      case 'forward':
+      case 'нападник':
+        return tr('il_f1c65e1481');
+      default:
+        return tr('il_ab28eea9ef');
+    }
   }
-}
 
-String _localizedCity(String? raw) {
-  if (raw == null || raw.trim().isEmpty) {
-    return tr('il_49980d893f');
+  String _localizedCity(String? raw) {
+    if (raw == null || raw.trim().isEmpty) {
+      return tr('il_49980d893f');
+    }
+    return raw;
   }
-  return raw;
-}
 
   Widget _buildParticipantCardPlaceholder(String participantId) {
     final isOrganizer = participantId == widget.match.organizerId;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -1895,7 +1885,9 @@ String _localizedCity(String? raw) {
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isOrganizer ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.08),
+          color: isOrganizer
+              ? const Color(0xFF4caf50)
+              : Colors.white.withOpacity(0.08),
           width: isOrganizer ? 1.8 : 1,
         ),
       ),
@@ -1905,7 +1897,9 @@ String _localizedCity(String? raw) {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: isOrganizer ? const Color(0xFF4caf50) : const Color(0xFF2196f3),
+              color: isOrganizer
+                  ? const Color(0xFF4caf50)
+                  : const Color(0xFF2196f3),
               borderRadius: BorderRadius.circular(24),
             ),
             child: Icon(
@@ -1939,10 +1933,7 @@ String _localizedCity(String? raw) {
                 const SizedBox(height: 4),
                 Text(
                   '${tr('il_a62e8c639a')} • ${tr('il_49980d893f')}',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12.5,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12.5),
                 ),
               ],
             ),
@@ -1954,14 +1945,16 @@ String _localizedCity(String? raw) {
     );
   }
 
-
   Widget _buildActionButtons() {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return const SizedBox.shrink();
 
     final isParticipant =
-        _effectiveParticipants.contains(currentUser.id) || _acceptedInviteLocally;
-    final hasPendingRequest = widget.match.hasPendingApplication(currentUser.id);
+        _effectiveParticipants.contains(currentUser.id) ||
+        _acceptedInviteLocally;
+    final hasPendingRequest = widget.match.hasPendingApplication(
+      currentUser.id,
+    );
     final isFull = _effectiveParticipants.length >= widget.match.maxPlayers;
     final isOrganizer = widget.match.organizerId == currentUser.id;
 
@@ -1970,9 +1963,9 @@ String _localizedCity(String? raw) {
     }
 
     if (isOrganizer &&
-    widget.match.status != MatchStatus.finished &&
-    widget.match.status != MatchStatus.cancelled &&
-    !widget.match.isUnplayedByTimeout) {
+        widget.match.status != MatchStatus.finished &&
+        widget.match.status != MatchStatus.cancelled &&
+        !widget.match.isUnplayedByTimeout) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2024,7 +2017,9 @@ String _localizedCity(String? raw) {
                 decoration: BoxDecoration(
                   color: Colors.green.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: Colors.green.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -2033,7 +2028,10 @@ String _localizedCity(String? raw) {
                     Expanded(
                       child: Text(
                         value > 0
-                            ? tr('il_f45eec2ce1', args: [value.toStringAsFixed(1)])
+                            ? tr(
+                                'il_f45eec2ce1',
+                                args: [value.toStringAsFixed(1)],
+                              )
                             : tr('il_41d1f1a079'),
                         style: const TextStyle(
                           color: Color(0xFF4CAF50),
@@ -2050,9 +2048,7 @@ String _localizedCity(String? raw) {
                 height: 50,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    context.router.push(
-                      MatchRatingRoute(match: widget.match),
-                    );
+                    context.router.push(MatchRatingRoute(match: widget.match));
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4caf50),
@@ -2103,74 +2099,77 @@ String _localizedCity(String? raw) {
     }
 
     if (widget.match.isUnplayedByTimeout ||
-    widget.match.status == MatchStatus.cancelled) {
-  return Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.blueGrey.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.35)),
-    ),
-    child: Text(
-      tr('il_efda4a187c'),
-      style: const TextStyle(color: Colors.white70),
-    ),
-  );
-}
+        widget.match.status == MatchStatus.cancelled) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blueGrey.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.35)),
+        ),
+        child: Text(
+          tr('il_efda4a187c'),
+          style: const TextStyle(color: Colors.white70),
+        ),
+      );
+    }
 
-if (hasPendingRequest) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
+    if (hasPendingRequest) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Container(
-              height: 50,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-              ),
-              child: Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.hourglass_top, color: Colors.white70, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      tr('join'),
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
-                  ],
+                  ),
+                  child: Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.hourglass_top,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          tr('join'),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
+              const SizedBox(width: 16),
+              _buildShareButton(),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              tr('already_applied'),
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ),
-          const SizedBox(width: 16),
-          _buildShareButton(),
         ],
-      ),
-      const SizedBox(height: 8),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Text(
-          tr('already_applied'),
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 12,
-          ),
-        ),
-      ),
-    ],
-  );
-}
+      );
+    }
 
-return Row(
+    return Row(
       children: [
         Expanded(child: _buildPrimaryAction(currentUser.id)),
         const SizedBox(width: 16),
@@ -2189,7 +2188,8 @@ return Row(
           .maybeSingle(),
       builder: (context, snapshot) {
         final inviteStatus =
-            _inviteStatusOverride ?? (snapshot.data?['status'] ?? '').toString();
+            _inviteStatusOverride ??
+            (snapshot.data?['status'] ?? '').toString();
         if (inviteStatus == 'pending') {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2198,12 +2198,16 @@ return Row(
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _isRespondingInvite ? null : () => _respondMatchInvite(true),
+                      onPressed: _isRespondingInvite
+                          ? null
+                          : () => _respondMatchInvite(true),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF4caf50),
                         foregroundColor: Colors.white,
                         minimumSize: const Size.fromHeight(50),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: _isRespondingInvite
                           ? const SizedBox(
@@ -2217,12 +2221,16 @@ return Row(
                   const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _isRespondingInvite ? null : _confirmDeclineInvite,
+                      onPressed: _isRespondingInvite
+                          ? null
+                          : _confirmDeclineInvite,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.redAccent,
                         foregroundColor: Colors.white,
                         minimumSize: const Size.fromHeight(50),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: Text(tr('reject')),
                     ),
@@ -2243,7 +2251,9 @@ return Row(
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.35),
+                  ),
                 ),
                 child: Text(
                   tr('il_d3bcba9446'),
@@ -2278,7 +2288,9 @@ return Row(
               child: Center(
                 child: _isJoining
                     ? const CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2)
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      )
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -2377,12 +2389,10 @@ return Row(
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            accept
-                ? tr('il_d585866af0')
-                : tr('il_d3bcba9446'),
-          ),
-          backgroundColor: accept ? const Color(0xFF4caf50) : Colors.orangeAccent,
+          content: Text(accept ? tr('il_d585866af0') : tr('il_d3bcba9446')),
+          backgroundColor: accept
+              ? const Color(0xFF4caf50)
+              : Colors.orangeAccent,
         ),
       );
     } catch (e) {
@@ -2405,83 +2415,77 @@ return Row(
       height: 50,
       child: ElevatedButton.icon(
         onPressed: () {
-          context.router.push(
-            MatchManagementRoute(match: widget.match),
-          );
+          context.router.push(MatchManagementRoute(match: widget.match));
         },
         icon: const Icon(Icons.tune),
         label: Text(tr('il_dfe3bd5721')),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF4caf50),
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
     );
   }
-
 
   void _joinMatch() async {
-  // Prevent double taps while request in flight.
-  if (_isJoining) return;
+    // Prevent double taps while request in flight.
+    if (_isJoining) return;
 
-  final currentUser = AppAuth.currentUser;
-  if (currentUser == null) return;
-  if (widget.match.hasPendingApplication(currentUser.id)) return;
+    final currentUser = AppAuth.currentUser;
+    if (currentUser == null) return;
+    if (widget.match.hasPendingApplication(currentUser.id)) return;
 
-  if (widget.match.isUnplayedByTimeout ||
-      widget.match.status == MatchStatus.cancelled) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          tr('il_d11de119cf'),
-        ),
-      ),
-    );
-    return;
-  }
+    if (widget.match.isUnplayedByTimeout ||
+        widget.match.status == MatchStatus.cancelled) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('il_d11de119cf'))));
+      return;
+    }
 
-  setState(() => _isJoining = true);
+    setState(() => _isJoining = true);
 
-  try {
-    final success =
-        await _participationActions.applyForMatch(
-          matchId: widget.match.id,
-          userId: currentUser.id,
-        );
-
-    if (!mounted) return;
-
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('applied_wait')),
-          backgroundColor: const Color(0xFF4caf50),
-        ),
+    try {
+      final success = await _participationActions.applyForMatch(
+        matchId: widget.match.id,
+        userId: currentUser.id,
       );
-      Navigator.pop(context);
-    } else {
+
+      if (!mounted) return;
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('applied_wait')),
+            backgroundColor: const Color(0xFF4caf50),
+          ),
+        );
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('already_applied')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('already_applied')),
+          content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
           backgroundColor: Colors.red,
         ),
       );
-    }
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
-        backgroundColor: Colors.red,
-      ),
-    );
-  } finally {
-    if (mounted) {
-      setState(() => _isJoining = false);
+    } finally {
+      if (mounted) {
+        setState(() => _isJoining = false);
+      }
     }
   }
-}
 
   Future<void> _respondMatchInvite(bool accept) async {
     if (_isRespondingInvite) return;
@@ -2490,21 +2494,20 @@ return Row(
 
     setState(() => _isRespondingInvite = true);
     try {
-      await _sb.from('match_invites').update({
-        'status': accept ? 'accepted' : 'declined',
-      }).eq('match_id', widget.match.id).eq('user_id', currentUser.id);
+      await _sb
+          .from('match_invites')
+          .update({'status': accept ? 'accepted' : 'declined'})
+          .eq('match_id', widget.match.id)
+          .eq('user_id', currentUser.id);
 
       if (accept) {
-        await _sb.from('match_participants').upsert(
-          {
-            'match_id': widget.match.id,
-            'user_id': currentUser.id,
-            'status': 'accepted',
-            'joined_at': DateTime.now().toUtc().toIso8601String(),
-            'responded_at': DateTime.now().toUtc().toIso8601String(),
-          },
-          onConflict: 'match_id,user_id',
-        );
+        await _sb.from('match_participants').upsert({
+          'match_id': widget.match.id,
+          'user_id': currentUser.id,
+          'status': 'accepted',
+          'joined_at': DateTime.now().toUtc().toIso8601String(),
+          'responded_at': DateTime.now().toUtc().toIso8601String(),
+        }, onConflict: 'match_id,user_id');
       }
 
       if (!mounted) return;
@@ -2517,7 +2520,9 @@ return Row(
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(accept ? tr('il_d585866af0') : tr('il_d3bcba9446')),
-          backgroundColor: accept ? const Color(0xFF4caf50) : Colors.orangeAccent,
+          backgroundColor: accept
+              ? const Color(0xFF4caf50)
+              : Colors.orangeAccent,
         ),
       );
     } catch (e) {
@@ -2616,8 +2621,12 @@ return Row(
         : 'Команда B';
     // Якщо команди відсутні або порожні, показуємо всіх учасників, розбитих навпіл,
     // щоб уникнути розсинхрону з учасниками (MVP-фолбек лише для відображення)
-    List<String> aPlayers = List<String>.from(widget.match.teamA?.playerIds ?? const <String>[]);
-    List<String> bPlayers = List<String>.from(widget.match.teamB?.playerIds ?? const <String>[]);
+    List<String> aPlayers = List<String>.from(
+      widget.match.teamA?.playerIds ?? const <String>[],
+    );
+    List<String> bPlayers = List<String>.from(
+      widget.match.teamB?.playerIds ?? const <String>[],
+    );
     if (aPlayers.isEmpty && bPlayers.isEmpty) {
       final all = List<String>.from(_effectiveParticipants);
       all.sort();
@@ -2634,7 +2643,10 @@ return Row(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.white.withOpacity(0.06), Colors.white.withOpacity(0.03)],
+          colors: [
+            Colors.white.withOpacity(0.06),
+            Colors.white.withOpacity(0.03),
+          ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.08)),
@@ -2888,8 +2900,7 @@ return Row(
                     child: FutureBuilder<String>(
                       future: _fetchPlayerName(entry.key),
                       builder: (context, snapshot) {
-                        final name =
-                            snapshot.data ?? tr('il_64aee8c6cb');
+                        final name = snapshot.data ?? tr('il_64aee8c6cb');
                         return Text(
                           name,
                           style: const TextStyle(
@@ -2903,7 +2914,9 @@ return Row(
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: accent.withOpacity(0.25),
                       borderRadius: BorderRadius.circular(20),
@@ -2952,17 +2965,17 @@ return Row(
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: accent.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '#${index + 1}',
-                  style: TextStyle(
-                    color: accent,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(color: accent, fontWeight: FontWeight.w700),
                 ),
               ),
               const SizedBox(width: 12),
@@ -3026,10 +3039,7 @@ return Row(
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
                 Text(
                   value,
@@ -3048,77 +3058,84 @@ return Row(
   }
 
   Widget _teamList(List<String> ids, {required Color color}) {
-  if (ids.isEmpty) {
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-      ),
-      child: Text(
-        'Склад відсутній',
-        style: TextStyle(color: Colors.white70),
-      ),
+    if (ids.isEmpty) {
+      return Container(
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: Text('Склад відсутній', style: TextStyle(color: Colors.white70)),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: ids.map((id) {
+        return FutureBuilder<Map<String, dynamic>>(
+          future: _fetchUserProfile(id),
+          builder: (context, snap) {
+            final profile =
+                snap.data ?? const {'displayName': 'Гравець', 'avatarUrl': ''};
+            final displayName = (profile['displayName'] as String).trim();
+            final avatarUrl = (profile['avatarUrl'] as String).trim();
+            final initials =
+                (displayName.isNotEmpty
+                        ? displayName
+                              .split(' ')
+                              .map((p) => p.isNotEmpty ? p[0] : '')
+                              .take(2)
+                              .join()
+                        : (id.isNotEmpty
+                              ? id.substring(0, id.length >= 2 ? 2 : 1)
+                              : '?'))
+                    .toUpperCase();
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white.withOpacity(0.06)),
+              ),
+              child: GestureDetector(
+                onTap: () {
+                  context.router.push(
+                    PlayerProfileRoute(playerId: id, playerName: displayName),
+                  );
+                },
+                child: Row(
+                  children: [
+                    PlayerAvatarButton(
+                      userId: id,
+                      displayName: displayName.isNotEmpty
+                          ? displayName
+                          : initials,
+                      avatarUrl: avatarUrl,
+                      size: 32,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        displayName.isNotEmpty
+                            ? displayName
+                            : 'Гравець ${id.substring(0, id.length >= 6 ? 6 : id.length)}…',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      }).toList(),
     );
   }
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: ids.map((id) {
-      return FutureBuilder<Map<String, dynamic>>(
-        future: _fetchUserProfile(id),
-        builder: (context, snap) {
-          final profile = snap.data ?? const {'displayName': 'Гравець', 'avatarUrl': ''};
-          final displayName = (profile['displayName'] as String).trim();
-          final avatarUrl = (profile['avatarUrl'] as String).trim();
-          final initials = (displayName.isNotEmpty
-                  ? displayName.split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join()
-                  : (id.isNotEmpty ? id.substring(0, id.length >= 2 ? 2 : 1) : '?'))
-              .toUpperCase();
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.03),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white.withOpacity(0.06)),
-            ),
-            child: GestureDetector(
-              onTap: () {
-                context.router.push(
-                  PlayerProfileRoute(
-                    playerId: id,
-                    playerName: displayName,
-                  ),
-                );
-              },
-              child: Row(
-                children: [
-                  PlayerAvatarButton(
-                    userId: id,
-                    displayName: displayName.isNotEmpty ? displayName : initials,
-                    avatarUrl: avatarUrl,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      displayName.isNotEmpty
-                          ? displayName
-                          : 'Гравець ${id.substring(0, id.length >= 6 ? 6 : id.length)}…',
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    }).toList(),
-  );
-}
 }

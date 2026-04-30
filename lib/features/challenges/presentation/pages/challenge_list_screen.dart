@@ -6,20 +6,19 @@ import '../../../../router/app_router.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
-import 'challenge_create_screen.dart';
-import 'challenge_details_screen.dart';
 import '../../../../widgets/player_avatar_button.dart';
-import 'package:flap_app/core/auth/app_auth.dart';
 
 @RoutePage()
 class ChallengeListScreen extends StatefulWidget {
+  const ChallengeListScreen({super.key});
+
   @override
-  _ChallengeListScreenState createState() => _ChallengeListScreenState();
+  State<ChallengeListScreen> createState() => _ChallengeListScreenState();
 }
 
 class _ChallengeListScreenState extends State<ChallengeListScreen> {
   ChallengesRepository get _challengesRepo => sl<ChallengesRepository>();
-  
+
   String _selectedStatus = 'all';
   String _selectedType = 'all';
   String _selectedCity = '';
@@ -28,9 +27,9 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   final List<String> _statuses = [
     'all',
     'recruiting',
-    'submission', 
+    'submission',
     'voting',
-    'completed'
+    'completed',
   ];
 
   final List<String> _types = [
@@ -81,11 +80,9 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
           children: [
             // Фільтри
             _buildFilters(),
-            
+
             // Список челенджів
-            Expanded(
-              child: _buildChallengesList(),
-            ),
+            Expanded(child: _buildChallengesList()),
           ],
         ),
       ),
@@ -118,14 +115,17 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
               decoration: InputDecoration(
                 hintText: tr('il_062314f3ab'),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 15,
+                ),
                 suffixIcon: Icon(Icons.search, color: Colors.grey[600]),
               ),
             ),
           ),
-          
+
           const SizedBox(height: 15),
-          
+
           // Фільтри в ряд
           Row(
             children: [
@@ -158,9 +158,9 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 15),
-          
+
           // Фільтр по місту
           _buildFilterDropdown(
             _cities,
@@ -209,7 +209,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
             final index = entry.key;
             final displayItem = entry.value;
             final value = values[index];
-            
+
             return DropdownMenuItem<String>(
               value: value,
               child: Row(
@@ -246,17 +246,14 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              tr(
-                'il_24ffa7c8c5',
-                args: [snapshot.error?.toString() ?? ''],
-              ),
+              tr('il_24ffa7c8c5', args: [snapshot.error?.toString() ?? '']),
               style: const TextStyle(color: Colors.white),
             ),
           );
         }
 
         final challenges = snapshot.data ?? [];
-        
+
         if (challenges.isEmpty) {
           return Center(
             child: Column(
@@ -370,7 +367,10 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Color(challenge.statusColor).withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
@@ -389,9 +389,9 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 15),
-                
+
                 // Опис
                 if (challenge.description.isNotEmpty) ...[
                   Text(
@@ -406,38 +406,53 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                   ),
                   const SizedBox(height: 15),
                 ],
-                
+
                 // Статистика
                 Row(
                   children: [
-                    _buildStatItem('👥', '${challenge.currentParticipants}/${challenge.maxParticipants}'),
+                    _buildStatItem(
+                      '👥',
+                      '${challenge.currentParticipants}/${challenge.maxParticipants}',
+                    ),
                     const SizedBox(width: 20),
                     _buildStatItem('🎬', '${challenge.submissions.length}'),
                     const SizedBox(width: 20),
-                    _buildStatItem('💰', '${challenge.prizePool.toInt()} ${tr('il_62f014cb31')}'),
+                    _buildStatItem(
+                      '💰',
+                      '${challenge.prizePool.toInt()} ${tr('il_62f014cb31')}',
+                    ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 10),
-                
+
                 // Аудиторія та ставка
                 Row(
                   children: [
-                    _buildStatItem(challenge.audienceIcon, challenge.audienceText),
+                    _buildStatItem(
+                      challenge.audienceIcon,
+                      challenge.audienceText,
+                    ),
                     const SizedBox(width: 20),
-                    _buildStatItem('💸', '${tr('il_861e39505d')} ${challenge.entryFee} ${tr('il_62f014cb31')}'),
+                    _buildStatItem(
+                      '💸',
+                      '${tr('il_861e39505d')} ${challenge.entryFee} ${tr('il_62f014cb31')}',
+                    ),
                     const SizedBox(width: 20),
-                    _buildStatItem('⏰', '${challenge.duration} ${tr('il_ab51004e9d')}'),
+                    _buildStatItem(
+                      '⏰',
+                      '${challenge.duration} ${tr('il_ab51004e9d')}',
+                    ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 15),
-                
+
                 // Прогрес бар
                 _buildProgressBar(challenge),
-                
+
                 const SizedBox(height: 15),
-                
+
                 // Інформація про створювача та час
                 Row(
                   children: [
@@ -502,7 +517,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   Widget _buildProgressBar(Challenge challenge) {
     double progress = 0.0;
     String progressText = '';
-    
+
     switch (challenge.status) {
       case ChallengeStatus.recruiting:
         progress = challenge.recruitmentProgress;
@@ -538,10 +553,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
             ),
             Text(
               '${(progress * 100).toInt()}%',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -661,9 +673,9 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         return challenges.where((challenge) {
           final query = _searchQuery.toLowerCase();
           return challenge.title.toLowerCase().contains(query) ||
-                 challenge.description.toLowerCase().contains(query) ||
-                 challenge.creatorName.toLowerCase().contains(query) ||
-                 challenge.city.toLowerCase().contains(query);
+              challenge.description.toLowerCase().contains(query) ||
+              challenge.creatorName.toLowerCase().contains(query) ||
+              challenge.city.toLowerCase().contains(query);
         }).toList();
       }
       return challenges;
@@ -723,7 +735,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
-    
+
     if (difference.inDays > 0) {
       return '${difference.inDays} ${tr('il_738bb7160d')}';
     } else if (difference.inHours > 0) {
@@ -736,20 +748,10 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   }
 
   void _showCreateChallenge() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChallengeCreateScreen(),
-      ),
-    );
+    context.router.push(ChallengeCreateRoute());
   }
 
   void _openChallengeDetails(Challenge challenge) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChallengeDetailsScreen(challenge: challenge),
-      ),
-    );
+    context.router.push(ChallengeDetailsRoute(challenge: challenge));
   }
 }

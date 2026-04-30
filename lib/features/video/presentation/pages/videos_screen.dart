@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../router/app_router.dart';
 import '../../../friends/domain/repositories/friends_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'video_player_screen.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../../widgets/video_preview_box.dart';
@@ -17,10 +17,10 @@ import '../../../../constants/video_categories.dart';
 @RoutePage()
 class VideosScreen extends StatefulWidget {
   final bool showOnlyMyVideos;
-  const VideosScreen({Key? key, this.showOnlyMyVideos = false}) : super(key: key);
+  const VideosScreen({super.key, this.showOnlyMyVideos = false});
 
   @override
-  _VideosScreenState createState() => _VideosScreenState();
+  State<VideosScreen> createState() => _VideosScreenState();
 }
 
 class _VideosScreenState extends State<VideosScreen> {
@@ -55,12 +55,7 @@ class _VideosScreenState extends State<VideosScreen> {
     tr('other'),
   ];
 
-  List<String> get _ratings => [
-    tr('all_ratings'),
-    '4.0+',
-    '3.0+',
-    '2.0+',
-  ];
+  List<String> get _ratings => [tr('all_ratings'), '4.0+', '3.0+', '2.0+'];
 
   @override
   Widget build(BuildContext context) {
@@ -117,26 +112,42 @@ class _VideosScreenState extends State<VideosScreen> {
                         }),
                         child: Container(
                           margin: const EdgeInsets.only(right: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.1),
+                            color: isSelected
+                                ? const Color(0xFF4caf50)
+                                : Colors.white.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(18),
                             border: Border.all(
-                              color: isSelected ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.3),
+                              color: isSelected
+                                  ? const Color(0xFF4caf50)
+                                  : Colors.white.withOpacity(0.3),
                             ),
                           ),
                           child: Row(
                             children: [
                               Text(
-                            category,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : Colors.white70,
-                              fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                            ),
+                                category,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                ),
                               ),
                               if (isSelected) const SizedBox(width: 6),
-                              if (isSelected) const Icon(Icons.check, size: 14, color: Colors.white),
+                              if (isSelected)
+                                const Icon(
+                                  Icons.check,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
                             ],
                           ),
                         ),
@@ -149,35 +160,66 @@ class _VideosScreenState extends State<VideosScreen> {
                 // Dropdown filters + sort
                 Row(
                   children: [
-                    Expanded(flex: 1, child: _buildDropdown('🏙️', _selectedCity, _cities, (value) => setState(() => _selectedCity = value))),
+                    Expanded(
+                      flex: 1,
+                      child: _buildDropdown(
+                        '🏙️',
+                        _selectedCity,
+                        _cities,
+                        (value) => setState(() => _selectedCity = value),
+                      ),
+                    ),
                     const SizedBox(width: 8),
-                    Expanded(flex: 1, child: _buildDropdown('⭐', _selectedRating, _ratings, (value) => setState(() => _selectedRating = value))),
+                    Expanded(
+                      flex: 1,
+                      child: _buildDropdown(
+                        '⭐',
+                        _selectedRating,
+                        _ratings,
+                        (value) => setState(() => _selectedRating = value),
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       flex: 1,
                       child: Container(
                         height: 36,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white.withOpacity(0.3)),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                          ),
                         ),
                         child: DropdownButton<String>(
                           value: _selectedSortKey,
                           isExpanded: true,
                           underline: const SizedBox(),
                           dropdownColor: const Color(0xFF1a1a2e),
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
                           icon: const Icon(Icons.sort, color: Colors.white70),
-                          items: [
-                                {'key': 'new', 'label': tr('new')},
-                                {'key': 'rating', 'label': tr('rating')},
-                                {'key': 'views', 'label': tr('views')},
-                              ]
-                              .map((m) => DropdownMenuItem<String>(value: m['key'] as String, child: Text(m['label'] as String)))
-                              .toList(),
-                          onChanged: (v) => setState(() => _selectedSortKey = v ?? 'new'),
+                          items:
+                              [
+                                    {'key': 'new', 'label': tr('new')},
+                                    {'key': 'rating', 'label': tr('rating')},
+                                    {'key': 'views', 'label': tr('views')},
+                                  ]
+                                  .map(
+                                    (m) => DropdownMenuItem<String>(
+                                      value: m['key'] as String,
+                                      child: Text(m['label'] as String),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged: (v) =>
+                              setState(() => _selectedSortKey = v ?? 'new'),
                         ),
                       ),
                     ),
@@ -203,7 +245,10 @@ class _VideosScreenState extends State<VideosScreen> {
                   return Center(
                     child: Text(
                       snapshot.error.toString(),
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
                     ),
                   );
                 }
@@ -230,13 +275,13 @@ class _VideosScreenState extends State<VideosScreen> {
   }
 
   String get _feedStateKey => [
-        _selectedTab,
-        widget.showOnlyMyVideos,
-        _selectedCity,
-        _selectedCategories.join(','),
-        _selectedRating,
-        _selectedSortKey,
-      ].join('|');
+    _selectedTab,
+    widget.showOnlyMyVideos,
+    _selectedCity,
+    _selectedCategories.join(','),
+    _selectedRating,
+    _selectedSortKey,
+  ].join('|');
 
   double? _minRatingParam() {
     if (_selectedRating.isEmpty) {
@@ -280,7 +325,8 @@ class _VideosScreenState extends State<VideosScreen> {
 
   VideoFeedParams _buildFeedParams() {
     final uid = AppAuth.currentUser;
-    final onlyMe = (widget.showOnlyMyVideos || _selectedTab == 'my') && uid != null
+    final onlyMe =
+        (widget.showOnlyMyVideos || _selectedTab == 'my') && uid != null
         ? uid.id
         : null;
     return VideoFeedParams(
@@ -331,7 +377,12 @@ class _VideosScreenState extends State<VideosScreen> {
     );
   }
 
-  Widget _buildDropdown(String label, String value, List<String> items, ValueChanged<String> onChanged) {
+  Widget _buildDropdown(
+    String label,
+    String value,
+    List<String> items,
+    ValueChanged<String> onChanged,
+  ) {
     return Container(
       height: 36,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -374,7 +425,9 @@ class _VideosScreenState extends State<VideosScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            _selectedTab == 'my' ? 'Ви ще не завантажили жодного відео' : 'Немає відео',
+            _selectedTab == 'my'
+                ? 'Ви ще не завантажили жодного відео'
+                : 'Немає відео',
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 18,
@@ -383,9 +436,7 @@ class _VideosScreenState extends State<VideosScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            _selectedTab == 'my' 
-                ? 'Завантажте своє перше відео!'
-                : 'Зачекайте, поки з\'являться нові відео.',
+            _selectedTab == 'my' ? tr('il_6aefcf68aa') : tr('il_f144c43943'),
             style: TextStyle(
               color: Colors.white.withOpacity(0.5),
               fontSize: 14,
@@ -402,7 +453,12 @@ class _VideosScreenState extends State<VideosScreen> {
     return '${minutes.toString().padLeft(1, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _playVideo(String videoUrl, String title, String videoId, String userId) async {
+  Future<void> _playVideo(
+    String videoUrl,
+    String title,
+    String videoId,
+    String userId,
+  ) async {
     if (videoUrl.isNotEmpty) {
       // Record a view before navigation (best-effort)
       try {
@@ -412,15 +468,12 @@ class _VideosScreenState extends State<VideosScreen> {
         });
       } catch (_) {}
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => VideoPlayerScreen(
-            videoUrl: videoUrl,
-            title: title,
-            authorName: '', // Real name + avatar will be loaded in VideoPlayerScreen
-            videoId: videoId,
-          ),
+      context.router.push(
+        VideoPlayerRoute(
+          videoUrl: videoUrl,
+          title: title,
+          authorName: '',
+          videoId: videoId,
         ),
       );
     }
@@ -445,9 +498,7 @@ class _VideosScreenState extends State<VideosScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            tr('il_e11b346cb1', namedArgs: {'e': e.toString()}),
-          ),
+          content: Text(tr('il_e11b346cb1', namedArgs: {'e': e.toString()})),
           backgroundColor: Colors.red,
         ),
       );
@@ -457,9 +508,7 @@ class _VideosScreenState extends State<VideosScreen> {
   void _shareVideo(String videoId, String title) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          tr('il_08998c4fc9', namedArgs: {'title': title}),
-        ),
+        content: Text(tr('il_08998c4fc9', namedArgs: {'title': title})),
         duration: const Duration(seconds: 2),
         backgroundColor: const Color(0xFF4caf50),
       ),
@@ -470,12 +519,13 @@ class _VideosScreenState extends State<VideosScreen> {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
     try {
-      final friends =
-          await sl<FriendsRepository>().getUserFriends(currentUser.id);
+      final friends = await sl<FriendsRepository>().getUserFriends(
+        currentUser.id,
+      );
       if (friends.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('il_29a7698463'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(tr('il_29a7698463'))));
         return;
       }
       final selected = <String>{};
@@ -484,7 +534,10 @@ class _VideosScreenState extends State<VideosScreen> {
         builder: (context) => StatefulBuilder(
           builder: (context, setStateDialog) => AlertDialog(
             backgroundColor: const Color(0xFF1a1a2e),
-            title: Text(tr('invite_friends_rate_video'), style: const TextStyle(color: Colors.white)),
+            title: Text(
+              tr('invite_friends_rate_video'),
+              style: const TextStyle(color: Colors.white),
+            ),
             content: SizedBox(
               width: double.maxFinite,
               child: ListView.builder(
@@ -498,37 +551,56 @@ class _VideosScreenState extends State<VideosScreen> {
                   return CheckboxListTile(
                     value: isSel,
                     onChanged: (val) => setStateDialog(() {
-                      if (val == true) { selected.add(friendId); } else { selected.remove(friendId); }
+                      if (val == true) {
+                        selected.add(friendId);
+                      } else {
+                        selected.remove(friendId);
+                      }
                     }),
-                    title: Text(friendName, style: const TextStyle(color: Colors.white)),
+                    title: Text(
+                      friendName,
+                      style: const TextStyle(color: Colors.white),
+                    ),
                   );
                 },
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('cancel'), style: const TextStyle(color: Colors.white70))),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  tr('cancel'),
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ),
               ElevatedButton(
-                onPressed: selected.isEmpty ? null : () async {
-                  final meDoc = await _sb
-                      .from('profiles')
-                      .select('display_name,email')
-                      .eq('id', currentUser.id)
-                      .maybeSingle();
-                  final myName = (meDoc?['display_name'] ??
-                          meDoc?['email']?.toString().split('@').first ??
-                          'Користувач')
-                      .toString();
-                  await sl<NotificationService>().sendRatingRequest(
-                    toUserIds: selected.toList(),
-                    fromUserName: myName,
-                    videoIds: [videoId],
-                  );
-                  if (!mounted) return;
-                  Navigator.pop(context, true);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(tr('il_4bb3733e70'))),
-                  );
-                },
+                onPressed: selected.isEmpty
+                    ? null
+                    : () async {
+                        final meDoc = await _sb
+                            .from('profiles')
+                            .select('display_name,email')
+                            .eq('id', currentUser.id)
+                            .maybeSingle();
+                        final myName =
+                            (meDoc?['display_name'] ??
+                                    meDoc?['email']
+                                        ?.toString()
+                                        .split('@')
+                                        .first ??
+                                    'Користувач')
+                                .toString();
+                        await sl<NotificationService>().sendRatingRequest(
+                          toUserIds: selected.toList(),
+                          fromUserName: myName,
+                          videoIds: [videoId],
+                        );
+                        if (!mounted) return;
+                        Navigator.pop(context, true);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(tr('il_4bb3733e70'))),
+                        );
+                      },
                 child: Text(tr('send')),
               ),
             ],
@@ -538,9 +610,7 @@ class _VideosScreenState extends State<VideosScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}),
-          ),
+          content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
           backgroundColor: Colors.red,
         ),
       );
@@ -566,136 +636,168 @@ class _VideosScreenState extends State<VideosScreen> {
             height: MediaQuery.of(context).size.height * 0.7,
             child: Column(
               children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    const Icon(Icons.comment, color: Colors.blue, size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Коментарі до "$title"',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(color: Colors.white24, height: 1),
-              
-              // Comments list
-              Expanded(
-                child: StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: _sb
-                      .from('video_comments')
-                      .stream(primaryKey: ['id'])
-                      .eq('video_id', videoId)
-                      .order('created_at', ascending: false),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
-                    }
-                    
-                    final comments = snapshot.data!;
-                    
-                    if (comments.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.comment_outlined, size: 64, color: Colors.white54),
-                            const SizedBox(height: 16),
-                            Text(
-                              tr('il_6b25808365'),
-                              style: const TextStyle(color: Colors.white70, fontSize: 16),
-                            ),
-                            Text(
-                              tr('il_comment_empty_cta'),
-                              style: const TextStyle(color: Colors.white54, fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    
-                    return ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: comments.length,
-                      itemBuilder: (context, index) {
-                        final raw = comments[index];
-                        final commentData = <String, dynamic>{
-                          'userId': (raw['user_id'] ?? '').toString(),
-                          'authorName': raw['author_name'] ?? tr('il_b764cdc0ea'),
-                          'text': raw['body'] ?? '',
-                          'createdAt': raw['created_at'],
-                        };
-                        return _buildCommentItem(commentData);
-                      },
-                    );
-                  },
-                ),
-              ),
-              
-              // Add comment
-              SafeArea(
-                top: false,
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
-                  ),
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(20),
                   child: Row(
                     children: [
-                    Expanded(
-                      child: TextField(
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: tr('il_23c5f33170'),
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                      const Icon(Icons.comment, color: Colors.blue, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Коментарі до "$title"',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
                           ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: const BorderSide(color: Color(0xFF4caf50)),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF4caf50),
-                        shape: BoxShape.circle,
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, color: Colors.white),
                       ),
-                      child: IconButton(
-                        onPressed: () => _addComment(videoId),
-                        icon: const Icon(Icons.send, color: Colors.white, size: 20),
-                      ),
-                    ),
                     ],
                   ),
                 ),
-              ),
-            ],
+                const Divider(color: Colors.white24, height: 1),
+
+                // Comments list
+                Expanded(
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: _sb
+                        .from('video_comments')
+                        .stream(primaryKey: ['id'])
+                        .eq('video_id', videoId)
+                        .order('created_at', ascending: false),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF4caf50),
+                          ),
+                        );
+                      }
+
+                      final comments = snapshot.data!;
+
+                      if (comments.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.comment_outlined,
+                                size: 64,
+                                color: Colors.white54,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                tr('il_6b25808365'),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Text(
+                                tr('il_comment_empty_cta'),
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: comments.length,
+                        itemBuilder: (context, index) {
+                          final raw = comments[index];
+                          final commentData = <String, dynamic>{
+                            'userId': (raw['user_id'] ?? '').toString(),
+                            'authorName':
+                                raw['author_name'] ?? tr('il_b764cdc0ea'),
+                            'text': raw['body'] ?? '',
+                            'createdAt': raw['created_at'],
+                          };
+                          return _buildCommentItem(commentData);
+                        },
+                      );
+                    },
+                  ),
+                ),
+
+                // Add comment
+                SafeArea(
+                  top: false,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      border: Border(
+                        top: BorderSide(color: Colors.white.withOpacity(0.1)),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              hintText: tr('il_23c5f33170'),
+                              hintStyle: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.3),
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.3),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF4caf50),
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF4caf50),
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            onPressed: () => _addComment(videoId),
+                            icon: const Icon(
+                              Icons.send,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -711,17 +813,19 @@ class _VideosScreenState extends State<VideosScreen> {
     }
     _commentUserProfileLoading.add(userId);
     try {
-      final data = await _sb
+      final data =
+          await _sb
               .from('profiles')
               .select('display_name, avatar_url, email')
               .eq('id', userId)
               .maybeSingle() ??
           const <String, dynamic>{};
-      final name = (data['display_name'] ??
-              data['email']?.toString().split('@').first ??
-              tr('il_b764cdc0ea'))
-          .toString()
-          .trim();
+      final name =
+          (data['display_name'] ??
+                  data['email']?.toString().split('@').first ??
+                  tr('il_b764cdc0ea'))
+              .toString()
+              .trim();
       final avatarUrl = (data['avatar_url'] ?? '').toString();
       if (!mounted) return;
       setState(() {
@@ -739,11 +843,14 @@ class _VideosScreenState extends State<VideosScreen> {
 
   Widget _buildCommentItem(Map<String, dynamic> commentData) {
     final userId = (commentData['userId'] ?? '').toString();
-    final cachedProfile = userId.isNotEmpty ? _commentUserProfileCache[userId] : null;
-    final authorName = (cachedProfile?['name'] ??
-            commentData['authorName'] ??
-            tr('il_b764cdc0ea'))
-        .toString();
+    final cachedProfile = userId.isNotEmpty
+        ? _commentUserProfileCache[userId]
+        : null;
+    final authorName =
+        (cachedProfile?['name'] ??
+                commentData['authorName'] ??
+                tr('il_b764cdc0ea'))
+            .toString();
     final authorAvatarUrl = (cachedProfile?['avatarUrl'] ?? '').toString();
     if (userId.isNotEmpty && cachedProfile == null) {
       _prefetchCommentUserProfile(userId);
@@ -767,12 +874,18 @@ class _VideosScreenState extends State<VideosScreen> {
               CircleAvatar(
                 radius: 16,
                 backgroundColor: const Color(0xFF4caf50),
-                backgroundImage:
-                    authorAvatarUrl.isNotEmpty ? NetworkImage(authorAvatarUrl) : null,
+                backgroundImage: authorAvatarUrl.isNotEmpty
+                    ? NetworkImage(authorAvatarUrl)
+                    : null,
                 child: authorAvatarUrl.isEmpty
                     ? Text(
-                        authorName.isNotEmpty ? authorName[0].toUpperCase() : 'U',
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        authorName.isNotEmpty
+                            ? authorName[0].toUpperCase()
+                            : 'U',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
                       )
                     : null,
               ),
@@ -812,13 +925,7 @@ class _VideosScreenState extends State<VideosScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-            ),
-          ),
+          Text(text, style: const TextStyle(color: Colors.white, fontSize: 14)),
         ],
       ),
     );
@@ -827,7 +934,7 @@ class _VideosScreenState extends State<VideosScreen> {
   String _formatTimeAgo(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
-    
+
     if (difference.inMinutes < 60) {
       return '${difference.inMinutes} хв тому';
     } else if (difference.inHours < 24) {
@@ -841,9 +948,9 @@ class _VideosScreenState extends State<VideosScreen> {
 
   void _addComment(String videoId) {
     // TODO: Implement add comment
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(tr('il_86646f9499'))),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(tr('il_86646f9499'))));
   }
 
   Widget _buildVideoCard(Map<String, dynamic> videoData) {
@@ -885,8 +992,10 @@ class _VideosScreenState extends State<VideosScreen> {
                     label: _formatDuration(durationSeconds),
                     color: Colors.black.withOpacity(0.7),
                     fontSize: 11,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                   )
                 : null,
           ),
@@ -907,36 +1016,35 @@ class _VideosScreenState extends State<VideosScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 8),
-                
+
                 // Author info (unified)
                 Row(
+                  children: [
+                    Expanded(child: UserChip(userId: userId, showName: true)),
+                    if (rating > 0)
+                      Row(
                         children: [
-                          Expanded(
-                      child: UserChip(
-                        userId: userId,
-                        showName: true,
-                      ),
-                    ),
-                          if (rating > 0)
-                            Row(
-                              children: [
-                                const Icon(Icons.star, color: Color(0xFF4caf50), size: 16),
-                                const SizedBox(width: 4),
-                                Text(
+                          const Icon(
+                            Icons.star,
+                            color: Color(0xFF4caf50),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
                             rating.toStringAsFixed(2),
-                                  style: const TextStyle(
-                                    color: Color(0xFF4caf50),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
+                            style: const TextStyle(
+                              color: Color(0xFF4caf50),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                             ),
+                          ),
                         ],
+                      ),
+                  ],
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 // Stats and actions
                 Row(
                   children: [
@@ -949,11 +1057,18 @@ class _VideosScreenState extends State<VideosScreen> {
                         final likeCount = likeSnap.data?.length ?? 0;
                         return Row(
                           children: [
-                            const Icon(Icons.favorite, color: Colors.red, size: 16),
+                            const Icon(
+                              Icons.favorite,
+                              color: Colors.red,
+                              size: 16,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               likeCount.toString(),
-                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         );
@@ -971,11 +1086,18 @@ class _VideosScreenState extends State<VideosScreen> {
                           final commentsCount = commentSnap.data?.length ?? 0;
                           return Row(
                             children: [
-                              const Icon(Icons.comment, color: Colors.blue, size: 16),
+                              const Icon(
+                                Icons.comment,
+                                color: Colors.blue,
+                                size: 16,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 commentsCount.toString(),
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           );
@@ -990,20 +1112,28 @@ class _VideosScreenState extends State<VideosScreen> {
                           stream: AppAuth.currentUser == null
                               ? null
                               : _sb
-                                  .from('video_likes')
-                                  .stream(primaryKey: ['video_id', 'user_id'])
-                                  .eq('video_id', videoId)
-                                  .map((rows) => rows
-                                      .where((r) =>
-                                          (r['user_id'] ?? '').toString() ==
-                                          AppAuth.currentUserId!)
-                                      .toList()),
+                                    .from('video_likes')
+                                    .stream(primaryKey: ['video_id', 'user_id'])
+                                    .eq('video_id', videoId)
+                                    .map(
+                                      (rows) => rows
+                                          .where(
+                                            (r) =>
+                                                (r['user_id'] ?? '')
+                                                    .toString() ==
+                                                AppAuth.currentUserId!,
+                                          )
+                                          .toList(),
+                                    ),
                           builder: (context, likeSnap) {
-                            final isLiked = (likeSnap.data?.isNotEmpty ?? false);
+                            final isLiked =
+                                (likeSnap.data?.isNotEmpty ?? false);
                             return IconButton(
                               onPressed: () => _toggleLike(videoId, isLiked),
                               icon: Icon(
-                                isLiked ? Icons.favorite : Icons.favorite_border,
+                                isLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
                                 color: isLiked ? Colors.red : Colors.white70,
                                 size: 20,
                               ),
@@ -1012,14 +1142,23 @@ class _VideosScreenState extends State<VideosScreen> {
                         ),
                         IconButton(
                           onPressed: () => _shareVideo(videoId, title),
-                          icon: const Icon(Icons.share, color: Colors.white70, size: 20),
+                          icon: const Icon(
+                            Icons.share,
+                            color: Colors.white70,
+                            size: 20,
+                          ),
                         ),
                         if (AppAuth.currentUserId == userId)
                           IconButton(
                             tooltip: 'Запросити оцінку',
-                            onPressed: () => _requestRatingForVideo(videoId, title),
-                            icon: const Icon(Icons.notifications_active, color: Colors.white70, size: 20),
-                        ),
+                            onPressed: () =>
+                                _requestRatingForVideo(videoId, title),
+                            icon: const Icon(
+                              Icons.notifications_active,
+                              color: Colors.white70,
+                              size: 20,
+                            ),
+                          ),
                       ],
                     ),
                   ],
@@ -1035,7 +1174,10 @@ class _VideosScreenState extends State<VideosScreen> {
   Widget _buildChip({
     required String label,
     required Color color,
-    EdgeInsets padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    EdgeInsets padding = const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 6,
+    ),
     double fontSize = 12,
   }) {
     return Container(
