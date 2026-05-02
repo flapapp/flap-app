@@ -1,12 +1,9 @@
-import 'dart:convert';
-
 import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/common/unit.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/error/result.dart';
-import '../../../../core/supabase/supabase_lookups.dart';
 import '../../domain/repositories/player_badge_endorsement_repository.dart';
 
 class PlayerBadgeEndorsementRepositoryImpl
@@ -15,8 +12,6 @@ class PlayerBadgeEndorsementRepositoryImpl
 
   final SupabaseClient _client;
 
-  static const _titleKey = 'badge_endorsement_event';
-
   @override
   Future<BadgeEndorsementInfo> getEndorsementInfo({
     required String ownerUserId,
@@ -24,32 +19,29 @@ class PlayerBadgeEndorsementRepositoryImpl
     String? currentUserId,
   }) async {
     try {
-      final tid = await SupabaseLookups.notificationTypeId(
-        _client,
-        'badge_endorsed',
-        'Badge endorsed',
+      final data = await _client.rpc(
+        'badge_endorsement_stats',
+        params: <String, dynamic>{
+          'p_owner_user_id': ownerUserId,
+          'p_badge_id': badgeId,
+        },
       );
-      final rows = await _client
-          .from('notifications')
-          .select()
-          .eq('user_id', ownerUserId)
-          .eq('notification_type_id', tid)
-          .eq('title', _titleKey);
-      final endorsers = <String>{};
-      for (final raw in rows as List<dynamic>) {
-        final m = raw as Map<String, dynamic>;
-        try {
-          final payload = jsonDecode(m['message'] as String) as Map<String, dynamic>;
-          if (payload['badgeId']?.toString() == badgeId) {
-            endorsers.add(payload['endorserUserId'] as String);
-          }
-        } catch (_) {}
+      var count = 0;
+      var endorsed = false;
+      if (data is List && data.isNotEmpty) {
+        final row = data.first;
+        if (row is Map) {
+          final m = Map<String, dynamic>.from(row);
+          count = (m['endorsement_count'] as num?)?.toInt() ?? 0;
+          endorsed = m['endorsed_by_viewer'] == true;
+        }
+      } else if (data is Map) {
+        final m = Map<String, dynamic>.from(data);
+        count = (m['endorsement_count'] as num?)?.toInt() ?? 0;
+        endorsed = m['endorsed_by_viewer'] == true;
       }
-      final list = endorsers.toList();
-      final endorsed =
-          currentUserId != null && endorsers.contains(currentUserId);
       return BadgeEndorsementInfo(
-        count: list.length,
+        count: count,
         endorsedByCurrentUser: endorsed,
       );
     } catch (_) {
@@ -99,6 +91,7 @@ class PlayerBadgeEndorsementRepositoryImpl
         params: <String, dynamic>{
           'p_target_user_id': ownerUserId,
           'p_type_code': 'badge_endorsed',
+          // Display title in notification list / push; counts use [notification_type_id] + payload only.
           'p_title': tr('il_cd519087d2'),
           'p_message': tr(
             'notif_badge_endorsed_by',

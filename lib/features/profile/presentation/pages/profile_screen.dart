@@ -61,6 +61,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   late final ProfileOverviewCubit _overviewCubit;
   Future<Map<String, dynamic>>? _matchStatsFuture;
   String? _matchStatsUserId;
+  int _badgeEndorseVersion = 0;
 
   @override
   void initState() {
@@ -990,6 +991,9 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                 itemBuilder: (context, index) {
                   final badge = _overviewCubit.state.badges[index];
                   return FutureBuilder<BadgeEndorsementInfo>(
+                    key: ValueKey(
+                      'badge-endorse-${badge.id}-$_badgeEndorseVersion',
+                    ),
                     future: sl<PlayerBadgeEndorsementRepository>()
                         .getEndorsementInfo(
                           ownerUserId: userId,
@@ -1302,7 +1306,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
             backgroundColor: Colors.green,
           ),
         );
-        setState(() {});
+        setState(() => _badgeEndorseVersion++);
       },
       failure: (f) {
         if (!mounted) return;
