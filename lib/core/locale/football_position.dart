@@ -17,8 +17,9 @@ class FootballPosition {
   ];
 }
 
-/// English aliases and phrases (keys are lowercase ASCII) → DB value.
-const Map<String, String> _englishPositionAliases = <String, String>{
+/// Lowercase exact input → canonical DB value. Keys are ASCII (English words,
+/// phrases, and romanized legacy position names for migration).
+const Map<String, String> _positionAliases = <String, String>{
   'gk': FootballPosition.goalkeeper,
   'keeper': FootballPosition.goalkeeper,
   'goalie': FootballPosition.goalkeeper,
@@ -31,16 +32,11 @@ const Map<String, String> _englishPositionAliases = <String, String>{
   'attacker': FootballPosition.forward,
   'universal': FootballPosition.utility,
   'utility player': FootballPosition.utility,
-};
-
-/// Legacy DB/UI tokens (lowercase) that are not English — kept for migration.
-const Map<String, String> _legacyNonEnglishPositionTokens = <String, String>{
-  'воротар': FootballPosition.goalkeeper,
-  'вратар': FootballPosition.goalkeeper,
-  'захисник': FootballPosition.defender,
-  'півзахисник': FootballPosition.midfielder,
-  'нападник': FootballPosition.forward,
-  'універсал': FootballPosition.utility,
+  'vorotar': FootballPosition.goalkeeper,
+  'vratar': FootballPosition.goalkeeper,
+  'zakhysnyk': FootballPosition.defender,
+  'pivzakhysnyk': FootballPosition.midfielder,
+  'napadnyk': FootballPosition.forward,
 };
 
 /// Maps localized or legacy text to an English DB value, or null if empty.
@@ -56,13 +52,9 @@ String? positionToEnglishDb(String? raw) {
   if (FootballPosition.allDbValues.contains(lower)) {
     return lower;
   }
-  final fromEnglish = _englishPositionAliases[lower];
-  if (fromEnglish != null) {
-    return fromEnglish;
-  }
-  final fromLegacy = _legacyNonEnglishPositionTokens[lower];
-  if (fromLegacy != null) {
-    return fromLegacy;
+  final fromAlias = _positionAliases[lower];
+  if (fromAlias != null) {
+    return fromAlias;
   }
   if (t == tr('il_f2d20c7ee1')) {
     return FootballPosition.goalkeeper;

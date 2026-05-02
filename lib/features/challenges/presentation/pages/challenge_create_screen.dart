@@ -61,34 +61,31 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
 
   String _typeTagValue(ChallengeType type) => challengeTypeToSlug(type);
 
-  List<String> _typeKeywordTags(ChallengeType type) {
-    switch (type) {
-      case ChallengeType.goal:
-        return ['гол', 'удар', 'goal', 'finish'];
-      case ChallengeType.shotPower:
-        return ['power', 'сила', 'гармата', 'rocket'];
-      case ChallengeType.save:
-        return ['сейв', 'воротар', 'save', 'goalkeeper'];
-      case ChallengeType.pass:
-        return ['пас', 'передача', 'pass'];
-      case ChallengeType.longPass:
-        return ['довг', 'long pass', 'cross', 'діагональ'];
-      case ChallengeType.tackle:
-        return ['підкат', 'відбір', 'tackle'];
-      case ChallengeType.defending:
-        return ['захист', 'оборона', 'defending', 'defense', 'block'];
-      case ChallengeType.dribbling:
-        return ['дриблінг', 'фінт', 'dribble', 'skill'];
-      case ChallengeType.penalty:
-        return ['пеналь', '11', 'penalty'];
-      case ChallengeType.wall:
-        return ['стінк', 'wall', 'бар\'єр'];
-      case ChallengeType.strategy:
-        return ['стратег', 'тактик', 'strategy', 'scheme'];
-      case ChallengeType.trick:
-        return ['трюк', 'фрістайл', 'trick'];
-      case ChallengeType.other:
-        return ['інше', 'other'];
+  List<String> _tagsFromLocalizedCsv(String trKey) {
+    return tr(trKey)
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  List<String> _typeKeywordTags(ChallengeType type) => _tagsFromLocalizedCsv(
+        'challenge_type_keywords_${challengeTypeToSlug(type)}',
+      );
+
+  void _addSlugIfDescriptionMatches(
+    List<String> tags,
+    String title,
+    String description,
+    String scanKeywordsTrKey,
+    String slug,
+  ) {
+    final haystack = '$title$description';
+    for (final kw in _tagsFromLocalizedCsv(scanKeywordsTrKey)) {
+      if (haystack.contains(kw.toLowerCase())) {
+        tags.add(slug);
+        return;
+      }
     }
   }
 
@@ -1578,25 +1575,44 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     // Add city
     tags.add(_selectedCity.toLowerCase());
 
-    // Add tags from title and description
+    // Add tags from title and description (localized keywords → canonical slugs)
     final title = _titleController.text.toLowerCase();
     final description = _descriptionController.text.toLowerCase();
-
-    if (title.contains('дриблінг') || description.contains('дриблінг')) {
-      tags.add('дриблінг');
-    }
-    if (title.contains('удар') || description.contains('удар')) {
-      tags.add('удари');
-    }
-    if (title.contains('передача') || description.contains('передача')) {
-      tags.add('передачі');
-    }
-    if (title.contains('воротар') || description.contains('воротар')) {
-      tags.add('воротар');
-    }
-    if (title.contains('захист') || description.contains('захист')) {
-      tags.add('захист');
-    }
+    _addSlugIfDescriptionMatches(
+      tags,
+      title,
+      description,
+      'challenge_desc_scan_dribbling',
+      challengeTypeToSlug(ChallengeType.dribbling),
+    );
+    _addSlugIfDescriptionMatches(
+      tags,
+      title,
+      description,
+      'challenge_desc_scan_shot',
+      challengeTypeToSlug(ChallengeType.goal),
+    );
+    _addSlugIfDescriptionMatches(
+      tags,
+      title,
+      description,
+      'challenge_desc_scan_pass',
+      challengeTypeToSlug(ChallengeType.pass),
+    );
+    _addSlugIfDescriptionMatches(
+      tags,
+      title,
+      description,
+      'challenge_desc_scan_goalkeeper',
+      challengeTypeToSlug(ChallengeType.save),
+    );
+    _addSlugIfDescriptionMatches(
+      tags,
+      title,
+      description,
+      'challenge_desc_scan_defending',
+      challengeTypeToSlug(ChallengeType.defending),
+    );
 
     return tags;
   }

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/locale/football_position.dart';
@@ -47,18 +46,12 @@ class _ProfileCreationForm extends StatefulWidget {
 }
 
 class _ProfileCreationFormState extends State<_ProfileCreationForm> {
-  /// Canonical values stored in DB / matched on load (dropdown `value`s).
-  static const _positionUk = [
-    'Воротар',
-    'Захисник',
-    'Півзахисник',
-    'Нападник',
-  ];
-  static const _positionTrKeys = [
-    'il_f2d20c7ee1',
-    'il_157ddc59b5',
-    'il_d332e47845',
-    'il_f1c65e1481',
+  /// Canonical [profiles.position] values (English) — must match [FootballPosition].
+  static const List<String> _positionDbValues = <String>[
+    FootballPosition.goalkeeper,
+    FootballPosition.defender,
+    FootballPosition.midfielder,
+    FootballPosition.forward,
   ];
 
   final _formKey = GlobalKey<FormState>();
@@ -74,11 +67,11 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
   String? _loadError;
   String? _existingAvatarUrl;
 
-  List<String> get _positions => [
-        tr(_positionTrKeys[0]),
-        tr(_positionTrKeys[1]),
-        tr(_positionTrKeys[2]),
-        tr(_positionTrKeys[3]),
+  List<String> get _positionLabels => [
+        tr('il_f2d20c7ee1'),
+        tr('il_157ddc59b5'),
+        tr('il_d332e47845'),
+        tr('il_f1c65e1481'),
       ];
 
   @override
@@ -139,12 +132,8 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
     }
   }
 
-  /// Maps DB (English) / legacy (UK/tr) to the dropdown `value` (Ukrainian canonical).
-  String? _canonicalDropdownValue(
-    String? stored,
-    List<String> uk,
-    List<String> trKeys,
-  ) {
+  /// Maps stored DB / legacy text to dropdown `value` (English slug).
+  String? _canonicalDropdownValue(String? stored) {
     if (stored == null) {
       return null;
     }
@@ -152,22 +141,11 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
     if (s.isEmpty) {
       return null;
     }
-    final pEn = positionToEnglishDb(s);
-    for (var i = 0; i < uk.length && i < trKeys.length; i++) {
-      if (pEn == positionToEnglishDb(uk[i]) ||
-          pEn == positionToEnglishDb(tr(trKeys[i]))) {
-        return uk[i];
-      }
+    final db = positionToEnglishDb(s);
+    if (db == null || !_positionDbValues.contains(db)) {
+      return null;
     }
-    for (var i = 0; i < uk.length; i++) {
-      if (s == uk[i]) {
-        return uk[i];
-      }
-      if (i < trKeys.length && s == tr(trKeys[i])) {
-        return uk[i];
-      }
-    }
-    return null;
+    return db;
   }
 
   Future<void> _loadUserData() async {
@@ -200,8 +178,6 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
             _dateOfBirth = _parseDateOfBirthFromDocument(userData);
             _selectedPosition = _canonicalDropdownValue(
               userData['position']?.toString(),
-              _positionUk,
-              _positionTrKeys,
             );
             _existingAvatarUrl = profile.avatarUrl;
             _loadingPrefill = false;
@@ -542,11 +518,11 @@ class _ProfileCreationFormState extends State<_ProfileCreationForm> {
                           vertical: 15,
                         ),
                       ),
-                      items: List.generate(_positionUk.length, (i) {
+                      items: List.generate(_positionDbValues.length, (i) {
                         return DropdownMenuItem<String>(
-                          value: _positionUk[i],
+                          value: _positionDbValues[i],
                           child: Text(
-                            _positions[i],
+                            _positionLabels[i],
                             style: TextStyle(
                               fontFamily: robotoFamily,
                               color: Colors.white,

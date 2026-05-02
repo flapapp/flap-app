@@ -108,13 +108,13 @@ class FriendRequest extends FriendRequestEntity {
   String get statusText {
     switch (status) {
       case FriendRequestStatus.pending:
-        return 'Очікує відповіді';
+        return tr('match_invite_status_pending');
       case FriendRequestStatus.accepted:
-        return 'Прийнято';
+        return tr('match_invite_status_accepted');
       case FriendRequestStatus.declined:
-        return 'Відхилено';
+        return tr('match_invite_status_declined');
       case FriendRequestStatus.cancelled:
-        return 'Скасовано';
+        return tr('match_invite_status_cancelled');
     }
   }
 
@@ -132,20 +132,30 @@ class FriendRequest extends FriendRequestEntity {
     }
   }
 
-  // Time ago text
+  // Time ago text (same keys as [Friend.onlineStatus])
   String get timeAgo {
     final now = DateTime.now();
     final difference = now.difference(createdAt);
-    
+
     if (difference.inDays > 0) {
-      return '${difference.inDays} дн. тому';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours} год. тому';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} хв. тому';
-    } else {
-      return 'Щойно';
+      return tr(
+        'il_e345f3fbc6',
+        namedArgs: {'days': '${difference.inDays}'},
+      );
     }
+    if (difference.inHours > 0) {
+      return tr(
+        'il_71260c47e0',
+        namedArgs: {'hours': '${difference.inHours}'},
+      );
+    }
+    if (difference.inMinutes > 0) {
+      return tr(
+        'il_031a7ac35e',
+        namedArgs: {'minutes': '${difference.inMinutes}'},
+      );
+    }
+    return tr('il_66f53417d3');
   }
 }
 

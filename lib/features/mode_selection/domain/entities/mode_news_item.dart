@@ -3,10 +3,11 @@ import 'mode_news_icon_kind.dart';
 
 class ModeNewsItem {
   const ModeNewsItem({
-    required this.titleUa,
-    required this.titleEn,
-    required this.subtitleUa,
-    required this.subtitleEn,
+    this.titleKey,
+    this.titleNamedArgs = const {},
+    required this.titleRaw,
+    required this.subtitleKey,
+    this.subtitleNamedArgs = const {},
     required this.iconKind,
     required this.accentArgb,
     required this.timestamp,
@@ -14,10 +15,21 @@ class ModeNewsItem {
     required this.ctaLabelKey,
   });
 
-  final String titleUa;
-  final String titleEn;
-  final String subtitleUa;
-  final String subtitleEn;
+  /// When set, headline uses `tr(titleKey, namedArgs: titleNamedArgs)`.
+  final String? titleKey;
+
+  /// Named placeholders for `{name}` in [titleKey].
+  final Map<String, String> titleNamedArgs;
+
+  /// Shown when [titleKey] is null (e.g. DB titles).
+  final String titleRaw;
+
+  /// easy_localization key for subtitle body.
+  final String subtitleKey;
+
+  /// Named placeholders for `{name}` in [subtitleKey].
+  final Map<String, String> subtitleNamedArgs;
+
   final ModeNewsIconKind iconKind;
   final int accentArgb;
   final DateTime timestamp;

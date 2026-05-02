@@ -21,6 +21,19 @@ import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/city_localization.dart';
 import '../../../../core/supabase/public_video_feed.dart';
 
+/// Matches [text] against comma-separated legacy variants from [translationKey].
+bool _textMatchesCsvVariants(String text, String translationKey) {
+  final t = text.trim();
+  if (t.isEmpty) return false;
+  final csv = tr(translationKey);
+  if (csv == translationKey) return false;
+  for (final part in csv.split(',')) {
+    final p = part.trim();
+    if (p.isNotEmpty && p == t) return true;
+  }
+  return false;
+}
+
 @RoutePage()
 class VideoMainScreen extends StatefulWidget {
   /// When set, mirrors legacy `arguments: {'myContent': 'videos'|'challenges'}`.
@@ -625,11 +638,13 @@ Widget build(BuildContext context) {
 
   bool _isUnknownLabel(String value) {
     final normalized = value.toLowerCase().trim();
-    final unknownLocalized = tr('unknown').toLowerCase().trim();
-    return normalized.isEmpty ||
-        normalized == unknownLocalized ||
-        normalized == 'невідомо' ||
-        normalized == 'unknown';
+    if (normalized.isEmpty) return true;
+    for (final token in tr('unknown_label_aliases').split(',')) {
+      final t = token.trim().toLowerCase();
+      if (t.isNotEmpty && normalized == t) return true;
+    }
+    return normalized == tr('unknown').toLowerCase() ||
+        normalized == tr('unknown_city').toLowerCase();
   }
 
   Color _challengeTypeColor(String type) {
@@ -1642,14 +1657,13 @@ Widget build(BuildContext context) {
     final categoryColor = _videoCategoryColor(rawCategory);
     String resolvedChallengeId = (data['challengeId'] ?? '').toString();
     String resolvedChallengeTitle = (data['challengeTitle'] ?? '').toString();
-    final marker = tr('video_challenge_marker_title');
-    final bool isChallengeVideo = title.trim() == marker ||
-        description.trim() == marker ||
-        title == 'Відео челенджу' ||
-        description == 'Відео челенджу' ||
-        title == 'Challenge video' ||
-        description == 'Challenge video' ||
-        (data['isChallengeVideo'] == true);
+    final bool isChallengeVideo =
+        _textMatchesCsvVariants(title, 'video_challenge_detect_title_variants') ||
+            _textMatchesCsvVariants(
+              description,
+              'video_challenge_detect_title_variants',
+            ) ||
+            (data['isChallengeVideo'] == true);
     final bool hasChallengeInfo = isChallengeVideo || resolvedChallengeTitle.isNotEmpty;
 
     final bool hasChallengeLink = resolvedChallengeId.isNotEmpty;
@@ -4148,9 +4162,10 @@ Widget build(BuildContext context) {
       case 'bonus':
         return tr('il_c88734b3ea');
       default:
-        if (reason == tr('rating_reason_post_match_legacy') ||
-            reason == 'Оцінка після матчу' ||
-            reason == 'Post-match rating') {
+        if (_textMatchesCsvVariants(
+              reason,
+              'rating_reason_post_match_legacy_variants',
+            )) {
           return voterName.isNotEmpty
               ? tr(
                   'video_rating_after_match_by',

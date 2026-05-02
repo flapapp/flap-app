@@ -1,46 +1,52 @@
 import 'dart:collection';
 
 import 'package:easy_localization/easy_localization.dart';
-import '../app_locale_access.dart';
 
 class CityCatalog {
-  /// Pairs: Ukrainian + English; DB stores [toEnglishStorageKey] (lowercase,
-  /// no spaces) for all writes and queries.
+  /// Each row: optional [slug] (translation key, lowercase) and English [en] name.
+  /// DB stores [toEnglishStorageKey] as lowercase slug from [en].
   static const List<Map<String, String>> _cityPairs = <Map<String, String>>[
-    {'uk': 'Київ', 'en': 'Kyiv'},
-    {'uk': 'Львів', 'en': 'Lviv'},
-    {'uk': 'Одеса', 'en': 'Odesa'},
-    {'uk': 'Харків', 'en': 'Kharkiv'},
-    {'uk': 'Дніпро', 'en': 'Dnipro'},
-    {'uk': 'Барселона', 'en': 'Barcelona'},
-    {'uk': 'Мадрид', 'en': 'Madrid'},
-    {'uk': 'Валенсія', 'en': 'Valencia'},
-    {'uk': 'Лондон', 'en': 'London'},
-    {'uk': 'Берлін', 'en': 'Berlin'},
-    {'uk': 'Варшава', 'en': 'Warsaw'},
-    {'uk': 'Прага', 'en': 'Prague'},
-    {'uk': 'Париж', 'en': 'Paris'},
-    {'uk': 'Рим', 'en': 'Rome'},
-    {'uk': 'Лісабон', 'en': 'Lisbon'},
+    {'slug': 'kyiv', 'en': 'Kyiv'},
+    {'slug': 'lviv', 'en': 'Lviv'},
+    {'slug': 'odesa', 'en': 'Odesa'},
+    {'slug': 'kharkiv', 'en': 'Kharkiv'},
+    {'slug': 'dnipro', 'en': 'Dnipro'},
+    {'slug': 'barcelona', 'en': 'Barcelona'},
+    {'slug': 'madrid', 'en': 'Madrid'},
+    {'slug': 'valencia', 'en': 'Valencia'},
+    {'slug': 'london', 'en': 'London'},
+    {'slug': 'berlin', 'en': 'Berlin'},
+    {'slug': 'warsaw', 'en': 'Warsaw'},
+    {'slug': 'prague', 'en': 'Prague'},
+    {'slug': 'paris', 'en': 'Paris'},
+    {'slug': 'rome', 'en': 'Rome'},
+    {'slug': 'lisbon', 'en': 'Lisbon'},
   ];
 
   static String _norm(String value) =>
       value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
+  static String _pairEn(Map<String, String> pair) =>
+      (pair['en'] ?? '').trim();
+
+  static String _pairSlug(Map<String, String> pair) =>
+      (pair['slug'] ?? '').trim();
+
   static List<String> _allAliases({bool includeAll = false}) {
     final set = LinkedHashSet<String>();
 
     for (final pair in _cityPairs) {
-      final uk = (pair['uk'] ?? '').trim();
-      final en = (pair['en'] ?? '').trim();
-      if (uk.isNotEmpty) set.add(uk);
-      if (en.isNotEmpty) set.add(en);
+      final en = _pairEn(pair);
+      final slug = _pairSlug(pair);
+      if (en.isNotEmpty) {
+        set.add(en);
+      }
+      if (slug.isNotEmpty && trExists(slug)) {
+        set.add(tr(slug));
+      }
     }
 
     if (includeAll) {
-      // accept both languages for "all cities"
-      set.add('Всі міста');
-      set.add('All cities');
       set.add(tr('all_cities'));
     }
 
@@ -48,7 +54,6 @@ class CityCatalog {
   }
 
   static List<String> cities({bool includeAll = false}) {
-    final isUk = currentAppLanguageCode() == 'uk';
     final out = LinkedHashSet<String>();
 
     if (includeAll) {
@@ -56,11 +61,12 @@ class CityCatalog {
     }
 
     for (final pair in _cityPairs) {
-      final uk = (pair['uk'] ?? '').trim();
-      final en = (pair['en'] ?? '').trim();
-      final label = isUk ? uk : en;
-      if (label.isNotEmpty) {
-        out.add(label);
+      final en = _pairEn(pair);
+      final slug = _pairSlug(pair);
+      if (slug.isNotEmpty && trExists(slug)) {
+        out.add(tr(slug));
+      } else if (en.isNotEmpty) {
+        out.add(en);
       }
     }
 
@@ -113,25 +119,31 @@ class CityCatalog {
     if (t.isEmpty) {
       return null;
     }
-    // "All cities" in any allowlisted phrasing
-    for (final all in <String>['all cities', 'всі міста', tr('all_cities')]) {
+    for (final all in <String>[
+      'all cities',
+      tr('all_cities'),
+      tr('filter_all_cities_alt'),
+    ]) {
       if (t == all) {
         return null;
       }
     }
     final n = _norm(t);
     if (n == _norm(tr('all_cities')) ||
-        n == 'all cities' ||
-        n == 'всі міста') {
+        n == _norm(tr('filter_all_cities_alt')) ||
+        n == 'all cities') {
       return null;
     }
     for (final pair in _cityPairs) {
-      final uk = (pair['uk'] ?? '').trim();
-      final en = (pair['en'] ?? '').trim();
-      if (uk.isEmpty && en.isEmpty) {
+      final en = _pairEn(pair);
+      final slug = _pairSlug(pair);
+      if (en.isEmpty) {
         continue;
       }
-      if (n == _norm(uk) || n == _norm(en)) {
+      final localized =
+          slug.isNotEmpty && trExists(slug) ? tr(slug) : '';
+      if (n == _norm(en) ||
+          (localized.isNotEmpty && n == _norm(localized))) {
         return _norm(en).replaceAll(' ', '_');
       }
     }
@@ -149,12 +161,18 @@ class CityCatalog {
     }
     final n = s.toLowerCase();
     for (final pair in _cityPairs) {
-      final en = (pair['en'] ?? '').trim();
-      if (n == _norm(en) || n == _norm(en).replaceAll(' ', '_')) {
-        final key = _norm(en).replaceAll(' ', '_');
-        final localized = tr(key);
-        if (localized != key) {
-          return localized;
+      final en = _pairEn(pair);
+      final slug = _pairSlug(pair);
+      if (en.isEmpty) {
+        continue;
+      }
+      final key = _norm(en).replaceAll(' ', '_');
+      if (n == key || n == _norm(en)) {
+        if (slug.isNotEmpty && trExists(slug)) {
+          final localized = tr(slug);
+          if (localized != slug) {
+            return localized;
+          }
         }
         return en;
       }

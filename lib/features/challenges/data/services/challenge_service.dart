@@ -470,7 +470,7 @@ class ChallengeService {
           final countryUsers = await _sb
               .from('profiles')
               .select('id')
-              .or('country.eq.Ukraine,country.eq.Україна')
+              .eq('country', 'Ukraine')
               .limit(100);
           for (final raw in countryUsers as List<dynamic>) {
             targetUserIds.add((raw as Map<String, dynamic>)['id'].toString());

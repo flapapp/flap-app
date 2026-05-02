@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/city_localization.dart';
 import '../../../../core/locale/football_position.dart';
+import '../../../../utils/city_catalog.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1745,25 +1746,27 @@ class _MatchesScreenState extends State<MatchesScreen>
     // Local filter helpers (no dependency on external helpers)
     String norm(String? s) => (s ?? '').trim().toLowerCase();
 
-    // City synonyms for reliable matching
-    final Map<String, List<String>> cityAliases = {
-      'Київ': ['київ', 'kyiv', 'kiev'],
-      'Kyiv': ['київ', 'kyiv', 'kiev'],
-      'Харків': ['харків', 'kharkiv'],
-      'Kharkiv': ['харків', 'kharkiv'],
-      'Одеса': ['одеса', 'odesa', 'odessa'],
-      'Odesa': ['одеса', 'odesa', 'odessa'],
-      'Дніпро': ['дніпро', 'dnipro', 'dnepr', 'dnepropetrovsk'],
-      'Dnipro': ['дніпро', 'dnipro', 'dnepr', 'dnepropetrovsk'],
-      'Львів': ['львів', 'lviv', 'lwow', 'lwów'],
-      'Lviv': ['львів', 'lviv', 'lwow', 'lwów'],
-    };
+    // DB/spelling variants per slug (`city_match_aliases_*` in translations).
+    List<String> cityMatchAliasesForSlug(String slug) {
+      final key = 'city_match_aliases_$slug';
+      final raw = tr(key);
+      if (raw == key) return const [];
+      return raw
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+    }
 
     bool cityMatches(String dbCity, String selectedUi) {
       final db = norm(dbCity);
       final sel = norm(selectedUi);
       if (db == sel) return true;
-      final aliases = <String>{sel, ...?cityAliases[selectedUi]?.map(norm)};
+      final slug = CityCatalog.toEnglishStorageKey(selectedUi);
+      if (slug == null || slug.isEmpty) return false;
+      final extras = cityMatchAliasesForSlug(slug);
+      if (extras.isEmpty) return false;
+      final aliases = <String>{sel, ...extras.map(norm)};
       return aliases.contains(db);
     }
 
@@ -4254,8 +4257,8 @@ class _Level {
 
 _Level _levelFor(double rating) {
   if (rating >= 4.5) return _Level(tr('professional'), 0xFF9C27B0);
-  if (rating >= 3.5) return _Level(tr('il_9f088dbebd'), 0xFFFF9800);
-  if (rating >= 2.5) return _Level(tr('il_3b1cfa63d7'), 0xFF2196F3);
+  if (rating >= 3.5) return _Level(tr('advanced'), 0xFFFF9800);
+  if (rating >= 2.5) return _Level(tr('intermediate'), 0xFF2196F3);
   if (rating >= 1.5) return _Level(tr('beginner'), 0xFF4CAF50);
   return _Level(tr('il_ea0bedb7c8'), 0xFF9E9E9E);
 }

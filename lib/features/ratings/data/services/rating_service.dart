@@ -387,18 +387,19 @@ class RatingService {
   bool _meansAllCitiesFilter(String? value) {
     if (value == null || value.trim().isEmpty) return true;
     final v = value.trim();
+    final n = v.toLowerCase();
     return v == tr('all_cities') ||
         v == tr('filter_all_cities_alt') ||
-        v == 'All cities' ||
-        v == 'Всі міста';
+        n == tr('all_cities').toLowerCase() ||
+        n == tr('filter_all_cities_alt').toLowerCase();
   }
 
   bool _meansAllPositionsFilter(String? value) {
     if (value == null || value.trim().isEmpty) return true;
     final v = value.trim();
+    final n = v.toLowerCase();
     return v == tr('il_0e333190c1') ||
-        v == 'All positions' ||
-        v == 'Всі позиції';
+        n == tr('il_0e333190c1').toLowerCase();
   }
 
   Future<List<Map<String, dynamic>>> getTopPlayers({
@@ -455,8 +456,8 @@ class RatingService {
   String getPlayerLevel(double rating) {
     if (rating >= 0.0 && rating < 1.5) return tr('il_c865ebb305');
     if (rating >= 1.5 && rating < 2.5) return tr('il_7df0f3202d');
-    if (rating >= 2.5 && rating < 3.5) return tr('il_3b1cfa63d7');
-    if (rating >= 3.5 && rating < 4.5) return tr('il_9f088dbebd');
+    if (rating >= 2.5 && rating < 3.5) return tr('intermediate');
+    if (rating >= 3.5 && rating < 4.5) return tr('advanced');
     if (rating >= 4.5 && rating <= 5.0) return tr('il_19c73a5cdf');
     return tr('il_b764cdc0ea');
   }

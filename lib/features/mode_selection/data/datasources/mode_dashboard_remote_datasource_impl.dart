@@ -1,4 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flap_app/city_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_date.dart';
@@ -73,8 +74,9 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
       final matchTitle = (row['title'] ?? tr('il_25f50629be')).toString();
       final status = (row['status'] ?? 'open').toString();
 
-      String subtitleUa;
-      String subtitleEn;
+      late final String subtitleKey;
+      late final Map<String, String> subtitleNamedArgs;
+
       if (status == 'finished') {
         final fx = await _client
             .from('match_fixtures')
@@ -87,26 +89,36 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
         final hs = (fx?['home_score'] as num?)?.toInt();
         final as = (fx?['away_score'] as num?)?.toInt();
         if (hs != null && as != null) {
-          subtitleUa =
-              '$organizer завершив матч "$matchTitle" • рахунок $hs:$as';
-          subtitleEn =
-              '$organizer finished "$matchTitle" • final score $hs:$as';
+          subtitleKey = 'mode_news_match_subtitle_finished_score';
+          subtitleNamedArgs = {
+            'organizer': organizer,
+            'matchTitle': matchTitle,
+            'home': '$hs',
+            'away': '$as',
+          };
         } else {
           final t = _scheduledLabel(row['scheduled_at']);
-          subtitleUa = '$organizer створив матч "$matchTitle" • старт $t';
-          subtitleEn = '$organizer created "$matchTitle" • kick-off $t';
+          subtitleKey = 'mode_news_match_subtitle_created_kickoff';
+          subtitleNamedArgs = {
+            'organizer': organizer,
+            'matchTitle': matchTitle,
+            'time': t,
+          };
         }
       } else {
         final t = _scheduledLabel(row['scheduled_at']);
-        subtitleUa = '$organizer створив матч "$matchTitle" • старт о $t';
-        subtitleEn = '$organizer created "$matchTitle" • kick-off at $t';
+        subtitleKey = 'mode_news_match_subtitle_open_kickoff';
+        subtitleNamedArgs = {
+          'organizer': organizer,
+          'matchTitle': matchTitle,
+          'time': t,
+        };
       }
 
       return ModeNewsItem(
-        titleUa: matchTitle,
-        titleEn: matchTitle,
-        subtitleUa: subtitleUa,
-        subtitleEn: subtitleEn,
+        titleRaw: matchTitle,
+        subtitleKey: subtitleKey,
+        subtitleNamedArgs: subtitleNamedArgs,
         iconKind: ModeNewsIconKind.soccer,
         accentArgb: 0xFF4caf50,
         timestamp: _ts(row, const ['updated_at', 'created_at']),
@@ -144,10 +156,12 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
       final rawTitle = row['title']?.toString().trim() ?? '';
       final title = rawTitle.isEmpty ? tr('il_3ef43ead3d') : rawTitle;
       return ModeNewsItem(
-        titleUa: title,
-        titleEn: title,
-        subtitleUa: '$author завантажив відео "$title"',
-        subtitleEn: '$author uploaded "$title"',
+        titleRaw: title,
+        subtitleKey: 'mode_news_video_subtitle',
+        subtitleNamedArgs: {
+          'author': author,
+          'title': title,
+        },
         iconKind: ModeNewsIconKind.video,
         accentArgb: 0xFFFF7043,
         timestamp: _ts(row, const ['created_at', 'updated_at']),
@@ -172,12 +186,13 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
         return null;
       }
       final teamName = (row['name'] ?? tr('il_1b9ed8eaa1')).toString();
-      final city = (row['city'] ?? tr('il_3ec7dbf583')).toString();
+      final rawCity = row['city']?.toString().trim() ?? '';
+      final cityLabel =
+          rawCity.isEmpty ? tr('il_3ec7dbf583') : localizeCity(rawCity);
       return ModeNewsItem(
-        titleUa: teamName,
-        titleEn: teamName,
-        subtitleUa: 'Команда з $city вже в грі',
-        subtitleEn: 'A squad from $city just joined the arena',
+        titleRaw: teamName,
+        subtitleKey: 'mode_news_team_subtitle',
+        subtitleNamedArgs: {'city': cityLabel},
         iconKind: ModeNewsIconKind.groups,
         accentArgb: 0xFF42a5f5,
         timestamp: _ts(row, const ['created_at', 'updated_at']),
@@ -217,10 +232,9 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
         final userName = _profileDisplayName(userRow);
         out.add(
           ModeNewsItem(
-            titleUa: teamName,
-            titleEn: teamName,
-            subtitleUa: '$userName приєднався до команди',
-            subtitleEn: '$userName joined the team',
+            titleRaw: teamName,
+            subtitleKey: 'mode_news_team_join_subtitle',
+            subtitleNamedArgs: {'userName': userName},
             iconKind: ModeNewsIconKind.join,
             accentArgb: 0xFF26A69A,
             timestamp: _ts(m, const ['joined_at']),

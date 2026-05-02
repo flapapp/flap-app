@@ -141,9 +141,9 @@ class _NewsCardItem extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            context.locale.languageCode == 'uk'
-                ? entry.titleUa
-                : entry.titleEn,
+            entry.titleKey != null
+                ? tr(entry.titleKey!, namedArgs: entry.titleNamedArgs)
+                : entry.titleRaw,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -152,9 +152,7 @@ class _NewsCardItem extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            context.locale.languageCode == 'uk'
-                ? entry.subtitleUa
-                : entry.subtitleEn,
+            tr(entry.subtitleKey, namedArgs: entry.subtitleNamedArgs),
             style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
           const SizedBox(height: 18),

@@ -2,6 +2,7 @@ import 'dart:collection';
 
 import 'dart:math';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 import '../../../../core/json/json_converters.dart';
@@ -551,32 +552,34 @@ bool get isUnplayedByTimeout {
   String get levelText {
     switch (level) {
       case MatchLevel.beginner:
-        return 'Початковий';
+        return tr('beginner');
       case MatchLevel.intermediate:
-        return 'Середній';
+        return tr('intermediate');
       case MatchLevel.advanced:
-        return 'Високий';
+        return tr('advanced');
       case MatchLevel.professional:
-        return 'Професійний';
+        return tr('professional');
     }
   }
-  
+
   String get statusText {
     switch (status) {
       case MatchStatus.open:
-        return 'Відкрито';
+        return tr('status_open');
       case MatchStatus.full:
-        return 'Заповнено';
+        return tr('status_full');
       case MatchStatus.inProgress:
-        return 'В процесі';
+        return tr('status_in_progress');
       case MatchStatus.finished:
-        return 'Завершено';
+        return tr('status_finished');
       case MatchStatus.cancelled:
-        return 'Скасовано';
+        return tr('status_cancelled');
     }
   }
-  
-  String get costText => cost > 0 ? '${cost.toInt()} грн' : 'Безкоштовно';
+
+  String get costText => cost > 0
+      ? tr('match_cost_uah', namedArgs: {'amount': '${cost.toInt()}'})
+      : tr('match_cost_free');
   
   // Whether the user can manage
   bool canManage(String userId) => isOrganizer(userId);

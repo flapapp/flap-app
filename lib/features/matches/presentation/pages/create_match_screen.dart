@@ -35,7 +35,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   DateTime _selectedDate = DateTime.now().add(Duration(days: 1));
   TimeOfDay _selectedTime = TimeOfDay.now();
   String _selectedCity = tr('kyiv');
-  String _selectedLevel = tr('il_3b1cfa63d7');
+  String _selectedLevel = tr('intermediate');
   int _selectedPlayers = 10;
   double _cost = 0.0;
   bool _autoBalance = true;
@@ -45,7 +45,8 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   final Map<String, Map<String, dynamic>> _selectedInviteUsers =
       <String, Map<String, dynamic>>{};
   
-  List<String> get _levels => [tr('beginner'), tr('il_3b1cfa63d7'), tr('il_9f088dbebd'), tr('professional')];
+  List<String> get _levels =>
+      [tr('beginner'), tr('intermediate'), tr('advanced'), tr('professional')];
   final List<int> _playerOptions = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
   final ScrollController _friendsScrollController = ScrollController();
 
@@ -1289,13 +1290,11 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   }
 
   MatchLevel _getMatchLevel(String level) {
-    switch (level) {
-      case 'Початковий': return MatchLevel.beginner;
-      case 'Середній': return MatchLevel.intermediate;
-      case 'Високий': return MatchLevel.advanced;
-      case 'Професійний': return MatchLevel.professional;
-      default: return MatchLevel.intermediate;
-    }
+    if (level == tr('beginner')) return MatchLevel.beginner;
+    if (level == tr('intermediate')) return MatchLevel.intermediate;
+    if (level == tr('advanced')) return MatchLevel.advanced;
+    if (level == tr('professional')) return MatchLevel.professional;
+    return MatchLevel.intermediate;
   }
 
   Future<List<Map<String, dynamic>>> _loadMyFriends() async {

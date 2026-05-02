@@ -11,10 +11,11 @@ class ModeNewsRepositoryImpl implements ModeNewsRepository {
 
   static ModeNewsItem _defaultFeedItem() {
     return ModeNewsItem(
-      titleUa: 'FLAP Live',
-      titleEn: 'FLAP Live',
-      subtitleUa: 'Слідкуй за матчами та відео у реальному часі',
-      subtitleEn: 'Watch matches and videos in real time',
+      titleKey: 'mode_news_default_headline',
+      titleNamedArgs: const {},
+      titleRaw: '',
+      subtitleKey: 'mode_news_default_subtitle',
+      subtitleNamedArgs: const {},
       iconKind: ModeNewsIconKind.flash,
       accentArgb: 0xFF7e57c2,
       timestamp: DateTime.now(),

@@ -53,13 +53,11 @@ String videoCategoryToSlug(VideoCategory category) {
 class VideoCategoryDefinition {
   final VideoCategory category;
   final Color color;
-  final List<String> keywords;
   final bool showInQuickFilters;
 
   const VideoCategoryDefinition({
     required this.category,
     required this.color,
-    this.keywords = const [],
     this.showInQuickFilters = false,
   });
 
@@ -78,73 +76,60 @@ const List<VideoCategoryDefinition> kVideoCategories = [
   VideoCategoryDefinition(
     category: VideoCategory.goal,
     color: Color(0xFFFF7043),
-    keywords: ['goal', 'гол', 'finish', 'удар', 'shot'],
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
     category: VideoCategory.shotPower,
     color: Color(0xFFD84315),
-    keywords: ['shot power', 'power', 'сила', 'постріл', 'rocket'],
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
     category: VideoCategory.pass,
     color: Color(0xFF66BB6A),
-    keywords: ['pass', 'пас', 'assist', 'комбінація'],
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
     category: VideoCategory.longPass,
     color: Color(0xFF26C6DA),
-    keywords: ['long pass', 'довг', 'cross', 'навіс', 'diag'],
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
     category: VideoCategory.dribbling,
     color: Color(0xFFAB47BC),
-    keywords: ['dribble', 'дрибл', 'skill', 'фінт'],
   ),
   VideoCategoryDefinition(
     category: VideoCategory.tackle,
     color: Color(0xFF795548),
-    keywords: ['tackle', 'підкат', 'відбір', 'interception'],
   ),
   VideoCategoryDefinition(
     category: VideoCategory.defending,
     color: Color(0xFF607D8B),
-    keywords: ['defending', 'defense', 'захист', 'оборона', 'block'],
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
     category: VideoCategory.penalty,
     color: Color(0xFFFFC107),
-    keywords: ['penalty', 'пеналь', '11'],
   ),
   VideoCategoryDefinition(
     category: VideoCategory.save,
     color: Color(0xFF42A5F5),
-    keywords: ['save', 'сейв', 'keeper', 'goalkeep', 'воротар'],
     showInQuickFilters: true,
   ),
   VideoCategoryDefinition(
     category: VideoCategory.wall,
     color: Color(0xFF455A64),
-    keywords: ['wall', 'стінк', 'barrier', 'free kick wall', 'set piece'],
   ),
   VideoCategoryDefinition(
     category: VideoCategory.strategy,
     color: Color(0xFF26A69A),
-    keywords: ['strategy', 'стратег', 'тактик', 'scheme'],
   ),
   VideoCategoryDefinition(
     category: VideoCategory.trick,
     color: Color(0xFFFFCA28),
-    keywords: ['freestyle', 'трюк', 'show'],
   ),
   VideoCategoryDefinition(
     category: VideoCategory.other,
     color: Color(0xFF90A4AE),
-    keywords: ['other', 'інше'],
   ),
 ];
 
@@ -155,26 +140,43 @@ final Map<String, VideoCategoryDefinition> _videoCategoriesById = {
 VideoCategoryDefinition? videoCategoryById(String id) =>
     _videoCategoriesById[id];
 
-VideoCategoryDefinition? detectVideoCategory(String raw) {
-  final normalized = raw.toLowerCase().trim();
-  final legacyAliases = <String, String>{
-    'dribble': 'dribbling',
-    'freestyle': 'trick',
-    'technique': 'dribbling',
-    'physics': 'shot_power',
-    'teamplay': 'pass',
-  };
-  final normalizedKey = legacyAliases[normalized] ?? normalized;
-  if (_videoCategoriesById.containsKey(normalizedKey)) {
-    return _videoCategoriesById[normalizedKey];
+bool _csvContainsToken(String csv, String token) {
+  final n = token;
+  if (n.isEmpty) return false;
+  for (final part in csv.split(',')) {
+    final t = part.trim().toLowerCase();
+    if (t.isNotEmpty && t == n) return true;
   }
+  return false;
+}
 
-  for (final category in kVideoCategories) {
-    if (category.keywords.any((kw) => normalized.contains(kw.toLowerCase()))) {
-      return category;
+/// Resolves [normalized] (already lowercased) to a canonical slug via
+/// [video_category_aliases_<slug>] comma-separated tokens in translations.
+String? _resolveVideoCategorySlug(String normalized) {
+  if (_videoCategoriesById.containsKey(normalized)) return normalized;
+  final underscored = normalized.replaceAll(RegExp(r'\s+'), '_');
+  if (underscored != normalized &&
+      _videoCategoriesById.containsKey(underscored)) {
+    return underscored;
+  }
+  for (final def in kVideoCategories) {
+    final slug = def.id;
+    final key = 'video_category_aliases_$slug';
+    final csv = tr(key);
+    if (csv == key) continue;
+    if (_csvContainsToken(csv, normalized)) return slug;
+    if (underscored != normalized && _csvContainsToken(csv, underscored)) {
+      return slug;
     }
   }
   return null;
+}
+
+VideoCategoryDefinition? detectVideoCategory(String raw) {
+  final normalized = raw.toLowerCase().trim();
+  final slug = _resolveVideoCategorySlug(normalized);
+  if (slug == null) return null;
+  return _videoCategoriesById[slug];
 }
 
 String normalizeVideoCategoryValue(String raw) =>
