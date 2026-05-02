@@ -509,7 +509,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
         SliverToBoxAdapter(
           child: Column(
             children: [
-              _buildStatsCards(userData),
+              _buildStatsCards(userData, statsFuture),
               _buildBadgesSection(userData),
               _buildTeamsSection(),
               const SizedBox(height: 20),
@@ -550,11 +550,15 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
               'wins': 0,
               'draws': 0,
               'losses': 0,
+              'matches': 0,
+              'totalGoals': 0,
             };
         final recentResults = List<String>.from(stats['recentResults'] as List);
         final winRate = (stats['winRate'] as num).toDouble();
         final wdlText =
             '${stats['wins'] ?? 0}W · ${stats['draws'] ?? 0}D · ${stats['losses'] ?? 0}L';
+        final matchesFromStats = (stats['matches'] as num?)?.toInt();
+        final goalsFromStats = (stats['totalGoals'] as num?)?.toInt();
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 32, 16, 20),
@@ -659,6 +663,17 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                             const SizedBox(height: 14),
                             LayoutBuilder(
                               builder: (context, constraints) {
+                                final matchesPill =
+                                    matchesFromStats ??
+                                    ((userData['matchesPlayed'] ??
+                                                userData['totalMatches'] ??
+                                                userData['matches'] ??
+                                                0)
+                                            as num)
+                                        .toInt();
+                                final goalsPill =
+                                    goalsFromStats ??
+                                    ((userData['goals'] ?? 0) as num).toInt();
                                 final pills = [
                                   _profilePill(
                                     icon: Icons.star_border_rounded,
@@ -669,10 +684,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                   _profilePill(
                                     icon: Icons.sports_soccer,
                                     label: tr('matches'),
-                                    value:
-                                        ((userData['matchesPlayed'] ?? 0)
-                                                as num)
-                                            .toString(),
+                                    value: matchesPill.toString(),
                                     accent: const Color(0xFF4CAF50),
                                   ),
                                   _profilePill(
@@ -684,8 +696,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                                   _profilePill(
                                     icon: Icons.sports,
                                     label: tr('il_116cd3982a'),
-                                    value: ((userData['goals'] ?? 0) as num)
-                                        .toString(),
+                                    value: goalsPill.toString(),
                                     accent: const Color(0xFFFF7043),
                                   ),
                                 ];
@@ -813,47 +824,73 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     );
   }
 
-  Widget _buildStatsCards(Map<String, dynamic> userData) {
+  Widget _buildStatsCards(
+    Map<String, dynamic> userData,
+    Future<Map<String, dynamic>>? statsFuture,
+  ) {
+    final uid =
+        userData['uid'] ??
+        sl<AuthSessionRepository>().peekCurrentUser?.uid ??
+        '';
+    final resolvedFuture =
+        statsFuture ??
+        sl<MatchParticipationStatsRepository>().loadFinishedMatchStats(uid);
+
     return BlocBuilder<ProfileOverviewCubit, ProfileOverviewState>(
       bloc: _overviewCubit,
       builder: (context, overview) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  tr('matches'),
-                  (userData['matchesPlayed'] ?? 0).toString(),
-                  Icons.sports_soccer,
-                  const Color(0xFF4caf50),
-                  onTap: () =>
-                      context.router.push(MatchesRoute(initialTabIndex: 1)),
-                ),
+        return FutureBuilder<Map<String, dynamic>>(
+          future: resolvedFuture,
+          builder: (context, statsSnap) {
+            final sm = statsSnap.data;
+            final played =
+                (sm?['matches'] as num?)?.toInt() ??
+                ((userData['matchesPlayed'] ??
+                            userData['totalMatches'] ??
+                            userData['matches'] ??
+                            0)
+                        as num)
+                    .toInt();
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      tr('matches'),
+                      played.toString(),
+                      Icons.sports_soccer,
+                      const Color(0xFF4caf50),
+                      onTap: () =>
+                          context.router.push(MatchesRoute(initialTabIndex: 1)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatCard(
+                      tr('videos'),
+                      (userData['videosUploaded'] ?? 0).toString(),
+                      Icons.videocam,
+                      const Color(0xFFFF6B35),
+                      onTap: () => context.router.push(
+                        VideoMainRoute(myContent: 'videos'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatCard(
+                      tr('friends'),
+                      overview.friendsCount.toString(),
+                      Icons.people,
+                      const Color(0xFF2196F3),
+                      onTap: () => _openFriends(),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  tr('videos'),
-                  (userData['videosUploaded'] ?? 0).toString(),
-                  Icons.videocam,
-                  const Color(0xFFFF6B35),
-                  onTap: () =>
-                      context.router.push(VideoMainRoute(myContent: 'videos')),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  tr('friends'),
-                  overview.friendsCount.toString(),
-                  Icons.people,
-                  const Color(0xFF2196F3),
-                  onTap: () => _openFriends(),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -1282,11 +1319,9 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     if (currentUserId == null) return;
 
     if (currentUserId == userId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_472d788d72')),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('il_472d788d72'))));
       return;
     }
 
@@ -1581,9 +1616,6 @@ class ProfileStatsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalMatches =
-        (userData['matchesPlayed'] ?? userData['totalMatches'] ?? 0) as num;
-    final goalsValue = (userData['goals'] ?? 0) as num;
     final assistsValue = (userData['assists'] ?? 0) as num;
     final cleanSheetsValue = (userData['cleanSheets'] ?? 0) as num;
 
@@ -1609,14 +1641,24 @@ class ProfileStatsScreen extends StatelessWidget {
                 'wins': 0,
                 'draws': 0,
                 'losses': 0,
+                'matches': 0,
+                'totalGoals': 0,
                 'recentResults': ['-', '-', '-', '-', '-'],
               };
           final winRate = (stats['winRate'] as num?)?.toDouble() ?? 0.0;
           final wins = (stats['wins'] ?? 0).toString();
           final draws = (stats['draws'] ?? 0).toString();
           final losses = (stats['losses'] ?? 0).toString();
-          final goalsPerMatch = totalMatches > 0
-              ? (goalsValue / totalMatches).toStringAsFixed(2)
+          final totalMatchesNum =
+              (stats['matches'] as num?)?.toInt() ??
+              ((userData['matchesPlayed'] ?? userData['totalMatches'] ?? 0)
+                      as num)
+                  .toInt();
+          final goalsValueNum =
+              (stats['totalGoals'] as num?)?.toInt() ??
+              ((userData['goals'] ?? 0) as num).toInt();
+          final goalsPerMatch = totalMatchesNum > 0
+              ? (goalsValueNum / totalMatchesNum).toStringAsFixed(2)
               : '0.0';
           final recent = List<String>.from(
             stats['recentResults'] ?? const ['-', '-', '-', '-', '-'],
@@ -1656,7 +1698,7 @@ class ProfileStatsScreen extends StatelessWidget {
                     ),
                     buildPerformanceStat(
                       tr('il_116cd3982a'),
-                      goalsValue.toString(),
+                      goalsValueNum.toString(),
                       tr(
                         'il_6aecd96fcb',
                         namedArgs: {'goalsPerMatch': goalsPerMatch},
@@ -1673,7 +1715,7 @@ class ProfileStatsScreen extends StatelessWidget {
                     ),
                     buildPerformanceStat(
                       tr('il_98abff28a9'),
-                      totalMatches.toString(),
+                      totalMatchesNum.toString(),
                       tr('il_d5bef65348'),
                       Icons.calendar_month,
                       const Color(0xFF26C6DA),

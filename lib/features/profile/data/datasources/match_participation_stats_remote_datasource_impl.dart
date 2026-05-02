@@ -11,6 +11,8 @@ class MatchParticipationStatsRemoteDataSourceImpl
   @override
   Future<Map<String, dynamic>> loadFinishedMatchStats(String userId) async {
     try {
+      final goalsFuture = _sumParticipantGoals(userId);
+
       final partRows = await _client
           .from('match_participants')
           .select('match_id')
@@ -21,16 +23,16 @@ class MatchParticipationStatsRemoteDataSourceImpl
           .toSet()
           .toList();
       if (matchIds.isEmpty) {
-        return _empty;
+        final g = await goalsFuture;
+        return {..._empty, 'totalGoals': g};
       }
 
       final matchRows = await _client
           .from('matches')
-          .select('id,status,finished_at,updated_at')
+          .select('id,status,finished_at,cancellation_reason')
           .eq('status', 'finished')
           .inFilter('id', matchIds)
-          .order('finished_at', ascending: false)
-          .limit(20);
+          .order('finished_at', ascending: false);
 
       var wins = 0;
       var draws = 0;
@@ -40,7 +42,7 @@ class MatchParticipationStatsRemoteDataSourceImpl
       for (final raw in (matchRows as List<dynamic>)) {
         final m = raw as Map<String, dynamic>;
         final mid = m['id'] as String;
-        final outcome = await _outcomeForUser(mid, userId);
+        final outcome = await _outcomeForUser(mid, userId, matchRow: m);
         if (outcome == null) {
           continue;
         }
@@ -61,6 +63,7 @@ class MatchParticipationStatsRemoteDataSourceImpl
       while (recent.length < 5) {
         recent.add('-');
       }
+      final totalGoals = await goalsFuture;
       return {
         'winRate': rate,
         'wins': wins,
@@ -68,6 +71,7 @@ class MatchParticipationStatsRemoteDataSourceImpl
         'losses': losses,
         'matches': total,
         'recentResults': recent,
+        'totalGoals': totalGoals,
       };
     } catch (_) {
       return _empty;
@@ -81,9 +85,40 @@ class MatchParticipationStatsRemoteDataSourceImpl
     'losses': 0,
     'matches': 0,
     'recentResults': ['-', '-', '-', '-', '-'],
+    'totalGoals': 0,
   };
 
-  Future<String?> _outcomeForUser(String matchId, String userId) async {
+  Future<int> _sumParticipantGoals(String userId) async {
+    try {
+      final rows = await _client
+          .from('match_participant_goals')
+          .select('goals')
+          .eq('player_id', userId);
+      var sum = 0;
+      for (final r in rows as List<dynamic>) {
+        sum += ((r as Map<String, dynamic>)['goals'] as num?)?.toInt() ?? 0;
+      }
+      return sum;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Prefer a finished [match_fixture]; fall back to two-team scores in [matches.cancellation_reason]
+  /// (most casual matches never create fixtures — see [MatchService.ensureFixtures]).
+  Future<String?> _outcomeForUser(
+    String matchId,
+    String userId, {
+    required Map<String, dynamic> matchRow,
+  }) async {
+    final fromFx = await _outcomeFromFixture(matchId, userId);
+    if (fromFx != null) {
+      return fromFx;
+    }
+    return _outcomeFromCancellationRow(matchRow, matchId, userId);
+  }
+
+  Future<String?> _outcomeFromFixture(String matchId, String userId) async {
     final fx = await _client
         .from('match_fixtures')
         .select(
@@ -119,6 +154,57 @@ class MatchParticipationStatsRemoteDataSourceImpl
       return homeWins ? 'W' : 'L';
     }
     return homeWins ? 'L' : 'W';
+  }
+
+  /// Parses scores saved by [MatchService.finishMatch]: `teamAWins|teamBWins|draw:scoreA:scoreB`.
+  Future<String?> _outcomeFromCancellationRow(
+    Map<String, dynamic> matchRow,
+    String matchId,
+    String userId,
+  ) async {
+    final raw = matchRow['cancellation_reason']?.toString();
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    final parts = raw.split(':');
+    if (parts.length != 3) {
+      return null;
+    }
+    final rName = parts[0];
+    if (rName != 'teamAWins' && rName != 'teamBWins' && rName != 'draw') {
+      return null;
+    }
+    final a = int.tryParse(parts[1]);
+    final b = int.tryParse(parts[2]);
+    if (a == null || b == null) {
+      return null;
+    }
+
+    final teamsResp = await _client
+        .from('match_teams')
+        .select('id,team_slot')
+        .eq('match_id', matchId)
+        .order('team_slot');
+    final tlist = (teamsResp as List<dynamic>).cast<Map<String, dynamic>>();
+    if (tlist.length < 2) {
+      return null;
+    }
+    final idA = tlist[0]['id'] as String;
+    final idB = tlist[1]['id'] as String;
+    final onA = await _rosterContains(idA, userId);
+    final onB = await _rosterContains(idB, userId);
+    if (!onA && !onB) {
+      return null;
+    }
+
+    if (a == b) {
+      return 'D';
+    }
+    final scoreTeamAWins = a > b;
+    if (onA) {
+      return scoreTeamAWins ? 'W' : 'L';
+    }
+    return scoreTeamAWins ? 'L' : 'W';
   }
 
   Future<bool> _rosterContains(String matchTeamId, String userId) async {

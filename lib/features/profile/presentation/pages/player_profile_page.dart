@@ -61,6 +61,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   int _draws = 0;
   int _losses = 0;
   int _matchesPlayed = 0;
+  int _totalGoals = 0;
   List<String> _recentResults = const ['-', '-', '-', '-', '-'];
   List<app_badge.Badge> _userBadges = [];
   int _badgeEndorseVersion = 0;
@@ -87,6 +88,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           _draws = (stats['draws'] as num?)?.toInt() ?? 0;
           _losses = (stats['losses'] as num?)?.toInt() ?? 0;
           _matchesPlayed = (stats['matches'] as num?)?.toInt() ?? 0;
+          _totalGoals = (stats['totalGoals'] as num?)?.toInt() ?? 0;
           _recentResults = List<String>.from(
             stats['recentResults'] ?? const ['-', '-', '-', '-', '-'],
           );
@@ -492,13 +494,18 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     final winsFromProfile   = ((playerData!['wins'] ?? playerData!['wonMatches']  ?? 0) as num).toInt();
     final lossesFromProfile = ((playerData!['losses'] ?? playerData!['lostMatches'] ?? 0) as num).toInt();
     final drawsFromProfile  = ((playerData!['draws'] ?? playerData!['drawMatches']  ?? 0) as num).toInt();
-    final goals  = ((playerData!['goals'] ?? 0) as num).toInt();
+    final goalsFallback = ((playerData!['goals'] ?? 0) as num).toInt();
     final avatarUrl = (playerData!['avatarUrl'] ?? playerData!['avatar'] ?? playerData!['photoUrl'] ?? '').toString();
 
-    final wins = _wins > 0 ? _wins : winsFromProfile;
-    final draws = _draws > 0 ? _draws : drawsFromProfile;
-    final losses = _losses > 0 ? _losses : lossesFromProfile;
+    final wins =
+        _matchesPlayed > 0 ? _wins : winsFromProfile;
+    final draws =
+        _matchesPlayed > 0 ? _draws : drawsFromProfile;
+    final losses =
+        _matchesPlayed > 0 ? _losses : lossesFromProfile;
     final matches = _matchesPlayed > 0 ? _matchesPlayed : matchesFromProfile;
+    final goalsDisplay =
+        _matchesPlayed > 0 ? _totalGoals : goalsFallback;
 
       return Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
@@ -570,7 +577,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               const SizedBox(width: 10),
               Expanded(child: _statBox(value: '${_winRate.toStringAsFixed(0)}%', label: tr('profile_win_rate_label'), icon: Icons.percent, color: const Color(0xFF64B5F6))),
               const SizedBox(width: 10),
-              Expanded(child: _statBox(value: goals.toString(), label: tr('il_116cd3982a'), icon: Icons.sports, color: const Color(0xFFFF7043))),
+              Expanded(child: _statBox(value: goalsDisplay.toString(), label: tr('il_116cd3982a'), icon: Icons.sports, color: const Color(0xFFFF7043))),
             ]),
             const SizedBox(height: 20),
 
