@@ -37,6 +37,29 @@ MatchLevel _matchLevelFromLegacyData(dynamic raw) {
   return MatchLevel.intermediate;
 }
 
+/// Supabase stores snake_case (`in_progress`); embedded legacy docs may use enum names (`inProgress`).
+MatchStatus _matchStatusFromLegacyData(dynamic raw) {
+  final s = raw?.toString() ?? '';
+  switch (s) {
+    case 'open':
+      return MatchStatus.open;
+    case 'full':
+      return MatchStatus.full;
+    case 'in_progress':
+    case 'inProgress':
+      return MatchStatus.inProgress;
+    case 'finished':
+      return MatchStatus.finished;
+    case 'cancelled':
+      return MatchStatus.cancelled;
+    default:
+      for (final e in MatchStatus.values) {
+        if (e.name == s) return e;
+      }
+      return MatchStatus.open;
+  }
+}
+
 DateTime _matchReadDate(dynamic v, [DateTime? dflt]) {
   if (v == null) {
     return dflt ?? DateTime.now();
@@ -152,10 +175,7 @@ class Match extends MatchEntity {
       isPrivate: data['isPrivate'] ?? false,
       invitedFriends: List<String>.from(data['invitedFriends'] ?? []),
       sentInvitesCount: (data['sentInvitesCount'] as num?)?.toInt() ?? 0,
-      status: MatchStatus.values.firstWhere(
-        (e) => e.toString().split('.').last == data['status'],
-        orElse: () => MatchStatus.open,
-      ),
+      status: _matchStatusFromLegacyData(data['status']),
       teamA: data['teamA'] != null ? Team(
         name: (data['teamA']['name'] ?? '') as String,
         playerIds: List<String>.from(data['teamA']['playerIds'] ?? const []),
@@ -507,8 +527,9 @@ bool get isUnplayedByTimeout {
                               !rejectedApplications.contains(userId) &&
                               currentPlayers < maxPlayers;
   
-  // Whether teams exist
-  bool get hasTeams => teamA != null && teamB != null;
+  // Whether teams exist (two squads or multi-team lineups from [teams]).
+  bool get hasTeams =>
+      (teamA != null && teamB != null) || teams.length >= 2;
 
   List<MatchTeamEntity> get allTeams {
     if (teams.isNotEmpty) return teams;

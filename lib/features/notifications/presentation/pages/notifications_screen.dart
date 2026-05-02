@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/di/injection.dart';
 import '../../../challenges/data/models/challenge.dart';
 import '../../../matches/data/models/match.dart';
+import '../../../matches/domain/repositories/matches_repository.dart';
 import '../../data/models/notification.dart';
 import '../../../../router/app_router.dart';
 import '../../domain/repositories/notifications_repository.dart';
@@ -22,6 +23,7 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   NotificationsRepository get _notificationsRepo => sl<NotificationsRepository>();
+  MatchesRepository get _matchRepo => sl<MatchesRepository>();
   final SupabaseClient _sb = Supabase.instance.client;
   late final NotificationBloc _notificationBloc;
 
@@ -536,8 +538,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     Future<void> _openMatchRatingById(String matchId) async {
     try {
-      final row = await _sb.from('matches').select().eq('id', matchId).maybeSingle();
-      if (row == null) {
+      final match = await _matchRepo.fetchMatchById(matchId);
+      if (match == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -548,20 +550,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         );
         return;
       }
-      final match = Match.fromFirestore(_MapDoc(matchId, <String, dynamic>{
-        'title': row['title'],
-        'description': row['description'],
-        'location': row['location_name'] ?? row['city'],
-        'city': row['city'],
-        'date': row['start_time'],
-        'maxPlayers': row['max_players'],
-        'currentPlayers': 0,
-        'participants': const <String>[],
-        'isActive': row['status'] == 'scheduled' || row['status'] == 'open',
-        'createdBy': row['organizer_id'],
-        'createdAt': row['created_at'],
-        'status': row['status'],
-      }));
       if (!mounted) return;
       context.router.push(MatchRatingRoute(match: match));
     } catch (e) {

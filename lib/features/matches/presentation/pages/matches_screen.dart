@@ -3387,7 +3387,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                               ),
                             ),
                             child: Text(
-                              tr('start_match'),
+                              tr('action_start_match_ui'),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
@@ -3564,51 +3564,9 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   Future<Map<String, int>?> _showFinishDialog() async {
-    final aCtrl = TextEditingController();
-    final bCtrl = TextEditingController();
     return showDialog<Map<String, int>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(tr('finish_match')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: aCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: tr('goals_team_a')),
-            ),
-            TextField(
-              controller: bCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: tr('goals_team_b')),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(tr('cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final int? a = int.tryParse(aCtrl.text);
-              final int? b = int.tryParse(bCtrl.text);
-              if (a == null || b == null || a < 0 || b < 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(tr('enter_valid_scores')),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
-              Navigator.pop(ctx, {'teamAScore': a, 'teamBScore': b});
-            },
-            child: Text(tr('confirm')),
-          ),
-        ],
-      ),
+      builder: (ctx) => _FinishMatchScoresDialog(parentContext: context),
     );
   }
 
@@ -3627,52 +3585,14 @@ class _MatchesScreenState extends State<MatchesScreen>
       grouped.putIfAbsent(key, () => <String>[]);
       grouped[key]!.add(id);
     }
-    final controllers = {
-      for (final id in ids) id: TextEditingController(text: '0'),
-    };
-    final map = await showDialog<Map<String, int>?>(
+    return showDialog<Map<String, int>?>(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: Text(tr('il_2da37af5bc')),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: _buildGoalInputSections(
-                grouped: grouped,
-                names: names,
-                controllers: controllers,
-                match: match,
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, null),
-              child: Text(tr('cancel')),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, <String, int>{}),
-              child: Text(tr('il_28d03596d2')),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final result = <String, int>{};
-                controllers.forEach((id, ctrl) {
-                  final val = int.tryParse(ctrl.text) ?? 0;
-                  if (val > 0) result[id] = val;
-                });
-                Navigator.pop(ctx, result);
-              },
-              child: Text(tr('confirm')),
-            ),
-          ],
-        );
-      },
+      builder: (ctx) => _PlayerGoalsDialog(
+        grouped: grouped,
+        names: names,
+        match: match,
+      ),
     );
-    controllers.values.forEach((c) => c.dispose());
-    return map;
   }
 
   bool _validateGoalsAgainstScore(
@@ -3697,70 +3617,6 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
     final total = goals.values.fold<int>(0, (prev, value) => prev + value);
     return total == (teamAScore + teamBScore);
-  }
-
-  List<Widget> _buildGoalInputSections({
-    required Map<String, List<String>> grouped,
-    required Map<String, String> names,
-    required Map<String, TextEditingController> controllers,
-    required Match match,
-  }) {
-    final sections = <Widget>[];
-    final order = ['teamA', 'teamB', 'free'];
-
-    String _teamLabel(String key) {
-      switch (key) {
-        case 'teamA':
-          return match.teamA?.name ?? tr('il_e18d322f14');
-        case 'teamB':
-          return match.teamB?.name ?? tr('il_aceaf5d9ac');
-        default:
-          return tr('il_7d4d74c733');
-      }
-    }
-
-    for (final key in order) {
-      final players = grouped[key] ?? const <String>[];
-      if (players.isEmpty) continue;
-      sections.add(
-        Padding(
-          padding: const EdgeInsets.only(top: 8, bottom: 4),
-          child: Text(
-            _teamLabel(key),
-            style: const TextStyle(
-              color: Colors.white70,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      );
-      sections.addAll(
-        players.map((id) {
-          final name = names[id] ?? tr('player');
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                Expanded(child: Text(name)),
-                SizedBox(
-                  width: 70,
-                  child: TextField(
-                    controller: controllers[id],
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: tr('goals'),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      );
-    }
-
-    return sections;
   }
 
   Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {
@@ -4297,6 +4153,217 @@ class _MatchesScreenState extends State<MatchesScreen>
           Text('$label: $value', style: const TextStyle(color: Colors.white70)),
         ],
       ),
+    );
+  }
+}
+
+/// Owns [TextEditingController]s for the finish-match team score dialog so disposal
+/// stays tied to this route (avoids race with parent [StreamBuilder] rebuilds).
+class _FinishMatchScoresDialog extends StatefulWidget {
+  const _FinishMatchScoresDialog({required this.parentContext});
+
+  /// [MatchesScreen] context for [ScaffoldMessenger], not the dialog overlay context.
+  final BuildContext parentContext;
+
+  @override
+  State<_FinishMatchScoresDialog> createState() => _FinishMatchScoresDialogState();
+}
+
+class _FinishMatchScoresDialogState extends State<_FinishMatchScoresDialog> {
+  late final TextEditingController _teamA;
+  late final TextEditingController _teamB;
+
+  @override
+  void initState() {
+    super.initState();
+    _teamA = TextEditingController();
+    _teamB = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _teamA.dispose();
+    _teamB.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(tr('finish_match')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _teamA,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(labelText: tr('goals_team_a')),
+          ),
+          TextField(
+            controller: _teamB,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(labelText: tr('goals_team_b')),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(tr('cancel')),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final int? a = int.tryParse(_teamA.text);
+            final int? b = int.tryParse(_teamB.text);
+            if (a == null || b == null || a < 0 || b < 0) {
+              ScaffoldMessenger.of(widget.parentContext).showSnackBar(
+                SnackBar(
+                  content: Text(tr('enter_valid_scores')),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+            Navigator.pop(context, {'teamAScore': a, 'teamBScore': b});
+          },
+          child: Text(tr('confirm')),
+        ),
+      ],
+    );
+  }
+}
+
+/// Per-player goals dialog: controllers live in [State] and dispose with the route.
+class _PlayerGoalsDialog extends StatefulWidget {
+  const _PlayerGoalsDialog({
+    required this.grouped,
+    required this.names,
+    required this.match,
+  });
+
+  final Map<String, List<String>> grouped;
+  final Map<String, String> names;
+  final Match match;
+
+  @override
+  State<_PlayerGoalsDialog> createState() => _PlayerGoalsDialogState();
+}
+
+class _PlayerGoalsDialogState extends State<_PlayerGoalsDialog> {
+  late final Map<String, TextEditingController> _controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    final ids = <String>[
+      ...(widget.grouped['teamA'] ?? const <String>[]),
+      ...(widget.grouped['teamB'] ?? const <String>[]),
+      ...(widget.grouped['free'] ?? const <String>[]),
+    ];
+    _controllers = {
+      for (final id in ids) id: TextEditingController(text: '0'),
+    };
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  String _teamLabel(String key) {
+    switch (key) {
+      case 'teamA':
+        return widget.match.teamA?.name ?? tr('il_e18d322f14');
+      case 'teamB':
+        return widget.match.teamB?.name ?? tr('il_aceaf5d9ac');
+      default:
+        return tr('il_7d4d74c733');
+    }
+  }
+
+  List<Widget> _buildSections() {
+    final sections = <Widget>[];
+    const order = ['teamA', 'teamB', 'free'];
+    for (final key in order) {
+      final players = widget.grouped[key] ?? const <String>[];
+      if (players.isEmpty) continue;
+      sections.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 4),
+          child: Text(
+            _teamLabel(key),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+      for (final id in players) {
+        final ctrl = _controllers[id];
+        if (ctrl == null) continue;
+        final name = widget.names[id] ?? tr('player');
+        sections.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Expanded(child: Text(name)),
+                SizedBox(
+                  width: 70,
+                  child: TextField(
+                    controller: ctrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: tr('goals'),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+    return sections;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(tr('il_2da37af5bc')),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: ListView(
+          shrinkWrap: true,
+          children: _buildSections(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, null),
+          child: Text(tr('cancel')),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, <String, int>{}),
+          child: Text(tr('il_28d03596d2')),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final result = <String, int>{};
+            _controllers.forEach((id, ctrl) {
+              final val = int.tryParse(ctrl.text) ?? 0;
+              if (val > 0) result[id] = val;
+            });
+            Navigator.pop(context, result);
+          },
+          child: Text(tr('confirm')),
+        ),
+      ],
     );
   }
 }

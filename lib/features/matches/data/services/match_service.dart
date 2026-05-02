@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -55,12 +57,12 @@ class MatchService {
   }
 
   Stream<List<Match>> getUserMatches(String userId) {
-    return _sb
-        .from('match_participants')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) async {
-      final ids = (rows as List<dynamic>)
-          .where((raw) => (raw as Map<String, dynamic>)['user_id'] == userId)
+    Future<List<Match>> loadMatches() async {
+      final participantRows = await _sb
+          .from('match_participants')
+          .select('match_id')
+          .eq('user_id', userId);
+      final ids = (participantRows as List<dynamic>)
           .map((raw) => (raw as Map<String, dynamic>)['match_id']?.toString() ?? '')
           .where((id) => id.isNotEmpty)
           .toSet()
@@ -77,7 +79,41 @@ class MatchService {
       }
       out.sort((a, b) => b.date.compareTo(a.date));
       return out;
-    });
+    }
+
+    late StreamController<List<Match>> outCtrl;
+    StreamSubscription<List<Map<String, dynamic>>>? subParticipants;
+    StreamSubscription<List<Map<String, dynamic>>>? subMatches;
+
+    outCtrl = StreamController<List<Match>>(
+      onListen: () {
+        scheduleMicrotask(() async {
+          Future<void> emit() async {
+            try {
+              outCtrl.add(await loadMatches());
+            } catch (e, st) {
+              outCtrl.addError(e, st);
+            }
+          }
+
+          await emit();
+          subParticipants = _sb
+              .from('match_participants')
+              .stream(primaryKey: ['id'])
+              .listen((_) => emit());
+          subMatches =
+              _sb.from('matches').stream(primaryKey: ['id']).listen((_) => emit());
+        });
+      },
+      onCancel: () async {
+        await subParticipants?.cancel();
+        await subMatches?.cancel();
+        subParticipants = null;
+        subMatches = null;
+      },
+    );
+
+    return outCtrl.stream;
   }
 
   /// DB `matches.level` allows `'pro'`, not enum name `'professional'`.
@@ -332,7 +368,10 @@ class MatchService {
           'status': 'confirmed',
         });
       }
-      await _sb.from('matches').update({'status': 'full'}).eq('id', matchId);
+      await _sb.from('matches').update({
+        'status': 'full',
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', matchId);
       return true;
     } catch (_) {
       return false;
@@ -358,6 +397,9 @@ class MatchService {
         }
       }
       await ensureFixtures(matchId);
+      await _sb.from('matches').update({
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', matchId);
       return true;
     } catch (_) {
       return false;
@@ -491,6 +533,7 @@ class MatchService {
       await _sb.from('matches').update({
         'status': 'in_progress',
         'started_at': DateTime.now().toUtc().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', matchId);
       return true;
     } catch (_) {
@@ -511,9 +554,26 @@ class MatchService {
       final currentUserId = AppAuth.currentUserId;
       if (currentUserId == null || currentUserId != m.organizerId) return false;
 
+      final now = DateTime.now().toUtc().toIso8601String();
+
+      await _sb.from('match_participant_goals').delete().eq('match_id', matchId);
+      if (goalsByPlayer.isNotEmpty) {
+        final rows = goalsByPlayer.entries
+            .map(
+              (e) => <String, dynamic>{
+                'match_id': matchId,
+                'player_id': e.key,
+                'goals': e.value,
+              },
+            )
+            .toList();
+        await _sb.from('match_participant_goals').insert(rows);
+      }
+
       await _sb.from('matches').update({
         'status': 'finished',
-        'finished_at': DateTime.now().toUtc().toIso8601String(),
+        'finished_at': now,
+        'updated_at': now,
         'cancellation_reason': '${result.name}:$teamAScore:$teamBScore',
       }).eq('id', matchId);
 

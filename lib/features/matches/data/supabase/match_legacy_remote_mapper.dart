@@ -31,9 +31,18 @@ status,
 started_at,
 finished_at,
 updated_at,
+cancellation_reason,
 organizer_profile:profiles!organizer_id(display_name,first_name,last_name),
 match_participants(user_id,status),
-match_invites(user_id,status,invited_by)
+match_invites(user_id,status,invited_by),
+match_participant_goals(player_id,goals),
+match_teams(
+  id,
+  team_slot,
+  source_team_id,
+  display_name,
+  match_team_rosters(player_id,status)
+)
 ''';
 
   static const int _kBatchChunkSize = 80;
@@ -78,12 +87,107 @@ match_invites(user_id,status,invited_by)
       return st == 'pending' || st == 'accepted' || st == 'declined';
     }).toList();
 
-    return _buildLegacyMapFromParts(
+    final base = _buildLegacyMapFromParts(
       matchRow: row,
       organizerProfile: organizerProfile,
       participantRows: participantRows,
       inviteRows: inviteRows,
     );
+    final goalRows = _asMapList(row['match_participant_goals']);
+    final goalsByPlayer = <String, int>{};
+    for (final g in goalRows) {
+      final pid = (g['player_id'] ?? '').toString();
+      if (pid.isEmpty) continue;
+      goalsByPlayer[pid] = (g['goals'] as num?)?.toInt() ?? 0;
+    }
+    if (goalsByPlayer.isNotEmpty) {
+      base['goalsByPlayer'] = goalsByPlayer;
+    }
+    final teamRows = _asMapList(row['match_teams']);
+    base.addAll(_embedMatchTeamsFromJoinedRows(teamRows));
+    return base;
+  }
+
+  /// Maps normalized `match_teams` (+ nested rosters) into legacy keys for [Match.fromLegacyMap].
+  static Map<String, dynamic> _embedMatchTeamsFromJoinedRows(
+    List<Map<String, dynamic>> rawRows,
+  ) {
+    if (rawRows.isEmpty) return {};
+
+    final sorted = [...rawRows]..sort((a, b) {
+      final sa = (a['team_slot'] as num?)?.toInt() ?? 0;
+      final sb = (b['team_slot'] as num?)?.toInt() ?? 0;
+      return sa.compareTo(sb);
+    });
+
+    Map<String, dynamic> rosterLegacy(Map<String, dynamic> mtRow) {
+      final rosters = _asMapList(mtRow['match_team_rosters']);
+      final playerIds = <String>[];
+      final statusMap = <String, String>{};
+      for (final r in rosters) {
+        final pid = (r['player_id'] ?? '').toString();
+        if (pid.isEmpty) continue;
+        final st = (r['status'] ?? 'pending').toString();
+        statusMap[pid] = st;
+        if (st != 'declined') {
+          playerIds.add(pid);
+        }
+      }
+      final src = mtRow['source_team_id']?.toString();
+      return <String, dynamic>{
+        'name': (mtRow['display_name'] ?? '').toString(),
+        'playerIds': playerIds,
+        'averageRating': 0.0,
+        'playerRatings': <String, double>{},
+        'sourceTeamId': (src != null && src.isNotEmpty) ? src : null,
+        'rosterStatus': statusMap,
+      };
+    }
+
+    final out = <String, dynamic>{};
+
+    if (sorted.length >= 2) {
+      final legA = rosterLegacy(sorted[0]);
+      final legB = rosterLegacy(sorted[1]);
+      out['teamA'] = <String, dynamic>{
+        'name': legA['name'],
+        'playerIds': legA['playerIds'],
+        'averageRating': 0.0,
+        'playerRatings': <String, double>{},
+      };
+      out['teamB'] = <String, dynamic>{
+        'name': legB['name'],
+        'playerIds': legB['playerIds'],
+        'averageRating': 0.0,
+        'playerRatings': <String, double>{},
+      };
+      final idA = legA['sourceTeamId'] as String?;
+      final idB = legB['sourceTeamId'] as String?;
+      out['teamAId'] = (idA != null && idA.isNotEmpty) ? idA : null;
+      out['teamBId'] = (idB != null && idB.isNotEmpty) ? idB : null;
+      out['teamRosters'] = <String, dynamic>{
+        'teamA': List<String>.from(legA['playerIds'] as List),
+        'teamB': List<String>.from(legB['playerIds'] as List),
+      };
+      out['teamRosterStatus'] = <String, dynamic>{
+        'teamA': Map<String, String>.from(legA['rosterStatus'] as Map),
+        'teamB': Map<String, String>.from(legB['rosterStatus'] as Map),
+      };
+    }
+
+    if (sorted.length >= 3) {
+      out['teams'] = sorted.map((mt) {
+        final t = rosterLegacy(mt);
+        return <String, dynamic>{
+          'name': t['name'],
+          'playerIds': t['playerIds'],
+          'averageRating': 0.0,
+        };
+      }).toList();
+      out['teamCount'] = sorted.length;
+    }
+
+    return out;
   }
 
   /// Prefer [loadLegacyMapsBatch]; kept for call sites that load a single match.
@@ -142,7 +246,7 @@ match_invites(user_id,status,invited_by)
       coordinates = {'latitude': lat.toDouble(), 'longitude': lng.toDouble()};
     }
 
-    return <String, dynamic>{
+    final base = <String, dynamic>{
       'title': matchRow['title'],
       'description': matchRow['description'] ?? '',
       'organizerId': matchRow['organizer_id'],
@@ -170,6 +274,31 @@ match_invites(user_id,status,invited_by)
       'startedAt': matchRow['started_at'],
       'finishedAt': matchRow['finished_at'],
     };
+    _applyFinishLineScoreFromCancellationReason(base, matchRow);
+    return base;
+  }
+
+  /// Parses scores embedded in [matches.cancellation_reason] by [MatchService.finishMatch].
+  static void _applyFinishLineScoreFromCancellationReason(
+    Map<String, dynamic> base,
+    Map<String, dynamic> matchRow,
+  ) {
+    final status = matchRow['status']?.toString() ?? '';
+    if (status != 'finished') return;
+    final raw = matchRow['cancellation_reason']?.toString();
+    if (raw == null || raw.isEmpty) return;
+    final parts = raw.split(':');
+    if (parts.length != 3) return;
+    final rName = parts[0];
+    if (rName != 'teamAWins' && rName != 'teamBWins' && rName != 'draw') {
+      return;
+    }
+    final a = int.tryParse(parts[1]);
+    final b = int.tryParse(parts[2]);
+    if (a == null || b == null) return;
+    base['teamAScore'] = a;
+    base['teamBScore'] = b;
+    base['result'] = rName;
   }
 
   static Map<String, dynamic>? _asStringKeyedMap(dynamic v) {

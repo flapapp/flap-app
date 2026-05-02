@@ -22,6 +22,12 @@ import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/city_localization.dart';
 import '../../../../core/locale/football_position.dart';
 
+double _profileOverallRatingFromRow(Map<String, dynamic> data) {
+  final v = data['overall_rating'] ?? data['rating'];
+  if (v is num) return v.toDouble();
+  return 0.0;
+}
+
 @RoutePage()
 class MatchDetailsScreen extends StatefulWidget {
   final Match match;
@@ -132,11 +138,22 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               _buildRosterInviteBanner(),
             ],
 
-            // Lineups and score for finished matches (MVP style)
-            if (widget.match.status == MatchStatus.finished)
-              _buildFinishedTeamsAndScoreSection(),
-            if (widget.match.status == MatchStatus.finished)
-              SizedBox(height: 20),
+            // Lineups and score for finished matches (live reload so goals/scores match DB)
+            StreamBuilder<Match?>(
+              stream: _liveMatchStream(),
+              builder: (context, snapshot) {
+                final resolved = snapshot.data ?? widget.match;
+                if (resolved.status != MatchStatus.finished) {
+                  return const SizedBox.shrink();
+                }
+                return Column(
+                  children: [
+                    _buildFinishedTeamsAndScoreSection(resolved),
+                    const SizedBox(height: 20),
+                  ],
+                );
+              },
+            ),
 
             // Participants with detail
             _buildParticipantsSection(),
@@ -1694,9 +1711,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 .toString()
                 .trim();
         final avatarUrl = (userData['avatar_url'] ?? '').toString();
-        final ratingValue = (userData['rating'] is num)
-            ? (userData['rating'] as num).toDouble()
-            : 0.0;
+        final ratingValue = _profileOverallRatingFromRow(userData);
 
         void handleTap() => _openPlayerProfile(participantId, displayName);
 
@@ -2569,13 +2584,15 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     try {
       final rows = await _sb
           .from('match_player_ratings')
-          .select('rating')
+          .select('overall_rating')
           .eq('match_id', matchId)
           .eq('player_id', userId);
       if (rows.isEmpty) return 0.0;
       double sum = 0.0;
       for (final m in rows) {
-        final r = (m['rating'] is num) ? (m['rating'] as num).toDouble() : 0.0;
+        final r = (m['overall_rating'] is num)
+            ? (m['overall_rating'] as num).toDouble()
+            : 0.0;
         sum += r;
       }
       return sum / rows.length;
@@ -2584,28 +2601,28 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     }
   }
 
-  Widget _buildFinishedTeamsAndScoreSection() {
-    final allTeams = widget.match.allTeams;
+  Widget _buildFinishedTeamsAndScoreSection(Match match) {
+    final allTeams = match.allTeams;
     final isMultiTeamFormat = allTeams.length > 2;
-    final hasCustomStats = widget.match.multiTeamStats.isNotEmpty;
+    final hasCustomStats = match.multiTeamStats.isNotEmpty;
 
     if (isMultiTeamFormat || hasCustomStats) {
-      return _buildMultiTeamFinishedSection(allTeams);
+      return _buildMultiTeamFinishedSection(match, allTeams);
     }
 
-    final aName = (widget.match.teamA?.name.isNotEmpty == true)
-        ? widget.match.teamA!.name
+    final aName = (match.teamA?.name.isNotEmpty == true)
+        ? match.teamA!.name
         : tr('team_name_default_a');
-    final bName = (widget.match.teamB?.name.isNotEmpty == true)
-        ? widget.match.teamB!.name
+    final bName = (match.teamB?.name.isNotEmpty == true)
+        ? match.teamB!.name
         : tr('team_name_default_b');
     // If teams are missing or empty, show all participants split in half
     // to avoid desync with participants (MVP display-only fallback)
     List<String> aPlayers = List<String>.from(
-      widget.match.teamA?.playerIds ?? const <String>[],
+      match.teamA?.playerIds ?? const <String>[],
     );
     List<String> bPlayers = List<String>.from(
-      widget.match.teamB?.playerIds ?? const <String>[],
+      match.teamB?.playerIds ?? const <String>[],
     );
     if (aPlayers.isEmpty && bPlayers.isEmpty) {
       final all = List<String>.from(_effectiveParticipants);
@@ -2614,8 +2631,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       aPlayers = all.sublist(0, mid);
       bPlayers = all.sublist(mid);
     }
-    final aScore = widget.match.teamAScore ?? 0;
-    final bScore = widget.match.teamBScore ?? 0;
+    final aScore = match.teamAScore ?? 0;
+    final bScore = match.teamBScore ?? 0;
 
     return Container(
       padding: EdgeInsets.all(16),
@@ -2689,16 +2706,19 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               Expanded(child: _teamList(bPlayers, color: Color(0xFFE57373))),
             ],
           ),
-          if (widget.match.goalsByPlayer.isNotEmpty) ...[
+          if (match.goalsByPlayer.isNotEmpty) ...[
             const SizedBox(height: 16),
-            _buildGoalsBreakdownSection(aName, bName),
+            _buildGoalsBreakdownSection(aName, bName, match),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildMultiTeamFinishedSection(List<MatchTeamEntity> teams) {
+  Widget _buildMultiTeamFinishedSection(
+    Match match,
+    List<MatchTeamEntity> teams,
+  ) {
     final palette = [
       const Color(0xFF4CAF50),
       const Color(0xFF42A5F5),
@@ -2708,7 +2728,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     ];
 
     final statsByIndex = <int, Map<String, dynamic>>{};
-    for (final stat in widget.match.multiTeamStats) {
+    for (final stat in match.multiTeamStats) {
       final idx = (stat['teamIndex'] as num?)?.toInt();
       if (idx != null) {
         statsByIndex[idx] = stat;
@@ -2742,7 +2762,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            widget.match.multiTeamStats.isEmpty
+            match.multiTeamStats.isEmpty
                 ? tr('il_e41d2dd5a0')
                 : tr('il_c4c9155815'),
             style: const TextStyle(
@@ -2778,12 +2798,16 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
-  Widget _buildGoalsBreakdownSection(String teamAName, String teamBName) {
-    final goals = widget.match.goalsByPlayer;
+  Widget _buildGoalsBreakdownSection(
+    String teamAName,
+    String teamBName,
+    Match match,
+  ) {
+    final goals = match.goalsByPlayer;
     if (goals.isEmpty) {
       return const SizedBox.shrink();
     }
-    final assignments = widget.match.playerTeamAssignments;
+    final assignments = match.playerTeamAssignments;
     final teamAEntries = <MapEntry<String, int>>[];
     final teamBEntries = <MapEntry<String, int>>[];
     goals.entries.toList()

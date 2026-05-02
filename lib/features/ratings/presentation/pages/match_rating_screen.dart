@@ -91,11 +91,6 @@ void initState() {
 }
   
     Future<void> _initializeRatings() async {
-    print('[match_rating] _initializeRatings() called');
-    print('[match_rating] match.id = ${widget.match.id}');
-    print('[match_rating] match.status = ${widget.match.status}');
-    print('[match_rating] match.title = ${widget.match.title}');
-    
     // Initialize ratings for all players
     // Fallback to participants when teamA/teamB missing
     _playerRatings.clear();
@@ -132,41 +127,34 @@ final sanitizedPlayers = playersToRate.where((id) =>
   id != 'current_user_i' && id != 'current_user' && !id.startsWith('current_')
 ).toList();
 
-// Exclude already-rated opponents
-final existingRows = await _sb
-    .from('match_player_ratings')
-    .select('player_id')
-    .eq('match_id', widget.match.id)
-    .eq('rated_by', currentUserId ?? '');
-final alreadyRatedIds = (existingRows as List<dynamic>)
-    .map((d) => ((d as Map<String, dynamic>)['player_id'] as String?) ?? '')
-    .toSet();
-    print('[match_rating] matchId=${widget.match.id}');
-    print('[match_rating] participants=${widget.match.participants.length}');
-    print('[match_rating] basePlayers=${basePlayers.length}');
-    print('[match_rating] playersToRate=${playersToRate.length}');
-    print('[match_rating] sanitizedPlayers=${sanitizedPlayers.length}');
-    print('[match_rating] alreadyRatedIds=${alreadyRatedIds.length}');
+// Exclude opponents already rated by this user (requires authenticated uid).
+    final Set<String> alreadyRatedIds = {};
+    if (currentUserId != null && currentUserId.isNotEmpty) {
+      final existingRows = await _sb
+          .from('match_player_ratings')
+          .select('player_id')
+          .eq('match_id', widget.match.id)
+          .eq('rated_by', currentUserId);
+      for (final d in existingRows as List<dynamic>) {
+        final pid =
+            ((d as Map<String, dynamic>)['player_id'] as String?) ?? '';
+        if (pid.isNotEmpty) alreadyRatedIds.add(pid);
+      }
+    }
 
         for (final playerId in sanitizedPlayers) {
-      print('[match_rating] checking playerId=$playerId');
       if (currentUserId != null && playerId == currentUserId) {
-        print('[match_rating] SKIP: playerId == currentUserId');
         continue;
       }
       if (alreadyRatedIds.contains(playerId)) {
-        print('[match_rating] SKIP: already rated');
         continue;
       }
       _simpleRating[playerId] = 2.5;
-      print('[match_rating] ADDING playerId=$playerId to _playerRatings');
       _playerRatings[playerId] = {};
       for (final criterion in _criteria) {
         _playerRatings[playerId]![criterion] = 2.5; // default mid rating
       }
     }
-    print('[match_rating] FINAL _playerRatings.length=${_playerRatings.length}');
-    print('[match_rating] FINAL _playerRatings.keys=${_playerRatings.keys.toList()}');
     setState(() {});
    
   }
@@ -645,7 +633,6 @@ final alreadyRatedIds = (existingRows as List<dynamic>)
       }
       
     } catch (e) {
-      print('[match_rating] ERROR submitting ratings: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

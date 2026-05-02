@@ -972,7 +972,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                           return FutureBuilder<Map<String, dynamic>?>(
                             future: _sb
                                 .from('profiles')
-                                .select('display_name,avatar_url,rating,city,email')
+                                .select('display_name,avatar_url,overall_rating,city,email')
                                 .eq('id', participantId)
                                 .maybeSingle(),
                             builder: (context, snapshot) {
@@ -991,7 +991,10 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                                   userData['email']?.toString().split('@')[0] ??
                                   tr('il_b512d97e7c');
                               final avatarUrl = userData['avatar_url'] ?? '';
-                              final rating = (userData['rating'] ?? 0.0).toDouble();
+                              final rawRating =
+                                  userData['overall_rating'] ?? userData['rating'];
+                              final rating =
+                                  rawRating is num ? rawRating.toDouble() : 0.0;
                               final city = localizeCity(
                                 (userData['city'] ?? '').toString(),
                               );

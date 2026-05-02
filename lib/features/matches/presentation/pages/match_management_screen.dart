@@ -15,6 +15,13 @@ import '../../../../widgets/player_avatar_button.dart';
 import 'dart:math';
 import 'package:flap_app/core/auth/app_auth.dart';
 
+/// DB column is [profiles.overall_rating], not `rating`.
+double _profileOverallRatingFromRow(Map<String, dynamic> data) {
+  final v = data['overall_rating'] ?? data['rating'];
+  if (v is num) return v.toDouble();
+  return 0.0;
+}
+
 @RoutePage()
 class MatchManagementScreen extends StatefulWidget {
   final Match match;
@@ -38,6 +45,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
   List<String> _pendingApplications = [];
   List<String> _participants = [];
   bool _isLoading = false;
+  bool _shufflingTeams = false;
   final Set<String> _busyUserIds = {};
   int _teamAScore = 0;
   int _teamBScore = 0;
@@ -72,6 +80,19 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
         .asyncMap((_) => _matchRepo.fetchMatchById(widget.match.id));
   }
 
+  /// Prefer realtime payload vs [_latestMatch] by [Match.updatedAt] so local reload after mutations
+  /// (e.g. form teams) wins until the stream catches up with the same or newer row.
+  Match? _mergeStreamAndLatest(AsyncSnapshot<Match?> snap) {
+    final fromStream = snap.data;
+    final local = _latestMatch;
+    if (fromStream == null) return local;
+    if (local == null) return fromStream;
+    if (fromStream.id != local.id) return fromStream;
+    final c = local.updatedAt.compareTo(fromStream.updatedAt);
+    if (c > 0) return local;
+    return fromStream;
+  }
+
   Future<Map<String, dynamic>> _getUserProfile(String userId) async {
     if (_userCache.containsKey(userId)) {
       return _userCache[userId]!;
@@ -84,7 +105,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
         'displayName': (data['display_name'] ?? data['first_name'] ?? tr('player'))
             .toString(),
         'avatarUrl': ((data['avatar_url'] ?? data['photo_url']) ?? '').toString(),
-        'rating': (data['rating'] ?? 0.0),
+        'rating': _profileOverallRatingFromRow(data),
         'wins': (data['wins'] ?? 0),
         'draws': (data['draws'] ?? 0),
         'losses': (data['losses'] ?? 0),
@@ -565,16 +586,31 @@ class _MatchManagementScreenState extends State<MatchManagementScreen> with Tick
   // -------- TEAMS TAB --------
 
   Widget _buildTeamsTab() {
-    return StreamBuilder<Match?>(
-      stream: _liveMatchStream(),
-      builder: (context, snap) {
-        if (!snap.hasData || snap.data == null) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
-        }
-        final match = snap.data!;
-        final isOrganizer = AppAuth.currentUserId == match.organizerId;
-        return _buildTeamsContent(match, isOrganizer);
-      },
+    return Stack(
+      children: [
+        StreamBuilder<Match?>(
+          stream: _liveMatchStream(),
+          builder: (context, snap) {
+            final match = _mergeStreamAndLatest(snap);
+            if (match == null) {
+              return const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)));
+            }
+            final isOrganizer = AppAuth.currentUserId == match.organizerId;
+            return _buildTeamsContent(match, isOrganizer);
+          },
+        ),
+        if (_shufflingTeams)
+          Positioned.fill(
+            child: AbsorbPointer(
+              child: ColoredBox(
+                color: Colors.black.withOpacity(0.45),
+                child: const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -937,7 +973,7 @@ Widget _buildManagementButtons(Match m) {
 
   VoidCallback? primaryAction;
   IconData primaryIcon = Icons.play_arrow;
-  String primaryLabel = tr('start_match');
+  String primaryLabel = tr('action_start_match_ui');
   Color primaryColor = const Color(0xFF4caf50);
 
   if (m.isInProgress) {
@@ -1714,7 +1750,10 @@ List<List<String>> _autoDistributePlayers(
 }
 
 Future<void> _shuffleTeams(Match match) async {
-  setState(() => _isLoading = true);
+  setState(() {
+    _isLoading = true;
+    _shufflingTeams = true;
+  });
   try {
     final ids = match.participants.map((e) => e.toString()).toList();
     if (ids.length < 2) {
@@ -1756,7 +1795,12 @@ setState(() {
       ),
     );
   } finally {
-    setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _shufflingTeams = false;
+      });
+    }
   }
 }
 
@@ -1888,9 +1932,7 @@ Widget _buildApplicationCard(String userId) {
                     .toString();
             final String avatarUrl =
                 ((data['avatar_url'] ?? data['photo_url']) ?? '').toString();
-            final double rating = (data['rating'] is num)
-                ? (data['rating'] as num).toDouble()
-                : 0.0;
+            final double rating = _profileOverallRatingFromRow(data);
 
             return InkWell(
               onTap: () {
@@ -2019,11 +2061,14 @@ Future<Map<String, double>> _fetchRatings(List<String> ids) async {
   const int chunkSize = 100;
   for (var i = 0; i < ids.length; i += chunkSize) {
     final chunk = ids.sublist(i, i + chunkSize > ids.length ? ids.length : i + chunkSize);
-    final rows = await _sb.from('profiles').select('id,rating').inFilter('id', chunk);
-    for (final doc in rows) {
-      final data = doc;
-      final r = (data['rating'] is num) ? (data['rating'] as num).toDouble() : 0.0;
-      result[doc['id'].toString()] = r;
+    final rows = await _sb
+        .from('profiles')
+        .select('id,overall_rating')
+        .inFilter('id', chunk);
+    for (final doc in rows as List<dynamic>) {
+      final data = Map<String, dynamic>.from(doc as Map);
+      final r = _profileOverallRatingFromRow(data);
+      result[data['id'].toString()] = r;
     }
     for (final id in chunk) {
       result.putIfAbsent(id, () => 0.0);
