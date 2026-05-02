@@ -1205,6 +1205,10 @@ mixin _$AuthState {
   bool? get introShouldSkipToWelcome => throw _privateConstructorUsedError;
   AuthUser? get lastAuthenticatedUser => throw _privateConstructorUsedError;
 
+  /// Precomputed after email/password sign-in or registration (avoids a second profile fetch).
+  PageRouteInfo<void>? get postAuthNavigationRoute =>
+      throw _privateConstructorUsedError;
+
   @JsonKey(ignore: true)
   $AuthStateCopyWith<AuthState> get copyWith =>
       throw _privateConstructorUsedError;
@@ -1228,7 +1232,8 @@ abstract class $AuthStateCopyWith<$Res> {
       Failure? introGateFailure,
       Failure? introMarkFailure,
       bool? introShouldSkipToWelcome,
-      AuthUser? lastAuthenticatedUser});
+      AuthUser? lastAuthenticatedUser,
+      PageRouteInfo<void>? postAuthNavigationRoute});
 
   $FailureCopyWith<$Res>? get bootstrapFailure;
   $FailureCopyWith<$Res>? get loginFailure;
@@ -1263,6 +1268,7 @@ class _$AuthStateCopyWithImpl<$Res, $Val extends AuthState>
     Object? introMarkFailure = freezed,
     Object? introShouldSkipToWelcome = freezed,
     Object? lastAuthenticatedUser = freezed,
+    Object? postAuthNavigationRoute = freezed,
   }) {
     return _then(_value.copyWith(
       bootstrapProgress: null == bootstrapProgress
@@ -1317,6 +1323,10 @@ class _$AuthStateCopyWithImpl<$Res, $Val extends AuthState>
           ? _value.lastAuthenticatedUser
           : lastAuthenticatedUser // ignore: cast_nullable_to_non_nullable
               as AuthUser?,
+      postAuthNavigationRoute: freezed == postAuthNavigationRoute
+          ? _value.postAuthNavigationRoute
+          : postAuthNavigationRoute // ignore: cast_nullable_to_non_nullable
+              as PageRouteInfo<void>?,
     ) as $Val);
   }
 
@@ -1402,7 +1412,8 @@ abstract class _$$AuthStateImplCopyWith<$Res>
       Failure? introGateFailure,
       Failure? introMarkFailure,
       bool? introShouldSkipToWelcome,
-      AuthUser? lastAuthenticatedUser});
+      AuthUser? lastAuthenticatedUser,
+      PageRouteInfo<void>? postAuthNavigationRoute});
 
   @override
   $FailureCopyWith<$Res>? get bootstrapFailure;
@@ -1440,6 +1451,7 @@ class __$$AuthStateImplCopyWithImpl<$Res>
     Object? introMarkFailure = freezed,
     Object? introShouldSkipToWelcome = freezed,
     Object? lastAuthenticatedUser = freezed,
+    Object? postAuthNavigationRoute = freezed,
   }) {
     return _then(_$AuthStateImpl(
       bootstrapProgress: null == bootstrapProgress
@@ -1494,6 +1506,10 @@ class __$$AuthStateImplCopyWithImpl<$Res>
           ? _value.lastAuthenticatedUser
           : lastAuthenticatedUser // ignore: cast_nullable_to_non_nullable
               as AuthUser?,
+      postAuthNavigationRoute: freezed == postAuthNavigationRoute
+          ? _value.postAuthNavigationRoute
+          : postAuthNavigationRoute // ignore: cast_nullable_to_non_nullable
+              as PageRouteInfo<void>?,
     ));
   }
 }
@@ -1514,7 +1530,8 @@ class _$AuthStateImpl implements _AuthState {
       this.introGateFailure,
       this.introMarkFailure,
       this.introShouldSkipToWelcome,
-      this.lastAuthenticatedUser});
+      this.lastAuthenticatedUser,
+      this.postAuthNavigationRoute});
 
   @override
   @JsonKey()
@@ -1550,9 +1567,13 @@ class _$AuthStateImpl implements _AuthState {
   @override
   final AuthUser? lastAuthenticatedUser;
 
+  /// Precomputed after email/password sign-in or registration (avoids a second profile fetch).
+  @override
+  final PageRouteInfo<void>? postAuthNavigationRoute;
+
   @override
   String toString() {
-    return 'AuthState(bootstrapProgress: $bootstrapProgress, loginProgress: $loginProgress, registrationProgress: $registrationProgress, introGateProgress: $introGateProgress, introMarkProgress: $introMarkProgress, bootstrapDestination: $bootstrapDestination, bootstrapFailure: $bootstrapFailure, loginFailure: $loginFailure, registrationFailure: $registrationFailure, introGateFailure: $introGateFailure, introMarkFailure: $introMarkFailure, introShouldSkipToWelcome: $introShouldSkipToWelcome, lastAuthenticatedUser: $lastAuthenticatedUser)';
+    return 'AuthState(bootstrapProgress: $bootstrapProgress, loginProgress: $loginProgress, registrationProgress: $registrationProgress, introGateProgress: $introGateProgress, introMarkProgress: $introMarkProgress, bootstrapDestination: $bootstrapDestination, bootstrapFailure: $bootstrapFailure, loginFailure: $loginFailure, registrationFailure: $registrationFailure, introGateFailure: $introGateFailure, introMarkFailure: $introMarkFailure, introShouldSkipToWelcome: $introShouldSkipToWelcome, lastAuthenticatedUser: $lastAuthenticatedUser, postAuthNavigationRoute: $postAuthNavigationRoute)';
   }
 
   @override
@@ -1586,7 +1607,10 @@ class _$AuthStateImpl implements _AuthState {
                     other.introShouldSkipToWelcome, introShouldSkipToWelcome) ||
                 other.introShouldSkipToWelcome == introShouldSkipToWelcome) &&
             (identical(other.lastAuthenticatedUser, lastAuthenticatedUser) ||
-                other.lastAuthenticatedUser == lastAuthenticatedUser));
+                other.lastAuthenticatedUser == lastAuthenticatedUser) &&
+            (identical(
+                    other.postAuthNavigationRoute, postAuthNavigationRoute) ||
+                other.postAuthNavigationRoute == postAuthNavigationRoute));
   }
 
   @override
@@ -1604,7 +1628,8 @@ class _$AuthStateImpl implements _AuthState {
       introGateFailure,
       introMarkFailure,
       introShouldSkipToWelcome,
-      lastAuthenticatedUser);
+      lastAuthenticatedUser,
+      postAuthNavigationRoute);
 
   @JsonKey(ignore: true)
   @override
@@ -1627,7 +1652,8 @@ abstract class _AuthState implements AuthState {
       final Failure? introGateFailure,
       final Failure? introMarkFailure,
       final bool? introShouldSkipToWelcome,
-      final AuthUser? lastAuthenticatedUser}) = _$AuthStateImpl;
+      final AuthUser? lastAuthenticatedUser,
+      final PageRouteInfo<void>? postAuthNavigationRoute}) = _$AuthStateImpl;
 
   @override
   ProgressStatus get bootstrapProgress;
@@ -1657,6 +1683,10 @@ abstract class _AuthState implements AuthState {
   bool? get introShouldSkipToWelcome;
   @override
   AuthUser? get lastAuthenticatedUser;
+  @override
+
+  /// Precomputed after email/password sign-in or registration (avoids a second profile fetch).
+  PageRouteInfo<void>? get postAuthNavigationRoute;
   @override
   @JsonKey(ignore: true)
   _$$AuthStateImplCopyWith<_$AuthStateImpl> get copyWith =>

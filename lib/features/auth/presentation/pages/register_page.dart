@@ -80,10 +80,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
               backgroundColor: const Color(0xFF4caf50),
             ),
           );
-          resolvePostAuthInitialRoute().then((route) {
-            if (!context.mounted) return;
+          final route = state.postAuthNavigationRoute;
+          if (route != null) {
             context.router.replaceAll([route]);
-          });
+          } else {
+            resolvePostAuthInitialRoute().then((r) {
+              if (!context.mounted) return;
+              context.router.replaceAll([r]);
+            });
+          }
         } else if (state.registrationProgress == ProgressStatus.failure &&
             state.registrationFailure != null) {
           ScaffoldMessenger.of(context).showSnackBar(

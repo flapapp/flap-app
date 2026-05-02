@@ -14,14 +14,24 @@ class MatchService {
 
   Stream<List<Match>> getAvailableMatches() {
     return _sb.from('matches').stream(primaryKey: ['id']).asyncMap((rows) async {
-      final out = <Match>[];
+      final openIds = <String>[];
+      final seen = <String>{};
       for (final raw in rows as List<dynamic>) {
         final row = raw as Map<String, dynamic>;
-        if ((row['status'] ?? '') != 'open') continue;
+        if ((row['status'] ?? '').toString() != 'open') continue;
         final id = (row['id'] ?? '').toString();
-        if (id.isEmpty) continue;
-        final m = await _loadMatch(id);
-        if (m == null) continue;
+        if (id.isEmpty || !seen.add(id)) continue;
+        openIds.add(id);
+      }
+      if (openIds.isEmpty) return <Match>[];
+
+      final legacyMaps =
+          await MatchLegacyRemoteMapper.loadLegacyMapsBatch(_sb, openIds);
+      final out = <Match>[];
+      for (final id in openIds) {
+        final legacy = legacyMaps[id];
+        if (legacy == null) continue;
+        final m = Match.fromLegacyMap(id, legacy);
         if (m.isUnplayedByTimeout) {
           await _markAsUnplayedTimedOut(id);
           continue;
@@ -53,11 +63,17 @@ class MatchService {
           .where((raw) => (raw as Map<String, dynamic>)['user_id'] == userId)
           .map((raw) => (raw as Map<String, dynamic>)['match_id']?.toString() ?? '')
           .where((id) => id.isNotEmpty)
-          .toSet();
+          .toSet()
+          .toList();
+      if (ids.isEmpty) return <Match>[];
+
+      final legacyMaps =
+          await MatchLegacyRemoteMapper.loadLegacyMapsBatch(_sb, ids);
       final out = <Match>[];
       for (final id in ids) {
-        final m = await _loadMatch(id);
-        if (m != null) out.add(m);
+        final legacy = legacyMaps[id];
+        if (legacy == null) continue;
+        out.add(Match.fromLegacyMap(id, legacy));
       }
       out.sort((a, b) => b.date.compareTo(a.date));
       return out;
@@ -517,11 +533,18 @@ class MatchService {
               (raw as Map<String, dynamic>)['user_id'] == userId &&
               raw['status'] == 'accepted')
           .map((raw) => (raw as Map<String, dynamic>)['match_id'].toString())
-          .toSet();
+          .toSet()
+          .toList();
+      if (ids.isEmpty) return <Match>[];
+
+      final legacyMaps =
+          await MatchLegacyRemoteMapper.loadLegacyMapsBatch(_sb, ids);
       final out = <Match>[];
       for (final id in ids) {
-        final m = await _loadMatch(id);
-        if (m != null && m.status == MatchStatus.finished) out.add(m);
+        final legacy = legacyMaps[id];
+        if (legacy == null) continue;
+        final m = Match.fromLegacyMap(id, legacy);
+        if (m.status == MatchStatus.finished) out.add(m);
       }
       out.sort((a, b) => b.date.compareTo(a.date));
       return out;

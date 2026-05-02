@@ -110,8 +110,7 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   MatchesRepository get _matchRepo => sl<MatchesRepository>();
-  MatchListController get _matchListController =>
-      MatchListController(_matchRepo);
+  late final MatchListController _matchListController;
 
   RatingsRepository get _ratingsRepo => sl<RatingsRepository>();
   final SupabaseClient _sb = Supabase.instance.client;
@@ -121,10 +120,19 @@ class _MatchesScreenState extends State<MatchesScreen>
   String _ratingsSelectedPosition = tr('il_0e333190c1');
   Future<List<Map<String, dynamic>>>? _ratingsTopPlayersFuture;
 
+  /// Avoids new stream subscriptions on every rebuild (see [_memoizedFilteredMatchesStream]).
+  Stream<List<Match>>? _memoFilteredMatchesStream;
+  String? _memoFilteredMatchesKey;
+
+  Stream<List<Match>>? _memoUserMatchesStream;
+  Stream<List<Match>>? _memoHistoryMatchesStream;
+
   @override
   void initState() {
     super.initState();
+    _matchListController = MatchListController(_matchRepo);
     _tabController = TabController(length: _tabKeys.length, vsync: this);
+    _tabController.addListener(_onMatchesPrimaryTabChanged);
 
     // Initialize filters
     _selectedCity = tr('all_cities');
@@ -133,9 +141,6 @@ class _MatchesScreenState extends State<MatchesScreen>
     _selectedSort = 'newest';
     _loadCurrentUserCity();
 
-    // Load top players once
-    _ratingsTopPlayersFuture = _ratingsRepo.getTopPlayers(limit: 300);
-
     final idx = widget.initialTabIndex;
     if (idx != null && idx >= 0 && idx < _tabKeys.length) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -143,12 +148,30 @@ class _MatchesScreenState extends State<MatchesScreen>
         if (idx < _tabController.length) {
           _tabController.index = idx;
         }
+        if (idx == 3) {
+          _ensureRatingsTopPlayersLoaded();
+        }
       });
     }
   }
 
+  /// Ratings tab loads a heavy leaderboard query; defer until that tab is opened.
+  void _onMatchesPrimaryTabChanged() {
+    if (_tabController.indexIsChanging) return;
+    if (_tabController.index == 3) {
+      _ensureRatingsTopPlayersLoaded();
+    }
+  }
+
+  void _ensureRatingsTopPlayersLoaded() {
+    if (_ratingsTopPlayersFuture != null) return;
+    _ratingsTopPlayersFuture = _ratingsRepo.getTopPlayers(limit: 300);
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _tabController.removeListener(_onMatchesPrimaryTabChanged);
     _searchDebounce?.cancel();
     _cityFilterController.dispose();
     _tabController.dispose();
@@ -1399,7 +1422,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
           // Available matches list
           StreamBuilder<List<Match>>(
-            stream: _getFilteredMatches(),
+            stream: _memoizedFilteredMatchesStream(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(
@@ -1578,7 +1601,7 @@ class _MatchesScreenState extends State<MatchesScreen>
         // User's match list
         Expanded(
           child: StreamBuilder<List<Match>>(
-            stream: _getUserMatches(),
+            stream: _memoizedUserMatchesStream(),
             builder: (context, snapshot) {
               // Show error if present
               if (snapshot.hasError) {
@@ -1674,7 +1697,7 @@ class _MatchesScreenState extends State<MatchesScreen>
   // TAB 3: History
   Widget _buildHistoryTab() {
     return StreamBuilder<List<Match>>(
-      stream: _getHistoryMatches(),
+      stream: _memoizedHistoryMatchesStream(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
@@ -2893,8 +2916,30 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
   }
 
-  Stream<List<Match>> _getFilteredMatches() {
-    return _matchListController.getFilteredMatches(
+  String _filteredMatchesCacheKey() => <String>[
+        _selectedCity,
+        _selectedLevel,
+        _selectedTime,
+        _selectedSort,
+        _searchQuery,
+        _currentUserCity,
+        tr('all_cities'),
+        tr('all_levels'),
+        tr('anytime'),
+        tr('il_2b065c7c9c'),
+        tr('il_456a73bbce'),
+        tr('il_8c4eef5ab2'),
+      ].join('\u001e');
+
+  /// Stable stream instance while filters are unchanged — prevents [StreamBuilder]
+  /// from resubscribing on unrelated rebuilds (e.g. async profile city load).
+  Stream<List<Match>> _memoizedFilteredMatchesStream() {
+    final key = _filteredMatchesCacheKey();
+    if (_memoFilteredMatchesKey == key && _memoFilteredMatchesStream != null) {
+      return _memoFilteredMatchesStream!;
+    }
+    _memoFilteredMatchesKey = key;
+    _memoFilteredMatchesStream = _matchListController.getFilteredMatches(
       MatchListFilters(
         selectedCity: _selectedCity,
         allCitiesLabel: tr('all_cities'),
@@ -2911,7 +2956,14 @@ class _MatchesScreenState extends State<MatchesScreen>
       ),
       levelTextResolver: _getLevelText,
     );
+    return _memoFilteredMatchesStream!;
   }
+
+  Stream<List<Match>> _memoizedUserMatchesStream() =>
+      _memoUserMatchesStream ??= _getUserMatches();
+
+  Stream<List<Match>> _memoizedHistoryMatchesStream() =>
+      _memoHistoryMatchesStream ??= _getHistoryMatches();
 
   String _sortLabel(String key) {
     switch (key) {

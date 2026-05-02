@@ -1,6 +1,10 @@
+import 'dart:async';
+
+import 'package:auto_route/auto_route.dart';
 import 'package:bloc/bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../../../../core/di/injection.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/progress/progress_status.dart';
 import '../../../../core/usecases/no_params.dart';
@@ -13,6 +17,8 @@ import '../../domain/usecases/mark_intro_completed_usecase.dart';
 import '../../domain/usecases/register_new_user_usecase.dart';
 import '../../domain/usecases/resolve_startup_navigation_usecase.dart';
 import '../../domain/usecases/sign_in_with_email_usecase.dart';
+import '../../../profile/domain/repositories/profile_repository.dart';
+import '../../../../router/post_auth_navigation.dart';
 
 part 'auth_bloc.freezed.dart';
 
@@ -58,6 +64,8 @@ class AuthState with _$AuthState {
     /// After intro gate succeeds: `true` = skip intro UI, `false` = show it.
     bool? introShouldSkipToWelcome,
     AuthUser? lastAuthenticatedUser,
+    /// Precomputed after email/password sign-in or registration (avoids a second profile fetch).
+    PageRouteInfo<void>? postAuthNavigationRoute,
   }) = _AuthState;
 }
 
@@ -130,12 +138,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
     await result.when(
       success: (user) async {
-        try {
-          await _postLoginActions.onEmailPasswordSignInSuccess(user);
-        } catch (_) {}
+        final profileFuture =
+            sl<ProfileRepository>().fetchUserProfile(user.uid);
+        unawaited(_postLoginActions.onEmailPasswordSignInSuccess(user));
+        final profile = await profileFuture;
         emit(state.copyWith(
           loginProgress: ProgressStatus.success,
           lastAuthenticatedUser: user,
+          postAuthNavigationRoute: postAuthRouteForProfile(profile),
         ));
       },
       failure: (f) async {
@@ -161,12 +171,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     final result = await _registerNewUser(event.request);
     await result.when(
       success: (user) async {
-        try {
-          await _postLoginActions.onEmailPasswordSignInSuccess(user);
-        } catch (_) {}
+        final profileFuture =
+            sl<ProfileRepository>().fetchUserProfile(user.uid);
+        unawaited(_postLoginActions.onEmailPasswordSignInSuccess(user));
+        final profile = await profileFuture;
         emit(state.copyWith(
           registrationProgress: ProgressStatus.success,
           lastAuthenticatedUser: user,
+          postAuthNavigationRoute: postAuthRouteForProfile(profile),
         ));
       },
       failure: (f) async {
@@ -182,6 +194,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(state.copyWith(
       loginProgress: ProgressStatus.pure,
       loginFailure: null,
+      postAuthNavigationRoute: null,
     ));
   }
 
@@ -192,6 +205,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(state.copyWith(
       registrationProgress: ProgressStatus.pure,
       registrationFailure: null,
+      postAuthNavigationRoute: null,
     ));
   }
 

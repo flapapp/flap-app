@@ -68,9 +68,14 @@ class _LoginScreenState extends State<LoginScreen> {
               c.loginProgress == ProgressStatus.failure),
       listener: (context, state) {
         if (state.loginProgress == ProgressStatus.success) {
-          resolvePostAuthInitialRoute().then((route) {
-            if (!context.mounted) return;
+          final route = state.postAuthNavigationRoute;
+          if (route != null) {
             context.router.replaceAll([route]);
+            return;
+          }
+          resolvePostAuthInitialRoute().then((r) {
+            if (!context.mounted) return;
+            context.router.replaceAll([r]);
           });
         } else if (state.loginProgress == ProgressStatus.failure &&
             state.loginFailure != null) {
