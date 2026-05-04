@@ -144,7 +144,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
               children: [
                 _buildBadgesGrid(_allBadges),
                 _buildBadgesGrid(_getBadgesByCategory('starter')),
-                _buildBadgesGrid(_getBadgesByCategory('skill')),
+                _buildBadgesGrid(_skillTabBadges()),
                 _buildBadgesGrid(_getBadgesByCategory('achievement')),
                 _buildBadgesGrid(_getBadgesByCategory('legendary')),
               ],
@@ -154,6 +154,19 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
 
   List<app_badge.Badge> _getBadgesByCategory(String category) {
     return _allBadges.where((badge) => badge.category == category).toList();
+  }
+
+  List<app_badge.Badge> _skillTabBadges() {
+    final skills = _allBadges
+        .where((b) => app_badge.Badge.isSkillKindCategory(b.category))
+        .toList(growable: false);
+    final sorted = List<app_badge.Badge>.from(skills);
+    sorted.sort(
+      (a, b) => a.localizedName.toLowerCase().compareTo(
+            b.localizedName.toLowerCase(),
+          ),
+    );
+    return sorted;
   }
 
   Widget _buildBadgesGrid(List<app_badge.Badge> badges) {

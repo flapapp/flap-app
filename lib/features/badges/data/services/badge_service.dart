@@ -254,40 +254,13 @@ class BadgeService {
   }
 
   int _resolveEffectiveBadgePrice(Badge badge) {
-    for (final defaultBadge in Badge.getDefaultBadges()) {
-      if (defaultBadge.id == badge.id) return defaultBadge.price;
-    }
+    // Source of truth is DB `badges.price`.
     return badge.price;
   }
 
   Future<void> _syncDefaultBadges() async {
-    try {
-      final defaultBadges = Badge.getDefaultBadges();
-      for (final badge in defaultBadges) {
-        await _sb.from('badges').upsert(<String, dynamic>{
-          'code': badge.id,
-          'name': badge.name,
-          'description': badge.description,
-          'category': badge.category,
-          'emoji': badge.emoji,
-          'price': badge.price,
-          'is_available': badge.isAvailable,
-        }, onConflict: 'code');
-      }
-    } on PostgrestException catch (e) {
-      // Non-admin clients can hit RLS here in production; defaults are seeded via migrations.
-      if (e.code == '42501') {
-        print('Skipping badge bootstrap sync due to RLS: ${e.message}');
-        return;
-      }
-      print('Error initializing default badges: $e');
-      _initializationFuture = null;
-      rethrow;
-    } catch (e) {
-      print('Error initializing default badges: $e');
-      _initializationFuture = null;
-      rethrow;
-    }
+    // Intentionally no-op: badge bootstrap data is fully DB/migration-driven.
+    return;
   }
 
   Badge _badgeFromRow(Map<String, dynamic> row) {

@@ -1327,6 +1327,7 @@ const SizedBox(height: 12),
       badgeId: badge.id,
       badgeLocalizedName: badge.localizedName,
       endorserUserId: currentUserId,
+      badgeCategory: badge.category,
     );
 
     result.when(

@@ -1330,6 +1330,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
       badgeId: badge.id,
       badgeLocalizedName: badge.localizedName,
       endorserUserId: currentUserId,
+      badgeCategory: badge.category,
     );
 
     result.when(

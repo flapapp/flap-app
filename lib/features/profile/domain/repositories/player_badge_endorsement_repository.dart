@@ -20,5 +20,6 @@ abstract class PlayerBadgeEndorsementRepository {
     required String badgeId,
     required String badgeLocalizedName,
     required String endorserUserId,
+    required String badgeCategory,
   });
 }

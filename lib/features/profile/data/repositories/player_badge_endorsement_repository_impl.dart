@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/common/unit.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/error/result.dart';
+import '../../../../core/supabase/coin_ledger.dart';
+import '../../../badges/data/models/badge.dart';
 import '../../domain/repositories/player_badge_endorsement_repository.dart';
 
 class PlayerBadgeEndorsementRepositoryImpl
@@ -11,6 +13,8 @@ class PlayerBadgeEndorsementRepositoryImpl
   PlayerBadgeEndorsementRepositoryImpl(this._client);
 
   final SupabaseClient _client;
+
+  static const int _skillEndorsementCoinCost = 10;
 
   @override
   Future<BadgeEndorsementInfo> getEndorsementInfo({
@@ -55,6 +59,7 @@ class PlayerBadgeEndorsementRepositoryImpl
     required String badgeId,
     required String badgeLocalizedName,
     required String endorserUserId,
+    required String badgeCategory,
   }) async {
     if (endorserUserId == ownerUserId) {
       return Result.failure(
@@ -74,6 +79,33 @@ class PlayerBadgeEndorsementRepositoryImpl
         return Result.failure(
           Failure.unexpected(
             tr('il_f7964d75ff'),
+          ),
+        );
+      }
+
+      if (Badge.isSkillKindCategory(badgeCategory)) {
+        final balance = await coinBalance(_client, endorserUserId);
+        if (balance < _skillEndorsementCoinCost) {
+          return Result.failure(
+            Failure.unexpected(
+              tr(
+                'badge_endorse_insufficient_coins',
+                namedArgs: {
+                  'required': '$_skillEndorsementCoinCost',
+                  'balance': '$balance',
+                },
+              ),
+            ),
+          );
+        }
+        await insertCoinTransaction(
+          _client,
+          endorserUserId,
+          'badge_endorse',
+          -_skillEndorsementCoinCost,
+          tr(
+            'coin_ledger_badge_endorse',
+            namedArgs: {'name': badgeLocalizedName},
           ),
         );
       }
