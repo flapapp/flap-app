@@ -1653,101 +1653,121 @@ class _InviteSheetState extends State<_InviteSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 50,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              tr('il_6442e97ac6'),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _searchCtrl,
-              cursorColor: Colors.white,
-              style: const TextStyle(color: Colors.white),
-              onChanged: _handleSearchChanged,
-              onSubmitted: (_) => _searchPlayers(),
-              decoration: InputDecoration(
-                hintText: tr('il_4ae2b33364'),
-                hintStyle: const TextStyle(color: Colors.white54),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.04),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.search, color: Colors.white70),
-                  onPressed: _searchPlayers,
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final screenH = MediaQuery.sizeOf(context).height;
+    final maxResultsHeight = (screenH * 0.34).clamp(120.0, 260.0);
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 50,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            if (_isSearching)
-              const LinearProgressIndicator()
-            else
-              SizedBox(
-                height: 150,
-                child: ListView(
-                  children: [
-                    ...widget.friends.map((friend) => CheckboxListTile(
-                          value: _selectedIds.contains(friend.userId),
+              const SizedBox(height: 16),
+              Text(
+                tr('il_6442e97ac6'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _searchCtrl,
+                cursorColor: Colors.white,
+                style: const TextStyle(color: Colors.white),
+                textInputAction: TextInputAction.search,
+                scrollPadding: EdgeInsets.only(
+                  bottom: keyboardInset + 120,
+                  top: 24,
+                ),
+                onChanged: _handleSearchChanged,
+                onSubmitted: (_) => _searchPlayers(),
+                decoration: InputDecoration(
+                  hintText: tr('il_4ae2b33364'),
+                  hintStyle: const TextStyle(color: Colors.white54),
+                  filled: true,
+                  fillColor: Colors.white.withValues(alpha: 0.04),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.search, color: Colors.white70),
+                    onPressed: _searchPlayers,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_isSearching)
+                const LinearProgressIndicator()
+              else
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxResultsHeight),
+                  child: ListView(
+                    shrinkWrap: true,
+                    physics: const ClampingScrollPhysics(),
+                    children: [
+                      ...widget.friends.map((friend) => CheckboxListTile(
+                            value: _selectedIds.contains(friend.userId),
+                            onChanged: (value) {
+                              setState(() {
+                                if (value == true) {
+                                  _selectedIds.add(friend.userId);
+                                } else {
+                                  _selectedIds.remove(friend.userId);
+                                }
+                              });
+                            },
+                            title: Text(
+                              friend.name,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          )),
+                      ..._searchResults.map(
+                        (user) => CheckboxListTile(
+                          value: _selectedIds.contains(user['id']),
                           onChanged: (value) {
                             setState(() {
                               if (value == true) {
-                                _selectedIds.add(friend.userId);
+                                _selectedIds.add(user['id'] as String);
                               } else {
-                                _selectedIds.remove(friend.userId);
+                                _selectedIds.remove(user['id'] as String);
                               }
                             });
                           },
                           title: Text(
-                            friend.name,
+                            user['displayName'] as String,
                             style: const TextStyle(color: Colors.white),
                           ),
-                        )),
-                    ..._searchResults.map(
-                      (user) => CheckboxListTile(
-                        value: _selectedIds.contains(user['id']),
-                        onChanged: (value) {
-                          setState(() {
-                            if (value == true) {
-                              _selectedIds.add(user['id'] as String);
-                            } else {
-                              _selectedIds.remove(user['id'] as String);
-                            }
-                          });
-                        },
-                        title: Text(
-                          user['displayName'] as String,
-                          style: const TextStyle(color: Colors.white),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _selectedIds.isEmpty ? null : _sendInvites,
+                  child: Text(tr('il_c57456e442')),
                 ),
               ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _selectedIds.isEmpty ? null : _sendInvites,
-                child: Text(tr('il_c57456e442')),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
