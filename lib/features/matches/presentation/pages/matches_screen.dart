@@ -13,7 +13,6 @@ import '../../../../core/di/injection.dart';
 import '../../../../router/app_router.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import '../../../../widgets/mode_speed_dial.dart';
-import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../ratings/domain/repositories/ratings_repository.dart';
@@ -2866,16 +2865,23 @@ class _MatchesScreenState extends State<MatchesScreen>
 
         SizedBox(height: 8),
 
-        // Organizer
+        // Organizer (same as participant chips — loads avatar_url from profiles)
         Row(
           children: [
-            PlayerAvatarButton(
-              userId: match.organizerId,
-              displayName: match.organizerName,
-              size: 36,
-              backgroundColor: const Color(0xFF1f2b3a),
-              borderColor: Colors.white.withOpacity(0.15),
-              borderWidth: 1.5,
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1.5,
+                ),
+              ),
+              child: UserChip(
+                userId: match.organizerId,
+                name: match.organizerName.isNotEmpty ? match.organizerName : null,
+                size: 36,
+                showName: false,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
