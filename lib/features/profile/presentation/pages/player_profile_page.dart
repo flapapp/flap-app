@@ -419,6 +419,85 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     }
   }
 
+  /// Challenge invite + rate-me actions; adapts to width (stacked vs row).
+  Widget _buildVisitorSecondaryActions({required bool useCompactLayout}) {
+    final challengeStyle = ElevatedButton.styleFrom(
+      backgroundColor: Colors.white.withValues(alpha: 0.12),
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      padding: EdgeInsets.symmetric(
+        horizontal: useCompactLayout ? 14 : 12,
+        vertical: 12,
+      ),
+    );
+    final rateStyle = ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFF4caf50),
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    );
+
+    final challengeBtn = Tooltip(
+      message: tr('player_invite_to_challenge_title'),
+      child: ElevatedButton(
+        onPressed: () => _showInviteToChallengeDialog(),
+        style: challengeStyle,
+        child: useCompactLayout
+            ? Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.emoji_events, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      tr('player_invite_to_challenge_title'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              )
+            : const Icon(Icons.emoji_events, size: 18),
+      ),
+    );
+
+    final rateBtn = ElevatedButton(
+      onPressed: () => _showRateMeDialog(),
+      style: rateStyle,
+      child: Text(
+        tr('player_rate_me_button'),
+        maxLines: useCompactLayout ? 3 : 2,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+      ),
+    );
+
+    if (useCompactLayout) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(width: double.infinity, child: challengeBtn),
+          const SizedBox(height: 8),
+          SizedBox(width: double.infinity, child: rateBtn),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 44,
+          width: 48,
+          child: challengeBtn,
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: rateBtn),
+      ],
+    );
+  }
+
   Widget _buildStarRating(double rating) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -713,145 +792,277 @@ const SizedBox(height: 12),
                     final hasIncoming = state.hasPendingIncoming;
                     final busy = _friendshipActionBusy || _isSendingRequest;
 
-                    Widget primaryFriendAction;
-                    if (isFriend) {
-                      primaryFriendAction = ElevatedButton.icon(
-                        onPressed: null,
-                        icon: const Icon(Icons.people),
-                        label: Text(tr('friends')),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4caf50),
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor:
-                              Colors.grey.withOpacity(0.4),
-                          disabledForegroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                        ),
-                      );
-                    } else if (hasIncoming) {
-                      final rid = state.incomingPendingRequestId!;
-                      primaryFriendAction = Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: busy
-                                  ? null
-                                  : () =>
-                                      _respondToFriendRequestFromProfile(rid, false),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red,
-                                side: const BorderSide(color: Colors.red),
-                              ),
-                              child: Text(tr('reject')),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: busy
-                                  ? null
-                                  : () =>
-                                      _respondToFriendRequestFromProfile(rid, true),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4caf50),
-                                foregroundColor: Colors.white,
-                              ),
-                              child: Text(tr('accept')),
-                            ),
-                          ),
-                        ],
-                      );
-                    } else if (hasOutgoing) {
-                      final rid = state.outgoingPendingRequestId!;
-                      primaryFriendAction = Row(
-                        children: [
-                          Expanded(
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final maxW = constraints.maxWidth;
+                        final compact = maxW < 420;
+                        final stackIncomingActions = maxW < 360;
+
+                        Widget primaryFriendAction;
+                        if (isFriend) {
+                          primaryFriendAction = SizedBox(
+                            width: double.infinity,
                             child: ElevatedButton.icon(
                               onPressed: null,
-                              icon: const Icon(Icons.schedule),
+                              icon: const Icon(Icons.people),
                               label: Text(
-                                tr('player_invitation_pending_label'),
+                                tr('friends'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF4caf50),
                                 foregroundColor: Colors.white,
                                 disabledBackgroundColor:
-                                    Colors.orange.withOpacity(0.4),
+                                    Colors.grey.withValues(alpha: 0.4),
                                 disabledForegroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(18),
                                 ),
                                 side: BorderSide(
-                                  color: Colors.white.withOpacity(0.2),
+                                  color: Colors.white.withValues(alpha: 0.2),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          TextButton(
-                            onPressed:
-                                busy ? null : () => _cancelOutgoingFromProfile(rid),
-                            child: Text(
-                              tr('cancel'),
-                              style: const TextStyle(color: Colors.white70),
+                          );
+                        } else if (hasIncoming) {
+                          final rid = state.incomingPendingRequestId!;
+                          if (stackIncomingActions) {
+                            primaryFriendAction = Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton(
+                                    onPressed: busy
+                                        ? null
+                                        : () =>
+                                            _respondToFriendRequestFromProfile(
+                                              rid,
+                                              false,
+                                            ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                      side: const BorderSide(color: Colors.red),
+                                    ),
+                                    child: Text(
+                                      tr('reject'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: busy
+                                        ? null
+                                        : () =>
+                                            _respondToFriendRequestFromProfile(
+                                              rid,
+                                              true,
+                                            ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF4caf50),
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: Text(
+                                      tr('accept'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          } else {
+                            primaryFriendAction = Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: busy
+                                        ? null
+                                        : () =>
+                                            _respondToFriendRequestFromProfile(
+                                              rid,
+                                              false,
+                                            ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                      side: const BorderSide(color: Colors.red),
+                                    ),
+                                    child: Text(
+                                      tr('reject'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: busy
+                                        ? null
+                                        : () =>
+                                            _respondToFriendRequestFromProfile(
+                                              rid,
+                                              true,
+                                            ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF4caf50),
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: Text(
+                                      tr('accept'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+                        } else if (hasOutgoing) {
+                          final rid = state.outgoingPendingRequestId!;
+                          if (compact) {
+                            primaryFriendAction = Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: null,
+                                    icon: const Icon(Icons.schedule),
+                                    label: Text(
+                                      tr('player_invitation_pending_label'),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF4caf50),
+                                      foregroundColor: Colors.white,
+                                      disabledBackgroundColor:
+                                          Colors.orange.withValues(alpha: 0.4),
+                                      disabledForegroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                      side: BorderSide(
+                                        color: Colors.white.withValues(alpha: 0.2),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: busy
+                                        ? null
+                                        : () =>
+                                            _cancelOutgoingFromProfile(rid),
+                                    child: Text(
+                                      tr('cancel'),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          } else {
+                            primaryFriendAction = Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: null,
+                                    icon: const Icon(Icons.schedule),
+                                    label: Text(
+                                      tr('player_invitation_pending_label'),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF4caf50),
+                                      foregroundColor: Colors.white,
+                                      disabledBackgroundColor:
+                                          Colors.orange.withValues(alpha: 0.4),
+                                      disabledForegroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                      side: BorderSide(
+                                        color: Colors.white.withValues(alpha: 0.2),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                TextButton(
+                                  onPressed: busy
+                                      ? null
+                                      : () => _cancelOutgoingFromProfile(rid),
+                                  child: Text(
+                                    tr('cancel'),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+                        } else {
+                          primaryFriendAction = SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed:
+                                  busy ? null : () => _sendFriendRequest(),
+                              icon: const Icon(Icons.person_add),
+                              label: Text(
+                                _isSendingRequest
+                                    ? tr('player_add_friend_sending')
+                                    : tr('add_friend'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4caf50),
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor:
+                                    Colors.grey.withValues(alpha: 0.4),
+                                disabledForegroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                side: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
-                      );
-                    } else {
-                      primaryFriendAction = ElevatedButton.icon(
-                        onPressed: busy ? null : () => _sendFriendRequest(),
-                        icon: const Icon(Icons.person_add),
-                        label: Text(
-                          _isSendingRequest
-                              ? tr('player_add_friend_sending')
-                              : tr('add_friend'),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4caf50),
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.grey.withOpacity(0.4),
-                          disabledForegroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                        ),
-                      );
-                    }
+                          );
+                        }
 
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: primaryFriendAction),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () => _showInviteToChallengeDialog(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white.withOpacity(0.12),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            primaryFriendAction,
+                            const SizedBox(height: 10),
+                            _buildVisitorSecondaryActions(
+                              useCompactLayout: compact,
                             ),
-                          ),
-                          child: const Icon(Icons.emoji_events, size: 16),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () => _showRateMeDialog(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4caf50),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
-                          child: Text(tr('player_rate_me_button')),
-                        ),
-                      ],
+                          ],
+                        );
+                      },
                     );
                   },
                 );
