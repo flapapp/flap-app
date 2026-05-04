@@ -7,7 +7,6 @@ import 'package:flap_app/city_localization.dart';
 import '../../../../core/locale/football_position.dart';
 import '../../../../utils/city_catalog.dart';
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/di/injection.dart';
@@ -18,6 +17,7 @@ import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../ratings/domain/repositories/ratings_repository.dart';
+import '../../application/match_participation_actions_use_case.dart';
 import '../../data/models/match.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../controllers/match_list_controller.dart';
@@ -119,6 +119,15 @@ class _MatchesScreenState extends State<MatchesScreen>
   String _ratingsSelectedCity = tr('all_cities');
   String _ratingsSelectedPosition = tr('il_0e333190c1');
   Future<List<Map<String, dynamic>>>? _ratingsTopPlayersFuture;
+
+  MatchParticipationActionsUseCase get _participationActions =>
+      sl<MatchParticipationActionsUseCase>();
+
+  /// Join / apply in flight (find-match feed cards).
+  final Set<String> _joinInFlightMatchIds = <String>{};
+
+  /// Optimistic "requested" until [Match.pendingApplications] updates from stream.
+  final Set<String> _joinRequestedLocalMatchIds = <String>{};
 
   /// Avoids new stream subscriptions on every rebuild (see [_memoizedFilteredMatchesStream]).
   Stream<List<Match>>? _memoFilteredMatchesStream;
@@ -2250,9 +2259,248 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
-  void _shareMatch(Match match) {
-    final url = 'https://flap.app/match/${match.id}';
-    Share.share(tr('il_df5a71b7ac') + url);
+  Future<void> _onTapJoinMatch(Match match) async {
+    final uid = AppAuth.currentUserId;
+    if (uid == null) return;
+    if (_joinInFlightMatchIds.contains(match.id)) return;
+
+    if (match.organizerId == uid) return;
+    if (match.isUnplayedByTimeout) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('il_d11de119cf'))),
+      );
+      return;
+    }
+    if (match.status == MatchStatus.cancelled) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('status_cancelled'))),
+      );
+      return;
+    }
+    if (match.isTeamMatch) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('il_4d74338dc3'))),
+      );
+      return;
+    }
+    if (match.isPrivate && !match.invitedFriends.contains(uid)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('private_match_invite_only'))),
+      );
+      return;
+    }
+    if (match.participants.contains(uid) ||
+        match.hasPendingApplication(uid) ||
+        _joinRequestedLocalMatchIds.contains(match.id)) {
+      return;
+    }
+    if (match.wasRejected(uid)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('il_3bbca810b0'))),
+      );
+      return;
+    }
+    if (match.status != MatchStatus.open ||
+        match.currentPlayers >= match.maxPlayers) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('il_1b3438d9c8'))),
+      );
+      return;
+    }
+
+    setState(() => _joinInFlightMatchIds.add(match.id));
+    try {
+      final ok = await _participationActions.applyForMatch(
+        matchId: match.id,
+        userId: uid,
+      );
+      if (!mounted) return;
+      if (ok) {
+        setState(() {
+          _joinRequestedLocalMatchIds.add(match.id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('applied_wait')),
+            backgroundColor: const Color(0xFF4caf50),
+          ),
+        );
+        _invalidateMatchStreamCaches();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('already_applied')),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}),
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _joinInFlightMatchIds.remove(match.id));
+      }
+    }
+  }
+
+  Widget _buildMatchSecondaryAction(Match match, String uid) {
+    final buttonStyle = OutlinedButton.styleFrom(
+      foregroundColor: Colors.white,
+      disabledForegroundColor: Colors.white54,
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+    );
+    const labelStyle = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w700,
+    );
+
+    if (match.organizerId == uid) {
+      return OutlinedButton.icon(
+        onPressed: () => context.router.push(MatchDetailsRoute(match: match)),
+        icon: const Icon(Icons.tune, size: 16),
+        label: Text(
+          tr('manage'),
+          overflow: TextOverflow.ellipsis,
+          style: labelStyle,
+        ),
+        style: buttonStyle,
+      );
+    }
+
+    if (match.getUserStatus(uid) == 'participant') {
+      return OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.check_circle_outline, size: 16),
+        label: Text(
+          tr('match_joined_short'),
+          overflow: TextOverflow.ellipsis,
+          style: labelStyle,
+        ),
+        style: buttonStyle,
+      );
+    }
+
+    final requested = match.hasPendingApplication(uid) ||
+        _joinRequestedLocalMatchIds.contains(match.id);
+    if (requested) {
+      return OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.mark_email_read_outlined, size: 16),
+        label: Text(
+          tr('match_feed_join_requested'),
+          overflow: TextOverflow.ellipsis,
+          style: labelStyle,
+        ),
+        style: buttonStyle,
+      );
+    }
+
+    if (match.wasRejected(uid)) {
+      return OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.block, size: 16),
+        label: Text(
+          tr('il_3bbca810b0'),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+          style: labelStyle,
+        ),
+        style: buttonStyle,
+      );
+    }
+
+    if (match.isTeamMatch) {
+      return OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.groups, size: 16),
+        label: Text(
+          tr('join'),
+          overflow: TextOverflow.ellipsis,
+          style: labelStyle,
+        ),
+        style: buttonStyle,
+      );
+    }
+
+    if (match.isPrivate && !match.invitedFriends.contains(uid)) {
+      return OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.lock_outline, size: 16),
+        label: Text(
+          tr('join'),
+          overflow: TextOverflow.ellipsis,
+          style: labelStyle,
+        ),
+        style: buttonStyle,
+      );
+    }
+
+    if (match.status == MatchStatus.finished ||
+        match.status == MatchStatus.inProgress) {
+      return OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.event_busy, size: 16),
+        label: Text(
+          match.statusText,
+          overflow: TextOverflow.ellipsis,
+          style: labelStyle,
+        ),
+        style: buttonStyle,
+      );
+    }
+
+    if (match.status == MatchStatus.full ||
+        match.currentPlayers >= match.maxPlayers) {
+      return OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.groups, size: 16),
+        label: Text(
+          tr('status_full'),
+          overflow: TextOverflow.ellipsis,
+          style: labelStyle,
+        ),
+        style: buttonStyle,
+      );
+    }
+
+    final loading = _joinInFlightMatchIds.contains(match.id);
+    return OutlinedButton.icon(
+      onPressed: loading ? null : () => _onTapJoinMatch(match),
+      icon: loading
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white70,
+              ),
+            )
+          : const Icon(Icons.person_add_outlined, size: 16),
+      label: Text(
+        loading ? tr('player_add_friend_sending') : tr('join'),
+        overflow: TextOverflow.ellipsis,
+        style: labelStyle,
+      ),
+      style: buttonStyle,
+    );
   }
 
   // Average participant rating
@@ -2684,7 +2932,7 @@ class _MatchesScreenState extends State<MatchesScreen>
             ),
           ),
           const SizedBox(height: 12),
-          _buildDetailShareRow(match),
+          _buildDetailActionRow(match, currentUserId),
         ],
       );
     }
@@ -2715,15 +2963,15 @@ class _MatchesScreenState extends State<MatchesScreen>
             ),
           ),
           const SizedBox(height: 12),
-          _buildDetailShareRow(match),
+          _buildDetailActionRow(match, currentUserId),
         ],
       );
     }
 
-    return _buildDetailShareRow(match);
+    return _buildDetailActionRow(match, currentUserId);
   }
 
-  Widget _buildDetailShareRow(Match match) {
+  Widget _buildDetailActionRow(Match match, String currentUserId) {
     return Row(
       children: [
         Expanded(
@@ -2759,29 +3007,7 @@ class _MatchesScreenState extends State<MatchesScreen>
         Expanded(
           child: SizedBox(
             height: 40,
-            child: OutlinedButton.icon(
-              onPressed: () => _shareMatch(match),
-              icon: const Icon(Icons.share, size: 16),
-              label: Text(
-                tr('il_29887a5ff9'),
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 10,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
+            child: _buildMatchSecondaryAction(match, currentUserId),
           ),
         ),
       ],
