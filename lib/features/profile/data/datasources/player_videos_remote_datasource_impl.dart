@@ -20,6 +20,9 @@ class PlayerVideosRemoteDataSourceImpl implements PlayerVideosRemoteDataSource {
       m['id'] = m['id']?.toString();
       m['userId'] = m['user_id'];
       m['createdAt'] = m['created_at'];
+      // Legacy UI expects camelCase (matches Supabase snake_case columns).
+      m['videoUrl'] = m['video_url'];
+      m['thumbnailUrl'] = m['thumbnail_url'];
       return m;
     }).toList();
   }
