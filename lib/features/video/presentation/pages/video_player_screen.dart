@@ -66,6 +66,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool get _isChallengeSubmission => widget.challengeId != null && widget.submissionUserId != null;
   double? _videoAverageRating;
   int? _videoVoteCount;
+  /// After voting, show this until next navigation (avoids stale FutureBuilder snapshot).
+  double? _authorRatingOverride;
   bool _pendingRatingPrompt = false;
   bool _autoplayVideos = true;
 
@@ -99,6 +101,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             });
           }
         }
+        await _computeChallengeSubmissionAverage();
       } else {
         // Load likes/author from videos collection
         final data = await _sb
@@ -210,6 +213,54 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     } catch (_) {}
   }
 
+  Future<void> _computeChallengeSubmissionAverage() async {
+    if (!_isChallengeSubmission) return;
+    try {
+      final submission = await _sb
+          .from('challenge_submissions')
+          .select('id')
+          .eq('challenge_id', widget.challengeId!)
+          .eq('user_id', widget.submissionUserId!)
+          .maybeSingle();
+      if (submission == null) {
+        if (mounted) {
+          setState(() {
+            _videoAverageRating = 0.0;
+            _videoVoteCount = 0;
+          });
+        }
+        return;
+      }
+      final submissionId = submission['id'].toString();
+      final votes = await _sb
+          .from('challenge_submission_ratings')
+          .select('overall_rating')
+          .eq('challenge_submission_id', submissionId);
+      final rows = votes as List<dynamic>;
+      if (rows.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _videoAverageRating = 0.0;
+            _videoVoteCount = 0;
+          });
+        }
+        return;
+      }
+      double sum = 0.0;
+      for (final d in rows) {
+        final m = d as Map<String, dynamic>;
+        sum += ((m['overall_rating'] ?? 0.0) as num).toDouble();
+      }
+      if (!mounted) return;
+      setState(() {
+        _videoVoteCount = rows.length;
+        _videoAverageRating = double.parse(
+          (sum / rows.length).toStringAsFixed(2),
+        );
+      });
+    } catch (_) {}
+  }
+
   Future<void> _submitVote() async {
     if (_isChallengeSubmission) {
       return _submitChallengeVote();
@@ -245,10 +296,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
       if (success) {
         await _computeVideoAverage();
+        double? refreshedAuthor;
+        if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty) {
+          refreshedAuthor =
+              await sl<RatingsRepository>().getUserRating(_videoAuthorId!);
+        }
+        if (!mounted) return;
         setState(() {
           _hasVoted = true;
+          _authorRatingOverride = refreshedAuthor;
         });
-        
+
         // Show vote success feedback
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -339,7 +397,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         'overall_rating': weighted,
       });
 
-      setState(() { _hasVoted = true; });
+      await _computeChallengeSubmissionAverage();
+      double? refreshedAuthor;
+      if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty) {
+        refreshedAuthor =
+            await sl<RatingsRepository>().getUserRating(_videoAuthorId!);
+      }
+      if (!mounted) return;
+      setState(() {
+        _hasVoted = true;
+        _authorRatingOverride = refreshedAuthor;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -805,7 +873,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                   },
                                 ),
                               ),
-                              CompactRatingDisplay(userId: _videoAuthorId!, size: 16),
+                              CompactRatingDisplay(
+                                userId: _videoAuthorId!,
+                                rating: _authorRatingOverride,
+                                size: 16,
+                              ),
                             ],
                           ),
                       ],

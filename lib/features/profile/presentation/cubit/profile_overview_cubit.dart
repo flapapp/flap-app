@@ -128,6 +128,30 @@ class ProfileOverviewCubit extends Cubit<ProfileOverviewState> {
     }
   }
 
+  /// Reloads badges and friends count without resetting team/invite stream subscriptions.
+  /// Call after purchases (e.g. returning from the badge store) so the profile UI stays in sync.
+  Future<void> refreshProfileSnapshot() async {
+    final uid =
+        state.userId ?? _authSessionRepository.peekCurrentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final results = await Future.wait<dynamic>([
+        _userBadgesRepository.getUserBadges(uid),
+        _playerSocialRepository.countFriends(uid),
+      ]);
+      emit(
+        state.copyWith(
+          status: ProfileOverviewStatus.ready,
+          badges: results[0] as List<app_badge.Badge>,
+          friendsCount: results[1] as int,
+        ),
+      );
+    } catch (_) {
+      emit(state.copyWith(status: ProfileOverviewStatus.error));
+    }
+  }
+
   @override
   Future<void> close() async {
     await _teamsSubscription?.cancel();

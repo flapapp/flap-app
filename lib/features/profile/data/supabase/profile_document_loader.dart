@@ -112,6 +112,12 @@ class ProfileDocumentLoader {
         .eq('creator_id', userId);
     final challengesCreated = (challengeRows as List<dynamic>).length;
 
+    final videoRows = await _client
+        .from('videos')
+        .select('id')
+        .eq('user_id', userId);
+    final videosCount = (videoRows as List<dynamic>).length;
+
     final firstName = profile['first_name'] as String? ?? '';
     final lastName = profile['last_name'] as String? ?? '';
     final displayName = (profile['display_name'] as String?)?.trim().isNotEmpty == true
@@ -166,7 +172,8 @@ class ProfileDocumentLoader {
       'matchRating': matchRating,
       'videoRating': videoRating,
       'totalMatches': 0,
-      'totalVideos': 0,
+      'totalVideos': videosCount,
+      'videosUploaded': videosCount,
       'ratingHistory': <dynamic>[],
       'lastRatingUpdate': profile['updated_at'],
       'coins': coins,

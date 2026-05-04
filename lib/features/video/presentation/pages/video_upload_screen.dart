@@ -10,6 +10,7 @@ import '../../../../constants/video_categories.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../widgets/styled_dropdown_form_field.dart';
 import '../../../challenges/domain/repositories/challenges_repository.dart';
+import '../../../profile/presentation/bloc/profile_bloc.dart';
 import '../../data/services/thumbnail_service.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
@@ -588,6 +589,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         final videoId = (videoDoc['id'] ?? '').toString();
         print('[video_upload] Video document created: $videoId');
         _generateThumbnailInBackground(videoId, videoUrl, user.id);
+        sl<ProfileBloc>().add(const ProfileEvent.userProfileSyncRequested());
       }
 
       // Show success message

@@ -673,7 +673,6 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       final newRating = newVotes == 0
           ? 0.0
           : values.reduce((a, b) => a + b) / newVotes;
-      _submissionAverageRating = newRating;
 
       // Award coins for voting (ledger-based).
       await insertCoinTransaction(
@@ -685,6 +684,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       );
 
       setState(() {
+        _submissionAverageRating = newRating;
         _hasVoted = true;
         _isVoting = false;
       });

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../profile/presentation/bloc/profile_bloc.dart';
 import '../../../ratings/domain/repositories/ratings_repository.dart';
 import '../../../../router/app_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1592,11 +1593,11 @@ Widget build(BuildContext context) {
     final views = (data['views'] ?? 0) as num;
     final likes = (data['likes'] ?? 0) as num;
     final commentsValue = (data['comments'] ?? data['commentCount'] ?? 0) as num;
-    double displayRating = rating;
+    // Prefer fresh prefetch/cache over stale feed snapshot (listing row may lag after votes).
     final cachedRating = _videoRatingCache[videoId];
-    if (displayRating <= 0 && cachedRating != null) {
-      displayRating = cachedRating;
-    } else if (displayRating <= 0 &&
+    final double displayRating = cachedRating ?? rating;
+    if (cachedRating == null &&
+        rating <= 0 &&
         !_videoRatingLoading.contains(videoId)) {
       _prefetchVideoRating(videoId);
     }
@@ -3029,6 +3030,7 @@ Widget build(BuildContext context) {
         _cachedMainListKey = null;
         _cachedMainListFuture = null;
       });
+      sl<ProfileBloc>().add(const ProfileEvent.userProfileSyncRequested());
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(tr('il_fbb5de3b38'))),
       );

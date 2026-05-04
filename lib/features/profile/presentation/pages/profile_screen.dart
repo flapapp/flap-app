@@ -962,34 +962,48 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
         userData['uid'] ??
         sl<AuthSessionRepository>().peekCurrentUser?.uid ??
         '';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return BlocBuilder<ProfileOverviewCubit, ProfileOverviewState>(
+      bloc: _overviewCubit,
+      builder: (context, overview) {
+        final badges = overview.badges;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                tr('il_66d0f523a3'),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    tr('il_66d0f523a3'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _openBadgesStore,
+                    child: Text(
+                      tr('il_9fd728c66c'),
+                      style: const TextStyle(color: Color(0xFF4caf50)),
+                    ),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: _openBadgesStore,
-                child: Text(
-                  tr('il_9fd728c66c'),
-                  style: const TextStyle(color: Color(0xFF4caf50)),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-          if (_overviewCubit.state.badges.isEmpty)
+              if (overview.status == ProfileOverviewStatus.loading &&
+                  badges.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF4caf50),
+                    ),
+                  ),
+                )
+              else if (badges.isEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -1016,17 +1030,17 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                 ],
               ),
             )
-          else
+              else
             SizedBox(
               height: 150,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 padding: EdgeInsets.zero,
-                itemCount: _overviewCubit.state.badges.length,
+                itemCount: badges.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
-                  final badge = _overviewCubit.state.badges[index];
+                  final badge = badges[index];
                   return FutureBuilder<BadgeEndorsementInfo>(
                     key: ValueKey(
                       'badge-endorse-${badge.id}-$_badgeEndorseVersion',
@@ -1178,8 +1192,10 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                 },
               ),
             ),
-        ],
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1396,11 +1412,10 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
     context.router.push(const SubscriptionRoute());
   }
 
-  void _openBadgesStore() {
-    context.router.push(const BadgesStoreRoute()).then((_) {
-      // Refresh data after returning from store
-      setState(() {});
-    });
+  Future<void> _openBadgesStore() async {
+    await context.router.push(const BadgesStoreRoute());
+    if (!mounted) return;
+    await _overviewCubit.refreshProfileSnapshot();
   }
 
   void _showSettings() {

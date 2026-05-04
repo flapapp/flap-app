@@ -38,13 +38,21 @@ class BadgeService {
     try {
       final rows = await _sb
           .from('user_badges')
-          .select('badge_id, badges:badge_id(code)')
+          .select('*, badges(code)')
           .eq('user_id', userId);
       final out = <String>[];
       for (final raw in rows as List<dynamic>) {
         final m = raw as Map<String, dynamic>;
-        final nested = m['badges'] as Map<String, dynamic>?;
-        final code = (nested?['code'] ?? '').toString();
+        final nested = m['badges'];
+        String code = '';
+        if (nested is Map<String, dynamic>) {
+          code = (nested['code'] ?? '').toString();
+        } else if (nested is List && nested.isNotEmpty) {
+          final first = nested.first;
+          if (first is Map<String, dynamic>) {
+            code = (first['code'] ?? '').toString();
+          }
+        }
         if (code.isNotEmpty) {
           out.add(code);
         } else {
@@ -175,12 +183,20 @@ class BadgeService {
     try {
       final rows = await _sb
           .from('user_badges')
-          .select('badges:badge_id(*)')
+          .select('*, badges(*)')
           .eq('user_id', userId);
       final out = <Badge>[];
       for (final raw in rows as List<dynamic>) {
-        final badgeRow = (raw as Map<String, dynamic>)['badges'];
-        if (badgeRow is Map<String, dynamic>) {
+        final m = raw as Map<String, dynamic>;
+        final nested = m['badges'];
+        Map<String, dynamic>? badgeRow;
+        if (nested is Map<String, dynamic>) {
+          badgeRow = nested;
+        } else if (nested is List && nested.isNotEmpty) {
+          final first = nested.first;
+          if (first is Map<String, dynamic>) badgeRow = first;
+        }
+        if (badgeRow != null) {
           final badge = _badgeFromRow(badgeRow);
           out.add(badge.copyWith(price: _resolveEffectiveBadgePrice(badge)));
         }
