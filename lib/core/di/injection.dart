@@ -91,6 +91,7 @@ import '../../features/profile/presentation/bloc/profile_bloc.dart';
 import '../../features/profile/presentation/cubit/profile_creation_cubit.dart';
 import '../../features/profile/presentation/cubit/profile_settings_cubit.dart';
 import '../../features/profile/presentation/profile_user_data_sync.dart';
+import '../../features/video/presentation/video_feed_sync.dart';
 import '../../features/mode_selection/data/datasources/mode_dashboard_remote_datasource.dart';
 import '../../features/mode_selection/data/datasources/mode_dashboard_remote_datasource_impl.dart';
 import '../../features/mode_selection/data/repositories/mode_news_repository_impl.dart';
@@ -170,6 +171,7 @@ Future<void> configureDependencies() async {
       () => SubmitEditableProfileUseCase(sl()),
     )
     ..registerLazySingleton(ProfileUserDataSync.new)
+    ..registerLazySingleton(VideoFeedSync.new)
     ..registerLazySingleton<ProfileBloc>(
       () => ProfileBloc(sl(), sl(), sl(), sl(), sl<ProfileUserDataSync>()),
     )

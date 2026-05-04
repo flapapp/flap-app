@@ -106,9 +106,13 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                     onPressed: canCreate
                         ? () async {
                             if (overview.userId == null) return;
-                            await context.router.push(
+                            final created = await context.router.push<bool>(
                               TeamCreateRoute(existingTeams: teams.length),
                             );
+                            if (!context.mounted) return;
+                            if (created == true) {
+                              await _overviewCubit.refreshTeamsFromServer();
+                            }
                           }
                         : null,
                     icon: const Icon(Icons.add, color: Colors.white),
@@ -157,10 +161,14 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                       const SizedBox(height: 12),
                       ElevatedButton(
                         onPressed: canCreate
-                            ? () {
-                                context.router.push(
+                            ? () async {
+                                final created = await context.router.push<bool>(
                                   TeamCreateRoute(existingTeams: teams.length),
                                 );
+                                if (!context.mounted) return;
+                                if (created == true) {
+                                  await _overviewCubit.refreshTeamsFromServer();
+                                }
                               }
                             : null,
                         child: Text(tr('il_284ff194f8')),

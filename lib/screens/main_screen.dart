@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/di/injection.dart';
+import '../features/video/presentation/video_feed_sync.dart';
 import '../router/app_router.dart';
 import '../features/notifications/data/services/notification_service.dart';
 import '../features/video/presentation/pages/videos_screen.dart';
@@ -999,9 +1000,11 @@ class _MainScreenState extends State<MainScreen>
                   tr('il_8dfa00ec39'),
                   style: TextStyle(color: Colors.white.withOpacity(0.7)),
                 ),
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  context.router.push(VideoUploadRoute());
+                  await context.router.push(VideoUploadRoute());
+                  if (!context.mounted) return;
+                  sl<VideoFeedSync>().notifyFeedMayHaveChanged();
                 },
               ),
 

@@ -149,7 +149,7 @@ class _MatchesScreenState extends State<MatchesScreen>
           _tabController.index = idx;
         }
         if (idx == 3) {
-          _ensureRatingsTopPlayersLoaded();
+          _ensureRatingsTopPlayersLoaded(force: true);
         }
       });
     }
@@ -159,12 +159,23 @@ class _MatchesScreenState extends State<MatchesScreen>
   void _onMatchesPrimaryTabChanged() {
     if (_tabController.indexIsChanging) return;
     if (_tabController.index == 3) {
-      _ensureRatingsTopPlayersLoaded();
+      _ensureRatingsTopPlayersLoaded(force: true);
     }
   }
 
-  void _ensureRatingsTopPlayersLoaded() {
-    if (_ratingsTopPlayersFuture != null) return;
+  /// Clears memoized match streams so lists refetch after creating/updating a match.
+  void _invalidateMatchStreamCaches() {
+    if (!mounted) return;
+    setState(() {
+      _memoFilteredMatchesStream = null;
+      _memoFilteredMatchesKey = null;
+      _memoUserMatchesStream = null;
+      _memoHistoryMatchesStream = null;
+    });
+  }
+
+  void _ensureRatingsTopPlayersLoaded({bool force = false}) {
+    if (_ratingsTopPlayersFuture != null && !force) return;
     _ratingsTopPlayersFuture = _ratingsRepo.getTopPlayers(limit: 300);
     if (mounted) setState(() {});
   }
@@ -745,7 +756,11 @@ class _MatchesScreenState extends State<MatchesScreen>
             onTap: () => context.router.push(VideoMainRoute()),
           ),
         ],
-        onCreate: () => context.router.push(const CreateMatchRoute()),
+        onCreate: () async {
+          await context.router.push(const CreateMatchRoute());
+          if (!mounted) return;
+          _invalidateMatchStreamCaches();
+        },
         createTooltip: tr('il_4759498ac2'),
       ),
     );
@@ -3033,7 +3048,11 @@ class _MatchesScreenState extends State<MatchesScreen>
             ),
           ),
           ElevatedButton(
-            onPressed: () => context.router.push(const CreateMatchRoute()),
+            onPressed: () async {
+              await context.router.push(const CreateMatchRoute());
+              if (!mounted) return;
+              _invalidateMatchStreamCaches();
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFF4caf50),
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),

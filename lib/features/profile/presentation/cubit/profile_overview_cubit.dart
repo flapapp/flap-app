@@ -128,6 +128,25 @@ class ProfileOverviewCubit extends Cubit<ProfileOverviewState> {
     }
   }
 
+  /// Fetches the current user's teams once and updates state (e.g. after creating a team).
+  /// Supabase Realtime on [team_members] should also update, but this guarantees immediate UI.
+  Future<void> refreshTeamsFromServer() async {
+    final uid =
+        state.userId ?? _authSessionRepository.peekCurrentUser?.uid;
+    if (uid == null) return;
+    try {
+      final teams = await _teamMembershipRepository.fetchUserTeams(uid);
+      emit(
+        state.copyWith(
+          status: ProfileOverviewStatus.ready,
+          teams: teams,
+        ),
+      );
+    } catch (_) {
+      emit(state.copyWith(status: ProfileOverviewStatus.error));
+    }
+  }
+
   /// Reloads badges and friends count without resetting team/invite stream subscriptions.
   /// Call after purchases (e.g. returning from the badge store) so the profile UI stays in sync.
   Future<void> refreshProfileSnapshot() async {

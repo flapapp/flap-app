@@ -26,7 +26,8 @@ class TeamHubScreen extends StatefulWidget {
 class _TeamHubScreenState extends State<TeamHubScreen> {
   late final Stream<List<AppTeam>> _teamsLeaderboardStream;
   late final Stream<Map<String, TeamStats>> _teamStatsIndexStream;
-  late final Stream<List<AppTeam>> _myTeamsStream;
+  late Stream<List<AppTeam>> _myTeamsStream;
+  int _myTeamsStreamEpoch = 0;
 
   @override
   void initState() {
@@ -34,6 +35,10 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
     final teamsRepo = sl<TeamsRepository>();
     _teamsLeaderboardStream = teamsRepo.watchTeamsOrderedByWins();
     _teamStatsIndexStream = teamsRepo.watchAllTeamStatsById();
+    _bindMyTeamsStream();
+  }
+
+  void _bindMyTeamsStream() {
     final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     _myTeamsStream = uid != null
         ? sl<ProfileTeamMembershipRepository>().watchUserTeams(uid)
@@ -163,9 +168,16 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
     final teamIds =
         List<dynamic>.from(profile?.document['teamIds'] ?? const []);
     if (!mounted) return;
-    await context.router.push(
+    final created = await context.router.push<bool>(
       TeamCreateRoute(existingTeams: teamIds.length),
     );
+    if (!mounted) return;
+    if (created == true) {
+      setState(() {
+        _bindMyTeamsStream();
+        _myTeamsStreamEpoch++;
+      });
+    }
   }
 
   Widget _buildHero(_TeamWithStats? leader) {
@@ -310,6 +322,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
 
   Widget _buildMyTeams() {
     return StreamBuilder<List<AppTeam>>(
+      key: ValueKey<int>(_myTeamsStreamEpoch),
       stream: _myTeamsStream,
       builder: (context, snapshot) {
         final myTeams = snapshot.data ?? const [];
