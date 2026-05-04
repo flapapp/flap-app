@@ -22,6 +22,7 @@ import '../../data/models/match.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../controllers/match_list_controller.dart';
 import '../utils/match_status_ui.dart';
+import '../widgets/match_waiting_list_strip.dart';
 
 @RoutePage()
 class MatchesScreen extends StatefulWidget {
@@ -2697,7 +2698,18 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
-  // ... existing code ...
+  bool _shouldShowMatchWaitingList(Match match) {
+    if (match.pendingApplications.isEmpty) return false;
+    switch (match.status) {
+      case MatchStatus.inProgress:
+      case MatchStatus.finished:
+      case MatchStatus.cancelled:
+        return false;
+      case MatchStatus.open:
+      case MatchStatus.full:
+        return true;
+    }
+  }
 
   Widget _buildMatchDetails(Match match) {
     // Debug / diagnostics
@@ -2846,6 +2858,11 @@ class _MatchesScreenState extends State<MatchesScreen>
             }).toList(),
           ),
         ),
+
+        if (_shouldShowMatchWaitingList(match)) ...[
+          const SizedBox(height: 10),
+          MatchWaitingListStrip(pendingUserIds: match.pendingApplications),
+        ],
 
         SizedBox(height: 8),
 
