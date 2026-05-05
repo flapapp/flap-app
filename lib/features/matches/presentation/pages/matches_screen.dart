@@ -19,6 +19,7 @@ import '../../../ratings/domain/repositories/ratings_repository.dart';
 import '../../application/match_participation_actions_use_case.dart';
 import '../../data/models/match.dart';
 import '../../domain/repositories/matches_repository.dart';
+import 'finish_match_flow_page.dart';
 import '../controllers/match_list_controller.dart';
 import '../utils/match_status_ui.dart';
 import '../widgets/match_waiting_list_strip.dart';
@@ -115,6 +116,12 @@ class _MatchesScreenState extends State<MatchesScreen>
 
   RatingsRepository get _ratingsRepo => sl<RatingsRepository>();
   final SupabaseClient _sb = Supabase.instance.client;
+  static const List<Color> _finishMatchTeamColors = <Color>[
+    Color(0xFF1976D2),
+    Color(0xFF8E24AA),
+    Color(0xFF43A047),
+    Color(0xFFFF7043),
+  ];
   final NotificationService _notificationService = sl<NotificationService>();
   // Rating filter state (plain setState instead of ValueNotifier)
   String _ratingsSelectedCity = tr('all_cities');
@@ -2268,30 +2275,30 @@ class _MatchesScreenState extends State<MatchesScreen>
     if (match.organizerId == uid) return;
     if (match.isUnplayedByTimeout) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_d11de119cf'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('il_d11de119cf'))));
       return;
     }
     if (match.status == MatchStatus.cancelled) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('status_cancelled'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('status_cancelled'))));
       return;
     }
     if (match.isTeamMatch) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_4d74338dc3'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('il_4d74338dc3'))));
       return;
     }
     if (match.isPrivate && !match.invitedFriends.contains(uid)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('private_match_invite_only'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('private_match_invite_only'))));
       return;
     }
     if (match.participants.contains(uid) ||
@@ -2301,17 +2308,17 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
     if (match.wasRejected(uid)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_3bbca810b0'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('il_3bbca810b0'))));
       return;
     }
     if (match.status != MatchStatus.open ||
         match.currentPlayers >= match.maxPlayers) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('il_1b3438d9c8'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('il_1b3438d9c8'))));
       return;
     }
 
@@ -2345,9 +2352,7 @@ class _MatchesScreenState extends State<MatchesScreen>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}),
-          ),
+          content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -2364,14 +2369,9 @@ class _MatchesScreenState extends State<MatchesScreen>
       disabledForegroundColor: Colors.white54,
       side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
-    const labelStyle = TextStyle(
-      fontSize: 12,
-      fontWeight: FontWeight.w700,
-    );
+    const labelStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w700);
 
     if (match.organizerId == uid) {
       return OutlinedButton.icon(
@@ -2399,7 +2399,8 @@ class _MatchesScreenState extends State<MatchesScreen>
       );
     }
 
-    final requested = match.hasPendingApplication(uid) ||
+    final requested =
+        match.hasPendingApplication(uid) ||
         _joinRequestedLocalMatchIds.contains(match.id);
     if (requested) {
       return OutlinedButton.icon(
@@ -2879,7 +2880,9 @@ class _MatchesScreenState extends State<MatchesScreen>
               ),
               child: UserChip(
                 userId: match.organizerId,
-                name: match.organizerName.isNotEmpty ? match.organizerName : null,
+                name: match.organizerName.isNotEmpty
+                    ? match.organizerName
+                    : null,
                 size: 36,
                 showName: false,
               ),
@@ -3201,19 +3204,19 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   String _filteredMatchesCacheKey() => <String>[
-        _selectedCity,
-        _selectedLevel,
-        _selectedTime,
-        _selectedSort,
-        _searchQuery,
-        _currentUserCity,
-        tr('all_cities'),
-        tr('all_levels'),
-        tr('anytime'),
-        tr('il_2b065c7c9c'),
-        tr('il_456a73bbce'),
-        tr('il_8c4eef5ab2'),
-      ].join('\u001e');
+    _selectedCity,
+    _selectedLevel,
+    _selectedTime,
+    _selectedSort,
+    _searchQuery,
+    _currentUserCity,
+    tr('all_cities'),
+    tr('all_levels'),
+    tr('anytime'),
+    tr('il_2b065c7c9c'),
+    tr('il_456a73bbce'),
+    tr('il_8c4eef5ab2'),
+  ].join('\u001e');
 
   /// Stable stream instance while filters are unchanged — prevents [StreamBuilder]
   /// from resubscribing on unrelated rebuilds (e.g. async profile city load).
@@ -3814,121 +3817,46 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   Future<void> _onFinishMatch(Match match) async {
-    final scores = await _showFinishDialog();
-    if (scores == null) return;
+    final result = await Navigator.of(context).push<FinishMatchResult?>(
+      MaterialPageRoute<FinishMatchResult?>(
+        fullscreenDialog: true,
+        builder: (_) => FinishMatchFlowPage(
+          match: match,
+          participantIds: match.participants,
+          teamColors: _finishMatchTeamColors,
+          loadPlayerRows: (ids) => loadFinishMatchPlayerRows(_sb, ids),
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
 
-    final int a = scores['teamAScore']!;
-    final int b = scores['teamBScore']!;
-    final MatchResult result = (a > b)
+    final MatchResult matchResult = result.teamAScore > result.teamBScore
         ? MatchResult.teamAWins
-        : (b > a)
+        : result.teamBScore > result.teamAScore
         ? MatchResult.teamBWins
         : MatchResult.draw;
-    final goals = await _collectGoalsForMatch(match);
-    if (goals == null) return;
-    if (!_validateGoalsAgainstScore(match, goals, a, b)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_138370a929')),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
+
     final ok = await _matchRepo.finishMatch(
       match.id,
-      result,
-      a,
-      b,
-      goalsByPlayer: goals,
+      matchResult,
+      result.teamAScore,
+      result.teamBScore,
+      goalsByPlayer: result.goalsByPlayer,
     );
+
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok ? tr('match_finished') : tr('match_finish_failed')),
+        content: Text(ok ? tr('il_a7c0f718a2') : tr('il_9a01f718c1')),
         backgroundColor: ok ? const Color(0xFF4caf50) : Colors.red,
       ),
     );
-    if (ok) setState(() {});
-  }
+    if (!ok) return;
 
-  Future<Map<String, int>?> _showFinishDialog() async {
-    return showDialog<Map<String, int>>(
-      context: context,
-      builder: (ctx) => _FinishMatchScoresDialog(parentContext: context),
-    );
-  }
-
-  Future<Map<String, int>?> _collectGoalsForMatch(Match match) async {
-    final ids = match.participants;
-    if (ids.isEmpty) return {};
-    final names = await _loadParticipantNames(ids);
-    final assignments = match.playerTeamAssignments;
-    final Map<String, List<String>> grouped = {
-      'teamA': [],
-      'teamB': [],
-      'free': [],
-    };
-    for (final id in ids) {
-      final key = assignments[id] ?? 'free';
-      grouped.putIfAbsent(key, () => <String>[]);
-      grouped[key]!.add(id);
-    }
-    return showDialog<Map<String, int>?>(
-      context: context,
-      builder: (ctx) => _PlayerGoalsDialog(
-        grouped: grouped,
-        names: names,
-        match: match,
-      ),
-    );
-  }
-
-  bool _validateGoalsAgainstScore(
-    Match match,
-    Map<String, int> goals,
-    int teamAScore,
-    int teamBScore,
-  ) {
-    if (match.hasTeams) {
-      final assignments = match.playerTeamAssignments;
-      int sumA = 0;
-      int sumB = 0;
-      goals.forEach((playerId, value) {
-        final teamKey = assignments[playerId];
-        if (teamKey == 'teamB') {
-          sumB += value;
-        } else {
-          sumA += value;
-        }
-      });
-      return sumA == teamAScore && sumB == teamBScore;
-    }
-    final total = goals.values.fold<int>(0, (prev, value) => prev + value);
-    return total == (teamAScore + teamBScore);
-  }
-
-  Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {
-    if (ids.isEmpty) return <String, String>{};
-    final names = <String, String>{};
-    try {
-      final rows = await _sb
-          .from('profiles')
-          .select('id,display_name,email')
-          .inFilter('id', ids);
-      for (final row in rows) {
-        final id = (row['id'] ?? '').toString();
-        if (id.isEmpty) continue;
-        names[id] =
-            (row['display_name'] ??
-                    row['email']?.toString().split('@').first ??
-                    tr('player'))
-                .toString();
-      }
-    } catch (_) {}
-    for (final id in ids) {
-      names.putIfAbsent(id, () => tr('player'));
-    }
-    return names;
+    setState(() {});
+    final refreshed = await _matchRepo.fetchMatchById(match.id);
+    if (!mounted) return;
+    await context.router.push(MatchRatingRoute(match: refreshed ?? match));
   }
 
   // History match card (MVP detail)
@@ -4445,217 +4373,6 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 }
 
-/// Owns [TextEditingController]s for the finish-match team score dialog so disposal
-/// stays tied to this route (avoids race with parent [StreamBuilder] rebuilds).
-class _FinishMatchScoresDialog extends StatefulWidget {
-  const _FinishMatchScoresDialog({required this.parentContext});
-
-  /// [MatchesScreen] context for [ScaffoldMessenger], not the dialog overlay context.
-  final BuildContext parentContext;
-
-  @override
-  State<_FinishMatchScoresDialog> createState() => _FinishMatchScoresDialogState();
-}
-
-class _FinishMatchScoresDialogState extends State<_FinishMatchScoresDialog> {
-  late final TextEditingController _teamA;
-  late final TextEditingController _teamB;
-
-  @override
-  void initState() {
-    super.initState();
-    _teamA = TextEditingController();
-    _teamB = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _teamA.dispose();
-    _teamB.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(tr('finish_match')),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _teamA,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(labelText: tr('goals_team_a')),
-          ),
-          TextField(
-            controller: _teamB,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(labelText: tr('goals_team_b')),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(tr('cancel')),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final int? a = int.tryParse(_teamA.text);
-            final int? b = int.tryParse(_teamB.text);
-            if (a == null || b == null || a < 0 || b < 0) {
-              ScaffoldMessenger.of(widget.parentContext).showSnackBar(
-                SnackBar(
-                  content: Text(tr('enter_valid_scores')),
-                  backgroundColor: Colors.red,
-                ),
-              );
-              return;
-            }
-            Navigator.pop(context, {'teamAScore': a, 'teamBScore': b});
-          },
-          child: Text(tr('confirm')),
-        ),
-      ],
-    );
-  }
-}
-
-/// Per-player goals dialog: controllers live in [State] and dispose with the route.
-class _PlayerGoalsDialog extends StatefulWidget {
-  const _PlayerGoalsDialog({
-    required this.grouped,
-    required this.names,
-    required this.match,
-  });
-
-  final Map<String, List<String>> grouped;
-  final Map<String, String> names;
-  final Match match;
-
-  @override
-  State<_PlayerGoalsDialog> createState() => _PlayerGoalsDialogState();
-}
-
-class _PlayerGoalsDialogState extends State<_PlayerGoalsDialog> {
-  late final Map<String, TextEditingController> _controllers;
-
-  @override
-  void initState() {
-    super.initState();
-    final ids = <String>[
-      ...(widget.grouped['teamA'] ?? const <String>[]),
-      ...(widget.grouped['teamB'] ?? const <String>[]),
-      ...(widget.grouped['free'] ?? const <String>[]),
-    ];
-    _controllers = {
-      for (final id in ids) id: TextEditingController(text: '0'),
-    };
-  }
-
-  @override
-  void dispose() {
-    for (final c in _controllers.values) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  String _teamLabel(String key) {
-    switch (key) {
-      case 'teamA':
-        return widget.match.teamA?.name ?? tr('il_e18d322f14');
-      case 'teamB':
-        return widget.match.teamB?.name ?? tr('il_aceaf5d9ac');
-      default:
-        return tr('il_7d4d74c733');
-    }
-  }
-
-  List<Widget> _buildSections() {
-    final sections = <Widget>[];
-    const order = ['teamA', 'teamB', 'free'];
-    for (final key in order) {
-      final players = widget.grouped[key] ?? const <String>[];
-      if (players.isEmpty) continue;
-      sections.add(
-        Padding(
-          padding: const EdgeInsets.only(top: 8, bottom: 4),
-          child: Text(
-            _teamLabel(key),
-            style: const TextStyle(
-              color: Colors.white70,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      );
-      for (final id in players) {
-        final ctrl = _controllers[id];
-        if (ctrl == null) continue;
-        final name = widget.names[id] ?? tr('player');
-        sections.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                Expanded(child: Text(name)),
-                SizedBox(
-                  width: 70,
-                  child: TextField(
-                    controller: ctrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: tr('goals'),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-    }
-    return sections;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(tr('il_2da37af5bc')),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: ListView(
-          shrinkWrap: true,
-          children: _buildSections(),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, null),
-          child: Text(tr('cancel')),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, <String, int>{}),
-          child: Text(tr('il_28d03596d2')),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final result = <String, int>{};
-            _controllers.forEach((id, ctrl) {
-              final val = int.tryParse(ctrl.text) ?? 0;
-              if (val > 0) result[id] = val;
-            });
-            Navigator.pop(context, result);
-          },
-          child: Text(tr('confirm')),
-        ),
-      ],
-    );
-  }
-}
-
 class _Level {
   final String label;
   final int color;
@@ -4669,4 +4386,3 @@ _Level _levelFor(double rating) {
   if (rating >= 1.5) return _Level(tr('beginner'), 0xFF4CAF50);
   return _Level(tr('il_ea0bedb7c8'), 0xFF9E9E9E);
 }
-

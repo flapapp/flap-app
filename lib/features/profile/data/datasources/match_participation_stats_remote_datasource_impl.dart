@@ -184,27 +184,51 @@ class MatchParticipationStatsRemoteDataSourceImpl
         .from('match_teams')
         .select('id,team_slot')
         .eq('match_id', matchId)
-        .order('team_slot');
+        .order('team_slot', ascending: true);
     final tlist = (teamsResp as List<dynamic>).cast<Map<String, dynamic>>();
     if (tlist.length < 2) {
       return null;
     }
-    final idA = tlist[0]['id'] as String;
-    final idB = tlist[1]['id'] as String;
+
+    // Align with [MatchService.finishMatch] / [MatchLegacyRemoteMapper]: team A =
+    // match_teams.team_slot == 1, team B == 2. Do not rely on list indices alone
+    // (ordering defaults have regressed W/L before).
+    String? idForSlot(int slot) {
+      for (final t in tlist) {
+        if ((t['team_slot'] as num?)?.toInt() == slot) {
+          final id = t['id']?.toString();
+          if (id != null && id.isNotEmpty) return id;
+        }
+      }
+      return null;
+    }
+
+    var idA = idForSlot(1);
+    var idB = idForSlot(2);
+    idA ??= tlist[0]['id']?.toString();
+    idB ??= tlist[1]['id']?.toString();
+    if (idA == null || idB == null || idA.isEmpty || idB.isEmpty) {
+      return null;
+    }
+
     final onA = await _rosterContains(idA, userId);
     final onB = await _rosterContains(idB, userId);
     if (!onA && !onB) {
       return null;
     }
 
-    if (a == b) {
+    if (rName == 'draw' || a == b) {
       return 'D';
     }
-    final scoreTeamAWins = a > b;
-    if (onA) {
-      return scoreTeamAWins ? 'W' : 'L';
+
+    // Same semantics as stored by finish flow: teamAWins => slot 1 won.
+    if (rName == 'teamAWins') {
+      return onA ? 'W' : 'L';
     }
-    return scoreTeamAWins ? 'L' : 'W';
+    if (rName == 'teamBWins') {
+      return onB ? 'W' : 'L';
+    }
+    return null;
   }
 
   Future<bool> _rosterContains(String matchTeamId, String userId) async {

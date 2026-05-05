@@ -10,6 +10,7 @@ import '../../application/match_management_actions_use_case.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../../data/models/match.dart';
 import 'match_invite_search_screen.dart';
+import 'finish_match_flow_page.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import 'dart:math';
@@ -52,8 +53,6 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   bool _isLoading = false;
   bool _shufflingTeams = false;
   final Set<String> _busyUserIds = {};
-  int _teamAScore = 0;
-  int _teamBScore = 0;
 
   bool _editMode = false;
   List<String> _editingTeamA = [];
@@ -2800,192 +2799,49 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   void _showFinishMatchDialog() {
+    if (_isLoading) return;
     final activeMatch = _latestMatch ?? widget.match;
-    final aName = activeMatch.teamA?.name ?? tr('il_e18d322f14');
-    final bName = activeMatch.teamB?.name ?? tr('il_aceaf5d9ac');
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        final insets = MediaQuery.of(dialogContext).viewInsets;
-        return AnimatedPadding(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.fromLTRB(16, 24, 16, 24 + insets.bottom),
-          child: Align(
-            alignment: Alignment.center,
-            child: Material(
-              color: Colors.transparent,
-              child: AlertDialog(
-                insetPadding: EdgeInsets.zero,
-                backgroundColor: const Color(0xFF2a2a2a),
-                title: Text(
-                  tr('finish_match'),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                content: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        tr('il_0bcaa93dc1'),
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  aName,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                TextField(
-                                  decoration: InputDecoration(
-                                    labelText: tr('il_116cd3982a'),
-                                    labelStyle: const TextStyle(
-                                      color: Colors.white70,
-                                    ),
-                                    isDense: true,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                    border: const OutlineInputBorder(),
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                  style: const TextStyle(color: Colors.white),
-                                  onChanged: (v) =>
-                                      _teamAScore = int.tryParse(v) ?? 0,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Padding(
-                            padding: EdgeInsets.only(top: 28),
-                            child: Text(
-                              ':',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  bName,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                TextField(
-                                  decoration: InputDecoration(
-                                    labelText: tr('il_116cd3982a'),
-                                    labelStyle: const TextStyle(
-                                      color: Colors.white70,
-                                    ),
-                                    isDense: true,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                    border: const OutlineInputBorder(),
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                  style: const TextStyle(color: Colors.white),
-                                  onChanged: (v) =>
-                                      _teamBScore = int.tryParse(v) ?? 0,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(dialogContext),
-                    child: Text(
-                      tr('cancel'),
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () {
-                            Navigator.pop(dialogContext);
-                            _finishMatch();
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFf44336),
-                    ),
-                    child: Text(tr('finish_match')),
-                  ),
-                ],
-              ),
+    Navigator.of(context)
+        .push<FinishMatchResult?>(
+          MaterialPageRoute<FinishMatchResult?>(
+            fullscreenDialog: true,
+            builder: (_) => FinishMatchFlowPage(
+              match: activeMatch,
+              participantIds: _participants,
+              teamColors: _teamColors,
+              loadPlayerRows: _loadFinishMatchPlayerRows,
             ),
           ),
-        );
-      },
-    );
+        )
+        .then((result) {
+          if (!mounted || result == null) return;
+          _applyFinishMatch(result);
+        });
   }
 
-  Future<void> _finishMatch() async {
+  Future<void> _applyFinishMatch(FinishMatchResult data) async {
     setState(() => _isLoading = true);
 
     try {
-      // Resolve match outcome
       MatchResult result;
-      if (_teamAScore > _teamBScore) {
+      if (data.teamAScore > data.teamBScore) {
         result = MatchResult.teamAWins;
-      } else if (_teamBScore > _teamAScore) {
+      } else if (data.teamBScore > data.teamAScore) {
         result = MatchResult.teamBWins;
       } else {
         result = MatchResult.draw;
       }
 
-      final goalMap = await _collectGoalStats();
-      if (goalMap == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
       final success = await _managementActions.finishMatch(
         matchId: widget.match.id,
         result: result,
-        teamAScore: _teamAScore,
-        teamBScore: _teamBScore,
-        goalsByPlayer: goalMap,
+        teamAScore: data.teamAScore,
+        teamBScore: data.teamBScore,
+        goalsByPlayer: data.goalsByPlayer,
       );
 
       if (success) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr('il_a7c0f718a2')),
@@ -2993,12 +2849,13 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
           ),
         );
 
-        // Reload data
         await _loadMatchData();
+        if (!mounted) return;
         await context.router.push(
           MatchRatingRoute(match: _latestMatch ?? widget.match),
         );
       } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr('il_9a01f718c1')),
@@ -3007,6 +2864,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${tr('error')}: $e'),
@@ -3014,259 +2872,13 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         ),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<Map<String, int>?> _collectGoalStats() async {
-    final activeMatch = _latestMatch ?? widget.match;
-    final ids = _participants.isNotEmpty
-        ? _participants
-        : activeMatch.participants;
-    if (ids.isEmpty) return {};
-    final names = await _loadParticipantNames(ids);
-    final controllers = <String, TextEditingController>{
-      for (final id in ids) id: TextEditingController(text: '0'),
-    };
-    final teamAIds = activeMatch.teamA?.playerIds ?? const <String>[];
-    final teamBIds = activeMatch.teamB?.playerIds ?? const <String>[];
-    final teamAName = activeMatch.teamA?.name ?? tr('il_e18d322f14');
-    final teamBName = activeMatch.teamB?.name ?? tr('il_aceaf5d9ac');
-
-    Widget buildTeamSection(
-      StateSetter setStateDialog,
-      String teamName,
-      List<String> teamIds,
-      Color accent,
-    ) {
-      final teamGoals = teamIds.fold<int>(
-        0,
-        (sum, id) => sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
-      );
-
-      return Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: accent.withOpacity(0.45)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    teamName,
-                    style: TextStyle(
-                      color: accent,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${tr('il_116cd3982a')}: $teamGoals',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ...teamIds.map((id) {
-              final name = names[id] ?? tr('player');
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 78,
-                      child: TextField(
-                        controller: controllers[id],
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          labelText: tr('il_116cd3982a'),
-                        ),
-                        onChanged: (_) => setStateDialog(() {}),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      );
-    }
-
-    final result = await showDialog<Map<String, int>?>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setStateDialog) {
-          final insets = MediaQuery.of(context).viewInsets;
-          final teamAGoals = teamAIds.fold<int>(
-            0,
-            (sum, id) =>
-                sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
-          );
-          final teamBGoals = teamBIds.fold<int>(
-            0,
-            (sum, id) =>
-                sum + (int.tryParse(controllers[id]?.text ?? '0') ?? 0),
-          );
-          final totalGoals = teamAGoals + teamBGoals;
-
-          return AnimatedPadding(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-            padding: EdgeInsets.fromLTRB(16, 24, 16, 24 + insets.bottom),
-            child: AlertDialog(
-              insetPadding: EdgeInsets.zero,
-              backgroundColor: const Color(0xFF1a1a2e),
-              title: Text(
-                tr('il_37d6086f07'),
-                style: const TextStyle(color: Colors.white),
-              ),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        tr(
-                          'match_goals_assign_intro',
-                          namedArgs: {
-                            'teamAScore': '$_teamAScore',
-                            'teamAName': teamAName,
-                            'teamBScore': '$_teamBScore',
-                            'teamBName': teamBName,
-                          },
-                        ),
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                      const SizedBox(height: 12),
-                      buildTeamSection(
-                        setStateDialog,
-                        teamAName,
-                        teamAIds,
-                        _teamColors[0],
-                      ),
-                      buildTeamSection(
-                        setStateDialog,
-                        teamBName,
-                        teamBIds,
-                        _teamColors[1],
-                      ),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${tr('il_f47e8394cb')}: '
-                              '$teamAName $teamAGoals - $teamBGoals $teamBName',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${tr('il_f8d6301a5e')}: $totalGoals',
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, null),
-                  child: Text(tr('cancel')),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, <String, int>{}),
-                  child: Text(tr('il_28d03596d2')),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    if (teamAGoals != _teamAScore ||
-                        teamBGoals != _teamBScore) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(tr('il_1e20d69e73'))),
-                      );
-                      return;
-                    }
-                    final map = <String, int>{};
-                    controllers.forEach((id, ctrl) {
-                      final value = int.tryParse(ctrl.text) ?? 0;
-                      if (value > 0) {
-                        map[id] = value;
-                      }
-                    });
-                    Navigator.pop(ctx, map);
-                  },
-                  child: Text(tr('confirm')),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-
-    for (final ctrl in controllers.values) {
-      ctrl.dispose();
-    }
-    return result;
-  }
-
-  Future<Map<String, String>> _loadParticipantNames(List<String> ids) async {
-    if (ids.isEmpty) return <String, String>{};
-    final names = <String, String>{};
-    try {
-      final rows = await _sb
-          .from('profiles')
-          .select('id,display_name,first_name,author_name')
-          .inFilter('id', ids);
-      for (final row in rows) {
-        final id = (row['id'] ?? '').toString();
-        if (id.isEmpty) continue;
-        names[id] =
-            (row['display_name'] ??
-                    row['first_name'] ??
-                    row['author_name'] ??
-                    tr('player'))
-                .toString();
-      }
-    } catch (_) {}
-    for (final id in ids) {
-      names.putIfAbsent(id, () => tr('player'));
-    }
-    return names;
-  }
+  Future<Map<String, MatchFinishPlayerRow>> _loadFinishMatchPlayerRows(
+    List<String> ids,
+  ) => loadFinishMatchPlayerRows(_sb, ids);
 
   Future<void> _cancelMatch() async {
     setState(() => _isLoading = true);
