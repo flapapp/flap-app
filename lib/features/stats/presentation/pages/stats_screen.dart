@@ -121,7 +121,10 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Widget _ratingBlock(String title, List<Map<String, dynamic>> history) {
-    final points = history.map<double>((h) => (h['overallRating'] as num?)?.toDouble() ?? 0.0).toList();
+    final points = history.map<double>((h) {
+      final raw = h['rating'] ?? h['overallRating'];
+      return (raw as num?)?.toDouble() ?? 0.0;
+    }).toList();
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

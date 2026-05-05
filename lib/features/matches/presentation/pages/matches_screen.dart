@@ -15,6 +15,8 @@ import '../../../../widgets/city_autocomplete_field.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../notifications/data/services/notification_service.dart';
+import '../../../ratings/presentation/utils/rating_snapshot_source_label.dart';
+import '../../../ratings/presentation/widgets/rating_history_snapshot_card.dart';
 import '../../../ratings/domain/repositories/ratings_repository.dart';
 import '../../application/match_participation_actions_use_case.dart';
 import '../../data/models/match.dart';
@@ -1113,100 +1115,61 @@ class _MatchesScreenState extends State<MatchesScreen>
                           );
                       if (history.isEmpty) return const SizedBox.shrink();
 
+                      var publicHistory = history
+                          .where(
+                            (h) => ratingHistoryIsPublicTriggerSource(
+                              (h['trigger_source'] ?? h['triggerSource'])
+                                  ?.toString(),
+                            ),
+                          )
+                          .toList();
+                      if (publicHistory.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+
                       // Newest first
-                      history.sort((a, b) {
+                      publicHistory.sort((a, b) {
                         final ta = _readDate(a['timestamp']);
                         final tb = _readDate(b['timestamp']);
                         return tb.compareTo(ta);
                       });
 
                       return Column(
-                        children: history.asMap().entries.map((e) {
+                        children: publicHistory.asMap().entries.map((e) {
                           final i = e.key;
                           final h = e.value;
                           final dt = _readDate(h['timestamp']);
-                          final overall = ((h['overallRating'] ?? 0) as num)
-                              .toDouble();
-                          final prev = (i + 1 < history.length)
-                              ? ((history[i + 1]['overallRating'] ?? 0) as num)
-                                    .toDouble()
+                          final rawOverall = h['overallRating'] ?? h['rating'];
+                          final overall = ((rawOverall ?? 0) as num).toDouble();
+                          final rawPrev = i + 1 < publicHistory.length
+                              ? (publicHistory[i + 1]['overallRating'] ??
+                                  publicHistory[i + 1]['rating'])
                               : null;
+                          final prev = rawPrev == null
+                              ? null
+                              : ((rawPrev ?? 0) as num).toDouble();
                           final delta = prev == null
-                              ? 0.0
+                              ? null
                               : double.parse(
                                   (overall - prev).toStringAsFixed(2),
                                 );
-                          final sign = delta >= 0 ? '+' : '';
-                          final color = delta > 0
-                              ? const Color(0xFF4CAF50)
-                              : (delta < 0
-                                    ? const Color(0xFFF44336)
-                                    : Colors.white54);
-                          final icon = delta > 0
-                              ? Icons.trending_up
-                              : (delta < 0
-                                    ? Icons.trending_down
-                                    : Icons.remove);
+                          final triggerSrc = (h['trigger_source'] ??
+                                  h['triggerSource'] ??
+                                  '')
+                              .toString()
+                              .trim();
 
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.04),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.10),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.06),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(icon, color: color, size: 18),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        tr('il_64d8152d62'),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '${prev?.toStringAsFixed(2) ?? overall.toStringAsFixed(2)} → ${overall.toStringAsFixed(2)}'
-                                        '   ${dt.day}.${dt.month}.${dt.year}',
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  '${sign}${delta.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    color: color,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          return RatingHistorySnapshotCard(
+                            newRating: overall,
+                            oldRating: prev,
+                            delta: delta,
+                            triggerSource:
+                                triggerSrc.isEmpty ? null : triggerSrc,
+                            detailSubtitle: delta == null
+                                ? tr('rating_history_baseline')
+                                : null,
+                            timeLabel:
+                                '${dt.day}.${dt.month}.${dt.year}',
                           );
                         }).toList(),
                       );

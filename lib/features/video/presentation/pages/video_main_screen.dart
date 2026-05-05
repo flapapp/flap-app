@@ -14,6 +14,8 @@ import '../../../../core/supabase/supabase_app_storage.dart';
 import '../../../../core/supabase/supabase_date.dart';
 import '../../../../constants/video_categories.dart';
 import '../../../challenges/data/models/challenge.dart';
+import '../../../ratings/presentation/utils/rating_snapshot_source_label.dart';
+import '../../../ratings/presentation/widgets/rating_history_snapshot_card.dart';
 import '../../../../widgets/rating_display.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
@@ -4060,7 +4062,29 @@ Widget build(BuildContext context) {
                       );
                     }
 
-                    final docs = snapshot.data ?? const <Map<String, dynamic>>[];
+                    var docs = List<Map<String, dynamic>>.from(
+                      snapshot.data ?? const <Map<String, dynamic>>[],
+                    );
+                    docs = docs
+                        .where(
+                          (r) =>
+                              (r['rating_scope']?.toString() ?? '') == 'overall',
+                        )
+                        .toList();
+                    docs.sort((a, b) {
+                      final ta = asDateTimeOrNull(a['created_at']);
+                      final tb = asDateTimeOrNull(b['created_at']);
+                      if (ta == null || tb == null) return 0;
+                      return tb.compareTo(ta);
+                    });
+                    docs = docs
+                        .where(
+                          (r) => ratingHistoryIsPublicTriggerSource(
+                            (r['trigger_source'] ?? r['triggerSource'])
+                                ?.toString(),
+                          ),
+                        )
+                        .toList();
 
                     if (docs.isEmpty) {
                       return Center(
@@ -4076,79 +4100,35 @@ Widget build(BuildContext context) {
                       itemCount: docs.length,
                       itemBuilder: (context, index) {
                         final entry = docs[index];
-                        final delta = 0.0;
-                        final oldRating = (entry['rating_value'] ?? 0.0).toDouble();
-                        final newRating = (entry['rating_value'] ?? 0.0).toDouble();
-                        final reason = (entry['reason'] ?? '').toString();
-                        final challengeTitle =
-                            (entry['challengeTitle'] ?? '').toString();
-                        final voterName = (entry['voterName'] ?? '').toString();
+                        final prevEntry =
+                            index + 1 < docs.length ? docs[index + 1] : null;
+                        final newRating =
+                            ((entry['rating_value'] as num?) ?? 0).toDouble();
+                        final oldRating = prevEntry != null
+                            ? ((prevEntry['rating_value'] as num?) ?? 0)
+                                .toDouble()
+                            : null;
+                        final double? delta = oldRating != null
+                            ? double.parse(
+                                (newRating - oldRating).toStringAsFixed(2),
+                              )
+                            : null;
+                        final triggerSource =
+                            (entry['trigger_source'] ?? entry['triggerSource'])
+                                ?.toString();
                         final timestamp = entry['created_at'];
-                        final deltaSign = delta >= 0 ? '+' : '';
 
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.03),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.white12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    delta >= 0 ? Icons.trending_up : Icons.trending_down,
-                                    color: delta >= 0
-                                        ? const Color(0xFF4caf50)
-                                        : Colors.redAccent,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '$deltaSign${delta.toStringAsFixed(2)} → '
-                                    '${newRating.toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                _formatRatingHistoryReason(
-                                  reason,
-                                  challengeTitle,
-                                  voterName,
-                                ),
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${oldRating.toStringAsFixed(2)} → '
-                                '${newRating.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              if (timestamp != null) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  _formatTimestamp(timestamp),
-                                  style: const TextStyle(
-                                    color: Colors.white38,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                        return RatingHistorySnapshotCard(
+                          newRating: newRating,
+                          oldRating: oldRating,
+                          delta: delta,
+                          triggerSource: triggerSource,
+                          detailSubtitle: delta == null
+                              ? tr('rating_history_baseline')
+                              : null,
+                          timeLabel: timestamp != null
+                              ? _formatTimestamp(timestamp)
+                              : null,
                         );
                       },
                     );
@@ -4162,82 +4142,6 @@ Widget build(BuildContext context) {
     );
   }
 
-  String _formatRatingHistoryReason(
-    String reason,
-    String challengeTitle,
-    String voterName,
-  ) {
-    switch (reason) {
-      case 'challenge_vote':
-      case 'video_vote':
-      case 'video_rating':
-        if (voterName.isNotEmpty && challengeTitle.isNotEmpty) {
-          return tr(
-            'il_a97735a0aa',
-            namedArgs: {
-              'voterName': voterName,
-              'challengeTitle': challengeTitle,
-            },
-          );
-        }
-        if (voterName.isNotEmpty) {
-          return tr('il_b4ce1ec898', namedArgs: {'voterName': voterName});
-        }
-        if (challengeTitle.isNotEmpty) {
-          return tr(
-            'il_73abcbe250',
-            namedArgs: {'challengeTitle': challengeTitle},
-          );
-        }
-        return tr('il_29262e8a7e');
-      case 'challenge_win':
-        return tr(
-          'il_f6317c6873',
-          namedArgs: {'challengeTitle': challengeTitle},
-        );
-      case 'challenge_second':
-        return tr(
-          'il_90e7c87869',
-          namedArgs: {'challengeTitle': challengeTitle},
-        );
-      case 'challenge_third':
-        return tr(
-          'il_414a7e49e3',
-          namedArgs: {'challengeTitle': challengeTitle},
-        );
-      case 'match_rating':
-        if (voterName.isNotEmpty) {
-          return tr(
-            'video_rating_after_match_by',
-            namedArgs: {'voter': voterName},
-          );
-        }
-        return tr('il_64d8152d62');
-      case 'manual_recompute':
-      case 'manual_recalculation':
-      case 'system_recompute':
-        return tr('il_b6ce244d3a');
-      case 'penalty':
-        return tr('il_58659f628a');
-      case 'bonus':
-        return tr('il_c88734b3ea');
-      default:
-        if (_textMatchesCsvVariants(
-              reason,
-              'rating_reason_post_match_legacy_variants',
-            )) {
-          return voterName.isNotEmpty
-              ? tr(
-                  'video_rating_after_match_by',
-                  namedArgs: {'voter': voterName},
-                )
-              : tr('il_64d8152d62');
-        }
-        return reason.isNotEmpty
-            ? reason
-            : tr('il_bcfd1b4865');
-    }
-  }
 }
 
 class _CachedUserProfile {
