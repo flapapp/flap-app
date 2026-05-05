@@ -21,6 +21,7 @@ import '../../../../widgets/user_chip.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/city_localization.dart';
 import '../../../../core/locale/football_position.dart';
+import '../widgets/team_roster_total_rating_badge.dart';
 
 double _profileOverallRatingFromRow(Map<String, dynamic> data) {
   final v = data['overall_rating'] ?? data['rating'];
@@ -132,7 +133,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             SizedBox(height: 20),
 
             if (widget.match.isTeamMatch) ...[
-              _buildTeamMatchSection(),
+              StreamBuilder<Match?>(
+                stream: _liveMatchStream(),
+                builder: (context, snapshot) {
+                  final m = snapshot.data ?? widget.match;
+                  return _buildTeamMatchSection(m);
+                },
+              ),
               const SizedBox(height: 20),
               _buildCaptainControlCard(),
               _buildRosterInviteBanner(),
@@ -568,31 +575,31 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
-  Widget _buildTeamMatchSection() {
-    final teamAName = (widget.match.teamA?.name.isNotEmpty ?? false)
-        ? widget.match.teamA!.name
+  Widget _buildTeamMatchSection(Match match) {
+    final teamAName = (match.teamA?.name.isNotEmpty ?? false)
+        ? match.teamA!.name
         : tr('il_d161440e8d');
-    final teamBName = (widget.match.teamB?.name.isNotEmpty ?? false)
-        ? widget.match.teamB!.name
-        : (widget.match.teamBId != null
+    final teamBName = (match.teamB?.name.isNotEmpty ?? false)
+        ? match.teamB!.name
+        : (match.teamBId != null
               ? tr('il_6b3e8cd77f')
               : tr('il_324df4ad19'));
 
     final rosterA =
-        widget.match.teamRosters['teamA'] ??
-        widget.match.teamA?.playerIds ??
+        match.teamRosters['teamA'] ??
+        match.teamA?.playerIds ??
         const <String>[];
     final rosterB =
-        widget.match.teamRosters['teamB'] ??
-        widget.match.teamB?.playerIds ??
+        match.teamRosters['teamB'] ??
+        match.teamB?.playerIds ??
         const <String>[];
     final rosterStatusA =
-        widget.match.teamRosterStatus['teamA'] ?? const <String, String>{};
+        match.teamRosterStatus['teamA'] ?? const <String, String>{};
     final rosterStatusB =
-        widget.match.teamRosterStatus['teamB'] ?? const <String, String>{};
+        match.teamRosterStatus['teamB'] ?? const <String, String>{};
 
     final hasScore =
-        widget.match.teamAScore != null && widget.match.teamBScore != null;
+        match.teamAScore != null && match.teamBScore != null;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -638,7 +645,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               children: [
                 _buildScorePill(
                   teamAName,
-                  widget.match.teamAScore!,
+                  match.teamAScore!,
                   Colors.greenAccent,
                 ),
                 Padding(
@@ -654,7 +661,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 ),
                 _buildScorePill(
                   teamBName,
-                  widget.match.teamBScore!,
+                  match.teamBScore!,
                   Colors.lightBlueAccent,
                 ),
               ],
@@ -663,9 +670,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           const SizedBox(height: 16),
           _buildTeamRow(
             label: teamAName,
-            status: widget.match.teamAStatus ?? 'confirmed',
+            status: match.teamAStatus ?? 'confirmed',
             playerIds: rosterA,
-            averageRating: widget.match.teamA?.averageRating,
             accent: const Color(0xFF4caf50),
             rosterStatuses: rosterStatusA,
           ),
@@ -673,15 +679,14 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           _buildTeamRow(
             label: teamBName,
             status:
-                widget.match.teamBStatus ??
-                (widget.match.teamBId == null ? 'pending' : 'confirmed'),
+                match.teamBStatus ??
+                (match.teamBId == null ? 'pending' : 'confirmed'),
             playerIds: rosterB,
-            averageRating: widget.match.teamB?.averageRating,
             accent: const Color(0xFF42a5f5),
             rosterStatuses: rosterStatusB,
           ),
           if ((rosterA.isNotEmpty || rosterB.isNotEmpty) &&
-              widget.match.teamRosterStatus.isNotEmpty) ...[
+              match.teamRosterStatus.isNotEmpty) ...[
             const SizedBox(height: 14),
             _buildRosterStatusLegend(),
           ],
@@ -866,7 +871,6 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     required String status,
     required List<String> playerIds,
     required Color accent,
-    double? averageRating,
     Map<String, String> rosterStatuses = const {},
   }) {
     return Column(
@@ -884,15 +888,14 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 ),
               ),
             ),
-            if (averageRating != null && averageRating > 0) ...[
-              Icon(Icons.star, color: accent, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                averageRating.toStringAsFixed(1),
-                style: TextStyle(color: accent, fontWeight: FontWeight.w700),
+            if (playerIds.isNotEmpty)
+              TeamRosterTotalRatingBadge(
+                playerIds: playerIds,
+                accent: accent,
+                iconSize: 17,
+                fontSize: 15,
+                padding: const EdgeInsets.only(right: 10),
               ),
-              const SizedBox(width: 12),
-            ],
             _buildTeamStatusPill(status),
           ],
         ),
@@ -2995,6 +2998,17 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ),
             ],
           ),
+          if (team.playerIds.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            TeamRosterTotalRatingBadge(
+              playerIds: team.playerIds,
+              accent: accent,
+              iconSize: 18,
+              fontSize: 15,
+              padding: EdgeInsets.zero,
+              showTotalRatingLabel: true,
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [

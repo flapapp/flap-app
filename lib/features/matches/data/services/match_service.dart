@@ -14,8 +14,50 @@ import '../../../../core/auth/app_auth.dart';
 class MatchService {
   final SupabaseClient _sb = Supabase.instance.client;
 
+  Future<Map<String, double>> _loadProfileRatings(List<String> userIds) async {
+    final clean = userIds
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+    if (clean.isEmpty) return const <String, double>{};
+    const chunkSize = 100;
+    final out = <String, double>{};
+    for (var i = 0; i < clean.length; i += chunkSize) {
+      final chunk = clean.sublist(
+        i,
+        i + chunkSize > clean.length ? clean.length : i + chunkSize,
+      );
+      final rows = await _sb
+          .from('profiles')
+          .select('id,overall_rating')
+          .inFilter('id', chunk);
+      for (final raw in rows as List<dynamic>) {
+        final m = Map<String, dynamic>.from(raw as Map);
+        final id = m['id']?.toString();
+        if (id == null || id.isEmpty) continue;
+        final r = (m['overall_rating'] as num?)?.toDouble() ?? 0.0;
+        out[id] = r;
+      }
+    }
+    return out;
+  }
+
+  double _sumTeamTotalRating(
+    List<String> playerIds,
+    Map<String, double> ratingsById,
+  ) {
+    var sum = 0.0;
+    for (final id in playerIds) {
+      sum += ratingsById[id] ?? 0.0;
+    }
+    return sum;
+  }
+
   Stream<List<Match>> getAvailableMatches() {
-    return _sb.from('matches').stream(primaryKey: ['id']).asyncMap((rows) async {
+    return _sb.from('matches').stream(primaryKey: ['id']).asyncMap((
+      rows,
+    ) async {
       final openIds = <String>[];
       final seen = <String>{};
       for (final raw in rows as List<dynamic>) {
@@ -27,8 +69,10 @@ class MatchService {
       }
       if (openIds.isEmpty) return <Match>[];
 
-      final legacyMaps =
-          await MatchLegacyRemoteMapper.loadLegacyMapsBatch(_sb, openIds);
+      final legacyMaps = await MatchLegacyRemoteMapper.loadLegacyMapsBatch(
+        _sb,
+        openIds,
+      );
       final out = <Match>[];
       for (final id in openIds) {
         final legacy = legacyMaps[id];
@@ -47,10 +91,13 @@ class MatchService {
 
   Future<void> _markAsUnplayedTimedOut(String matchId) async {
     try {
-      await _sb.from('matches').update({
-        'status': 'cancelled',
-        'cancellation_reason': 'timeout_24h_no_start',
-      }).eq('id', matchId);
+      await _sb
+          .from('matches')
+          .update({
+            'status': 'cancelled',
+            'cancellation_reason': 'timeout_24h_no_start',
+          })
+          .eq('id', matchId);
     } catch (_) {
       // best-effort
     }
@@ -63,14 +110,19 @@ class MatchService {
           .select('match_id')
           .eq('user_id', userId);
       final ids = (participantRows as List<dynamic>)
-          .map((raw) => (raw as Map<String, dynamic>)['match_id']?.toString() ?? '')
+          .map(
+            (raw) =>
+                (raw as Map<String, dynamic>)['match_id']?.toString() ?? '',
+          )
           .where((id) => id.isNotEmpty)
           .toSet()
           .toList();
       if (ids.isEmpty) return <Match>[];
 
-      final legacyMaps =
-          await MatchLegacyRemoteMapper.loadLegacyMapsBatch(_sb, ids);
+      final legacyMaps = await MatchLegacyRemoteMapper.loadLegacyMapsBatch(
+        _sb,
+        ids,
+      );
       final out = <Match>[];
       for (final id in ids) {
         final legacy = legacyMaps[id];
@@ -101,8 +153,10 @@ class MatchService {
               .from('match_participants')
               .stream(primaryKey: ['id'])
               .listen((_) => emit());
-          subMatches =
-              _sb.from('matches').stream(primaryKey: ['id']).listen((_) => emit());
+          subMatches = _sb
+              .from('matches')
+              .stream(primaryKey: ['id'])
+              .listen((_) => emit());
         });
       },
       onCancel: () async {
@@ -187,15 +241,12 @@ class MatchService {
 
     if (match.isPrivate && match.invitedFriends.isNotEmpty) {
       for (final friendId in match.invitedFriends) {
-        await _sb.from('match_invites').upsert(
-          {
-            'match_id': matchId,
-            'user_id': friendId,
-            'invited_by': uid,
-            'status': 'pending',
-          },
-          onConflict: 'match_id,user_id',
-        );
+        await _sb.from('match_invites').upsert({
+          'match_id': matchId,
+          'user_id': friendId,
+          'invited_by': uid,
+          'status': 'pending',
+        }, onConflict: 'match_id,user_id');
       }
     }
     return matchId;
@@ -266,7 +317,8 @@ class MatchService {
           .eq('user_id', userId);
 
       final refreshed = await _loadMatch(matchId);
-      if (refreshed != null && refreshed.currentPlayers >= refreshed.maxPlayers) {
+      if (refreshed != null &&
+          refreshed.currentPlayers >= refreshed.maxPlayers) {
         await _sb.from('matches').update({'status': 'full'}).eq('id', matchId);
       }
 
@@ -300,14 +352,15 @@ class MatchService {
   }
 
   Stream<List<String>> getMatchApplications(String matchId) {
-    return _sb
-        .from('match_participants')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) async {
+    return _sb.from('match_participants').stream(primaryKey: ['id']).asyncMap((
+      rows,
+    ) async {
       return (rows as List<dynamic>)
-          .where((raw) =>
-              (raw as Map<String, dynamic>)['match_id'] == matchId &&
-              raw['status'] == 'pending_application')
+          .where(
+            (raw) =>
+                (raw as Map<String, dynamic>)['match_id'] == matchId &&
+                raw['status'] == 'pending_application',
+          )
           .map((raw) => (raw as Map<String, dynamic>)['user_id'].toString())
           .toList(growable: false);
     });
@@ -349,11 +402,25 @@ class MatchService {
           teamBId = row['id'].toString();
         }
       }
-      teamAId ??= await _createMatchTeam(matchId, 1, tr('match_default_team_a'));
-      teamBId ??= await _createMatchTeam(matchId, 2, tr('match_default_team_b'));
+      teamAId ??= await _createMatchTeam(
+        matchId,
+        1,
+        tr('match_default_team_a'),
+      );
+      teamBId ??= await _createMatchTeam(
+        matchId,
+        2,
+        tr('match_default_team_b'),
+      );
 
-      await _sb.from('match_team_rosters').delete().eq('match_team_id', teamAId);
-      await _sb.from('match_team_rosters').delete().eq('match_team_id', teamBId);
+      await _sb
+          .from('match_team_rosters')
+          .delete()
+          .eq('match_team_id', teamAId);
+      await _sb
+          .from('match_team_rosters')
+          .delete()
+          .eq('match_team_id', teamBId);
       for (final uid in teamAPlayers) {
         await _sb.from('match_team_rosters').insert({
           'match_team_id': teamAId,
@@ -368,27 +435,64 @@ class MatchService {
           'status': 'confirmed',
         });
       }
-      await _sb.from('matches').update({
-        'status': 'full',
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', matchId);
+      final ratingsById = await _loadProfileRatings([
+        ...teamAPlayers,
+        ...teamBPlayers,
+      ]);
+      await _sb
+          .from('match_teams')
+          .update({
+            'team_total_rating': _sumTeamTotalRating(teamAPlayers, ratingsById),
+          })
+          .eq('id', teamAId);
+      await _sb
+          .from('match_teams')
+          .update({
+            'team_total_rating': _sumTeamTotalRating(teamBPlayers, ratingsById),
+          })
+          .eq('id', teamBId);
+      await _sb
+          .from('matches')
+          .update({
+            'status': 'full',
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', matchId);
       return true;
     } catch (_) {
       return false;
     }
   }
 
-  Future<bool> updateTeamsFlexible(String matchId, List<List<String>> teams) async {
+  Future<bool> updateTeamsFlexible(
+    String matchId,
+    List<List<String>> teams,
+  ) async {
     try {
-      final existing = await _sb.from('match_teams').select('id').eq('match_id', matchId);
+      final existing = await _sb
+          .from('match_teams')
+          .select('id')
+          .eq('match_id', matchId);
       for (final row in existing as List<dynamic>) {
-        await _sb.from('match_team_rosters').delete().eq('match_team_id', row['id']);
+        await _sb
+            .from('match_team_rosters')
+            .delete()
+            .eq('match_team_id', row['id']);
       }
       await _sb.from('match_teams').delete().eq('match_id', matchId);
 
+      final allPlayers = teams.expand((t) => t).toList();
+      final ratingsById = await _loadProfileRatings(allPlayers);
+
       for (var i = 0; i < teams.length; i++) {
-        final teamId = await _createMatchTeam(matchId, i + 1, MatchUtils.generateTeamNames(teams.length)[i]);
-        for (final uid in teams[i]) {
+        final teamPlayers = teams[i];
+        final teamId = await _createMatchTeam(
+          matchId,
+          i + 1,
+          MatchUtils.generateTeamNames(teams.length)[i],
+          totalRating: _sumTeamTotalRating(teamPlayers, ratingsById),
+        );
+        for (final uid in teamPlayers) {
           await _sb.from('match_team_rosters').insert({
             'match_team_id': teamId,
             'player_id': uid,
@@ -397,9 +501,10 @@ class MatchService {
         }
       }
       await ensureFixtures(matchId);
-      await _sb.from('matches').update({
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', matchId);
+      await _sb
+          .from('matches')
+          .update({'updated_at': DateTime.now().toUtc().toIso8601String()})
+          .eq('id', matchId);
       return true;
     } catch (_) {
       return false;
@@ -409,7 +514,9 @@ class MatchService {
   Future<List<Map<String, dynamic>>> getFixtures(String matchId) async {
     final rows = await _sb
         .from('match_fixtures')
-        .select('id, status, home_score, away_score, home_match_team_id, away_match_team_id, match_teams!home_match_team_id(display_name), away:match_teams!away_match_team_id(display_name)')
+        .select(
+          'id, status, home_score, away_score, home_match_team_id, away_match_team_id, match_teams!home_match_team_id(display_name), away:match_teams!away_match_team_id(display_name)',
+        )
         .eq('match_id', matchId);
     return (rows as List<dynamic>).map((raw) {
       final row = raw as Map<String, dynamic>;
@@ -418,30 +525,50 @@ class MatchService {
         'status': row['status'],
         'scoreA': row['home_score'],
         'scoreB': row['away_score'],
-        'teamAName': ((row['match_teams'] as Map?)?['display_name'] ?? tr('match_default_team_a')).toString(),
-        'teamBName': ((row['away'] as Map?)?['display_name'] ?? tr('match_default_team_b')).toString(),
+        'teamAName':
+            ((row['match_teams'] as Map?)?['display_name'] ??
+                    tr('match_default_team_a'))
+                .toString(),
+        'teamBName':
+            ((row['away'] as Map?)?['display_name'] ??
+                    tr('match_default_team_b'))
+                .toString(),
       };
     }).toList();
   }
 
-  Future<bool> finishGame(String matchId, String fixtureId, int scoreA, int scoreB) async {
+  Future<bool> finishGame(
+    String matchId,
+    String fixtureId,
+    int scoreA,
+    int scoreB,
+  ) async {
     try {
-      await _sb.from('match_fixtures').update({
-        'home_score': scoreA,
-        'away_score': scoreB,
-        'status': 'finished',
-        'finished_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', fixtureId);
+      await _sb
+          .from('match_fixtures')
+          .update({
+            'home_score': scoreA,
+            'away_score': scoreB,
+            'status': 'finished',
+            'finished_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', fixtureId);
 
-      final all = await _sb.from('match_fixtures').select('status').eq('match_id', matchId);
+      final all = await _sb
+          .from('match_fixtures')
+          .select('status')
+          .eq('match_id', matchId);
       final allFinished = (all as List<dynamic>).every(
         (raw) => (raw as Map<String, dynamic>)['status'] == 'finished',
       );
       if (allFinished) {
-        await _sb.from('matches').update({
-          'status': 'finished',
-          'finished_at': DateTime.now().toUtc().toIso8601String(),
-        }).eq('id', matchId);
+        await _sb
+            .from('matches')
+            .update({
+              'status': 'finished',
+              'finished_at': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', matchId);
       }
       return true;
     } catch (_) {
@@ -472,7 +599,9 @@ class MatchService {
                 child: TextField(
                   controller: ctrlA,
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText: tr('goals_for_team', args: [aName])),
+                  decoration: InputDecoration(
+                    labelText: tr('goals_for_team', args: [aName]),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -480,14 +609,22 @@ class MatchService {
                 child: TextField(
                   controller: ctrlB,
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText: tr('goals_for_team', args: [bName])),
+                  decoration: InputDecoration(
+                    labelText: tr('goals_for_team', args: [bName]),
+                  ),
                 ),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
-            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('save'))),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('save')),
+            ),
           ],
         );
       },
@@ -507,7 +644,11 @@ class MatchService {
         .order('team_slot');
     final t = (teams as List<dynamic>).cast<Map<String, dynamic>>();
     if (t.length <= 2) return;
-    final existing = await _sb.from('match_fixtures').select('id').eq('match_id', matchId).limit(1);
+    final existing = await _sb
+        .from('match_fixtures')
+        .select('id')
+        .eq('match_id', matchId)
+        .limit(1);
     if ((existing as List).isNotEmpty) return;
 
     for (var i = 0; i < t.length; i++) {
@@ -530,11 +671,14 @@ class MatchService {
       if (currentUserId == null || currentUserId != m.organizerId) return false;
       if (m.isInProgress || m.participants.length < 2) return false;
 
-      await _sb.from('matches').update({
-        'status': 'in_progress',
-        'started_at': DateTime.now().toUtc().toIso8601String(),
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', matchId);
+      await _sb
+          .from('matches')
+          .update({
+            'status': 'in_progress',
+            'started_at': DateTime.now().toUtc().toIso8601String(),
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', matchId);
       return true;
     } catch (_) {
       return false;
@@ -556,7 +700,10 @@ class MatchService {
 
       final now = DateTime.now().toUtc().toIso8601String();
 
-      await _sb.from('match_participant_goals').delete().eq('match_id', matchId);
+      await _sb
+          .from('match_participant_goals')
+          .delete()
+          .eq('match_id', matchId);
       if (goalsByPlayer.isNotEmpty) {
         final rows = goalsByPlayer.entries
             .map(
@@ -570,12 +717,15 @@ class MatchService {
         await _sb.from('match_participant_goals').insert(rows);
       }
 
-      await _sb.from('matches').update({
-        'status': 'finished',
-        'finished_at': now,
-        'updated_at': now,
-        'cancellation_reason': '${result.name}:$teamAScore:$teamBScore',
-      }).eq('id', matchId);
+      await _sb
+          .from('matches')
+          .update({
+            'status': 'finished',
+            'finished_at': now,
+            'updated_at': now,
+            'cancellation_reason': '${result.name}:$teamAScore:$teamBScore',
+          })
+          .eq('id', matchId);
 
       return true;
     } catch (_) {
@@ -584,21 +734,24 @@ class MatchService {
   }
 
   Stream<List<Match>> getMatchesForRating(String userId) {
-    return _sb
-        .from('match_participants')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) async {
+    return _sb.from('match_participants').stream(primaryKey: ['id']).asyncMap((
+      rows,
+    ) async {
       final ids = (rows as List<dynamic>)
-          .where((raw) =>
-              (raw as Map<String, dynamic>)['user_id'] == userId &&
-              raw['status'] == 'accepted')
+          .where(
+            (raw) =>
+                (raw as Map<String, dynamic>)['user_id'] == userId &&
+                raw['status'] == 'accepted',
+          )
           .map((raw) => (raw as Map<String, dynamic>)['match_id'].toString())
           .toSet()
           .toList();
       if (ids.isEmpty) return <Match>[];
 
-      final legacyMaps =
-          await MatchLegacyRemoteMapper.loadLegacyMapsBatch(_sb, ids);
+      final legacyMaps = await MatchLegacyRemoteMapper.loadLegacyMapsBatch(
+        _sb,
+        ids,
+      );
       final out = <Match>[];
       for (final id in ids) {
         final legacy = legacyMaps[id];
@@ -617,10 +770,13 @@ class MatchService {
       if (m == null) return false;
       final currentUserId = AppAuth.currentUserId;
       if (currentUserId == null || currentUserId != m.organizerId) return false;
-      await _sb.from('matches').update({
-        'status': 'cancelled',
-        'cancellation_reason': 'cancelled_by_organizer',
-      }).eq('id', matchId);
+      await _sb
+          .from('matches')
+          .update({
+            'status': 'cancelled',
+            'cancellation_reason': 'cancelled_by_organizer',
+          })
+          .eq('id', matchId);
       return true;
     } catch (_) {
       return false;
@@ -641,11 +797,15 @@ class MatchService {
     }
   }
 
-  Future<bool> saveMultiTeamResults(String matchId, List<Map<String, int>> stats) async {
+  Future<bool> saveMultiTeamResults(
+    String matchId,
+    List<Map<String, int>> stats,
+  ) async {
     try {
-      await _sb.from('matches').update({
-        'cancellation_reason': 'multi_team_stats:${stats.length}',
-      }).eq('id', matchId);
+      await _sb
+          .from('matches')
+          .update({'cancellation_reason': 'multi_team_stats:${stats.length}'})
+          .eq('id', matchId);
       return true;
     } catch (_) {
       return false;
@@ -660,7 +820,11 @@ class MatchService {
   }) async {
     final slot = teamKey == 'teamA' ? 1 : 2;
     final matchTeamId = await _ensureMatchTeam(matchId, slot, team.name);
-    await _sb.from('match_team_rosters').delete().eq('match_team_id', matchTeamId);
+    await _sb
+        .from('match_team_rosters')
+        .delete()
+        .eq('match_team_id', matchTeamId);
+    final ratingsById = await _loadProfileRatings(playerIds);
     for (final playerId in playerIds) {
       await _sb.from('match_team_rosters').insert({
         'match_team_id': matchTeamId,
@@ -668,6 +832,12 @@ class MatchService {
         'status': 'pending',
       });
     }
+    await _sb
+        .from('match_teams')
+        .update({
+          'team_total_rating': _sumTeamTotalRating(playerIds, ratingsById),
+        })
+        .eq('id', matchTeamId);
   }
 
   Future<void> respondToRosterInvite({
@@ -683,10 +853,14 @@ class MatchService {
       slot,
       slot == 1 ? tr('match_default_team_a') : tr('match_default_team_b'),
     );
-    await _sb.from('match_team_rosters').update({
-      'status': accept ? 'confirmed' : 'declined',
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('match_team_id', teamId).eq('player_id', uid);
+    await _sb
+        .from('match_team_rosters')
+        .update({
+          'status': accept ? 'confirmed' : 'declined',
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('match_team_id', teamId)
+        .eq('player_id', uid);
   }
 
   Future<void> updateCoverPhoto({
@@ -703,13 +877,19 @@ class MatchService {
     return Match.fromLegacyMap(matchId, legacy);
   }
 
-  Future<String> _createMatchTeam(String matchId, int slot, String name) async {
+  Future<String> _createMatchTeam(
+    String matchId,
+    int slot,
+    String name, {
+    double totalRating = 0,
+  }) async {
     final inserted = await _sb
         .from('match_teams')
         .insert({
           'match_id': matchId,
           'team_slot': slot,
           'display_name': name,
+          'team_total_rating': totalRating,
         })
         .select('id')
         .single();

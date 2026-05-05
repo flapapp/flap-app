@@ -22,6 +22,7 @@ import '../../domain/repositories/matches_repository.dart';
 import '../controllers/match_list_controller.dart';
 import '../utils/match_status_ui.dart';
 import '../widgets/match_waiting_list_strip.dart';
+import '../widgets/team_roster_total_rating_badge.dart';
 
 @RoutePage()
 class MatchesScreen extends StatefulWidget {
@@ -3082,9 +3083,19 @@ class _MatchesScreenState extends State<MatchesScreen>
             ],
           ),
           const SizedBox(height: 12),
-          _buildTeamMatchRow(teamAName, teamAStatus, teamARoster),
+          _buildTeamMatchRow(
+            teamAName,
+            teamAStatus,
+            teamARoster,
+            const Color(0xFF4caf50),
+          ),
           const SizedBox(height: 8),
-          _buildTeamMatchRow(teamBName, teamBStatus, teamBRoster),
+          _buildTeamMatchRow(
+            teamBName,
+            teamBStatus,
+            teamBRoster,
+            const Color(0xFF42a5f5),
+          ),
         ],
       ),
     );
@@ -3094,6 +3105,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     String teamName,
     String status,
     List<String> roster,
+    Color accent,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3109,6 +3121,14 @@ class _MatchesScreenState extends State<MatchesScreen>
                 ),
               ),
             ),
+            if (roster.isNotEmpty)
+              TeamRosterTotalRatingBadge(
+                playerIds: roster,
+                accent: accent,
+                iconSize: 15,
+                fontSize: 13,
+                padding: const EdgeInsets.only(right: 8),
+              ),
             _buildTeamStatusChip(status),
           ],
         ),

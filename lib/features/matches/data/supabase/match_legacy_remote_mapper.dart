@@ -41,6 +41,7 @@ match_teams(
   team_slot,
   source_team_id,
   display_name,
+  team_total_rating,
   match_team_rosters(player_id,status)
 )
 ''';
@@ -79,7 +80,7 @@ match_teams(
   static Map<String, dynamic> legacyMapFromJoinedRow(Map<String, dynamic> row) {
     final organizerProfile =
         _asStringKeyedMap(row['organizer_profile']) ??
-            _asStringKeyedMap(row['profiles']);
+        _asStringKeyedMap(row['profiles']);
     final participantRows = _asMapList(row['match_participants']);
     final inviteRowsRaw = _asMapList(row['match_invites']);
     final inviteRows = inviteRowsRaw.where((r) {
@@ -114,11 +115,12 @@ match_teams(
   ) {
     if (rawRows.isEmpty) return {};
 
-    final sorted = [...rawRows]..sort((a, b) {
-      final sa = (a['team_slot'] as num?)?.toInt() ?? 0;
-      final sb = (b['team_slot'] as num?)?.toInt() ?? 0;
-      return sa.compareTo(sb);
-    });
+    final sorted = [...rawRows]
+      ..sort((a, b) {
+        final sa = (a['team_slot'] as num?)?.toInt() ?? 0;
+        final sb = (b['team_slot'] as num?)?.toInt() ?? 0;
+        return sa.compareTo(sb);
+      });
 
     Map<String, dynamic> rosterLegacy(Map<String, dynamic> mtRow) {
       final rosters = _asMapList(mtRow['match_team_rosters']);
@@ -134,11 +136,17 @@ match_teams(
         }
       }
       final src = mtRow['source_team_id']?.toString();
+      final totalRating =
+          (mtRow['team_total_rating'] as num?)?.toDouble() ?? 0.0;
+      final avgRating = playerIds.isEmpty
+          ? 0.0
+          : (totalRating / playerIds.length);
       return <String, dynamic>{
         'name': (mtRow['display_name'] ?? '').toString(),
         'playerIds': playerIds,
-        'averageRating': 0.0,
+        'averageRating': avgRating,
         'playerRatings': <String, double>{},
+        'teamTotalRating': totalRating,
         'sourceTeamId': (src != null && src.isNotEmpty) ? src : null,
         'rosterStatus': statusMap,
       };
@@ -152,13 +160,13 @@ match_teams(
       out['teamA'] = <String, dynamic>{
         'name': legA['name'],
         'playerIds': legA['playerIds'],
-        'averageRating': 0.0,
+        'averageRating': (legA['averageRating'] as num?)?.toDouble() ?? 0.0,
         'playerRatings': <String, double>{},
       };
       out['teamB'] = <String, dynamic>{
         'name': legB['name'],
         'playerIds': legB['playerIds'],
-        'averageRating': 0.0,
+        'averageRating': (legB['averageRating'] as num?)?.toDouble() ?? 0.0,
         'playerRatings': <String, double>{},
       };
       final idA = legA['sourceTeamId'] as String?;
@@ -181,7 +189,7 @@ match_teams(
         return <String, dynamic>{
           'name': t['name'],
           'playerIds': t['playerIds'],
-          'averageRating': 0.0,
+          'averageRating': (t['averageRating'] as num?)?.toDouble() ?? 0.0,
         };
       }).toList();
       out['teamCount'] = sorted.length;
@@ -221,7 +229,8 @@ match_teams(
       }
     }
 
-    final scheduled = asDateTimeOrNull(matchRow['scheduled_at']) ??
+    final scheduled =
+        asDateTimeOrNull(matchRow['scheduled_at']) ??
         asDateTimeOrNull(matchRow['created_at']) ??
         DateTime.now();
     final time =
@@ -236,8 +245,8 @@ match_teams(
     final sentInvitesCount = currentUserId == null
         ? 0
         : inviteRows
-            .where((r) => (r['invited_by'] ?? '').toString() == currentUserId)
-            .length;
+              .where((r) => (r['invited_by'] ?? '').toString() == currentUserId)
+              .length;
 
     final lat = matchRow['latitude'] as num?;
     final lng = matchRow['longitude'] as num?;
