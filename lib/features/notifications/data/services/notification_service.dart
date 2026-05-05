@@ -1,12 +1,12 @@
+import 'dart:async';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../application/notification_router.dart';
 import '../../data/models/notification.dart';
-import '../../../matches/data/models/match.dart' as app_models;
-import '../../../matches/data/supabase/match_legacy_remote_mapper.dart';
-import '../../../../router/app_router.dart';
 import '../../../profile/data/services/user_settings_service.dart';
 import 'fcm_transport_service.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -19,14 +19,22 @@ class NotificationService {
   SupabaseClient get _sb => Supabase.instance.client;
   final FcmTransportService _transportService;
   final Set<String> _processedMessageKeys = <String>{};
+  final StreamController<void> _unreadCountInvalidate =
+      StreamController<void>.broadcast();
+
+  void _emitUnreadCountRefresh() {
+    if (!_unreadCountInvalidate.isClosed) {
+      _unreadCountInvalidate.add(null);
+    }
+  }
 
   bool get _hasSb =>
       SupabaseEnv.url.isNotEmpty && SupabaseEnv.anonKey.isNotEmpty;
 
   (String? table, String? id) _relatedMeta(AppNotification n) {
     final d = n.data;
-    final mid = d['matchId'] as String?;
-    if (mid != null) return ('matches', mid);
+    final mid = (d['matchId'] ?? d['match_id'])?.toString();
+    if (mid != null && mid.isNotEmpty) return ('matches', mid);
     final cid = d['challengeId'] as String?;
     if (cid != null) return ('challenges', cid);
     final vid = d['videoId'] as String?;
@@ -132,82 +140,28 @@ class NotificationService {
     }
   }
 
-Future<void> _navigateFromData(Map<String, dynamic> data) async {
-  final type = data['type'] as String? ?? '';
-  if (type.isEmpty) return;
+  Future<void> _navigateFromData(Map<String, dynamic> data) async {
+    await NotificationRouter.navigateFromPushData(data);
+  }
 
-  final matchAwareTypes = <String>{
-    'match_invite',
-    'match_application_accepted',
-    'match_application_rejected',
-    'match_finished',
-    'match_application_submitted',
-    'team_match_request',
-    'team_roster_invite',
-    'team_match_ready',
-  };
-
-  app_models.Match? match;
-  if (matchAwareTypes.contains(type)) {
-    final matchId = data['matchId'] as String?;
-    if (matchId == null) return;
-    try {
-      if (!_hasSb) return;
-      final legacy = await MatchLegacyRemoteMapper.load(_sb, matchId);
-      if (legacy == null) return;
-      match = app_models.Match.fromLegacyMap(matchId, legacy);
-    } catch (_) {
-      return;
+  String? _messageKey(Map<String, dynamic> data) {
+    final notificationId = data['notification_id']?.toString();
+    if (notificationId != null && notificationId.isNotEmpty) {
+      return notificationId;
     }
+    final queueId = data['queue_id']?.toString();
+    if (queueId != null && queueId.isNotEmpty) return queueId;
+    final type = data['type']?.toString() ?? '';
+    final matchId =
+        data['matchId']?.toString() ?? data['match_id']?.toString() ?? '';
+    final challengeId = data['challengeId']?.toString() ??
+        data['challenge_id']?.toString() ??
+        '';
+    final videoId =
+        data['videoId']?.toString() ?? data['video_id']?.toString() ?? '';
+    if (type.isEmpty) return null;
+    return '$type|$matchId|$challengeId|$videoId';
   }
-
-  switch (type) {
-    case 'match_invite':
-    case 'match_application_accepted':
-    case 'match_application_rejected':
-      if (match != null) {
-        appRouter.push(MatchDetailsRoute(match: match));
-      }
-      break;
-    case 'match_finished':
-    case 'match_application_submitted':
-      if (match != null) {
-        appRouter.push(MatchManagementRoute(match: match));
-      }
-      break;
-    case 'team_match_request':
-      if (match != null) {
-        appRouter.push(MatchDetailsRoute(match: match));
-      }
-      break;
-    case 'team_roster_invite':
-      if (match != null) {
-        appRouter.push(MatchDetailsRoute(match: match));
-      }
-      break;
-    case 'team_match_ready':
-      if (match != null) {
-        appRouter.push(MatchManagementRoute(match: match));
-      }
-      break;
-    case 'team_invite':
-      appRouter.push(const ProfileRoute());
-      break;
-  }
-}
-
-String? _messageKey(Map<String, dynamic> data) {
-  final notificationId = data['notification_id']?.toString();
-  if (notificationId != null && notificationId.isNotEmpty) return notificationId;
-  final queueId = data['queue_id']?.toString();
-  if (queueId != null && queueId.isNotEmpty) return queueId;
-  final type = data['type']?.toString() ?? '';
-  final matchId = data['matchId']?.toString() ?? '';
-  final challengeId = data['challengeId']?.toString() ?? '';
-  final videoId = data['videoId']?.toString() ?? '';
-  if (type.isEmpty) return null;
-  return '$type|$matchId|$challengeId|$videoId';
-}
 
   Future<bool> sendNotification(AppNotification notification) async {
     try {
@@ -316,11 +270,27 @@ String? _messageKey(Map<String, dynamic> data) {
       return (rows as List).length;
     }
 
-    return _sb
-        .from('notifications')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', currentUser.id)
-        .asyncMap((_) => count());
+    return Stream<int>.multi((controller) {
+      Future<void> emit() async {
+        try {
+          controller.add(await count());
+        } catch (e, st) {
+          controller.addError(e, st);
+        }
+      }
+
+      emit();
+      final subRt = _sb
+          .from('notifications')
+          .stream(primaryKey: ['id'])
+          .eq('user_id', currentUser.id)
+          .listen((_) => emit());
+      final subInv = _unreadCountInvalidate.stream.listen((_) => emit());
+      controller.onCancel = () {
+        subRt.cancel();
+        subInv.cancel();
+      };
+    });
   }
 
   Future<bool> markAsRead(String notificationId) async {
@@ -330,6 +300,7 @@ String? _messageKey(Map<String, dynamic> data) {
         'is_read': true,
         'read_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', notificationId);
+      _emitUnreadCountRefresh();
       return true;
     } catch (e) {
       print('Error marking notification as read: $e');
@@ -346,6 +317,7 @@ String? _messageKey(Map<String, dynamic> data) {
         'is_read': true,
         'read_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('user_id', currentUser.id).eq('is_read', false);
+      _emitUnreadCountRefresh();
       return true;
     } catch (e) {
       print('Error marking all notifications as read: $e');
@@ -357,6 +329,7 @@ String? _messageKey(Map<String, dynamic> data) {
     try {
       if (!_hasSb) return false;
       await _sb.from('notifications').delete().eq('id', notificationId);
+      _emitUnreadCountRefresh();
       return true;
     } catch (e) {
       print('Error deleting notification: $e');

@@ -159,6 +159,7 @@ Deno.serve(async (req) => {
       message: args.message,
       related_table: args.relatedTable ?? null,
       related_record_id: args.relatedRecordId ?? null,
+      extra_data: args.data ?? {},
       status: "pending",
     });
 

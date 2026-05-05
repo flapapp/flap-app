@@ -99,7 +99,7 @@ Deno.serve(async () => {
 
   const { data: queueRows, error: fetchError } = await supabase
     .from("push_notification_queue")
-    .select("id,user_id,title,message,related_table,related_record_id,notification_types(code)")
+    .select("id,user_id,title,message,related_table,related_record_id,extra_data,notification_types(code)")
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .limit(100);
@@ -164,22 +164,30 @@ Deno.serve(async () => {
               title: row.title,
               body: row.message,
             },
-            data: {
-              queue_id: row.id,
-              type: row.notification_types?.code ?? "",
-              ...(row.related_table === "matches"
-                ? { matchId: row.related_record_id }
-                : {}),
-              ...(row.related_table === "challenges"
-                ? { challengeId: row.related_record_id }
-                : {}),
-              ...(row.related_table === "videos"
-                ? { videoId: row.related_record_id }
-                : {}),
-              ...(row.related_table === "teams"
-                ? { teamId: row.related_record_id }
-                : {}),
-            },
+            data: (() => {
+              const extra = (row as { extra_data?: Record<string, unknown> }).extra_data ?? {};
+              const payloadType = extra["type"];
+              const data: Record<string, string> = {
+                queue_id: String(row.id),
+                type: row.notification_types?.code ?? "",
+                ...(row.related_table === "matches" && row.related_record_id
+                  ? { matchId: String(row.related_record_id) }
+                  : {}),
+                ...(row.related_table === "challenges" && row.related_record_id
+                  ? { challengeId: String(row.related_record_id) }
+                  : {}),
+                ...(row.related_table === "videos" && row.related_record_id
+                  ? { videoId: String(row.related_record_id) }
+                  : {}),
+                ...(row.related_table === "teams" && row.related_record_id
+                  ? { teamId: String(row.related_record_id) }
+                  : {}),
+                ...(typeof payloadType === "string" && payloadType.length > 0
+                  ? { payload_type: payloadType }
+                  : {}),
+              };
+              return data;
+            })(),
             android: {
               priority: "high",
             },

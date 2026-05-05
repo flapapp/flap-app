@@ -27,19 +27,55 @@ class AppNotification extends AppNotificationEntity {
 
   static NotificationType _typeFromCode(String? code) {
     if (code == null || code.isEmpty) {
-      return NotificationType.friendRequest;
+      return NotificationType.ratingRequest;
     }
-    // DB / RPC uses snake_case codes; client enum names are camelCase.
-    switch (code) {
+    final c = code.trim();
+    // DB + Edge `notification-command` use snake_case `type_code` values.
+    switch (c) {
       case 'friend_request':
       case 'friend_request_sent':
         return NotificationType.friendRequest;
+      case 'friend_accepted':
       case 'friend_request_accepted':
         return NotificationType.friendAccepted;
+      case 'challenge_invitation':
+        return NotificationType.challengeInvitation;
+      case 'challenge_update':
+        return NotificationType.challengeUpdate;
+      case 'challenge_result':
+        return NotificationType.challengeResult;
+      case 'challenge_completed':
+        return NotificationType.challengeCompleted;
+      case 'video_vote':
+        return NotificationType.videoVote;
+      case 'match_invite':
+        return NotificationType.matchInvite;
+      case 'match_finished':
+        return NotificationType.matchFinished;
+      case 'badge_earned':
+        return NotificationType.badgeEarned;
+      case 'badge_endorsed':
+        return NotificationType.badgeEndorsed;
+      case 'coins_earned':
+        return NotificationType.coinsEarned;
+      case 'rating_request':
+        return NotificationType.ratingRequest;
+      case 'rating_changed':
+        return NotificationType.ratingChanged;
+      case 'team_invite':
+        return NotificationType.teamInvite;
+      case 'team_match_request':
+        return NotificationType.teamMatchRequest;
+      case 'team_roster_invite':
+        return NotificationType.teamRosterInvite;
+      case 'team_match_ready':
+        return NotificationType.teamMatchReady;
+      case 'team_join_request':
+        return NotificationType.teamJoinRequest;
     }
     return NotificationType.values.firstWhere(
-      (e) => e.toString().split('.').last == code,
-      orElse: () => NotificationType.friendRequest,
+      (e) => e.toString().split('.').last == c,
+      orElse: () => NotificationType.ratingRequest,
     );
   }
 

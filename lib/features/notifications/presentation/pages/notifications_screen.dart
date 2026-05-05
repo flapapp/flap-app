@@ -2,14 +2,9 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../../../core/di/injection.dart';
-import '../../../challenges/data/models/challenge.dart';
-import '../../../matches/data/models/match.dart';
-import '../../../matches/domain/repositories/matches_repository.dart';
+import '../../application/notification_router.dart';
 import '../../data/models/notification.dart';
-import '../../../../router/app_router.dart';
 import '../../domain/repositories/notifications_repository.dart';
 import '../bloc/notification_bloc.dart';
 
@@ -23,8 +18,6 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   NotificationsRepository get _notificationsRepo => sl<NotificationsRepository>();
-  MatchesRepository get _matchRepo => sl<MatchesRepository>();
-  final SupabaseClient _sb = Supabase.instance.client;
   late final NotificationBloc _notificationBloc;
 
   @override
@@ -194,55 +187,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildNotificationCard(AppNotification notification) {
-    return Dismissible(
-      key: ValueKey(notification.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.3),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _handleNotificationTap(notification),
           borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Icon(Icons.delete_outline, color: Colors.white),
-      ),
-      onDismissed: (_) async {
-        context.read<NotificationBloc>().add(
-          NotificationDeleteRequested(notification.id),
-        );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(tr('il_e3f244f1ba')),
-            ),
-          );
-        }
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => _handleNotificationTap(notification),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: notification.isRead
+                  ? Colors.white.withOpacity(0.03)
+                  : Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
                 color: notification.isRead
-                    ? Colors.white.withOpacity(0.03)
-                    : Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: notification.isRead
-                      ? Colors.white.withOpacity(0.1)
-                      : Color(notification.typeColor).withOpacity(0.3),
-                  width: notification.isRead ? 1 : 2,
-                ),
+                    ? Colors.white.withOpacity(0.1)
+                    : Color(notification.typeColor).withOpacity(0.3),
+                width: notification.isRead ? 1 : 2,
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 // Icon
                 Container(
                   width: 48,
@@ -259,7 +227,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                
+
                 // Content
                 Expanded(
                   child: Column(
@@ -273,8 +241,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
-                                fontWeight: notification.isRead 
-                                    ? FontWeight.w500 
+                                fontWeight: notification.isRead
+                                    ? FontWeight.w500
                                     : FontWeight.bold,
                               ),
                             ),
@@ -310,57 +278,35 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ),
                           ),
                           const Spacer(),
-                          // Action buttons
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (!notification.isRead)
-                                GestureDetector(
-                                  onTap: () => _markAsRead(notification),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, 
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Color(notification.typeColor).withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      tr('il_50c8b81faf'),
-                                      style: TextStyle(
-                                        color: Color(notification.typeColor),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
+                          if (!notification.isRead)
+                            GestureDetector(
+                              onTap: () => _markAsRead(notification),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
                                 ),
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: () => _deleteNotification(notification),
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.red,
-                                    size: 16,
+                                decoration: BoxDecoration(
+                                  color: Color(notification.typeColor)
+                                      .withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  tr('il_50c8b81faf'),
+                                  style: TextStyle(
+                                    color: Color(notification.typeColor),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
                         ],
                       ),
                     ],
                   ),
                 ),
-                ],
-              ),
+              ],
             ),
           ),
         ),
@@ -432,243 +378,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
            date1.day == date2.day;
   }
 
-  void _handleNotificationTap(AppNotification notification) async {
-    if (!notification.isRead) {
-      await _notificationsRepo.markAsRead(notification.id);
-    }
+  Future<void> _handleNotificationTap(AppNotification notification) async {
+    if (!mounted) return;
+    _notificationBloc.add(NotificationMarkReadRequested(notification.id));
 
-    if (notification.actionUrl != null && notification.actionUrl!.isNotEmpty) {
-      final action = notification.actionUrl!;
-      if (action.startsWith('/challenge-details/')) {
-        final challengeId = action.split('/').last;
-        await _openChallengeById(challengeId);
-        return;
-      }
-      _navigateToAction(action);
-      return;
-    }
-
-    // Fallback by type when actionUrl is missing in legacy records
-    switch (notification.type) {
-      case NotificationType.challengeInvitation:
-      case NotificationType.challengeUpdate:
-      case NotificationType.challengeResult:
-        final challengeId = notification.data['challengeId'] as String?;
-        if (challengeId != null && challengeId.isNotEmpty) {
-          await _openChallengeById(challengeId);
-          return;
-        }
-        break;
-        case NotificationType.matchInvite:
-      final matchId = notification.data['matchId'] as String?;
-      if (matchId != null && matchId.isNotEmpty) {
-        await _openMatchById(matchId);
-        return;
-      }
-      break;
-
-    case NotificationType.matchFinished:
-      final matchId = (notification.data['matchId'] ??
-              notification.data['match_id'] ??
-              notification.data['id']) as String?;
-      if (matchId != null && matchId.isNotEmpty) {
-        await _openMatchRatingById(matchId);
-        return;
-      }
-      break;
-
-      case NotificationType.friendRequest:
-      case NotificationType.friendAccepted:
-        _navigateToAction('/friends');
-        return;
-      case NotificationType.teamRosterInvite:
-        final rosterMatchId = notification.data['matchId'] as String?;
-        if (rosterMatchId != null && rosterMatchId.isNotEmpty) {
-          await _openMatchById(rosterMatchId);
-          return;
-        }
-        break;
-      default:
-        _navigateToAction('/video-main');
-        return;
-    }
-  }
-
-  Future<void> _openChallengeById(String challengeId) async {
-    try {
-      final row = await _sb.from('challenges').select().eq('id', challengeId).maybeSingle();
-      if (row == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('il_a29799fa76'))),
-        );
-        return;
-      }
-      final challenge = Challenge.fromFirestore(_MapDoc(challengeId, <String, dynamic>{
-        'title': row['title'],
-        'description': row['description'],
-        'type': '',
-        'status': row['status'],
-        'entryFee': row['entry_fee'] ?? 0,
-        'maxParticipants': row['max_participants'] ?? 0,
-        'participants': const <String>[],
-        'prizePool': 0,
-        'startDate': row['starts_at'],
-        'endDate': row['ends_at'],
-        'createdAt': row['created_at'],
-        'createdBy': row['creator_id'],
-        'city': row['city'],
-        'isTeamChallenge': false,
-        'creatorVideoUrl': '',
-        'creatorThumbnailUrl': row['image_url'],
-        'submissionDeadline': row['submission_deadline'],
-        'votingDeadline': row['voting_deadline'],
-      }));
-      if (!mounted) return;
-      context.router.push(ChallengeDetailsRoute(challenge: challenge));
-    } catch (e) {
-      if (!mounted) return;
+    final ok = await NotificationRouter.navigateFromAppNotification(notification);
+    if (!mounted) return;
+    if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_f5d8bd3f0a', namedArgs: {'e': e.toString()})),
-        ),
-      );
-    }
-  }
-
-    Future<void> _openMatchRatingById(String matchId) async {
-    try {
-      final match = await _matchRepo.fetchMatchById(matchId);
-      if (match == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              tr('il_6b539d4234', namedArgs: {'matchId': matchId}),
-            ),
-          ),
-        );
-        return;
-      }
-      if (!mounted) return;
-      context.router.push(MatchRatingRoute(match: match));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_5eda94340a', namedArgs: {'e': e.toString()})),
-        ),
-      );
-    }
-  }
-
-  
-    Future<void> _openMatchById(String matchId) async {
-    print('[notification] Opening match with ID: $matchId');
-    try {
-      final row = await _sb.from('matches').select().eq('id', matchId).maybeSingle();
-      print('[notification] Match doc exists: ${row != null}');
-      if (row == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              tr('il_6b539d4234', namedArgs: {'matchId': matchId}),
-            ),
-          ),
-        );
-        return;
-      }
-      final match = Match.fromFirestore(_MapDoc(matchId, <String, dynamic>{
-        'title': row['title'],
-        'description': row['description'],
-        'location': row['location_name'] ?? row['city'],
-        'city': row['city'],
-        'date': row['start_time'],
-        'maxPlayers': row['max_players'],
-        'currentPlayers': 0,
-        'participants': const <String>[],
-        'isActive': row['status'] == 'scheduled' || row['status'] == 'open',
-        'createdBy': row['organizer_id'],
-        'createdAt': row['created_at'],
-        'status': row['status'],
-      }));
-      print('[notification] Match loaded: ${match.title}');
-      if (!mounted) return;
-      print('[notification] Navigating to match-details...');
-      context.router.push(MatchDetailsRoute(match: match));
-      print('[notification] Navigation complete');
-    } catch (e) {
-      print('[notification] ERROR opening match: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_80c7341273', namedArgs: {'e': e.toString()})),
-        ),
-      );
-    }
-  }
-    void _navigateToAction(String actionUrl) {
-    if (actionUrl.startsWith('/')) {
-      if (actionUrl == '/friends') {
-        context.router.push(const FriendsRoute());
-      } else if (actionUrl == '/profile') {
-        context.router.push(const ProfileRoute());
-      } else if (actionUrl == '/video-main') {
-        context.router.push(VideoMainRoute());
-      } else if (actionUrl.startsWith('/video/')) {
-        final videoId = actionUrl.split('/').last;
-        _openVideoById(videoId);
-      } else if (actionUrl.startsWith('/challenge-details/')) {
-        final challengeId = actionUrl.split('/').last;
-        _openChallengeById(challengeId);
-      } else if (actionUrl.startsWith('/match/') && actionUrl.endsWith('/rate')) {
-        final segments = actionUrl.split('/');
-        if (segments.length >= 3) {
-          final matchId = segments[2];
-          _openMatchRatingById(matchId);
-        }
-      } else if (actionUrl.startsWith('/match-details/')) {
-        final matchId = actionUrl.split('/').last;
-        _openMatchById(matchId);
-      }
-    }
-  }
-
-  Future<void> _openVideoById(String videoId) async {
-    try {
-      final data = await _sb.from('videos').select().eq('id', videoId).maybeSingle();
-      if (data == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('il_e861519b9c'))),
-        );
-        return;
-      }
-      final videoUrl = (data['video_url'] ?? data['videoUrl'] ?? '').toString();
-      final title = (data['title'] ?? tr('il_d534be829e')).toString();
-      if (videoUrl.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('il_e1bc626d15'))),
-        );
-        return;
-      }
-      if (!mounted) return;
-      context.router.push(
-        VideoPlayerRoute(
-          videoUrl: videoUrl,
-          title: title,
-          authorName: '',
-          videoId: videoId,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('il_2e74389175', namedArgs: {'e': e.toString()})),
-        ),
+        SnackBar(content: Text(tr('something_went_wrong'))),
       );
     }
   }
@@ -692,24 +410,5 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ),
     );
   }
-
-  void _deleteNotification(AppNotification notification) async {
-    _notificationBloc.add(NotificationDeleteRequested(notification.id));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(tr('il_f9caffd585')),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
 }
-
-class _MapDoc {
-  _MapDoc(this.id, this._data);
-  final String id;
-  final Map<String, dynamic> _data;
-  Map<String, dynamic> data() => _data;
-}
-
-
 

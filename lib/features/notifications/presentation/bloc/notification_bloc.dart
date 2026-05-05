@@ -44,6 +44,20 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     NotificationMarkReadRequested event,
     Emitter<NotificationState> emit,
   ) async {
+    final current = state;
+    if (current is NotificationLoaded) {
+      emit(
+        NotificationLoaded(
+          current.notifications
+              .map(
+                (n) => n.id == event.notificationId
+                    ? n.copyWith(isRead: true)
+                    : n,
+              )
+              .toList(),
+        ),
+      );
+    }
     await _repository.markAsRead(event.notificationId);
   }
 
@@ -51,6 +65,16 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     NotificationMarkAllReadRequested event,
     Emitter<NotificationState> emit,
   ) async {
+    final current = state;
+    if (current is NotificationLoaded) {
+      emit(
+        NotificationLoaded(
+          current.notifications
+              .map((n) => n.copyWith(isRead: true))
+              .toList(),
+        ),
+      );
+    }
     await _repository.markAllAsRead();
   }
 
