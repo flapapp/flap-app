@@ -7,11 +7,29 @@ export '../../domain/entities/challenge_entity.dart';
 
 part 'challenge.g.dart';
 
-/// Full challenge length in whole days (start → end) for list/detail UI. Minimum 1.
+/// Legacy whole-day bucket (ceil of hours ÷ 24), minimum 1.
+///
+/// Sub-day spans (e.g. 1 hour) also become **1** here; do not show this value
+/// with a “days” label. Use [challengeDurationDisplayFromSpan] for UI.
 int challengeDurationDaysFromSpan(DateTime start, DateTime end) {
   if (!end.isAfter(start)) return 1;
   final d = (end.difference(start).inHours / 24).ceil();
   return d < 1 ? 1 : d;
+}
+
+/// Localized total length from [start] through [end] (hours if under 24h, else days).
+String challengeDurationDisplayFromSpan(DateTime start, DateTime end) {
+  if (!end.isAfter(start)) return tr('il_f8b8883f0c');
+  final minutes = end.difference(start).inMinutes;
+  if (minutes <= 0) return tr('il_f8b8883f0c');
+  final ceilHours = (minutes + 59) ~/ 60;
+  if (ceilHours < 24) {
+    if (ceilHours == 1) return tr('il_f8b8883f0c');
+    return tr('il_fc64c33206', namedArgs: {'hours': '$ceilHours'});
+  }
+  final days = (ceilHours / 24).ceil();
+  if (days == 1) return tr('il_fa665d95d2');
+  return '$days ${tr('il_ab51004e9d')}';
 }
 
 DateTime? _challengeDateTimeOrNull(dynamic value) {
@@ -21,14 +39,19 @@ DateTime? _challengeDateTimeOrNull(dynamic value) {
   return null;
 }
 
-/// [row] is a Supabase/JSON map; supports `starts_at` / `ends_at` and camelCase keys.
-int challengeDurationDaysFromRow(Map<String, dynamic> row) {
+(DateTime?, DateTime?) _challengeStartEndFromRow(Map<String, dynamic> row) {
   final start = _challengeDateTimeOrNull(row['starts_at']) ??
       _challengeDateTimeOrNull(row['start_date']) ??
       _challengeDateTimeOrNull(row['startDate']);
   final end = _challengeDateTimeOrNull(row['ends_at']) ??
       _challengeDateTimeOrNull(row['end_date']) ??
       _challengeDateTimeOrNull(row['endDate']);
+  return (start, end);
+}
+
+/// [row] is a Supabase/JSON map; supports `starts_at` / `ends_at` and camelCase keys.
+int challengeDurationDaysFromRow(Map<String, dynamic> row) {
+  final (start, end) = _challengeStartEndFromRow(row);
   if (start == null || end == null) {
     final raw = row['duration'];
     if (raw is int) return raw;
@@ -36,6 +59,18 @@ int challengeDurationDaysFromRow(Map<String, dynamic> row) {
     return 1;
   }
   return challengeDurationDaysFromSpan(start, end);
+}
+
+/// Same date resolution as [challengeDurationDaysFromRow]; prefers span over raw `duration`.
+String challengeDurationDisplayFromRow(Map<String, dynamic> row) {
+  final (start, end) = _challengeStartEndFromRow(row);
+  if (start == null || end == null) {
+    final raw = row['duration'];
+    if (raw is int && raw > 0) return '$raw ${tr('il_ab51004e9d')}';
+    if (raw is num && raw > 0) return '${raw.round()} ${tr('il_ab51004e9d')}';
+    return tr('il_fa665d95d2');
+  }
+  return challengeDurationDisplayFromSpan(start, end);
 }
 
 ChallengeType _challengeTypeFromJson(Object? json) =>
@@ -510,4 +545,9 @@ String challengeTypeToSlug(ChallengeType type) {
     case ChallengeType.other:
       return 'other';
   }
+}
+
+extension ChallengeDurationLabel on Challenge {
+  String get durationDisplayLabel =>
+      challengeDurationDisplayFromSpan(startDate, endDate);
 }

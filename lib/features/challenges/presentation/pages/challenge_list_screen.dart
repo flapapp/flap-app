@@ -441,7 +441,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                     const SizedBox(width: 20),
                     _buildStatItem(
                       '⏰',
-                      '${challenge.duration} ${tr('il_ab51004e9d')}',
+                      challenge.durationDisplayLabel,
                     ),
                   ],
                 ),

@@ -1603,6 +1603,7 @@
   "video_challenge_join_intro": "You are joining the challenge \"{title}\"",
   "video_challenge_join_entry_fee": "Entry fee: {fee} coins",
   "video_voting_ends_in_days": "Voting ends in: {days} days",
+  "video_voting_ends_in_hours": "Voting ends in: {hours} h",
   "video_current_rating_value": "Current rating: {rating}",
   "video_rating_after_match_by": "{voter} rated you after the match",
   "coin_ledger_badge_purchase": "Badge purchase: {name}",

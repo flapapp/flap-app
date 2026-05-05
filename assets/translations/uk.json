@@ -1603,6 +1603,7 @@
   "video_challenge_join_intro": "Ви приєднуєтеся до челенджу \"{title}\"",
   "video_challenge_join_entry_fee": "Ставка входу: {fee} монет",
   "video_voting_ends_in_days": "До завершення голосування: {days} дн.",
+  "video_voting_ends_in_hours": "До завершення голосування: {hours} год",
   "video_current_rating_value": "Поточний рейтинг: {rating}",
   "video_rating_after_match_by": "{voter} оцінив вас після матчу",
   "coin_ledger_badge_purchase": "Покупка бейджу: {name}",

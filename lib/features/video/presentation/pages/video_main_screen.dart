@@ -2269,7 +2269,7 @@ Widget build(BuildContext context) {
     final maxParticipants = challenge['maxParticipants'] ?? 50;
     final prizePool = (challenge['prizePool'] ?? 0.0).toDouble();
     final entryFee = challenge['entryFee'] ?? 10;
-    final duration = challengeDurationDaysFromRow(
+    final durationLabel = challengeDurationDisplayFromRow(
       Map<String, dynamic>.from(challenge),
     );
     final creatorId = (challenge['creatorId'] ?? '').toString();
@@ -2302,8 +2302,18 @@ Widget build(BuildContext context) {
     final isCompleted = status == 'completed' || isCompletedByDate;
     final displayStatus = isCompleted ? 'completed' : status;
     final remaining = votingDeadline?.difference(now) ?? Duration.zero;
-    final remainingDays =
-        remaining.inSeconds <= 0 ? 0 : (remaining.inHours / 24).ceil();
+    final remainingSecs = remaining.inSeconds;
+    // Whole hours left (ceil). Do not map <24h to "1 day" via hours/24.ceil().
+    final remainingCeilHours = remainingSecs <= 0
+        ? 0
+        : (remainingSecs + 3599) ~/ 3600;
+    final useHoursForVotingCountdown =
+        remainingCeilHours > 0 && remainingCeilHours < 24;
+    final remainingDays = remainingCeilHours <= 0
+        ? 0
+        : useHoursForVotingCountdown
+            ? 0
+            : (remainingCeilHours / 24).ceil();
     final totalSeconds = votingDeadline != null
         ? votingDeadline.difference(createdAt).inSeconds
         : 0;
@@ -2446,7 +2456,7 @@ Widget build(BuildContext context) {
                     const Icon(Icons.access_time, color: Colors.white70, size: 16),
                     const SizedBox(width: 6),
                     Text(
-                      '$duration ${tr('il_ab51004e9d')}',
+                      durationLabel,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -2511,10 +2521,17 @@ Widget build(BuildContext context) {
                           Text(
                             isCompleted
                                 ? tr('il_5042fbee3b')
-                                : tr(
-                                    'video_voting_ends_in_days',
-                                    namedArgs: {'days': '$remainingDays'},
-                                  ),
+                                : useHoursForVotingCountdown
+                                    ? tr(
+                                        'video_voting_ends_in_hours',
+                                        namedArgs: {
+                                          'hours': '$remainingCeilHours',
+                                        },
+                                      )
+                                    : tr(
+                                        'video_voting_ends_in_days',
+                                        namedArgs: {'days': '$remainingDays'},
+                                      ),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -2524,7 +2541,14 @@ Widget build(BuildContext context) {
                           Text(
                             isCompleted
                                 ? tr('il_22a970d2e5')
-                                : '$remainingDays ${tr('il_18ac3e7343')}',
+                                : useHoursForVotingCountdown
+                                    ? tr(
+                                        'il_fc64c33206',
+                                        namedArgs: {
+                                          'hours': '$remainingCeilHours',
+                                        },
+                                      )
+                                    : '$remainingDays ${tr('il_18ac3e7343')}',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 12,
