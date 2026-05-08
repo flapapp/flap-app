@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "719326713171",
-    "project_id": "flap-73e58",
-    "storage_bucket": "flap-73e58.firebasestorage.app"
+    "project_number": "1094049674871",
+    "project_id": "flap-app-prod",
+    "storage_bucket": "flap-app-prod.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:719326713171:android:73646fd949497d25a23da6",
+        "mobilesdk_app_id": "1:1094049674871:android:fdb8c7f0ce8d1dc1dfb872",
         "android_client_info": {
-          "package_name": "com.flapdev.flap_app"
+          "package_name": "com.flap.flap_app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyD7A5vJpCu0TXQ5-1YM6nTIBZC73mQ35Bk"
+          "current_key": "AIzaSyDAGkC1PdHjXb3xOhy3dYGZ4N1eafaFqbE"
         }
       ],
       "services": {
