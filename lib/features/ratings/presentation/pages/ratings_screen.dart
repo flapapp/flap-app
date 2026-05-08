@@ -157,7 +157,7 @@ class _RatingsScreenState extends State<RatingsScreen>
         elevation: 0,
         title: Row(
           children: [
-            // FLAP logo
+            // Flap logo
             Container(
               width: 32,
               height: 32,

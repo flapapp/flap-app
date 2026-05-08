@@ -1,11 +1,11 @@
 {
-    "name": "flap_app",
-    "short_name": "flap_app",
+    "name": "Flap",
+    "short_name": "Flap",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#1e7d32",
-    "description": "A new Flutter project.",
+    "description": "Flap",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

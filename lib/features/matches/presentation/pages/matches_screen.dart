@@ -602,7 +602,7 @@ class _MatchesScreenState extends State<MatchesScreen>
               ),
               const SizedBox(width: 10),
               const Text(
-                'FLAP',
+                'Flap',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,

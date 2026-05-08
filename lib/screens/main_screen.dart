@@ -88,7 +88,7 @@ class _MainScreenState extends State<MainScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'FLAP',
+                    'Flap',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,

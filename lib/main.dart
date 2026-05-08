@@ -142,7 +142,7 @@ class _MyAppState extends State<MyApp> {
       ),
       child: MaterialApp.router(
         debugShowCheckedModeBanner: false,
-        title: 'FLAP',
+        title: 'Flap',
         localizationsDelegates: context.localizationDelegates,
         supportedLocales: context.supportedLocales,
         locale: context.locale,

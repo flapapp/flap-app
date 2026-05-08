@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
-        android:label="flap_app"
+        android:label="Flap"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <meta-data

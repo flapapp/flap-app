@@ -102,7 +102,7 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 30),
                   const Text(
-                    'FLAP',
+                    'Flap',
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w800,

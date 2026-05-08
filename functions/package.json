@@ -1,6 +1,6 @@
 {
   "name": "functions",
-  "description": "Cloud Functions for FLAP",
+  "description": "Cloud Functions for Flap",
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",

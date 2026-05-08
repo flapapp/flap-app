@@ -49,7 +49,7 @@ void main() {
     );
 
     expect(find.byType(WelcomeScreen), findsOneWidget);
-    expect(find.text('FLAP'), findsOneWidget);
+    expect(find.text('Flap'), findsOneWidget);
     expect(find.text('УВІЙТИ'), findsOneWidget);
     expect(find.text('РЕЄСТРАЦІЯ'), findsOneWidget);
 

@@ -14,7 +14,7 @@ Future<void> notificationBackgroundMessageHandler(RemoteMessage message) async {
 
 class FcmTransportService {
   static const _channelId = 'flap_notifications';
-  static const _channelName = 'FLAP Notifications';
+  static const _channelName = 'Flap Notifications';
 
   FirebaseMessaging get _messaging => FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications =
@@ -94,7 +94,7 @@ class FcmTransportService {
           const AndroidNotificationChannel(
             _channelId,
             _channelName,
-            description: 'Notifications from FLAP app',
+            description: 'Notifications from Flap',
             importance: Importance.high,
           ),
         );
