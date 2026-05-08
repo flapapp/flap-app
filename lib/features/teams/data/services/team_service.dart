@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -10,6 +11,39 @@ import '../../data/models/team_invite.dart';
 import '../../data/models/team_join_request.dart';
 import '../../data/models/team_match_request.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
+
+/// Builds the parameter map for [TeamService.respondToMatchRequest] when the
+/// caller is accepting. Pure function so callers and tests share one source
+/// of truth for the Supabase RPC contract.
+@visibleForTesting
+Map<String, dynamic> buildAcceptTeamMatchRpcParams({
+  required String requestId,
+  required List<String> confirmedRoster,
+}) {
+  final cleaned = <String>{};
+  for (final id in confirmedRoster) {
+    final v = id.trim();
+    if (v.isNotEmpty) cleaned.add(v);
+  }
+  return <String, dynamic>{
+    'p_request_id': requestId,
+    if (cleaned.isNotEmpty) 'p_roster': cleaned.toList(growable: false),
+  };
+}
+
+@visibleForTesting
+Map<String, dynamic> buildDeclineTeamMatchRpcParams({
+  required String requestId,
+}) {
+  return <String, dynamic>{'p_request_id': requestId};
+}
+
+@visibleForTesting
+Map<String, dynamic> buildCancelTeamMatchRpcParams({
+  required String requestId,
+}) {
+  return <String, dynamic>{'p_request_id': requestId};
+}
 
 class TeamService {
   TeamService._();
@@ -413,18 +447,52 @@ class TeamService {
     }
   }
 
-  Stream<List<TeamMatchRequest>> watchMatchRequests(String teamId) {
+  /// Match invites where [teamId] is the **target** (invited) team.
+  Stream<List<TeamMatchRequest>> watchIncomingTeamMatchInvites(String teamId) {
     return _sb
         .from('team_match_requests')
         .stream(primaryKey: ['id'])
         .asyncMap((rows) {
       final filtered = (rows as List<dynamic>).where((raw) {
         final row = raw as Map<String, dynamic>;
-        return (row['requesting_team_id'] ?? '').toString() == teamId &&
-            (row['status'] ?? '').toString() == 'pending';
+        return (row['target_team_id'] ?? '').toString() == teamId;
       }).toList();
-      return _mapMatchRequests(filtered);
+      return _mapMatchRequestsForViewer(filtered, teamId);
     });
+  }
+
+  /// Match requests **sent by** [teamId].
+  Stream<List<TeamMatchRequest>> watchOutgoingTeamMatchRequests(String teamId) {
+    return _sb
+        .from('team_match_requests')
+        .stream(primaryKey: ['id'])
+        .asyncMap((rows) {
+      final filtered = (rows as List<dynamic>).where((raw) {
+        final row = raw as Map<String, dynamic>;
+        return (row['requesting_team_id'] ?? '').toString() == teamId;
+      }).toList();
+      return _mapMatchRequestsForViewer(filtered, teamId);
+    });
+  }
+
+  /// Teams where [userId] is captain or vice-captain (visible via RLS).
+  Future<List<AppTeam>> fetchTeamsWhereUserIsOfficer(String userId) async {
+    final rows = await _sb
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', userId)
+        .inFilter('role', ['captain', 'vice_captain']);
+    final ids = (rows as List<dynamic>)
+        .map((r) => (r as Map<String, dynamic>)['team_id'].toString())
+        .toSet()
+        .toList();
+    final out = <AppTeam>[];
+    for (final id in ids) {
+      final t = await _loadTeam(id);
+      if (t != null) out.add(t);
+    }
+    out.sort((a, b) => a.name.compareTo(b.name));
+    return out;
   }
 
   Future<void> sendMatchRequest({
@@ -453,44 +521,88 @@ class TeamService {
     // Backend trigger handles team match request notifications.
   }
 
+  /// Accept/decline a team match invitation.
+  ///
+  /// Routed through SECURITY DEFINER RPCs so the invited team's
+  /// `match_teams` row + `match_team_rosters` are created atomically. Direct
+  /// table UPDATEs were not enough: roster propagation drives both
+  /// participation visibility (`can_view_match`, "My Matches") and player /
+  /// team statistics aggregation. See migration
+  /// `20260508120000_team_match_acceptance_rpc_and_backfill.sql`.
   Future<void> respondToMatchRequest({
     required TeamMatchRequest request,
     required bool accept,
     List<String> confirmedRoster = const [],
   }) async {
-    await _sb.from('team_match_requests').update({
-      'status': accept ? 'accepted' : 'declined',
-      'responded_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', request.id);
-
-    String? assignedTeamKey;
-
     if (accept) {
-      assignedTeamKey = 'team';
-    }
-
-    if (accept && assignedTeamKey != null && confirmedRoster.isNotEmpty) {
-      // Backend trigger handles roster invite notifications.
+      await _sb.rpc(
+        'accept_team_match_request',
+        params: buildAcceptTeamMatchRpcParams(
+          requestId: request.id,
+          confirmedRoster: confirmedRoster,
+        ),
+      );
+    } else {
+      await _sb.rpc(
+        'decline_team_match_request',
+        params: buildDeclineTeamMatchRpcParams(requestId: request.id),
+      );
     }
   }
 
+  /// Cancel an outgoing team match request (host side).
+  Future<void> cancelMatchRequest({required String requestId}) async {
+    await _sb.rpc(
+      'cancel_team_match_request',
+      params: buildCancelTeamMatchRpcParams(requestId: requestId),
+    );
+  }
+
   Future<List<AppTeam>> searchTeams(String query, {int limit = 10}) async {
-    final trimmed = query.trim().toLowerCase();
+    final trimmed = query.trim();
     if (trimmed.isEmpty) return [];
-    final snap = await _sb.from('teams').select().limit(200);
+    final escaped = trimmed
+        .replaceAll(r'\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
+    final pattern = '%$escaped%';
+
+    final byName = await _sb
+        .from('teams')
+        .select('id')
+        .ilike('name', pattern)
+        .limit(limit * 3);
+    final byCity = await _sb
+        .from('teams')
+        .select('id')
+        .ilike('city', pattern)
+        .limit(limit * 2);
+
+    final ids = <String>{
+      ...(byName as List<dynamic>)
+          .map((row) => (row as Map<String, dynamic>)['id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty),
+      ...(byCity as List<dynamic>)
+          .map((row) => (row as Map<String, dynamic>)['id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty),
+    };
+
     final matches = <AppTeam>[];
-    for (final raw in snap as List<dynamic>) {
-      final data = raw as Map<String, dynamic>;
-      final name = (data['name'] ?? '').toString();
-      final city = (data['city'] ?? '').toString();
-      if (name.toLowerCase().contains(trimmed) ||
-          city.toLowerCase().contains(trimmed)) {
-        final t = await _loadTeam((data['id'] ?? '').toString());
-        if (t != null) matches.add(t);
-      }
+    for (final id in ids) {
+      final team = await _loadTeam(id);
+      if (team != null) matches.add(team);
     }
-    matches.sort((a, b) => a.name.compareTo(b.name));
-    return matches.take(limit).toList();
+
+    final lower = trimmed.toLowerCase();
+    matches.sort((a, b) {
+      final aName = a.name.toLowerCase();
+      final bName = b.name.toLowerCase();
+      final aStarts = aName.startsWith(lower) ? 1 : 0;
+      final bStarts = bName.startsWith(lower) ? 1 : 0;
+      if (aStarts != bStarts) return bStarts - aStarts;
+      return aName.compareTo(bName);
+    });
+    return matches.take(limit).toList(growable: false);
   }
 
   Future<List<Map<String, dynamic>>> searchPlayers(String query,
@@ -689,16 +801,22 @@ class TeamService {
     return out;
   }
 
-  Future<List<TeamMatchRequest>> _mapMatchRequests(List<dynamic> rows) async {
+  Future<List<TeamMatchRequest>> _mapMatchRequestsForViewer(
+    List<dynamic> rows,
+    String viewerTeamId,
+  ) async {
     final out = <TeamMatchRequest>[];
     for (final raw in rows) {
       final row = raw as Map<String, dynamic>;
       final requestId = row['id'].toString();
-      final targetTeamId = (row['target_team_id'] ?? '').toString();
-      final targetTeam = await _sb
+      final requestingId = (row['requesting_team_id'] ?? '').toString();
+      final targetId = (row['target_team_id'] ?? '').toString();
+      final otherTeamId =
+          viewerTeamId == requestingId ? targetId : requestingId;
+      final otherTeam = await _sb
           .from('teams')
           .select('name')
-          .eq('id', targetTeamId)
+          .eq('id', otherTeamId)
           .maybeSingle();
       final rosterRows = await _sb
           .from('team_match_request_players')
@@ -707,9 +825,9 @@ class TeamService {
       out.add(TeamMatchRequest.fromJson(<String, dynamic>{
         'id': requestId,
         'matchId': row['match_id'],
-        'teamId': row['requesting_team_id'],
-        'opponentTeamId': targetTeamId,
-        'opponentName': (targetTeam?['name'] ?? '').toString(),
+        'teamId': viewerTeamId,
+        'opponentTeamId': otherTeamId,
+        'opponentName': (otherTeam?['name'] ?? '').toString(),
         'createdBy': row['created_by'],
         'status': row['status'],
         'createdAt': row['created_at'],

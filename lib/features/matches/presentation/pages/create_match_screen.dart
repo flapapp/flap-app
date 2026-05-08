@@ -8,6 +8,7 @@ import '../../application/create_match_command.dart';
 import '../../application/create_match_use_case.dart';
 import '../../../teams/data/models/app_team.dart';
 import 'match_invite_search_screen.dart';
+import 'team_invite_search_screen.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../features/teams/domain/repositories/teams_repository.dart';
 import '../../../../widgets/player_avatar_button.dart';
@@ -62,9 +63,6 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   List<String> _selectedRoster = [];
   Map<String, String> _teamMemberNames = {};
   AppTeam? _opponentTeam;
-  final TextEditingController _opponentSearchCtrl = TextEditingController();
-  List<AppTeam> _opponentResults = [];
-  bool _opponentSearching = false;
 
   @override
   void initState() {
@@ -469,6 +467,8 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                   _teamMode = value;
                   if (value) {
                     _autoBalance = false;
+                    _selectedInviteFriendIds.clear();
+                    _selectedInviteUsers.clear();
                     if (_selectedTeam == null && _myTeams.isNotEmpty) {
                       _selectedTeam = _myTeams.first;
                       _selectedRoster = _selectedTeam!.memberIds
@@ -807,7 +807,9 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
           autoBalance: _autoBalance,
           isPrivate: _isPrivate,
           teamMode: _teamMode,
-          selectedInviteFriendIds: _selectedInviteFriendIds.toList(),
+          selectedInviteFriendIds: _teamMode
+              ? const <String>[]
+              : _selectedInviteFriendIds.toList(),
           selectedRoster: List<String>.from(_selectedRoster),
           selectedTeam: _selectedTeam,
           opponentTeam: _opponentTeam,
@@ -819,6 +821,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
         result.matchId,
         _titleController.text.trim(),
         result.organizerName,
+        allowIndividualInvites: !_teamMode,
       );
     } catch (e) {
       if (!mounted) return;
@@ -998,6 +1001,12 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                         itemBuilder: (_, index) {
                           final team = results[index];
                           return ListTile(
+                            leading: TeamLogoButton(
+                              teamId: team.id,
+                              teamName: team.name,
+                              logoUrl: team.logoUrl,
+                              size: 36,
+                            ),
                             title: Text(team.name,
                                 style: const TextStyle(color: Colors.white)),
                             subtitle: Text(
@@ -1009,10 +1018,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                               if (forHost) {
                                 _onSelectTeam(team);
                               } else {
-                                setState(() {
-                                  _opponentTeam = team;
-                                  _opponentResults = [];
-                                });
+                                setState(() => _opponentTeam = team);
                               }
                             },
                           );
@@ -1150,23 +1156,23 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Wrap(
-              spacing: 8,
-              children: [
-                TextButton.icon(
-                  onPressed: () => _openTeamSearchSheet(forHost: true),
-                  icon: const Icon(Icons.swap_horiz, color: Colors.white70),
-                  label: Text(
-                    tr('il_c0bf75bd78'),
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // const SizedBox(height: 10),
+          // Align(
+          //   alignment: Alignment.centerRight,
+          //   child: Wrap(
+          //     spacing: 8,
+          //     children: [
+          //       TextButton.icon(
+          //         onPressed: () => _openTeamSearchSheet(forHost: true),
+          //         icon: const Icon(Icons.swap_horiz, color: Colors.white70),
+          //         label: Text(
+          //           tr('il_c0bf75bd78'),
+          //           style: const TextStyle(color: Colors.white70),
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
           const SizedBox(height: 12),
           if (hostIsMine) ...[
             Text(
@@ -1215,35 +1221,33 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             ),
           ],
           const SizedBox(height: 16),
-          Text(
-            tr('il_ecbd71fddb'),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _opponentSearchCtrl,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              labelText: tr('il_c81e115cc3'),
-              labelStyle: const TextStyle(color: Colors.white70),
-              filled: true,
-              fillColor: Colors.white.withOpacity(0.04),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+          Row(
+            children: [
+              Text(
+                tr('il_ecbd71fddb'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF4caf50)),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: _openOpponentTeamSearchPage,
+                icon: const Icon(Icons.search, color: Colors.white),
+                label: Text(
+                  _opponentTeam == null
+                      ? tr('il_7ec0bce7a1')
+                      : tr('il_1f6c4a2d9e'),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF4caf50)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
               ),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.search, color: Colors.white70),
-                onPressed: _searchOpponentTeams,
-              ),
-            ),
+            ],
           ),
           if (_opponentTeam != null)
             ListTile(
@@ -1252,37 +1256,14 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                 tr('il_4d80ab83ac', args: [_opponentTeam!.name]),
                 style: const TextStyle(color: Colors.white),
               ),
+              subtitle: Text(
+                '${_opponentTeam!.memberIds.length} ${tr('il_afc0d772a2')}',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
               trailing: IconButton(
                 icon: const Icon(Icons.clear, color: Colors.white70),
                 onPressed: () => setState(() => _opponentTeam = null),
               ),
-            ),
-          if (_opponentSearching)
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: LinearProgressIndicator(),
-            )
-          else if (_opponentResults.isNotEmpty)
-            Column(
-              children: _opponentResults.map((team) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    team.name,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  subtitle: Text(
-                    '${team.memberIds.length} ${tr('il_afc0d772a2')}',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                  onTap: () {
-                    setState(() {
-                      _opponentTeam = team;
-                      _opponentResults = [];
-                    });
-                  },
-                );
-              }).toList(),
             ),
         ],
       ),
@@ -1396,11 +1377,25 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     }
   }
 
+  Future<void> _openOpponentTeamSearchPage() async {
+    final selected = await Navigator.of(context).push<AppTeam>(
+      MaterialPageRoute(
+        builder: (_) => TeamInviteSearchScreen(
+          initialSelectedTeam: _opponentTeam,
+          excludedTeamId: _selectedTeam?.id,
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    setState(() => _opponentTeam = selected);
+  }
+
   Future<void> _showMatchCreatedDialog(
     String matchId,
     String matchTitle,
-    String organizerName,
-  ) async {
+    String organizerName, {
+    required bool allowIndividualInvites,
+  }) async {
     if (!mounted) return;
     final action = await showDialog<String>(
       context: context,
@@ -1419,10 +1414,11 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             onPressed: () => Navigator.pop(context, 'done'),
             child: Text(tr('il_11a6767d56')),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, 'invite'),
-            child: Text(tr('il_146ee72e30')),
-          ),
+          if (allowIndividualInvites)
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, 'invite'),
+              child: Text(tr('il_146ee72e30')),
+            ),
         ],
       ),
     );
@@ -1507,26 +1503,12 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     }
   }
 
-  Future<void> _searchOpponentTeams() async {
-    final query = _opponentSearchCtrl.text.trim();
-    if (query.isEmpty) return;
-    setState(() => _opponentSearching = true);
-    final results = await _teamsRepo.searchTeams(query, limit: 5);
-    if (!mounted) return;
-    setState(() {
-      _opponentResults =
-          results.where((team) => team.id != _selectedTeam?.id).toList();
-      _opponentSearching = false;
-    });
-  }
-
 @override
 void dispose() {
   _titleController.dispose();
   _descriptionController.dispose();
   _locationController.dispose();
   _cityController.dispose();
-  _opponentSearchCtrl.dispose();
   _friendsScrollController.dispose();
   super.dispose();
 }

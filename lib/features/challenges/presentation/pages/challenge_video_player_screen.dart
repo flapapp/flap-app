@@ -460,21 +460,38 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                           ],
                         ),
                         const SizedBox(height: 16),
+                        // Full-width slider with enlarged thumb + overlay
+                        // for precise dragging across all device sizes.
+                        // padding: EdgeInsets.zero removes the Material 3
+                        // default outer slider padding so the track spans
+                        // the full inner width of the container.
                         RepaintBoundary(
                           child: ValueListenableBuilder<double>(
                             valueListenable: _tempRatingNotifier,
                             builder: (context, tempValue, _) => SliderTheme(
                               data: SliderTheme.of(context).copyWith(
                                 activeTrackColor: const Color(0xFF4caf50),
-                                inactiveTrackColor: const Color(0xFF4caf50).withOpacity(0.3),
+                                inactiveTrackColor:
+                                    const Color(0xFF4caf50).withOpacity(0.3),
                                 thumbColor: const Color(0xFF4caf50),
-                                overlayColor: const Color(0xFF4caf50).withOpacity(0.2),
-                                valueIndicatorColor: const Color(0xFF4caf50),
+                                overlayColor:
+                                    const Color(0xFF4caf50).withOpacity(0.2),
+                                trackHeight: 6,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 14,
+                                  elevation: 4,
+                                ),
+                                overlayShape: const RoundSliderOverlayShape(
+                                  overlayRadius: 28,
+                                ),
+                                valueIndicatorColor:
+                                    const Color(0xFF4caf50),
                                 valueIndicatorTextStyle: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
+                                padding: EdgeInsets.zero,
                               ),
                               child: Slider(
                                 value: tempValue,
@@ -485,7 +502,8 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                                   _tempRatingNotifier.value = value;
                                 },
                                 onChangeEnd: _hasVoted ? null : (value) {
-                                  final roundedValue = (value * 100).round() / 100;
+                                  final roundedValue =
+                                      (value * 100).round() / 100;
                                   _tempRating = roundedValue;
                                   _tempRatingNotifier.value = roundedValue;
                                   _rating = roundedValue;
@@ -495,34 +513,31 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                           ),
                         ),
                         // Rating scale
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                '0.00',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.6),
-                                  fontSize: 12,
-                                ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '0.00',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontSize: 12,
                               ),
-                              Text(
-                                '2.50',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.6),
-                                  fontSize: 12,
-                                ),
+                            ),
+                            Text(
+                              '2.50',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontSize: 12,
                               ),
-                              Text(
-                                '5.00',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.6),
-                                  fontSize: 12,
-                                ),
+                            ),
+                            Text(
+                              '5.00',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontSize: 12,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         // Vote Button

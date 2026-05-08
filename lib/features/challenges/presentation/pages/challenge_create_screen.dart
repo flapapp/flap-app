@@ -30,6 +30,11 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   final SupabaseClient _sb = Supabase.instance.client;
   static const int _maxVideoBytes = 25 * 1024 * 1024;
   static const Duration _maxVideoDuration = Duration(seconds: 10);
+  // Single source of truth for the participant cap so the prize-distribution
+  // preview, the persisted `max_participants` column and any future UI all
+  // agree. Bumping this changes both the cap and the "if it fills up"
+  // preview at the same time.
+  static const int _kChallengeMaxParticipants = 100;
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -1147,7 +1152,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
   }
 
   Widget _buildPrizeDistribution() {
-    final prizePool = _selectedEntryFee * 20; // Prize pool = entry fee × 20
+    // Honest "if it fills up" preview: cap × entry-fee. Replaces a hardcoded
+    // ×20 multiplier that was unrelated to the actual participant cap.
+    final maxPrizePool = computeChallengeMaxPrizePoolCoins(
+      maxParticipants: _kChallengeMaxParticipants,
+      entryFee: _selectedEntryFee,
+    );
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1157,12 +1167,25 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            tr(
+              'challenge_create_prize_max_disclaimer',
+              namedArgs: {'max': '$_kChallengeMaxParticipants'},
+            ),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(height: 12),
           _buildPrizeItem(
             '🥇',
             tr('il_6b25a21b71'),
             '50%',
-            (prizePool * 0.5).toInt(),
+            (maxPrizePool * 0.5).toInt(),
             Colors.amber,
           ),
           const SizedBox(height: 15),
@@ -1170,7 +1193,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             '🥈',
             tr('il_aaeaebca09'),
             '30%',
-            (prizePool * 0.3).toInt(),
+            (maxPrizePool * 0.3).toInt(),
             Colors.grey,
           ),
           const SizedBox(height: 15),
@@ -1178,7 +1201,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             '🥉',
             tr('il_bb8a4734dc'),
             '20%',
-            (prizePool * 0.2).toInt(),
+            (maxPrizePool * 0.2).toInt(),
             Colors.orange,
           ),
         ],
@@ -1378,12 +1401,12 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
       );
       final endDate = votingDeadline.add(Duration(hours: _votingHours));
 
-      // Compute prize pool
-      final prizePool = _selectedEntryFee * 20; // Prize pool = entry fee × 20
-
-      // Create challenge
+      // No `prizePool` carried on the entity: the canonical pot is always
+      // `participant_count × entry_fee` derived live from the database (see
+      // `computeChallengePrizePoolCoins`). Persisting a snapshot here would
+      // re-introduce drift between the create preview and the live cards.
       final challenge = Challenge(
-        id: '', // Assigned by Firestore
+        id: '', // Assigned server-side
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         type: _selectedType,
@@ -1400,9 +1423,9 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
         votingDeadline: votingDeadline,
         endDate: endDate,
         status: ChallengeStatus.submission,
-        maxParticipants: 100, // Max participants
+        maxParticipants: _kChallengeMaxParticipants,
         currentParticipants: 0,
-        prizePool: prizePool.toDouble(),
+        prizePool: 0,
         participants: [],
         submissions: [],
         votes: {},

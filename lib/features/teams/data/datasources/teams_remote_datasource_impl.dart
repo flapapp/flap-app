@@ -1,6 +1,7 @@
 import 'package:rxdart/rxdart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/team_stats.dart' show mapTeamStatsRowToLegacyShape;
 import 'teams_remote_datasource.dart';
 
 class TeamsRemoteDataSourceImpl implements TeamsRemoteDataSource {
@@ -35,6 +36,27 @@ class TeamsRemoteDataSourceImpl implements TeamsRemoteDataSource {
         vice.add(uid);
       }
     }
+
+    // Pull aggregated stats from `public.team_stats` so this bundle stays
+    // consistent with what the dedicated TeamStatsRemoteDataSource exposes.
+    final stats = await _client
+        .from('team_stats')
+        .select(
+          'wins,draws,losses,goals_for,goals_against,clean_sheets,'
+          'current_win_streak,current_unbeaten_streak,longest_win_streak,'
+          'recent_form,recent_matches,player_goals,'
+          'last_finished_match_at,updated_at',
+        )
+        .eq('team_id', teamId)
+        .maybeSingle();
+    final s = stats ?? const <String, dynamic>{};
+
+    int asInt(dynamic v) {
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    }
+
     return <String, dynamic>{
       'id': teamId,
       'name': team['name'],
@@ -47,13 +69,22 @@ class TeamsRemoteDataSourceImpl implements TeamsRemoteDataSource {
       'city': team['city'],
       'createdAt': team['created_at'],
       'updatedAt': team['updated_at'],
-      'wins': 0,
-      'losses': 0,
-      'draws': 0,
-      'goalsFor': 0,
-      'goalsAgainst': 0,
-      'playerGoals': <String, int>{},
-      'recentMatches': <Map<String, dynamic>>[],
+      'wins': asInt(s['wins']),
+      'losses': asInt(s['losses']),
+      'draws': asInt(s['draws']),
+      'goalsFor': asInt(s['goals_for']),
+      'goalsAgainst': asInt(s['goals_against']),
+      'cleanSheets': asInt(s['clean_sheets']),
+      'currentWinStreak': asInt(s['current_win_streak']),
+      'currentUnbeatenStreak': asInt(s['current_unbeaten_streak']),
+      'longestWinStreak': asInt(s['longest_win_streak']),
+      'recentForm':
+          ((s['recent_form'] as List?) ?? const []).cast<dynamic>(),
+      'recentMatches':
+          ((s['recent_matches'] as List?) ?? const []).cast<dynamic>(),
+      'playerGoals': (s['player_goals'] as Map?) ?? const <String, dynamic>{},
+      'lastFinishedMatchAt': s['last_finished_match_at'],
+      'statsUpdatedAt': s['updated_at'],
     };
   }
 
@@ -96,25 +127,38 @@ class TeamsRemoteDataSourceImpl implements TeamsRemoteDataSource {
 
   @override
   Stream<List<Map<String, dynamic>>> watchTeamStatsCollection() {
-    return _client.from('teams').stream(primaryKey: ['id']).asyncMap((rows) async {
-      final list = <Map<String, dynamic>>[];
-      for (final raw in (rows as List<dynamic>)) {
-        final t = raw as Map<String, dynamic>;
-        final id = t['id'] as String;
-        list.add(<String, dynamic>{
-          'id': id,
-          'teamName': t['name'],
-          'wins': 0,
-          'draws': 0,
-          'losses': 0,
-          'goalsFor': 0,
-          'goalsAgainst': 0,
-          'playerGoals': <String, int>{},
-          'recentMatches': <Map<String, dynamic>>[],
-          'updatedAt': t['updated_at'],
-        });
-      }
-      return list;
-    });
+    final teamsStream =
+        _client.from('teams').stream(primaryKey: ['id']);
+    final statsStream =
+        _client.from('team_stats').stream(primaryKey: ['team_id']);
+
+    return Rx.combineLatest2<List<Map<String, dynamic>>,
+        List<Map<String, dynamic>>, List<Map<String, dynamic>>>(
+      teamsStream,
+      statsStream.startWith(const <Map<String, dynamic>>[]),
+      (teamRows, statRows) {
+        final byTeamId = <String, Map<String, dynamic>>{
+          for (final s in statRows) (s['team_id']?.toString() ?? ''): s,
+        };
+        final list = <Map<String, dynamic>>[];
+        for (final t in teamRows) {
+          final id = t['id']?.toString() ?? '';
+          if (id.isEmpty) continue;
+          final s = byTeamId[id] ?? const <String, dynamic>{};
+          list.add(
+            mapTeamStatsRowToLegacyShape(
+              <String, dynamic>{
+                'team_name': t['name'],
+                'updated_at': t['updated_at'],
+                ...s,
+              },
+              fallbackName: (t['name'] ?? '').toString(),
+            )..putIfAbsent('id', () => id),
+          );
+        }
+        return list;
+      },
+    );
   }
 }
+

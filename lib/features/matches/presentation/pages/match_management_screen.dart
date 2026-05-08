@@ -9,6 +9,8 @@ import '../../../../core/di/injection.dart';
 import '../../application/match_management_actions_use_case.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../../data/models/match.dart';
+import '../../../teams/domain/repositories/teams_repository.dart';
+import '../../../teams/data/models/app_team.dart';
 import 'match_invite_search_screen.dart';
 import 'finish_match_flow_page.dart';
 import '../../../../widgets/team_logo_button.dart';
@@ -44,6 +46,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   late final bool _isOwner;
 
   MatchesRepository get _matchRepo => sl<MatchesRepository>();
+  TeamsRepository get _teamsRepo => sl<TeamsRepository>();
   MatchManagementActionsUseCase get _managementActions =>
       sl<MatchManagementActionsUseCase>();
   final SupabaseClient _sb = Supabase.instance.client;
@@ -154,6 +157,10 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
           .select()
           .eq('id', teamId)
           .maybeSingle();
+      final members = await _sb
+          .from('team_members')
+          .select('user_id')
+          .eq('team_id', teamId);
       final info = _ClubInfo(
         name: (data?['name'] ?? effectiveLabel).toString(),
         logoUrl: (data?['logo_url'] ?? '').toString(),
@@ -163,6 +170,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                     fallback?.averageRating ??
                     0)
                 .toDouble(),
+        memberCount: (members as List<dynamic>).length,
       );
       _clubCache[teamId] = info;
       return info;
@@ -710,7 +718,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
               const SizedBox(height: 20),
               if (!m.hasTeams && m.participants.length >= 2)
                 _buildAutoFormButton(),
-              if (m.hasTeams && !_editMode) ...[_buildBalanceAndManagement(m)],
+              if ((m.isTeamMatch || m.hasTeams) && !_editMode) ...[
+                _buildBalanceAndManagement(m),
+              ],
               if (_editMode) _buildEditingSection(m),
             ],
           ),
@@ -930,94 +940,135 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Widget _buildClubVsCard(Match m) {
-    return FutureBuilder<_ClubCardData>(
-      future: _prepareClubCardData(m),
-      builder: (context, snapshot) {
-        final infos =
-            snapshot.data?.infos ??
-            [
-              _ClubInfo.fromTeam(m.teamA, fallbackLabel: tr('il_e18d322f14')),
-              _ClubInfo.fromTeam(m.teamB, fallbackLabel: tr('il_aceaf5d9ac')),
-            ];
-        final ratings = snapshot.data?.ratings ?? _ratingsCache;
-
-        Widget buildSide(
-          _ClubInfo info,
-          List<String> roster,
-          double total,
-          String? teamId,
-        ) {
-          return Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                TeamLogoButton(
-                  teamId: teamId,
-                  teamName: info.name,
-                  logoUrl: info.logoUrl,
-                  size: 60,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  info.name,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${tr('il_9f29530464')}: ${total.toStringAsFixed(1)}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${roster.length} ${tr('players').toLowerCase()}',
-                  style: const TextStyle(color: Colors.white54, fontSize: 11),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final rosterA =
-            m.teamRosters['teamA'] ?? m.teamA?.playerIds ?? const <String>[];
-        final rosterB =
-            m.teamRosters['teamB'] ?? m.teamB?.playerIds ?? const <String>[];
-        final totalA = _teamTotalRating(rosterA, ratings, infos[0].rating ?? 0);
-        final totalB = _teamTotalRating(rosterB, ratings, infos[1].rating ?? 0);
-
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.02),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _sb
+          .from('team_match_requests')
+          .stream(primaryKey: ['id'])
+          .map(
+            (rows) => (rows as List<dynamic>)
+                .map((raw) => Map<String, dynamic>.from(raw as Map))
+                .where((row) => (row['match_id'] ?? '').toString() == m.id)
+                .toList(growable: false),
           ),
-          child: Row(
-            children: [
-              buildSide(infos[0], rosterA, totalA, m.teamAId),
-              Column(
-                children: [
-                  Text(
-                    tr('il_f130559f0e'),
-                    style: const TextStyle(
-                      color: Colors.white54,
-                      fontWeight: FontWeight.w700,
+      builder: (context, inviteSnap) {
+        final invite = _resolveManagementTeamInviteRequest(
+          m,
+          inviteSnap.data ?? const [],
+        );
+        final effectiveTeamAId = (m.teamAId ?? '').trim().isNotEmpty
+            ? (m.teamAId ?? '').trim()
+            : (invite?['requesting_team_id'] ?? '').toString();
+        final effectiveTeamBId = (invite?['target_team_id'] ?? '').toString().isNotEmpty
+            ? (invite?['target_team_id'] ?? '').toString()
+            : (m.teamBId ?? '').trim();
+
+        return FutureBuilder<_ClubCardData>(
+          future: _prepareClubCardData(
+            m,
+            teamAId: effectiveTeamAId,
+            teamBId: effectiveTeamBId,
+          ),
+          builder: (context, snapshot) {
+            final infos =
+                snapshot.data?.infos ??
+                [
+                  _ClubInfo.fromTeam(m.teamA, fallbackLabel: tr('il_e18d322f14')),
+                  _ClubInfo.fromTeam(m.teamB, fallbackLabel: tr('il_aceaf5d9ac')),
+                ];
+            final ratings = snapshot.data?.ratings ?? _ratingsCache;
+
+            Widget buildSide(
+              _ClubInfo info,
+              List<String> roster,
+              int playerCount,
+              double total,
+              String? teamId,
+            ) {
+              return Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    TeamLogoButton(
+                      teamId: teamId,
+                      teamName: info.name,
+                      logoUrl: info.logoUrl,
+                      size: 60,
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      info.name,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${tr('il_9f29530464')}: ${total.toStringAsFixed(1)}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$playerCount ${tr('players').toLowerCase()}',
+                      style: const TextStyle(color: Colors.white54, fontSize: 11),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final rosterA =
+                m.teamRosters['teamA'] ?? m.teamA?.playerIds ?? const <String>[];
+            final rosterB =
+                m.teamRosters['teamB'] ?? m.teamB?.playerIds ?? const <String>[];
+            final rosterStatusesA =
+                m.teamRosterStatus['teamA'] ?? const <String, String>{};
+            final rosterStatusesB =
+                m.teamRosterStatus['teamB'] ?? const <String, String>{};
+            final playerCountA =
+                rosterStatusesA.isNotEmpty
+                ? rosterStatusesA.length
+                : (rosterA.isNotEmpty ? rosterA.length : (infos[0].memberCount ?? 0));
+            final playerCountB =
+                rosterStatusesB.isNotEmpty
+                ? rosterStatusesB.length
+                : (rosterB.isNotEmpty ? rosterB.length : (infos[1].memberCount ?? 0));
+            final totalA = _teamTotalRating(rosterA, ratings, infos[0].rating ?? 0);
+            final totalB = _teamTotalRating(rosterB, ratings, infos[1].rating ?? 0);
+
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.02),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              ),
+              child: Row(
+                children: [
+                  buildSide(infos[0], rosterA, playerCountA, totalA, effectiveTeamAId),
+                  Column(
+                    children: [
+                      Text(
+                        tr('il_f130559f0e'),
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$playerCountA-$playerCountB',
+                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${rosterA.length}-${rosterB.length}',
-                    style: const TextStyle(color: Colors.white38, fontSize: 12),
-                  ),
+                  buildSide(infos[1], rosterB, playerCountB, totalB, effectiveTeamBId),
                 ],
               ),
-              buildSide(infos[1], rosterB, totalB, m.teamBId),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -1033,10 +1084,14 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
     return (wins / total) * 100;
   }
 
-  Future<_ClubCardData> _prepareClubCardData(Match m) async {
+  Future<_ClubCardData> _prepareClubCardData(
+    Match m, {
+    String? teamAId,
+    String? teamBId,
+  }) async {
     final infos = await Future.wait([
-      _getClubInfo(m.teamAId, m.teamA, fallbackLabel: tr('il_e18d322f14')),
-      _getClubInfo(m.teamBId, m.teamB, fallbackLabel: tr('il_aceaf5d9ac')),
+      _getClubInfo(teamAId ?? m.teamAId, m.teamA, fallbackLabel: tr('il_e18d322f14')),
+      _getClubInfo(teamBId ?? m.teamBId, m.teamB, fallbackLabel: tr('il_aceaf5d9ac')),
     ]);
 
     final rosterA =
@@ -1059,124 +1114,155 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Widget _buildManagementButtons(Match m) {
-    final totalTeams = m.teamCount ?? m.allTeams.length;
-    final awaitingTeamConfirmations =
-        m.isTeamMatch && !m.hasConfirmedPlayersForBothTeams;
-    final isOrganizer = AppAuth.currentUserId == m.organizerId;
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _sb
+          .from('team_match_requests')
+          .stream(primaryKey: ['id'])
+          .map(
+            (rows) => (rows as List<dynamic>)
+                .map((raw) => Map<String, dynamic>.from(raw as Map))
+                .where((row) => (row['match_id'] ?? '').toString() == m.id)
+                .toList(growable: false),
+          ),
+      builder: (context, snapshot) {
+        final invite = _resolveManagementTeamInviteRequest(
+          m,
+          snapshot.data ?? const [],
+        );
+        final effectiveTeamAId = (m.teamAId ?? '').trim().isNotEmpty
+            ? (m.teamAId ?? '').trim()
+            : (invite?['requesting_team_id'] ?? '').toString();
+        final rosterStatusesA =
+            m.teamRosterStatus['teamA'] ?? const <String, String>{};
+        final statusA = _resolveHostTeamStatus(
+          rawStatus: m.teamAStatus,
+          teamId: effectiveTeamAId,
+          rosterStatuses: rosterStatusesA,
+        );
+        final statusB = _normalizeTeamStatus(
+          invite != null ? (invite['status'] ?? '').toString() : m.teamBStatus,
+        );
+        final totalTeams = m.teamCount ?? m.allTeams.length;
+        final awaitingTeamConfirmations =
+            m.isTeamMatch &&
+            !(_isConfirmedStatus(statusA) && _isConfirmedStatus(statusB));
+        final isOrganizer = AppAuth.currentUserId == m.organizerId;
 
-    VoidCallback? primaryAction;
-    IconData primaryIcon = Icons.play_arrow;
-    String primaryLabel = tr('action_start_match_ui');
-    Color primaryColor = const Color(0xFF4caf50);
+        VoidCallback? primaryAction;
+        IconData primaryIcon = Icons.play_arrow;
+        String primaryLabel = tr('action_start_match_ui');
+        Color primaryColor = const Color(0xFF4caf50);
 
-    if (m.isInProgress) {
-      primaryIcon = Icons.flag;
-      primaryLabel = tr('finish_match');
-      primaryColor = const Color(0xFFFFA000);
-      primaryAction = totalTeams > 2
-          ? () {
-              setState(() {
-                _showResultForm = true;
-              });
-            }
-          : _showFinishMatchDialog;
-    } else if (m.isFinished) {
-      primaryIcon = Icons.check_circle;
-      primaryLabel = tr('status_finished');
-      primaryColor = Colors.grey;
-      primaryAction = null;
-    } else if (m.isCancelled) {
-      primaryIcon = Icons.cancel;
-      primaryLabel = tr('status_cancelled');
-      primaryColor = Colors.grey;
-      primaryAction = null;
-    } else {
-      if (awaitingTeamConfirmations) {
-        primaryIcon = Icons.hourglass_empty;
-        primaryLabel = tr('il_0e24d1fae8');
-        primaryColor = Colors.grey;
-        primaryAction = null;
-      } else {
-        primaryAction = _startMatch;
-      }
-    }
+        if (m.isInProgress) {
+          primaryIcon = Icons.flag;
+          primaryLabel = tr('finish_match');
+          primaryColor = const Color(0xFFFFA000);
+          primaryAction = totalTeams > 2
+              ? () {
+                  setState(() {
+                    _showResultForm = true;
+                  });
+                }
+              : _showFinishMatchDialog;
+        } else if (m.isFinished) {
+          primaryIcon = Icons.check_circle;
+          primaryLabel = tr('status_finished');
+          primaryColor = Colors.grey;
+          primaryAction = null;
+        } else if (m.isCancelled) {
+          primaryIcon = Icons.cancel;
+          primaryLabel = tr('status_cancelled');
+          primaryColor = Colors.grey;
+          primaryAction = null;
+        } else {
+          if (awaitingTeamConfirmations) {
+            primaryIcon = Icons.hourglass_empty;
+            primaryLabel = tr('il_0e24d1fae8');
+            primaryColor = Colors.grey;
+            primaryAction = null;
+          } else {
+            primaryAction = _startMatch;
+          }
+        }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: primaryAction,
-                icon: Icon(primaryIcon, color: Colors.white),
-                label: Text(
-                  primaryLabel,
-                  style: const TextStyle(color: Colors.white),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: primaryAction,
+                    icon: Icon(primaryIcon, color: Colors.white),
+                    label: Text(
+                      primaryLabel,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
+                const SizedBox(width: 12),
+                if (!m.isFinished && !m.isCancelled)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final ok = await _confirm(
+                          tr('il_8c82a6c729'),
+                          tr('il_ff7e15efc2'),
+                        );
+                        if (ok == true) await _cancelMatch();
+                      },
+                      icon: const Icon(Icons.cancel, color: Colors.white),
+                      label: Text(
+                        tr('cancel'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE53935),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(width: 12),
-            if (!m.isFinished && !m.isCancelled)
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final ok = await _confirm(
-                      tr('il_8c82a6c729'),
-                      tr('il_ff7e15efc2'),
-                    );
-                    if (ok == true) await _cancelMatch();
-                  },
-                  icon: const Icon(Icons.cancel, color: Colors.white),
-                  label: Text(
-                    tr('cancel'),
-                    style: const TextStyle(color: Colors.white),
+            if (!m.isFinished &&
+                !m.isCancelled &&
+                !m.isInProgress &&
+                awaitingTeamConfirmations) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.white54, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      tr('il_1cfd8a014c'),
+                      style: const TextStyle(color: Colors.white60, fontSize: 13),
+                    ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE53935),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
+                ],
               ),
-          ],
-        ),
-        if (!m.isFinished &&
-            !m.isCancelled &&
-            !m.isInProgress &&
-            awaitingTeamConfirmations) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.info_outline, color: Colors.white54, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  tr('il_1cfd8a014c'),
-                  style: const TextStyle(color: Colors.white60, fontSize: 13),
+            ],
+            if (isOrganizer &&
+                !m.isInProgress &&
+                !m.isFinished &&
+                !m.isCancelled) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _deleteMatch,
+                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                label: Text(
+                  tr('il_4a54daa086'),
+                  style: const TextStyle(color: Colors.redAccent),
                 ),
               ),
             ],
-          ),
-        ],
-        if (isOrganizer &&
-            !m.isInProgress &&
-            !m.isFinished &&
-            !m.isCancelled) ...[
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: _deleteMatch,
-            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-            label: Text(
-              tr('il_4a54daa086'),
-              style: const TextStyle(color: Colors.redAccent),
-            ),
-          ),
-        ],
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -1376,106 +1462,181 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Widget _buildTeamConfirmationCard(Match m, bool isOrganizer) {
-    final teamAName = m.teamA?.name ?? tr('il_e18d322f14');
-    final teamBName = m.teamB?.name ?? tr('il_aceaf5d9ac');
-    final rosterA =
-        m.teamRosters['teamA'] ?? m.teamA?.playerIds ?? const <String>[];
-    final rosterB =
-        m.teamRosters['teamB'] ?? m.teamB?.playerIds ?? const <String>[];
-    final rosterStatusesA =
-        m.teamRosterStatus['teamA'] ?? const <String, String>{};
-    final rosterStatusesB =
-        m.teamRosterStatus['teamB'] ?? const <String, String>{};
-    final statusA = m.teamAStatus ?? 'pending';
-    final statusB = m.teamBStatus ?? 'pending';
-    final bothConfirmed = statusA == 'confirmed' && statusB == 'confirmed';
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _sb
+          .from('team_match_requests')
+          .stream(primaryKey: ['id'])
+          .map(
+            (rows) => (rows as List<dynamic>)
+                .map((raw) => Map<String, dynamic>.from(raw as Map))
+                .where((row) => (row['match_id'] ?? '').toString() == m.id)
+                .toList(growable: false),
+          ),
+      builder: (context, snapshot) {
+        final invite = _resolveManagementTeamInviteRequest(
+          m,
+          snapshot.data ?? const [],
+        );
+        final effectiveTeamAId = (m.teamAId ?? '').trim().isNotEmpty
+            ? (m.teamAId ?? '').trim()
+            : (invite?['requesting_team_id'] ?? '').toString();
+        final effectiveTeamBId = (invite?['target_team_id'] ?? '').toString().isNotEmpty
+            ? (invite?['target_team_id'] ?? '').toString()
+            : (m.teamBId ?? '').trim();
+        final rosterA =
+            m.teamRosters['teamA'] ?? m.teamA?.playerIds ?? const <String>[];
+        final rosterB =
+            m.teamRosters['teamB'] ?? m.teamB?.playerIds ?? const <String>[];
+        final rosterStatusesA =
+            m.teamRosterStatus['teamA'] ?? const <String, String>{};
+        final rosterStatusesB =
+            m.teamRosterStatus['teamB'] ?? const <String, String>{};
+        final statusA = _resolveHostTeamStatus(
+          rawStatus: m.teamAStatus,
+          teamId: effectiveTeamAId,
+          rosterStatuses: rosterStatusesA,
+        );
+        final statusB = _normalizeTeamStatus(
+          invite != null ? (invite['status'] ?? '').toString() : m.teamBStatus,
+        );
+        final bothConfirmed =
+            _isConfirmedStatus(statusA) && _isConfirmedStatus(statusB);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.shield, color: Colors.white70),
-              const SizedBox(width: 8),
-              Text(
-                tr('il_cb31ba59b7'),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                ),
+        return FutureBuilder<List<_ClubInfo>>(
+          future: Future.wait([
+            _getClubInfo(
+              effectiveTeamAId,
+              m.teamA,
+              fallbackLabel: tr('il_e18d322f14'),
+            ),
+            _getClubInfo(
+              effectiveTeamBId,
+              m.teamB,
+              fallbackLabel: tr('il_aceaf5d9ac'),
+            ),
+          ]),
+          builder: (context, infoSnap) {
+            final infos = infoSnap.data ?? const <_ClubInfo>[];
+            final teamAName = infos.isNotEmpty ? infos[0].name : (m.teamA?.name ?? tr('il_e18d322f14'));
+            final teamBName = infos.length > 1 ? infos[1].name : (m.teamB?.name ?? tr('il_aceaf5d9ac'));
+            final teamALogo = infos.isNotEmpty ? infos[0].logoUrl : '';
+            final teamBLogo = infos.length > 1 ? infos[1].logoUrl : '';
+
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.02),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: bothConfirmed
-                      ? const Color(0xFF4caf50)
-                      : const Color(0xFFFFC107),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  bothConfirmed ? tr('il_5fa7aac537') : tr('il_331551b0de'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.shield, color: Colors.white70),
+                      const SizedBox(width: 8),
+                      Text(
+                        tr('il_cb31ba59b7'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: bothConfirmed
+                              ? const Color(0xFF4caf50)
+                              : const Color(0xFFFFC107),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          bothConfirmed ? tr('il_5fa7aac537') : tr('il_331551b0de'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 14),
+                  _teamStatusTile(
+                    teamId: effectiveTeamAId,
+                    logoUrl: teamALogo,
+                    name: teamAName,
+                    status: statusA,
+                    roster: rosterA,
+                    rosterStatuses: rosterStatusesA,
+                    accent: const Color(0xFF4caf50),
+                  ),
+                  const SizedBox(height: 12),
+                  _teamStatusTile(
+                    teamId: effectiveTeamBId,
+                    logoUrl: teamBLogo,
+                    name: teamBName,
+                    status: statusB,
+                    roster: rosterB,
+                    rosterStatuses: rosterStatusesB,
+                    accent: const Color(0xFF42a5f5),
+                  ),
+                  if (m.teamsReadyNotified && isOrganizer) ...[
+                    const SizedBox(height: 12),
+                    _infoPill(
+                      icon: Icons.check_circle,
+                      text: tr('il_6ed73f6fcc'),
+                      color: const Color(0xFF81C784),
+                    ),
+                  ] else if (!bothConfirmed && isOrganizer) ...[
+                    const SizedBox(height: 12),
+                    _infoPill(
+                      icon: Icons.info_outline,
+                      text: tr('il_c7df816a19'),
+                      color: const Color(0xFFFFC107),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _openOrganizerOpponentInviteFlow(m),
+                        icon: const Icon(Icons.group_add, color: Color(0xFF4caf50)),
+                        label: Text(
+                          tr('match_mgmt_invite_opponent_team'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF4caf50)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _teamStatusTile(
-            teamId: m.teamAId,
-            name: teamAName,
-            status: statusA,
-            roster: rosterA,
-            rosterStatuses: rosterStatusesA,
-            accent: const Color(0xFF4caf50),
-          ),
-          const SizedBox(height: 12),
-          _teamStatusTile(
-            teamId: m.teamBId,
-            name: teamBName,
-            status: statusB,
-            roster: rosterB,
-            rosterStatuses: rosterStatusesB,
-            accent: const Color(0xFF42a5f5),
-          ),
-          if (m.teamsReadyNotified && isOrganizer) ...[
-            const SizedBox(height: 12),
-            _infoPill(
-              icon: Icons.check_circle,
-              text: tr('il_6ed73f6fcc'),
-              color: const Color(0xFF81C784),
-            ),
-          ] else if (!bothConfirmed && isOrganizer) ...[
-            const SizedBox(height: 12),
-            _infoPill(
-              icon: Icons.info_outline,
-              text: tr('il_c7df816a19'),
-              color: const Color(0xFFFFC107),
-            ),
-          ],
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
   Widget _teamStatusTile({
     required String? teamId,
+    required String? logoUrl,
     required String name,
     required String status,
     required List<String> roster,
@@ -1505,7 +1666,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         children: [
           Row(
             children: [
-              TeamLogoButton(teamId: teamId, teamName: name, size: 36),
+              TeamLogoButton(
+                teamId: teamId,
+                teamName: name,
+                logoUrl: logoUrl,
+                size: 36,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -1659,23 +1825,105 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   String _teamStatusText(String status) {
     switch (status) {
       case 'confirmed':
-        return tr('il_fe00b67b6d');
+      case 'accepted':
+        return tr('match_invite_status_accepted');
       case 'declined':
-        return tr('il_dce083a2c4');
+        return tr('match_invite_status_declined');
       default:
-        return tr('il_331551b0de');
+        return tr('match_invite_status_pending');
     }
   }
 
   Color _teamStatusColor(String status) {
     switch (status) {
       case 'confirmed':
+      case 'accepted':
         return const Color(0xFF4caf50);
       case 'declined':
         return const Color(0xFFE53935);
       default:
         return const Color(0xFFFFC107);
     }
+  }
+
+  String _normalizeTeamStatus(String? status) {
+    final normalized = (status ?? '').trim().toLowerCase();
+    if (normalized == 'accepted') return 'accepted';
+    if (normalized == 'rejected') return 'declined';
+    if (normalized.isEmpty) return 'pending';
+    return normalized;
+  }
+
+  String _resolveHostTeamStatus({
+    required String? rawStatus,
+    required String teamId,
+    required Map<String, String> rosterStatuses,
+  }) {
+    final normalized = _normalizeTeamStatus(rawStatus);
+    if (normalized == 'accepted' ||
+        normalized == 'confirmed' ||
+        normalized == 'declined') {
+      return normalized;
+    }
+    if (rosterStatuses.isNotEmpty) {
+      final values = rosterStatuses.values.toList(growable: false);
+      if (values.every((s) => s == 'confirmed')) return 'confirmed';
+      if (values.every((s) => s == 'declined')) return 'declined';
+    }
+    // Organizer/host team is auto-confirmed once linked to the match.
+    if (teamId.trim().isNotEmpty) return 'confirmed';
+    return 'pending';
+  }
+
+  bool _isConfirmedStatus(String status) {
+    return status == 'confirmed' || status == 'accepted';
+  }
+
+  Map<String, dynamic>? _resolveManagementTeamInviteRequest(
+    Match match,
+    List<Map<String, dynamic>> rows,
+  ) {
+    if (rows.isEmpty) return null;
+    final hostTeamId = (match.teamAId ?? '').trim();
+    final invitedTeamId = (match.teamBId ?? '').trim();
+    final valid = rows.where((row) {
+      final status = (row['status'] ?? '').toString();
+      return status == 'pending' || status == 'accepted' || status == 'declined';
+    }).toList(growable: false);
+    if (valid.isEmpty) return null;
+
+    List<Map<String, dynamic>> scoped = valid;
+    if (hostTeamId.isNotEmpty) {
+      scoped = scoped.where((row) {
+        final requesting = (row['requesting_team_id'] ?? '').toString();
+        final target = (row['target_team_id'] ?? '').toString();
+        return requesting == hostTeamId && target != hostTeamId;
+      }).toList(growable: false);
+    }
+    if (invitedTeamId.isNotEmpty) {
+      final byInvitedId = scoped.where((row) {
+        final target = (row['target_team_id'] ?? '').toString();
+        return target == invitedTeamId;
+      }).toList(growable: false);
+      if (byInvitedId.isNotEmpty) scoped = byInvitedId;
+    }
+    if (scoped.isEmpty) {
+      scoped = valid.where((row) {
+        final createdBy = (row['created_by'] ?? '').toString();
+        final requesting = (row['requesting_team_id'] ?? '').toString();
+        final target = (row['target_team_id'] ?? '').toString();
+        return createdBy == match.organizerId && requesting != target;
+      }).toList(growable: false);
+    }
+    final pool = scoped.isNotEmpty ? scoped : valid;
+    pool.sort((a, b) {
+      final aDate = DateTime.tryParse((a['created_at'] ?? '').toString()) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = DateTime.tryParse((b['created_at'] ?? '').toString()) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    return pool.first;
   }
 
   Widget _buildEditingSection(Match m) {
@@ -1848,6 +2096,431 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  Future<String?> _resolveRequestingTeamIdForOrganizer(Match m) async {
+    final uid = AppAuth.currentUserId;
+    if (uid == null) return null;
+    final a = m.teamAId;
+    final b = m.teamBId;
+    if (a == null && b == null) return null;
+    final ids = <String>[if (a != null) a, if (b != null) b];
+    try {
+      final rows = await _sb
+          .from('team_members')
+          .select('team_id')
+          .eq('user_id', uid)
+          .inFilter('team_id', ids)
+          .inFilter('role', ['captain', 'vice_captain']);
+      final list = (rows as List<dynamic>).cast<Map<String, dynamic>>();
+      if (list.isEmpty) {
+        return m.teamAId ?? m.teamBId;
+      }
+      final teamIds = list.map((e) => e['team_id'].toString()).toSet();
+      if (a != null && teamIds.contains(a)) return a;
+      if (b != null && teamIds.contains(b)) return b;
+      return list.first['team_id'].toString();
+    } catch (_) {
+      return m.teamAId ?? m.teamBId;
+    }
+  }
+
+  List<String> _proposedRosterForRequestingTeam(
+    Match m,
+    String requestingTeamId,
+  ) {
+    if (requestingTeamId == m.teamAId) {
+      return List<String>.from(
+        m.teamRosters['teamA'] ?? m.teamA?.playerIds ?? const <String>[],
+      );
+    }
+    if (requestingTeamId == m.teamBId) {
+      return List<String>.from(
+        m.teamRosters['teamB'] ?? m.teamB?.playerIds ?? const <String>[],
+      );
+    }
+    return const <String>[];
+  }
+
+  Future<void> _sendTeamInviteFromOrganizer(
+    Match m,
+    AppTeam targetTeam,
+    String requestingTeamId,
+  ) async {
+    if (targetTeam.id == requestingTeamId) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('team_match_invite_failed'))),
+        );
+      }
+      return;
+    }
+    final roster = _proposedRosterForRequestingTeam(m, requestingTeamId);
+    try {
+      await _teamsRepo.sendMatchRequest(
+        teamId: requestingTeamId,
+        opponentTeamId: targetTeam.id,
+        opponentName: targetTeam.name,
+        matchId: m.id,
+        proposedRoster: roster,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('team_match_invite_sent'))),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('team_match_invite_failed')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openOrganizerOpponentInviteFlow(Match m) async {
+    final requestingId = await _resolveRequestingTeamIdForOrganizer(m);
+    if (requestingId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('team_match_invite_failed'))),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F1A2B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final teamSearchCtrl = TextEditingController();
+        final captainSearchCtrl = TextEditingController();
+        List<AppTeam> teamResults = [];
+        List<Map<String, dynamic>> captainResults = [];
+        List<AppTeam> captainTeams = [];
+        bool teamLoading = false;
+        bool captainLoading = false;
+        bool teamsForCaptainLoading = false;
+        String? pickedCaptainId;
+
+        Future<void> runTeamSearch(StateSetter setS) async {
+          final q = teamSearchCtrl.text.trim();
+          if (q.isEmpty) return;
+          setS(() => teamLoading = true);
+          try {
+            final found = await _teamsRepo.searchTeams(q, limit: 15);
+            setS(() => teamResults = found);
+          } finally {
+            setS(() => teamLoading = false);
+          }
+        }
+
+        Future<void> runCaptainSearch(StateSetter setS) async {
+          final q = captainSearchCtrl.text.trim();
+          if (q.isEmpty) return;
+          setS(() => captainLoading = true);
+          try {
+            final found = await _teamsRepo.searchPlayers(q, limit: 15);
+            setS(() {
+              captainResults = found;
+              captainTeams = [];
+              pickedCaptainId = null;
+            });
+          } finally {
+            setS(() => captainLoading = false);
+          }
+        }
+
+        Future<void> loadTeamsForCaptain(String userId, StateSetter setS) async {
+          setS(() {
+            teamsForCaptainLoading = true;
+            pickedCaptainId = userId;
+            captainTeams = [];
+          });
+          try {
+            final teams = await _teamsRepo.fetchTeamsWhereUserIsOfficer(userId);
+            setS(() => captainTeams = teams);
+          } finally {
+            setS(() => teamsForCaptainLoading = false);
+          }
+        }
+
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: DefaultTabController(
+            length: 2,
+            child: SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(ctx).size.height * 0.72,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                  child: StatefulBuilder(
+                    builder: (context, setS) {
+                      return Column(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 4,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                          TabBar(
+                            labelColor: const Color(0xFF4caf50),
+                            unselectedLabelColor: Colors.white54,
+                            tabs: [
+                              Tab(text: tr('team_match_search_teams_tab')),
+                              Tab(text: tr('team_match_search_owners_tab')),
+                            ],
+                          ),
+                          Expanded(
+                            child: TabBarView(
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    const SizedBox(height: 12),
+                                    TextField(
+                                      controller: teamSearchCtrl,
+                                      style: const TextStyle(color: Colors.white),
+                                      decoration: InputDecoration(
+                                        labelText: tr('il_c81e115cc3'),
+                                        labelStyle: const TextStyle(
+                                          color: Colors.white70,
+                                        ),
+                                        filled: true,
+                                        fillColor: Colors.white.withValues(
+                                          alpha: 0.06,
+                                        ),
+                                        suffixIcon: IconButton(
+                                          icon: const Icon(
+                                            Icons.search,
+                                            color: Colors.white70,
+                                          ),
+                                          onPressed: () => runTeamSearch(setS),
+                                        ),
+                                      ),
+                                      onSubmitted: (_) => runTeamSearch(setS),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    if (teamLoading)
+                                      const Expanded(
+                                        child: Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      )
+                                    else
+                                      Expanded(
+                                        child: teamResults.isEmpty
+                                            ? Center(
+                                                child: Text(
+                                                  tr('il_9598782e39'),
+                                                  style: const TextStyle(
+                                                    color: Colors.white54,
+                                                  ),
+                                                ),
+                                              )
+                                            : ListView.separated(
+                                                itemCount: teamResults.length,
+                                                separatorBuilder: (_, __) =>
+                                                    const Divider(
+                                                  color: Colors.white12,
+                                                ),
+                                                itemBuilder: (_, i) {
+                                                  final t = teamResults[i];
+                                                  return ListTile(
+                                                    title: Text(
+                                                      t.name,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                    subtitle: Text(
+                                                      '${t.memberIds.length} ${tr('il_afc0d772a2')}',
+                                                      style: const TextStyle(
+                                                        color: Colors.white54,
+                                                      ),
+                                                    ),
+                                                    onTap: () async {
+                                                      Navigator.pop(ctx);
+                                                      await _sendTeamInviteFromOrganizer(
+                                                        m,
+                                                        t,
+                                                        requestingId,
+                                                      );
+                                                    },
+                                                  );
+                                                },
+                                              ),
+                                      ),
+                                  ],
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    const SizedBox(height: 12),
+                                    TextField(
+                                      controller: captainSearchCtrl,
+                                      style: const TextStyle(color: Colors.white),
+                                      decoration: InputDecoration(
+                                        labelText: tr('il_4ae2b33364'),
+                                        labelStyle: const TextStyle(
+                                          color: Colors.white70,
+                                        ),
+                                        filled: true,
+                                        fillColor: Colors.white.withValues(
+                                          alpha: 0.06,
+                                        ),
+                                        suffixIcon: IconButton(
+                                          icon: const Icon(
+                                            Icons.search,
+                                            color: Colors.white70,
+                                          ),
+                                          onPressed: () =>
+                                              runCaptainSearch(setS),
+                                        ),
+                                      ),
+                                      onSubmitted: (_) =>
+                                          runCaptainSearch(setS),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    if (pickedCaptainId != null)
+                                      Text(
+                                        tr('team_match_pick_owner_team'),
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    const SizedBox(height: 8),
+                                    if (captainLoading || teamsForCaptainLoading)
+                                      const Expanded(
+                                        child: Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      )
+                                    else if (pickedCaptainId != null)
+                                      Expanded(
+                                        child: captainTeams.isEmpty
+                                            ? Center(
+                                                child: Text(
+                                                  tr(
+                                                    'team_match_no_officer_teams_visible',
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                  style: const TextStyle(
+                                                    color: Colors.white54,
+                                                  ),
+                                                ),
+                                              )
+                                            : ListView.separated(
+                                                itemCount: captainTeams.length,
+                                                separatorBuilder: (_, __) =>
+                                                    const Divider(
+                                                  color: Colors.white12,
+                                                ),
+                                                itemBuilder: (_, i) {
+                                                  final t = captainTeams[i];
+                                                  return ListTile(
+                                                    title: Text(
+                                                      t.name,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                    subtitle: Text(
+                                                      '${t.memberIds.length} ${tr('il_afc0d772a2')}',
+                                                      style: const TextStyle(
+                                                        color: Colors.white54,
+                                                      ),
+                                                    ),
+                                                    onTap: () async {
+                                                      Navigator.pop(ctx);
+                                                      await _sendTeamInviteFromOrganizer(
+                                                        m,
+                                                        t,
+                                                        requestingId,
+                                                      );
+                                                    },
+                                                  );
+                                                },
+                                              ),
+                                      )
+                                    else
+                                      Expanded(
+                                        child: captainResults.isEmpty
+                                            ? Center(
+                                                child: Text(
+                                                  tr('il_9598782e39'),
+                                                  style: const TextStyle(
+                                                    color: Colors.white54,
+                                                  ),
+                                                ),
+                                              )
+                                            : ListView.separated(
+                                                itemCount: captainResults.length,
+                                                separatorBuilder: (_, __) =>
+                                                    const Divider(
+                                                  color: Colors.white12,
+                                                ),
+                                                itemBuilder: (_, i) {
+                                                  final p = captainResults[i];
+                                                  final name =
+                                                      (p['displayName'] ??
+                                                              tr('player'))
+                                                          .toString();
+                                                  return ListTile(
+                                                    leading:
+                                                        PlayerAvatarButton(
+                                                      userId:
+                                                          p['id'].toString(),
+                                                      displayName: name,
+                                                      avatarUrl:
+                                                          (p['avatarUrl'] ?? '')
+                                                              .toString(),
+                                                      size: 40,
+                                                    ),
+                                                    title: Text(
+                                                      name,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                    onTap: () => loadTeamsForCaptain(
+                                                      p['id'].toString(),
+                                                      setS,
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
         );
       },
     );
@@ -2975,8 +3648,14 @@ class _ClubInfo {
   final String name;
   final String? logoUrl;
   final double? rating;
+  final int? memberCount;
 
-  const _ClubInfo({required this.name, this.logoUrl, this.rating});
+  const _ClubInfo({
+    required this.name,
+    this.logoUrl,
+    this.rating,
+    this.memberCount,
+  });
 
   factory _ClubInfo.fromTeam(
     MatchTeamEntity? team, {
@@ -2986,6 +3665,7 @@ class _ClubInfo {
       name: team != null && team.name.isNotEmpty ? team.name : fallbackLabel,
       logoUrl: null,
       rating: team?.averageRating,
+      memberCount: team?.playerIds.length,
     );
   }
 }

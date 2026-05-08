@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:rxdart/rxdart.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../profile/presentation/bloc/profile_bloc.dart';
@@ -11,9 +12,11 @@ import '../../../../router/app_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_app_storage.dart';
+import '../../../../core/supabase/guard_supabase_realtime_stream.dart';
 import '../../../../core/supabase/supabase_date.dart';
 import '../../../../constants/video_categories.dart';
 import '../../../challenges/data/models/challenge.dart';
+import '../../../challenges/domain/repositories/challenges_repository.dart';
 import '../../../ratings/presentation/utils/rating_snapshot_source_label.dart';
 import '../../../ratings/presentation/widgets/rating_history_snapshot_card.dart';
 import '../../../../widgets/rating_display.dart';
@@ -1710,10 +1713,7 @@ Widget build(BuildContext context) {
           challengeLabel,
           challengeColor,
           onTap: hasChallengeLink
-              ? () => _openChallenge(
-                    resolvedChallengeId,
-                    challengeLabel,
-                  )
+              ? () => _openChallenge(resolvedChallengeId)
               : null,
         ),
       );
@@ -1795,10 +1795,7 @@ Widget build(BuildContext context) {
                       hasChallengeInfo ? challengeLabel : categoryLabel,
                       hasChallengeInfo ? challengeColor : categoryColor,
                       onTap: hasChallengeInfo && hasChallengeLink
-                          ? () => _openChallenge(
-                            resolvedChallengeId,
-                                challengeLabel,
-                              )
+                          ? () => _openChallenge(resolvedChallengeId)
                           : null,
                     ),
                     const Spacer(),
@@ -1894,7 +1891,7 @@ Widget build(BuildContext context) {
                 if (resolvedChallengeId.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   TextButton.icon(
-                    onPressed: () => _openChallenge(resolvedChallengeId, challengeLabel),
+                    onPressed: () => _openChallenge(resolvedChallengeId),
                     icon: const Icon(Icons.emoji_events_outlined, color: Colors.white70),
                     label: Text(
                       tr('il_1157649c00'),
@@ -2055,19 +2052,17 @@ Widget build(BuildContext context) {
     }
   }
 
-  Future<void> _openChallenge(String challengeId, String title) async {
+  Future<void> _openChallenge(String challengeId) async {
     try {
-      final row = await _sb
-          .from('challenges')
-          .select()
-          .eq('id', challengeId)
-          .maybeSingle();
-      if (row == null) {
-        throw Exception('Challenge not found');
+      // Full load from DB: participant list and counts come from
+      // `challenge_participants` inside [ChallengeService._loadChallenge],
+      // not from denormalized columns on `challenges`.
+      final loaded = await sl<ChallengesRepository>().getChallenge(challengeId);
+      if (loaded == null) {
+        throw Exception(tr('il_a29799fa76'));
       }
-      final challenge = _mapChallengeRow(row);
       if (!mounted) return;
-      _viewChallengeDetails(challengeId, challenge);
+      context.router.push(ChallengeDetailsRoute(challenge: loaded));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2135,20 +2130,68 @@ Widget build(BuildContext context) {
     );
   }
 
-  // Challenge list
+  // Challenge list — participant count and prize pool are derived from
+  // `challenge_participants` / `challenge_submissions`, not from `challenges`
+  // (those columns do not exist on the table).
   Widget _buildChallengesList() {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: (() {
         final uid = _showOnlyMyChallenges ? AppAuth.currentUserId : null;
-        return _sb
-            .from('challenges')
-            .stream(primaryKey: ['id'])
-            .order('created_at', ascending: false)
-            .limit(20)
-            .map((rows) => rows
-                .where((row) => uid == null || (row['creator_id'] ?? '').toString() == uid)
-                .map(_mapChallengeRow)
-                .toList());
+        final challengesStream = guardSupabaseRealtimeStream(
+          _sb
+              .from('challenges')
+              .stream(primaryKey: ['id'])
+              .order('created_at', ascending: false)
+              .limit(20),
+        );
+
+        final participantsStream = guardSupabaseRealtimeStream(
+          _sb
+              .from('challenge_participants')
+              .stream(primaryKey: ['challenge_id', 'user_id'])
+              .startWith(const <Map<String, dynamic>>[]),
+        );
+
+        final submissionsStream = guardSupabaseRealtimeStream(
+          _sb
+              .from('challenge_submissions')
+              .stream(primaryKey: ['id'])
+              .startWith(const <Map<String, dynamic>>[]),
+        );
+
+        return Rx.combineLatest3<
+            List<Map<String, dynamic>>,
+            List<Map<String, dynamic>>,
+            List<Map<String, dynamic>>,
+            List<Map<String, dynamic>>>(
+          challengesStream,
+          participantsStream,
+          submissionsStream,
+          (challenges, participants, submissions) {
+            final participantsByChallenge =
+                groupUserIdsByChallengeIdFromJoinRows(
+              participants,
+              userIdKey: 'user_id',
+            );
+            final submissionsByChallenge =
+                groupUserIdsByChallengeIdFromJoinRows(
+              submissions,
+              userIdKey: 'user_id',
+            );
+            return challenges
+                .where((row) =>
+                    uid == null ||
+                    (row['creator_id'] ?? '').toString() == uid)
+                .map(
+                  (row) => mapChallengeRowForListUi(
+                    row,
+                    participantsByChallenge: participantsByChallenge,
+                    submissionsByChallenge: submissionsByChallenge,
+                  ),
+                )
+                .toList(growable: false);
+          },
+        );
       })(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -2226,40 +2269,6 @@ Widget build(BuildContext context) {
         );
       },
     );
-  }
-
-  Map<String, dynamic> _mapChallengeRow(Map<String, dynamic> row) {
-    return <String, dynamic>{
-      'id': row['id']?.toString() ?? '',
-      'title': row['title'],
-      'description': row['description'],
-      'type': row['type'] ?? row['challenge_type'] ?? 'goal',
-      'audience': row['audience'] ?? 'city',
-      'status': row['status'] ?? 'recruiting',
-      'creatorId': row['creator_id']?.toString() ?? '',
-      'creatorName': row['creator_name'] ?? '',
-      'city': row['city'] ?? '',
-      'entryFee': row['entry_fee'] ?? 0,
-      'duration': challengeDurationDaysFromRow(
-        Map<String, dynamic>.from(row),
-      ),
-      'createdAt': row['created_at'],
-      'startDate': row['starts_at'] ?? row['start_date'],
-      'submissionDeadline': row['submission_deadline'],
-      'votingDeadline': row['voting_deadline'],
-      'endDate': row['ends_at'] ?? row['end_date'],
-      'maxParticipants': row['max_participants'] ?? 50,
-      'currentParticipants': row['current_participants'] ?? 0,
-      'prizePool': row['prize_pool'] ?? 0.0,
-      'participants': row['participants'] ?? const <String>[],
-      'creatorVideoUrl': row['video_url'] ?? row['creator_video_url'],
-      'creatorThumbnailUrl':
-          row['video_thumbnail_url'] ?? row['creator_thumbnail_url'] ?? row['thumbnail_url'],
-      'thumbnailUrl': row['video_thumbnail_url'] ?? row['thumbnail_url'],
-      'imageUrl': row['image_url'],
-      'isActive': row['is_active'] ?? true,
-      'tags': row['tags'] ?? const <String>[],
-    };
   }
 
   // Challenge card
@@ -2580,7 +2589,7 @@ Widget build(BuildContext context) {
                     Expanded(
                       child: _buildStatCard(
                         icon: Icons.people,
-                        value: '$currentParticipants',
+                        value: '$currentParticipants/$maxParticipants',
                         label: tr('il_0e27279b33'),
                         color: const Color(0xFF2196F3),
                       ),

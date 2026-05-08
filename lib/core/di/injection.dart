@@ -211,7 +211,7 @@ Future<void> configureDependencies() async {
       () => MatchesRepositoryImpl(sl(), sl()),
     )
     ..registerLazySingleton(
-      () => CreateMatchUseCase(sl(), sl(), Supabase.instance.client),
+      () => CreateMatchUseCase(sl(), Supabase.instance.client),
     )
     ..registerLazySingleton(
       () => MatchParticipationActionsUseCase(sl()),

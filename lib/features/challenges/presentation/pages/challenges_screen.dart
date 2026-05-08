@@ -1,10 +1,12 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../router/app_router.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/supabase/guard_supabase_realtime_stream.dart';
 import '../../../../core/supabase/supabase_date.dart';
 import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
@@ -172,54 +174,62 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     );
   }
 
+  /// Combines `challenges`, `challenge_participants`, and
+  /// `challenge_submissions` realtime streams so cards always reflect the
+  /// current participant count, submission count, and computed prize pool.
+  ///
+  /// All three tables grant `select` to authenticated users (see RLS in
+  /// `20260423000001_flap_initial.sql`), so the join is safe and stays
+  /// reactive when participants join or submissions are uploaded.
   Stream<List<Map<String, dynamic>>> _getChallengesStream() {
-    return _sb
-        .from('challenges')
-        .stream(primaryKey: ['id'])
-        .order('created_at', ascending: false)
-        .limit(50)
-        .map((rows) => rows.map(_mapChallengeRow).toList());
-  }
+    final challengesStream = guardSupabaseRealtimeStream(
+      _sb
+          .from('challenges')
+          .stream(primaryKey: ['id'])
+          .order('created_at', ascending: false)
+          .limit(50),
+    );
 
-  Map<String, dynamic> _mapChallengeRow(Map<String, dynamic> row) {
-    return <String, dynamic>{
-      'id': row['id']?.toString() ?? '',
-      'title': row['title'],
-      'description': row['description'],
-      'creatorId': row['creator_id']?.toString() ?? '',
-      'creatorName': row['creator_name'] ?? '',
-      'creatorVideoUrl': row['video_url'] ?? row['creator_video_url'],
-      'creatorThumbnailUrl': row['video_thumbnail_url'] ??
-          row['creator_thumbnail_url'] ??
-          row['thumbnail_url'],
-      'thumbnailUrl': row['video_thumbnail_url'] ?? row['thumbnail_url'],
-      'participants': row['participants'] ?? const <String>[],
-      'submissions': row['submissions'] ?? const <String>[],
-      'entryFee': row['entry_fee'] ?? 10,
-      'status': row['status'] ?? 'recruiting',
-      'endDate': row['ends_at'] ?? row['end_date'],
-      'votingDeadline': row['voting_deadline'],
-      'type': row['type'] ?? row['challenge_type'] ?? 'goal',
-      'audience': row['audience'] ?? 'city',
-      'city': row['city'] ?? '',
-      'duration': challengeDurationDaysFromRow(
-        Map<String, dynamic>.from(row),
-      ),
-      'createdAt': row['created_at'],
-      'startDate': row['starts_at'] ?? row['start_date'],
-      'submissionDeadline': row['submission_deadline'],
-      'maxParticipants': row['max_participants'] ?? 50,
-      'currentParticipants': row['current_participants'] ?? 0,
-      'prizePool': row['prize_pool'] ?? 0.0,
-      'votes': row['votes'] ?? const <String, dynamic>{},
-      'detailedVotes': row['detailed_votes'] ?? const <String, dynamic>{},
-      'winners': row['winners'] ?? const <String>[],
-      'finalScores': row['final_scores'] ?? const <String, dynamic>{},
-      'isActive': row['is_active'] ?? true,
-      'tags': row['tags'] ?? const <String>[],
-      'views': row['views'] ?? 0,
-      'averageRating': row['average_rating'] ?? row['rating'] ?? 0.0,
-    };
+    final participantsStream = guardSupabaseRealtimeStream(
+      _sb
+          .from('challenge_participants')
+          .stream(primaryKey: ['challenge_id', 'user_id'])
+          .startWith(const <Map<String, dynamic>>[]),
+    );
+
+    final submissionsStream = guardSupabaseRealtimeStream(
+      _sb
+          .from('challenge_submissions')
+          .stream(primaryKey: ['id'])
+          .startWith(const <Map<String, dynamic>>[]),
+    );
+
+    return Rx.combineLatest3<
+        List<Map<String, dynamic>>,
+        List<Map<String, dynamic>>,
+        List<Map<String, dynamic>>,
+        List<Map<String, dynamic>>>(
+      challengesStream,
+      participantsStream,
+      submissionsStream,
+      (challenges, participants, submissions) {
+        final participantsByChallenge = groupUserIdsByChallengeIdFromJoinRows(
+          participants,
+          userIdKey: 'user_id',
+        );
+        final submissionsByChallenge = groupUserIdsByChallengeIdFromJoinRows(
+          submissions,
+          userIdKey: 'user_id',
+        );
+        return challenges
+            .map((row) => mapChallengeRowForListUi(
+                  row,
+                  participantsByChallenge: participantsByChallenge,
+                  submissionsByChallenge: submissionsByChallenge,
+                ))
+            .toList(growable: false);
+      },
+    );
   }
 
   int _daysLeftFromDeadline(Map<String, dynamic> challengeData) {
@@ -235,6 +245,94 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     if (dt == null) return 0;
     final d = dt.toLocal().difference(DateTime.now()).inDays;
     return d < 0 ? 0 : d;
+  }
+
+  /// Compact metadata strip below the creator chip showing the four bits of
+  /// information users were missing: participants, videos, prize, time left.
+  /// Uses [Wrap] so chips reflow on small screens instead of overflowing.
+  Widget _buildChallengeMetadataStrip({
+    required int participantCount,
+    required int submissionCount,
+    required int prizeCoins,
+    required int entryFee,
+    required int daysLeft,
+    required String status,
+  }) {
+    final isCompleted = status == 'completed';
+    // Prize is the running pot (entry fees collected so far). When the pool
+    // is still 0 (no joins yet) we surface the entry fee as the per-seat cost
+    // so the card always shows a meaningful coin number.
+    final coinsLabel = prizeCoins > 0 ? prizeCoins : entryFee;
+    final timeLabel = isCompleted
+        ? tr('challenge_card_ended')
+        : tr('challenge_card_days_left', namedArgs: {'days': '$daysLeft'});
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      children: [
+        _metaChip(
+          icon: Icons.people_alt_rounded,
+          label: tr(
+            'challenge_card_participants',
+            namedArgs: {'count': '$participantCount'},
+          ),
+        ),
+        _metaChip(
+          icon: Icons.movie_creation_rounded,
+          label: tr(
+            'challenge_card_videos',
+            namedArgs: {'count': '$submissionCount'},
+          ),
+        ),
+        _metaChip(
+          icon: Icons.emoji_events_rounded,
+          label: tr(
+            'challenge_card_prize',
+            namedArgs: {'coins': '$coinsLabel'},
+          ),
+          accent: const Color(0xFFFFD54F),
+        ),
+        _metaChip(
+          icon: Icons.schedule_rounded,
+          label: timeLabel,
+          // Highlight urgency when <= 2 days remain on an active challenge.
+          accent: (!isCompleted && daysLeft <= 2)
+              ? const Color(0xFFFFAB91)
+              : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _metaChip({
+    required IconData icon,
+    required String label,
+    Color? accent,
+  }) {
+    final fg = accent ?? Colors.white;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: fg, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: fg,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildEmptyState() {
@@ -273,25 +371,32 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
 
   Widget _buildChallengeCard(Map<String, dynamic> challengeData) {
     final challengeId = challengeData['id'];
-    final title = challengeData['title'] ?? tr('il_27cf1792f7');
-    final description = challengeData['description'] ?? '';
-    final creatorName = challengeData['creatorName'] ?? tr('il_b764cdc0ea');
-    final creatorVideoUrl = challengeData['creatorVideoUrl'] ?? '';
-    final creatorThumbnailUrl = challengeData['creatorThumbnailUrl'] ?? challengeData['thumbnailUrl'];
-    final participants = (challengeData['participants'] as List?)?.length ?? 0;
-    final submissions = (challengeData['submissions'] as List?)?.length ?? 0;
-    final status = challengeData['status'] ?? 'recruiting';
-    final creatorId = challengeData['creatorId'] ?? '';
+    final title = (challengeData['title'] ?? tr('il_27cf1792f7')).toString();
+    final rawDescription =
+        (challengeData['description'] ?? '').toString().trim();
+    final description = rawDescription.isEmpty
+        ? tr('challenge_card_no_description')
+        : rawDescription;
+    final hasDescription = rawDescription.isNotEmpty;
+    final creatorName =
+        (challengeData['creatorName'] ?? tr('il_b764cdc0ea')).toString();
+    final creatorVideoUrl = (challengeData['creatorVideoUrl'] ?? '').toString();
+    final creatorThumbnailUrl =
+        challengeData['creatorThumbnailUrl'] ?? challengeData['thumbnailUrl'];
+    final participantCount =
+        (challengeData['participantCount'] as int?) ??
+            (challengeData['participants'] as List?)?.length ??
+            0;
+    final submissionCount =
+        (challengeData['submissionCount'] as int?) ??
+            (challengeData['submissions'] as List?)?.length ??
+            0;
+    final status = (challengeData['status'] ?? 'recruiting').toString();
+    final creatorId = (challengeData['creatorId'] ?? '').toString();
     final daysLeft = _daysLeftFromDeadline(challengeData);
     final prizePool = challengeData['prizePool'];
-    final prizeLabel = prizePool is num ? prizePool.toStringAsFixed(0) : '$prizePool';
-    
-    print('Challenge $challengeId: creatorVideoUrl = "$creatorVideoUrl"');
-    print('Challenge $challengeId: title = "$title"');
-    print('Challenge $challengeId: creatorName = "$creatorName"');
-    print('Challenge $challengeId: participants = $participants');
-    print('Challenge $challengeId: submissions = $submissions');
-    
+    final prizeCoins = prizePool is num ? prizePool.round() : 0;
+    final entryFee = (challengeData['entryFee'] as num?)?.toInt() ?? 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -300,27 +405,29 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-          // Header with challenge info
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header (gradient): title, status, description (purpose),
+          // creator chip, then a single metadata strip.
           Container(
             padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-        ),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+              ),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
               ),
             ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
                       child: Text(
                         title,
                         style: const TextStyle(
@@ -328,83 +435,70 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _getStatusText(status),
-                    style: const TextStyle(
-                      color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _getStatusText(status),
+                        style: const TextStyle(
+                          color: Colors.white,
                           fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-                const SizedBox(height: 6),
-              Text(
-                description,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 13,
-                  ),
-                  maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () => context.router.push(
-                  PlayerProfileRoute(
-                    playerId: creatorId,
-                    playerName: creatorName,
-                  ),
-                ),
-                child: UserChip(userId: creatorId, name: creatorName, showName: true, size: 20),
-              ),
-                const SizedBox(height: 8),
-                // Stats
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.people, color: Colors.white, size: 12),
-                        const SizedBox(width: 4),
-                        Text(
-                          tr('il_b1784e31d4', args: ['$participants']),
-                          style: const TextStyle(color: Colors.white, fontSize: 11),
+                          fontWeight: FontWeight.w600,
                         ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const Icon(Icons.access_time, color: Colors.white, size: 12),
-                        const SizedBox(width: 4),
-                        Text(
-                          tr('il_fdd1d3357a', args: ['$daysLeft']),
-                          style: const TextStyle(color: Colors.white, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const Icon(Icons.emoji_events, color: Colors.amber, size: 12),
-                        const SizedBox(width: 4),
-                        Text(
-                          tr('il_4fd5220eff', args: [prizeLabel]),
-                          style: const TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w600),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 8),
+                // Purpose / description: shown with a fallback so the
+                // card never looks empty when description is missing.
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(hasDescription ? 0.92 : 0.7),
+                    fontSize: 13,
+                    fontStyle: hasDescription
+                        ? FontStyle.normal
+                        : FontStyle.italic,
+                    height: 1.3,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 10),
+                GestureDetector(
+                  onTap: () => context.router.push(
+                    PlayerProfileRoute(
+                      playerId: creatorId,
+                      playerName: creatorName,
+                    ),
+                  ),
+                  child: UserChip(
+                    userId: creatorId,
+                    name: creatorName,
+                    showName: true,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildChallengeMetadataStrip(
+                  participantCount: participantCount,
+                  submissionCount: submissionCount,
+                  prizeCoins: prizeCoins,
+                  entryFee: entryFee,
+                  daysLeft: daysLeft,
+                  status: status,
                 ),
               ],
             ),
@@ -436,7 +530,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                 const SizedBox(height: 12),
 
                 // Bottom half: participant videos carousel
-            if (submissions > 0) ...[
+            if (submissionCount > 0) ...[
               Text(
                 tr('il_740fb949c8'),
                 style: const TextStyle(
@@ -449,16 +543,17 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               SizedBox(
                 height: 60,
                 child: StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: _sb
-                      .from('challenge_submissions')
-                      .stream(primaryKey: ['id'])
-                      .eq('challenge_id', challengeId)
-                      .order('submitted_at', ascending: false)
-                      .limit(8)
-                      .map((rows) => rows
-                          .where((r) =>
-                              (r['user_id'] ?? '').toString() != creatorId)
-                          .toList()),
+                  stream: guardSupabaseRealtimeStream(
+                    _sb
+                        .from('challenge_submissions')
+                        .stream(primaryKey: ['id'])
+                        .eq('challenge_id', challengeId)
+                        .order('submitted_at', ascending: false)
+                        .limit(8),
+                  ).map((rows) => rows
+                      .where((r) =>
+                          (r['user_id'] ?? '').toString() != creatorId)
+                      .toList()),
                   builder: (context, submissionSnapshot) {
                     if (!submissionSnapshot.hasData) {
                           return const Center(child: CircularProgressIndicator(strokeWidth: 2));
@@ -485,7 +580,10 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                         
                     return ListView.builder(
                       scrollDirection: Axis.horizontal,
-                          itemCount: submissionDocs.length + (submissionDocs.length < submissions ? 1 : 0), // +1 tile for “more” count
+                          itemCount: submissionDocs.length +
+                              (submissionDocs.length < submissionCount
+                                  ? 1
+                                  : 0), // +1 tile for “more” count
                       itemBuilder: (context, index) {
                             if (index < submissionDocs.length) {
                         final submissionData = submissionDocs[index];
@@ -556,7 +654,8 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                         );
                             } else {
                               // Show count when more videos exist
-                              final remainingCount = submissions - submissionDocs.length;
+                              final remainingCount =
+                                  submissionCount - submissionDocs.length;
                               return Container(
                                 width: 60,
                                 margin: const EdgeInsets.only(right: 8),
@@ -632,7 +731,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       ),
                     ),
                     child: Text(
-                      tr('il_1eb956dc4f', args: ['$submissions']),
+                      tr('il_1eb956dc4f', args: ['$submissionCount']),
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                     ),
                   ),

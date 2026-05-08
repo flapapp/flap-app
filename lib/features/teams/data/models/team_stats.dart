@@ -7,6 +7,79 @@ export '../../domain/entities/team_stats_entity.dart';
 
 part 'team_stats.g.dart';
 
+/// Translates a row from `public.team_stats` (snake_case) joined with the team
+/// name into the camelCase shape `TeamStats.fromFirestoreMap` expects. Pure
+/// function — used by every datasource that reads the new `team_stats`
+/// table and locked in by unit tests against the SQL contract from
+/// `20260508140000_team_stats_aggregation_and_history.sql`.
+Map<String, dynamic> mapTeamStatsRowToLegacyShape(
+  Map<String, dynamic> row, {
+  String fallbackName = '',
+}) {
+  int asInt(dynamic v, [int fallback = 0]) {
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
+  }
+
+  Map<String, int> asPlayerGoals(dynamic v) {
+    if (v is Map) {
+      final out = <String, int>{};
+      v.forEach((key, value) {
+        final id = key?.toString() ?? '';
+        if (id.isEmpty) return;
+        if (value is num) out[id] = value.toInt();
+        if (value is String) {
+          final parsed = int.tryParse(value);
+          if (parsed != null) out[id] = parsed;
+        }
+      });
+      return out;
+    }
+    return const <String, int>{};
+  }
+
+  List<String> asForm(dynamic v) {
+    if (v is List) {
+      return v.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+    }
+    return const <String>[];
+  }
+
+  List<Map<String, dynamic>> asRecent(dynamic v) {
+    if (v is List) {
+      return v.whereType<Map>().map((e) {
+        return e.map(
+          (key, value) => MapEntry(key.toString(), value),
+        );
+      }).toList();
+    }
+    return const <Map<String, dynamic>>[];
+  }
+
+  return <String, dynamic>{
+    'teamName': (row['team_name'] ?? row['teamName'] ?? fallbackName).toString(),
+    'wins': asInt(row['wins']),
+    'draws': asInt(row['draws']),
+    'losses': asInt(row['losses']),
+    'goalsFor': asInt(row['goals_for'] ?? row['goalsFor']),
+    'goalsAgainst': asInt(row['goals_against'] ?? row['goalsAgainst']),
+    'playerGoals': asPlayerGoals(row['player_goals'] ?? row['playerGoals']),
+    'recentMatches': asRecent(row['recent_matches'] ?? row['recentMatches']),
+    'cleanSheets': asInt(row['clean_sheets'] ?? row['cleanSheets']),
+    'currentWinStreak':
+        asInt(row['current_win_streak'] ?? row['currentWinStreak']),
+    'currentUnbeatenStreak': asInt(
+        row['current_unbeaten_streak'] ?? row['currentUnbeatenStreak']),
+    'longestWinStreak':
+        asInt(row['longest_win_streak'] ?? row['longestWinStreak']),
+    'recentForm': asForm(row['recent_form'] ?? row['recentForm']),
+    'lastFinishedMatchAt':
+        row['last_finished_match_at'] ?? row['lastFinishedMatchAt'],
+    'updatedAt': row['updated_at'] ?? row['updatedAt'],
+  };
+}
+
 @JsonSerializable(explicitToJson: true)
 class TeamStats extends TeamStatsEntity {
   const TeamStats({
@@ -19,6 +92,12 @@ class TeamStats extends TeamStatsEntity {
     super.goalsAgainst = 0,
     super.playerGoals = const {},
     super.recentMatches = const [],
+    super.cleanSheets = 0,
+    super.currentWinStreak = 0,
+    super.currentUnbeatenStreak = 0,
+    super.longestWinStreak = 0,
+    super.recentForm = const [],
+    super.lastFinishedMatchAt,
     super.updatedAt,
   });
 
@@ -41,22 +120,45 @@ class TeamStats extends TeamStatsEntity {
     if (d.isEmpty) {
       return TeamStats.empty(teamId, name: fallbackName);
     }
+    int asInt(dynamic v, [int fallback = 0]) {
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? fallback;
+      return fallback;
+    }
+
     return TeamStats(
       teamId: teamId,
       teamName: (d['teamName'] ?? fallbackName).toString(),
-      wins: ((d['wins'] ?? 0) as num).toInt(),
-      draws: ((d['draws'] ?? 0) as num).toInt(),
-      losses: ((d['losses'] ?? 0) as num).toInt(),
-      goalsFor: ((d['goalsFor'] ?? 0) as num).toInt(),
-      goalsAgainst: ((d['goalsAgainst'] ?? 0) as num).toInt(),
+      wins: asInt(d['wins']),
+      draws: asInt(d['draws']),
+      losses: asInt(d['losses']),
+      goalsFor: asInt(d['goalsFor']),
+      goalsAgainst: asInt(d['goalsAgainst']),
       playerGoals: Map<String, int>.from(
         (d['playerGoals'] ?? const <String, dynamic>{}).map(
-          (key, value) => MapEntry(key.toString(), (value as num).toInt()),
+          (key, value) => MapEntry(key.toString(), asInt(value)),
         ),
       ),
       recentMatches: ((d['recentMatches'] as List?) ?? const [])
+          .map((e) {
+            if (e is Map) {
+              return e.map(
+                (key, value) => MapEntry(key.toString(), value),
+              );
+            }
+            return null;
+          })
           .whereType<Map<String, dynamic>>()
           .toList(),
+      cleanSheets: asInt(d['cleanSheets']),
+      currentWinStreak: asInt(d['currentWinStreak']),
+      currentUnbeatenStreak: asInt(d['currentUnbeatenStreak']),
+      longestWinStreak: asInt(d['longestWinStreak']),
+      recentForm: ((d['recentForm'] as List?) ?? const [])
+          .map((e) => e?.toString() ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList(),
+      lastFinishedMatchAt: asDateTimeOrNull(d['lastFinishedMatchAt']),
       updatedAt: asDateTimeOrNull(d['updatedAt'] ?? d['updated_at']),
     );
   }

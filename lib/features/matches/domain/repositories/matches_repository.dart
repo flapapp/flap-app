@@ -11,6 +11,28 @@ abstract class MatchesRepository {
 
   Future<String> createMatch(app_match.Match match);
 
+  /// Atomic team-match creation via the SECURITY DEFINER RPC
+  /// `public.create_team_match`. Use for any team match: it inserts the
+  /// matches row, host slot, host roster, and team_match_requests row
+  /// transactionally. Either all rows commit or none — no orphan matches.
+  Future<String> createTeamMatch({
+    required String title,
+    required String description,
+    required DateTime scheduledAt,
+    required String location,
+    required String city,
+    double? latitude,
+    double? longitude,
+    required int maxPlayers,
+    required double cost,
+    required app_match.MatchLevel level,
+    required bool isPrivate,
+    required String hostTeamId,
+    List<String> hostRoster = const <String>[],
+    String? opponentTeamId,
+    List<String> opponentProposedRoster = const <String>[],
+  });
+
   Future<bool> joinMatch(String matchId, String userId);
 
   Future<bool> leaveMatch(String matchId, String userId);

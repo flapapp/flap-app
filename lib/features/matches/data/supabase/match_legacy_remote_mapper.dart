@@ -157,6 +157,13 @@ match_teams(
     if (sorted.length >= 2) {
       final legA = rosterLegacy(sorted[0]);
       final legB = rosterLegacy(sorted[1]);
+      String deriveTeamStatus(Map<String, String> statuses) {
+        if (statuses.isEmpty) return 'pending';
+        final values = statuses.values.toList(growable: false);
+        if (values.every((s) => s == 'confirmed')) return 'confirmed';
+        if (values.every((s) => s == 'declined')) return 'declined';
+        return 'pending';
+      }
       out['teamA'] = <String, dynamic>{
         'name': legA['name'],
         'playerIds': legA['playerIds'],
@@ -173,6 +180,12 @@ match_teams(
       final idB = legB['sourceTeamId'] as String?;
       out['teamAId'] = (idA != null && idA.isNotEmpty) ? idA : null;
       out['teamBId'] = (idB != null && idB.isNotEmpty) ? idB : null;
+      out['teamAStatus'] = deriveTeamStatus(
+        Map<String, String>.from(legA['rosterStatus'] as Map),
+      );
+      out['teamBStatus'] = deriveTeamStatus(
+        Map<String, String>.from(legB['rosterStatus'] as Map),
+      );
       out['teamRosters'] = <String, dynamic>{
         'teamA': List<String>.from(legA['playerIds'] as List),
         'teamB': List<String>.from(legB['playerIds'] as List),

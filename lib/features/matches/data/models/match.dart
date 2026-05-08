@@ -519,6 +519,28 @@ bool get isUnplayedByTimeout {
   // User role checks
   bool isOrganizer(String userId) => organizerId == userId;
   bool isParticipant(String userId) => participants.contains(userId);
+
+  /// Listed on a team roster with non-declined status, or present in [teamRosters] lists.
+  /// Team matches often omit [participants]; this drives "My matches" visibility.
+  bool isUserOnActiveTeamRoster(String userId) {
+    for (final key in const ['teamA', 'teamB']) {
+      final statuses = teamRosterStatus[key];
+      if (statuses != null && statuses.containsKey(userId)) {
+        final raw = statuses[userId] ?? '';
+        final st = raw.toString().trim().toLowerCase();
+        if (st != 'declined') return true;
+        continue;
+      }
+      final roster = teamRosters[key];
+      if (roster != null && roster.contains(userId)) return true;
+    }
+    return false;
+  }
+
+  /// Accepted participant row or active (non-declined) team roster row.
+  bool isUserMatchMember(String userId) =>
+      participants.contains(userId) || isUserOnActiveTeamRoster(userId);
+
   bool hasPendingApplication(String userId) => pendingApplications.contains(userId);
   bool wasRejected(String userId) => rejectedApplications.contains(userId);
   bool canJoin(String userId) => status == MatchStatus.open && 
@@ -681,12 +703,11 @@ class MatchUtils {
         match.teamRosters['teamB'] ?? match.teamB?.playerIds ?? const <String>[];
 
     if (match.isTeamMatch) {
-      final teamAReady = (match.teamAStatus ?? 'pending') == 'confirmed';
-      final teamBReady = (match.teamBStatus ?? 'pending') == 'confirmed';
-      return teamAReady &&
-          teamBReady &&
-          rosterA.isNotEmpty &&
-          rosterB.isNotEmpty;
+      bool isReady(String? status) =>
+          status == 'confirmed' || status == 'accepted';
+      final teamAReady = isReady(match.teamAStatus);
+      final teamBReady = isReady(match.teamBStatus);
+      return teamAReady && teamBReady;
     }
 
     return match.isFull &&

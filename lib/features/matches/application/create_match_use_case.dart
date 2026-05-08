@@ -1,7 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../teams/domain/repositories/teams_repository.dart';
 import '../data/models/match.dart';
 import '../domain/repositories/matches_repository.dart';
 import 'create_match_command.dart';
@@ -19,12 +18,10 @@ class CreateMatchResult {
 class CreateMatchUseCase {
   CreateMatchUseCase(
     this._matchesRepository,
-    this._teamsRepository,
     this._supabaseClient,
   );
 
   final MatchesRepository _matchesRepository;
-  final TeamsRepository _teamsRepository;
   final SupabaseClient _supabaseClient;
 
   Future<CreateMatchResult> execute(CreateMatchCommand command) async {
@@ -32,6 +29,16 @@ class CreateMatchUseCase {
       userId: command.currentUserId,
       email: command.currentUserEmail,
     );
+
+    // Team matches go through a single SECURITY DEFINER RPC so the matches
+    // row, host slot, host roster, and team_match_requests row commit
+    // together. The previous client-side multi-step flow could fail RLS on
+    // the team_match_requests insert and leak orphan matches; users would
+    // then re-tap "Create" and accumulate duplicates. See
+    // `supabase/migrations/20260508160000_create_team_match_rpc.sql`.
+    if (command.teamMode) {
+      return _executeTeamMatch(command: command, organizerName: organizerName);
+    }
 
     final prepared = _prepareMatchData(command);
 
@@ -75,25 +82,63 @@ class CreateMatchUseCase {
       organizerName: organizerName,
     );
 
-    await _sendTeamRequests(
-      command: command,
+    return CreateMatchResult(
       matchId: matchId,
-      hostIsMyTeam: prepared.hostIsMyTeam,
+      organizerName: organizerName,
     );
+  }
 
-    if (prepared.hostIsMyTeam && command.selectedTeam != null) {
-      await _sendRosterInvites(
-        matchId: matchId,
-        teamKey: 'teamA',
-        teamName: command.selectedTeam!.name,
-        playerIds: command.selectedRoster,
-      );
+  Future<CreateMatchResult> _executeTeamMatch({
+    required CreateMatchCommand command,
+    required String organizerName,
+  }) async {
+    if (command.selectedTeam == null) {
+      throw Exception(tr('il_f7f8b89b06'));
     }
+    final hostIsMyTeam =
+        command.selectedTeam!.memberIds.contains(command.currentUserId);
+    if (hostIsMyTeam && command.selectedRoster.isEmpty) {
+      throw Exception(tr('il_5e90e3ad39'));
+    }
+
+    final scheduledAt = _composeScheduledAt(command);
+    final hostRoster =
+        hostIsMyTeam ? List<String>.from(command.selectedRoster) : const <String>[];
+
+    final matchId = await _matchesRepository.createTeamMatch(
+      title: command.title,
+      description: command.description,
+      scheduledAt: scheduledAt,
+      location: command.location,
+      city: command.city,
+      maxPlayers: command.maxPlayers,
+      cost: command.cost,
+      level: command.level,
+      isPrivate: command.isPrivate,
+      hostTeamId: command.selectedTeam!.id,
+      hostRoster: hostRoster,
+      opponentTeamId: command.opponentTeam?.id,
+      opponentProposedRoster: hostIsMyTeam
+          ? const <String>[]
+          : List<String>.from(command.selectedRoster),
+    );
 
     return CreateMatchResult(
       matchId: matchId,
       organizerName: organizerName,
     );
+  }
+
+  DateTime _composeScheduledAt(CreateMatchCommand command) {
+    final parts = command.timeLabel.split(':');
+    int hour = 0;
+    int minute = 0;
+    if (parts.length >= 2) {
+      hour = int.tryParse(parts[0]) ?? 0;
+      minute = int.tryParse(parts[1]) ?? 0;
+    }
+    final d = command.date;
+    return DateTime(d.year, d.month, d.day, hour, minute);
   }
 
   Future<String> _resolveOrganizerName({
@@ -116,7 +161,7 @@ class CreateMatchUseCase {
     required String matchId,
     required String organizerName,
   }) async {
-    if (command.selectedInviteFriendIds.isEmpty) return;
+    if (command.teamMode || command.selectedInviteFriendIds.isEmpty) return;
     try {
       for (final userId in command.selectedInviteFriendIds) {
         await _supabaseClient.from('match_invites').upsert(
@@ -132,112 +177,22 @@ class CreateMatchUseCase {
     } catch (_) {}
   }
 
-  Future<void> _sendTeamRequests({
-    required CreateMatchCommand command,
-    required String matchId,
-    required bool hostIsMyTeam,
-  }) async {
-    if (!command.teamMode) return;
-    if (command.selectedTeam != null && !hostIsMyTeam) {
-      await _teamsRepository.sendMatchRequest(
-        teamId: command.selectedTeam!.id,
-        opponentTeamId: command.opponentTeam?.id ?? '',
-        opponentName: command.opponentTeam?.name ?? tr('il_c0886e50d4'),
-        matchId: matchId,
-        proposedRoster: hostIsMyTeam ? command.selectedRoster : const [],
-      );
-    }
-    if (command.opponentTeam != null && command.selectedTeam != null) {
-      await _teamsRepository.sendMatchRequest(
-        teamId: command.opponentTeam!.id,
-        opponentTeamId: command.selectedTeam!.id,
-        opponentName: command.selectedTeam!.name,
-        matchId: matchId,
-        proposedRoster: const [],
-      );
-    }
-  }
-
-  Future<void> _sendRosterInvites({
-    required String matchId,
-    required String teamKey,
-    required String teamName,
-    required List<String> playerIds,
-  }) async {
-    if (playerIds.isEmpty) return;
-    // Backend trigger handles roster invite notifications from roster records.
-  }
-
+  /// Non-team match preparation. Team matches go through the SECURITY
+  /// DEFINER RPC `create_team_match` and never hit this code path.
   _PreparedMatchData _prepareMatchData(CreateMatchCommand command) {
-    var participants = <String>[command.currentUserId];
-    var currentPlayers = 1;
-    var autoBalance = command.autoBalance;
-    var isTeamMatch = false;
-    final teamRosters = <String, List<String>>{};
-    final teamRosterStatus = <String, Map<String, String>>{};
-    Team? teamAData;
-    Team? teamBData;
-    String? teamAId;
-    String? teamBId;
-    String? teamAStatus;
-    String? teamBStatus;
-    var hostIsMyTeam = false;
-
-    if (command.teamMode) {
-      if (command.selectedTeam == null) {
-        throw Exception(tr('il_f7f8b89b06'));
-      }
-      hostIsMyTeam = command.selectedTeam!.memberIds.contains(command.currentUserId);
-      if (hostIsMyTeam && command.selectedRoster.isEmpty) {
-        throw Exception(tr('il_5e90e3ad39'));
-      }
-      if (!hostIsMyTeam) {
-        participants = <String>[];
-        currentPlayers = 0;
-      } else {
-        participants = List<String>.from(command.selectedRoster);
-        currentPlayers = participants.length;
-      }
-      autoBalance = false;
-      isTeamMatch = true;
-      teamAId = command.selectedTeam!.id;
-      teamAStatus = 'pending';
-      teamRosters['teamA'] =
-          hostIsMyTeam ? List<String>.from(command.selectedRoster) : <String>[];
-      if (hostIsMyTeam) {
-        teamRosterStatus['teamA'] = {
-          for (final playerId in command.selectedRoster) playerId: 'pending',
-        };
-      }
-      if (command.opponentTeam != null) {
-        teamBId = command.opponentTeam!.id;
-        teamBStatus = 'pending';
-        teamRosters['teamB'] = [];
-        teamBData = Team(
-          name: command.opponentTeam!.name,
-          playerIds: const [],
-        );
-      }
-      teamAData = Team(
-        name: command.selectedTeam!.name,
-        playerIds: hostIsMyTeam ? command.selectedRoster : const [],
-      );
-    }
-
     return _PreparedMatchData(
-      participants: participants,
-      currentPlayers: currentPlayers,
-      autoBalance: autoBalance,
-      isTeamMatch: isTeamMatch,
-      teamRosters: teamRosters,
-      teamRosterStatus: teamRosterStatus,
-      teamA: teamAData,
-      teamB: teamBData,
-      teamAId: teamAId,
-      teamBId: teamBId,
-      teamAStatus: teamAStatus,
-      teamBStatus: teamBStatus,
-      hostIsMyTeam: hostIsMyTeam,
+      participants: <String>[command.currentUserId],
+      currentPlayers: 1,
+      autoBalance: command.autoBalance,
+      isTeamMatch: false,
+      teamRosters: const <String, List<String>>{},
+      teamRosterStatus: const <String, Map<String, String>>{},
+      teamA: null,
+      teamB: null,
+      teamAId: null,
+      teamBId: null,
+      teamAStatus: null,
+      teamBStatus: null,
     );
   }
 }
@@ -256,7 +211,6 @@ class _PreparedMatchData {
     required this.teamBId,
     required this.teamAStatus,
     required this.teamBStatus,
-    required this.hostIsMyTeam,
   });
 
   final List<String> participants;
@@ -271,5 +225,4 @@ class _PreparedMatchData {
   final String? teamBId;
   final String? teamAStatus;
   final String? teamBStatus;
-  final bool hostIsMyTeam;
 }

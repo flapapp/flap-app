@@ -633,14 +633,18 @@ class ChallengeService {
     }
   }
 
+  /// Always recomputes from the live participant count instead of trusting
+  /// any value carried on the entity. This avoids a class of bugs where a
+  /// stale [Challenge.prizePool] (e.g. from the create-screen preview)
+  /// would override the real entry-fee pot at finalization time.
   double _effectivePrizePool(Challenge challenge) {
-    if (challenge.prizePool > 0) {
-      return challenge.prizePool;
-    }
     final participantCount = challenge.participants.isNotEmpty
         ? challenge.participants.length
         : challenge.currentParticipants;
-    return (participantCount * challenge.entryFee).toDouble();
+    return computeChallengePrizePoolCoins(
+      participantCount: participantCount,
+      entryFee: challenge.entryFee,
+    ).toDouble();
   }
 
   List<int> _prizeBreakdown(double prizePool) {
@@ -733,8 +737,12 @@ class ChallengeService {
       status: _statusFromString((row['status'] ?? 'recruiting').toString()),
       maxParticipants: (row['max_participants'] as num?)?.toInt() ?? 50,
       currentParticipants: participants.length,
-      prizePool: (participants.length * ((row['entry_fee'] as num?)?.toInt() ?? 0))
-          .toDouble(),
+      // Canonical prize-pool formula keeps cards, detail page, and the
+      // finalization payout in lock-step.
+      prizePool: computeChallengePrizePoolCoins(
+        participantCount: participants.length,
+        entryFee: (row['entry_fee'] as num?)?.toInt() ?? 0,
+      ).toDouble(),
       participants: participants,
       submissions: submissions,
       votes: const <String, double>{},

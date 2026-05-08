@@ -43,7 +43,11 @@ abstract class TeamsRepository {
     required bool addAsVice,
   });
 
-  Stream<List<TeamMatchRequest>> watchMatchRequests(String teamId);
+  Stream<List<TeamMatchRequest>> watchIncomingTeamMatchInvites(String teamId);
+
+  Stream<List<TeamMatchRequest>> watchOutgoingTeamMatchRequests(String teamId);
+
+  Future<List<AppTeam>> fetchTeamsWhereUserIsOfficer(String userId);
 
   Stream<TeamJoinRequest?> watchMyJoinRequest(String teamId, String userId);
 
@@ -64,6 +68,10 @@ abstract class TeamsRepository {
     required bool accept,
     List<String> confirmedRoster = const [],
   });
+
+  /// Cancel an outgoing team match request (requesting team officer or
+  /// match organizer).
+  Future<void> cancelMatchRequest({required String requestId});
 
   Future<void> sendMatchRequest({
     required String teamId,

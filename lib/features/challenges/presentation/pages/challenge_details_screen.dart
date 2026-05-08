@@ -87,9 +87,15 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    // Seed the cubit with the snapshot we already have from the card so the
+    // header is never blank for a frame; realtime streams overwrite it as
+    // soon as Supabase emits.
     _detailsCubit = ChallengeDetailsCubit(
       widget.challenge.id,
       challengeCreatorId: widget.challenge.creatorId,
+      initialEntryFee: widget.challenge.entryFee,
+      initialParticipantCount: widget.challenge.participants.length,
+      initialSubmissionCount: widget.challenge.submissions.length,
     )..load();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeShowWinnerCelebration();
@@ -142,27 +148,39 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: _showParticipants,
-                          child: _buildStatChip(
-                            tr(
-                              'il_467d80c72d',
-                              args: ['${widget.challenge.participants.length}'],
+                    // Live header chips: participant/submission counts and
+                    // prize pool come from the cubit (subscribed to the
+                    // three Supabase streams) so they refresh in realtime
+                    // when other users join or upload videos.
+                    BlocBuilder<ChallengeDetailsCubit, ChallengeDetailsState>(
+                      buildWhen: (prev, next) =>
+                          prev.participantCount != next.participantCount ||
+                          prev.submissionCount != next.submissionCount ||
+                          prev.prizePool != next.prizePool,
+                      builder: (context, state) {
+                        return Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            GestureDetector(
+                              onTap: _showParticipants,
+                              child: _buildStatChip(
+                                tr(
+                                  'il_467d80c72d',
+                                  args: ['${state.participantCount}'],
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _buildStatChip(
-                          tr(
-                            'il_bb1d0b2b0e',
-                            args: ['${widget.challenge.submissions.length}'],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _buildStatChip('💰 ${widget.challenge.prizePool}'),
-                      ],
+                            _buildStatChip(
+                              tr(
+                                'il_bb1d0b2b0e',
+                                args: ['${state.submissionCount}'],
+                              ),
+                            ),
+                            _buildStatChip('💰 ${state.prizePool}'),
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -824,12 +842,18 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: Text(
-              tr(
-                'il_55d4b4bd7f',
-                args: ['${widget.challenge.submissions.length}'],
+            // Live submission count: rebuilds whenever a participant
+            // uploads / removes a video on this challenge.
+            child: BlocBuilder<ChallengeDetailsCubit, ChallengeDetailsState>(
+              buildWhen: (prev, next) =>
+                  prev.submissionCount != next.submissionCount,
+              builder: (context, state) => Text(
+                tr(
+                  'il_55d4b4bd7f',
+                  args: ['${state.submissionCount}'],
+                ),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
-              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -889,71 +913,78 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.7,
-          child: Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(20),
-                child: Row(
+      builder: (modalContext) {
+        // Pipe the existing cubit into the modal so the participants
+        // sheet stays live as new joiners arrive while it is open.
+        return BlocProvider.value(
+          value: _detailsCubit,
+          child: Container(
+            height: MediaQuery.of(modalContext).size.height * 0.7,
+            child: BlocBuilder<ChallengeDetailsCubit, ChallengeDetailsState>(
+              buildWhen: (prev, next) =>
+                  prev.participantIds.length != next.participantIds.length ||
+                  prev.participantCount != next.participantCount,
+              builder: (context, state) {
+                final ids = state.participantIds;
+                return Column(
                   children: [
-                    const Icon(Icons.people, color: Colors.white, size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        tr(
-                          'challenge_participants_title',
-                          namedArgs: {
-                            'count':
-                                '${widget.challenge.participants.length}',
-                          },
-                        ),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(color: Colors.white24, height: 1),
-              // Participants list
-              Expanded(
-                child: widget.challenge.participants.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.people_outline,
-                              size: 64,
-                              color: Colors.white54,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              tr('il_e051442724'),
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.people,
+                              color: Colors.white, size: 24),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              tr(
+                                'challenge_participants_title',
+                                namedArgs: {'count': '${state.participantCount}'},
+                              ),
                               style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: widget.challenge.participants.length,
-                        itemBuilder: (context, index) {
-                          final participantId =
-                              widget.challenge.participants[index];
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(modalContext),
+                            icon: const Icon(Icons.close, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Colors.white24, height: 1),
+                    // Participants list
+                    Expanded(
+                      child: ids.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.people_outline,
+                                    size: 64,
+                                    color: Colors.white54,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    tr('il_e051442724'),
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: ids.length,
+                              itemBuilder: (context, index) {
+                                final participantId = ids[index];
                           return FutureBuilder<Map<String, dynamic>?>(
                             future: _sb
                                 .from('profiles')
@@ -1095,8 +1126,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                           );
                         },
                       ),
-              ),
-            ],
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         );
       },
@@ -1176,7 +1210,10 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                   )
                 : null,
           ),
+          const SizedBox(height: 12),
+          // Score header row (label + numeric value)
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 tr('il_30b17903f7'),
@@ -1186,73 +1223,103 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              Expanded(
-                child: ValueListenableBuilder<double>(
-                  valueListenable: _voteNotifiers[videoId]!,
-                  builder: (context, value, _) => Slider(
-                    value: value,
-                    min: 0.0,
-                    max: 5.0,
-                    // No dividers for smoother scrolling
-                    activeColor: const Color(0xFF4caf50),
-                    inactiveColor: Colors.white.withOpacity(0.2),
-                    onChanged: hasVoted
-                        ? null
-                        : (v) {
-                            _voteNotifiers[videoId]!.value = v;
-                          },
-                    onChangeEnd: hasVoted
-                        ? null
-                        : (v) {
-                            final rounded = (v * 100).round() / 100;
-                            _voteNotifiers[videoId]!.value = rounded;
-                          },
+              ValueListenableBuilder<double>(
+                valueListenable: _voteNotifiers[videoId]!,
+                builder: (context, v, _) => Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
                   ),
-                ),
-              ),
-              Container(
-                width: 40,
-                child: ValueListenableBuilder<double>(
-                  valueListenable: _voteNotifiers[videoId]!,
-                  builder: (context, v, _) => Text(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4caf50).withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFF4caf50).withOpacity(0.6),
+                    ),
+                  ),
+                  child: Text(
                     v.toStringAsFixed(2),
                     style: const TextStyle(
                       color: Color(0xFF66bb6a),
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: hasVoted
-                    ? null
-                    : () =>
-                          _submitVote(videoId, _voteNotifiers[videoId]!.value),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: hasVoted
-                      ? Colors.grey
-                      : const Color(0xFF4caf50),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-                child: Text(
-                  hasVoted ? tr('il_9cf238dedb') : tr('il_cd5588db6f'),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 4),
+          // Full-width slider on its own row for accurate dragging.
+          // SliderTheme.padding=zero removes Material 3 default outer padding,
+          // making the active track span the full available width.
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: const Color(0xFF4caf50),
+              inactiveTrackColor: Colors.white.withOpacity(0.2),
+              thumbColor: const Color(0xFF4caf50),
+              overlayColor: const Color(0xFF4caf50).withOpacity(0.18),
+              trackHeight: 6,
+              thumbShape: const RoundSliderThumbShape(
+                enabledThumbRadius: 12,
+                elevation: 3,
+              ),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 26),
+              valueIndicatorColor: const Color(0xFF4caf50),
+              valueIndicatorTextStyle: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+              padding: EdgeInsets.zero,
+            ),
+            child: ValueListenableBuilder<double>(
+              valueListenable: _voteNotifiers[videoId]!,
+              builder: (context, value, _) => Slider(
+                value: value,
+                min: 0.0,
+                max: 5.0,
+                label: value.toStringAsFixed(2),
+                onChanged: hasVoted
+                    ? null
+                    : (v) {
+                        _voteNotifiers[videoId]!.value = v;
+                      },
+                onChangeEnd: hasVoted
+                    ? null
+                    : (v) {
+                        final rounded = (v * 100).round() / 100;
+                        _voteNotifiers[videoId]!.value = rounded;
+                      },
+              ),
+            ),
+          ),
+          // Vote button below the slider so the slider gets the full width.
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: hasVoted
+                  ? null
+                  : () =>
+                        _submitVote(videoId, _voteNotifiers[videoId]!.value),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: hasVoted
+                    ? Colors.grey
+                    : const Color(0xFF4caf50),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                hasVoted ? tr('il_9cf238dedb') : tr('il_cd5588db6f'),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ),
         ],
       ),

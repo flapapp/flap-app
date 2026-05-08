@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../widgets/player_avatar_button.dart';
+import '../../../../widgets/team_logo_button.dart';
 import '../../data/models/match.dart';
 
 /// Display row for a player on the "Who scored?" step.
@@ -54,7 +55,7 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
   late final TextEditingController _scoreAController;
   late final TextEditingController _scoreBController;
   Map<String, TextEditingController>? _goalControllers;
-  late final Future<Map<String, MatchFinishPlayerRow>> _playerRowsFuture;
+  late final Future<_FinishFlowData> _finishFlowFuture;
 
   int _committedScoreA = 0;
   int _committedScoreB = 0;
@@ -64,31 +65,16 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
       : widget.match.participants;
 
   /// Same roster resolution as [MatchManagementScreen] / match details.
-  List<String> _rosterTeamA(Match m) {
+  List<String> _rosterTeamAFromMatch(Match m) {
     final r = m.teamRosters['teamA'];
     if (r != null && r.isNotEmpty) return List<String>.from(r);
     return List<String>.from(m.teamA?.playerIds ?? const <String>[]);
   }
 
-  List<String> _rosterTeamB(Match m) {
+  List<String> _rosterTeamBFromMatch(Match m) {
     final r = m.teamRosters['teamB'];
     if (r != null && r.isNotEmpty) return List<String>.from(r);
     return List<String>.from(m.teamB?.playerIds ?? const <String>[]);
-  }
-
-  /// Every user id that can appear on the goals step (for Supabase + controllers).
-  List<String> _allGoalPlayerIds(Match m) {
-    final seen = <String>{};
-    void addAll(Iterable<String> xs) {
-      for (final x in xs) {
-        if (x.isNotEmpty) seen.add(x);
-      }
-    }
-
-    addAll(_baseParticipantIds);
-    addAll(_rosterTeamA(m));
-    addAll(_rosterTeamB(m));
-    return seen.toList();
   }
 
   Color _accent(int index) {
@@ -103,14 +89,78 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
     super.initState();
     _scoreAController = TextEditingController(text: '0');
     _scoreBController = TextEditingController(text: '0');
-    _playerRowsFuture = widget.loadPlayerRows(_allGoalPlayerIds(widget.match));
+    _finishFlowFuture = _loadFinishFlowData();
   }
 
-  void _ensureGoalControllers() {
+  Future<_FinishFlowData> _loadFinishFlowData() async {
+    final sb = Supabase.instance.client;
+    final match = widget.match;
+
+    final rawRows = await sb
+        .from('team_match_requests')
+        .select(
+          'requesting_team_id,target_team_id,status,created_at,created_by',
+        )
+        .eq('match_id', match.id);
+    final inviteRows = (rawRows as List<dynamic>)
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .toList(growable: false);
+
+    final teamIds = resolveFinishTeamIds(match, inviteRows);
+    final teamsDisplay = await loadFinishTeamsDisplay(sb, match, teamIds);
+
+    final matchRosterA = _rosterTeamAFromMatch(match);
+    final matchRosterB = _rosterTeamBFromMatch(match);
+
+    var fetchedA = const <String>[];
+    var fetchedB = const <String>[];
+    if (matchRosterA.isEmpty &&
+        teamIds.teamAId != null &&
+        teamIds.teamAId!.trim().isNotEmpty) {
+      fetchedA = await fetchFinishMatchTeamMemberUserIds(sb, teamIds.teamAId!);
+    }
+    if (matchRosterB.isEmpty &&
+        teamIds.teamBId != null &&
+        teamIds.teamBId!.trim().isNotEmpty) {
+      fetchedB = await fetchFinishMatchTeamMemberUserIds(sb, teamIds.teamBId!);
+    }
+
+    final merged = mergeFinishMatchRosterLists(
+      matchRosterA: matchRosterA,
+      matchRosterB: matchRosterB,
+      fetchedMembersA: fetchedA,
+      fetchedMembersB: fetchedB,
+    );
+    final rosterA = merged.rosterA;
+    final rosterB = merged.rosterB;
+
+    final seen = <String>{};
+    void addAll(Iterable<String> xs) {
+      for (final x in xs) {
+        if (x.isNotEmpty) seen.add(x);
+      }
+    }
+
+    addAll(_baseParticipantIds);
+    addAll(rosterA);
+    addAll(rosterB);
+
+    final allPlayerIds = seen.toList();
+    final playerRows = await widget.loadPlayerRows(allPlayerIds);
+
+    return _FinishFlowData(
+      teamsDisplay: teamsDisplay,
+      rosterA: rosterA,
+      rosterB: rosterB,
+      allPlayerIds: allPlayerIds,
+      playerRows: playerRows,
+    );
+  }
+
+  void _ensureGoalControllers(List<String> ids) {
     if (_goalControllers != null) return;
     _goalControllers = {
-      for (final id in _allGoalPlayerIds(widget.match))
-        id: TextEditingController(text: '0'),
+      for (final id in ids) id: TextEditingController(text: '0'),
     };
   }
 
@@ -128,7 +178,7 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
     setState(() => _step = 0);
   }
 
-  void _submitScoresStep() {
+  void _submitScoresStep(_FinishFlowData flow) {
     final a = int.tryParse(_scoreAController.text.trim());
     final b = int.tryParse(_scoreBController.text.trim());
     if (a == null || b == null || a < 0 || b < 0) {
@@ -149,7 +199,7 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
       return;
     }
 
-    if (_allGoalPlayerIds(widget.match).isEmpty) {
+    if (flow.allPlayerIds.isEmpty) {
       Navigator.of(context).pop(
         FinishMatchResult(
           teamAScore: a,
@@ -164,16 +214,16 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
       _committedScoreA = a;
       _committedScoreB = b;
       _step = 1;
-      _ensureGoalControllers();
+      _ensureGoalControllers(flow.allPlayerIds);
     });
   }
 
-  void _submitGoalsStep() {
+  void _submitGoalsStep(_FinishFlowData flow) {
     final ctrls = _goalControllers;
     if (ctrls == null) return;
 
-    final teamAIds = _rosterTeamA(widget.match);
-    final teamBIds = _rosterTeamB(widget.match);
+    final teamAIds = flow.rosterA;
+    final teamBIds = flow.rosterB;
 
     int sumTeam(Iterable<String> ids) {
       var s = 0;
@@ -220,7 +270,32 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
 
   static const _fieldScrollPadding = EdgeInsets.only(bottom: 120);
 
-  Widget _scoreStep(String aName, String bName) {
+  Widget _scoreStep(_FinishTeamInfo teamA, _FinishTeamInfo teamB) {
+    Widget teamHeader(_FinishTeamInfo team) {
+      return Column(
+        children: [
+          TeamLogoButton(
+            teamId: team.id,
+            teamName: team.name,
+            logoUrl: team.logoUrl,
+            size: 44,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            team.name,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -236,17 +311,7 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    aName,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  teamHeader(teamA),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _scoreAController,
@@ -282,17 +347,7 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    bName,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  teamHeader(teamB),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _scoreBController,
@@ -365,10 +420,22 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
             ],
           ),
           const SizedBox(height: 10),
-          ...teamIds.map((id) {
+          if (teamIds.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                tr('match_roster_missing'),
+                style: const TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+            )
+          else
+            ...teamIds.map((id) {
             final row =
                 players[id] ?? MatchFinishPlayerRow(displayName: tr('player'));
             final c = ctrls[id];
+            if (c == null) {
+              return const SizedBox.shrink();
+            }
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
@@ -410,13 +477,15 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
   }
 
   Widget _goalsStep(
-    String teamAName,
-    String teamBName,
+    _FinishTeamInfo teamA,
+    _FinishTeamInfo teamB,
+    List<String> rosterA,
+    List<String> rosterB,
     Map<String, MatchFinishPlayerRow> players,
     Map<String, TextEditingController> ctrls,
   ) {
-    final teamAIds = _rosterTeamA(widget.match);
-    final teamBIds = _rosterTeamB(widget.match);
+    final teamAIds = rosterA;
+    final teamBIds = rosterB;
 
     return StatefulBuilder(
       builder: (context, setBody) {
@@ -438,9 +507,9 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
                 'match_goals_assign_intro',
                 namedArgs: {
                   'teamAScore': '$_committedScoreA',
-                  'teamAName': teamAName,
+                  'teamAName': teamA.name,
                   'teamBScore': '$_committedScoreB',
-                  'teamBName': teamBName,
+                  'teamBName': teamB.name,
                 },
               ),
               style: const TextStyle(color: Colors.white70, fontSize: 15),
@@ -448,7 +517,7 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
             const SizedBox(height: 16),
             _teamGoalsSection(
               setBody: setBody,
-              teamName: teamAName,
+              teamName: teamA.name,
               teamIds: teamAIds,
               players: players,
               accent: _accent(0),
@@ -456,7 +525,7 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
             ),
             _teamGoalsSection(
               setBody: setBody,
-              teamName: teamBName,
+              teamName: teamB.name,
               teamIds: teamBIds,
               players: players,
               accent: _accent(1),
@@ -474,7 +543,7 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
                 children: [
                   Text(
                     '${tr('il_f47e8394cb')}: '
-                    '$teamAName $teamAGoals - $teamBGoals $teamBName',
+                    '${teamA.name} $teamAGoals - $teamBGoals ${teamB.name}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w600,
@@ -496,10 +565,6 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
 
   @override
   Widget build(BuildContext context) {
-    final activeMatch = widget.match;
-    final aName = activeMatch.teamA?.name ?? tr('il_e18d322f14');
-    final bName = activeMatch.teamB?.name ?? tr('il_aceaf5d9ac');
-
     final title = _step == 0 ? tr('finish_match') : tr('il_37d6086f07');
 
     return Scaffold(
@@ -514,122 +579,332 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_step == 1)
-            Material(
-              color: const Color(0xFF252525),
+      body: FutureBuilder<_FinishFlowData>(
+        future: _finishFlowFuture,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      tr('finish_match'),
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const Text(' · ', style: TextStyle(color: Colors.white38)),
-                    Text(
-                      tr('il_37d6086f07'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  '${tr('error')}: ${snap.error}',
+                  style: const TextStyle(color: Colors.white70),
+                  textAlign: TextAlign.center,
                 ),
               ),
-            ),
-          Expanded(
-            child: _step == 0
-                ? SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    child: _scoreStep(aName, bName),
-                  )
-                : FutureBuilder<Map<String, MatchFinishPlayerRow>>(
-                    future: _playerRowsFuture,
-                    builder: (context, snap) {
-                      if (snap.connectionState != ConnectionState.done) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      final players = snap.data ?? {};
-                      return SingleChildScrollView(
+            );
+          }
+          final flow = snap.data!;
+          final teams = flow.teamsDisplay;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_step == 1)
+                Material(
+                  color: const Color(0xFF252525),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          tr('finish_match'),
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const Text(
+                          ' · ',
+                          style: TextStyle(color: Colors.white38),
+                        ),
+                        Text(
+                          tr('il_37d6086f07'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: _step == 0
+                    ? SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        child: _scoreStep(teams.teamA, teams.teamB),
+                      )
+                    : SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
                         keyboardDismissBehavior:
                             ScrollViewKeyboardDismissBehavior.onDrag,
                         child: _goalsStep(
-                          aName,
-                          bName,
-                          players,
+                          teams.teamA,
+                          teams.teamB,
+                          flow.rosterA,
+                          flow.rosterB,
+                          flow.playerRows,
                           _goalControllers!,
                         ),
-                      );
-                    },
-                  ),
-          ),
-          SafeArea(
-            top: false,
-            child: Material(
-              color: const Color(0xFF2a2a2a),
-              elevation: 8,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                child: _step == 0
-                    ? Row(
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: Text(tr('cancel')),
-                          ),
-                          const Spacer(),
-                          FilledButton(
-                            onPressed: _submitScoresStep,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFFf44336),
-                            ),
-                            child: Text(tr('finish_match')),
-                          ),
-                        ],
-                      )
-                    : OverflowBar(
-                        alignment: MainAxisAlignment.end,
-                        spacing: 8,
-                        overflowSpacing: 4,
-                        children: [
-                          TextButton(
-                            onPressed: _goToScoresStep,
-                            child: Text(tr('back')),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: Text(tr('cancel')),
-                          ),
-                          TextButton(
-                            onPressed: _skipGoals,
-                            child: Text(tr('il_28d03596d2')),
-                          ),
-                          FilledButton(
-                            onPressed: _submitGoalsStep,
-                            child: Text(tr('confirm')),
-                          ),
-                        ],
                       ),
               ),
-            ),
-          ),
-        ],
+              SafeArea(
+                top: false,
+                child: Material(
+                  color: const Color(0xFF2a2a2a),
+                  elevation: 8,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                    child: _step == 0
+                        ? Row(
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: Text(tr('cancel')),
+                              ),
+                              const Spacer(),
+                              FilledButton(
+                                onPressed: () => _submitScoresStep(flow),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFFf44336),
+                                ),
+                                child: Text(tr('finish_match')),
+                              ),
+                            ],
+                          )
+                        : OverflowBar(
+                            alignment: MainAxisAlignment.end,
+                            spacing: 8,
+                            overflowSpacing: 4,
+                            children: [
+                              TextButton(
+                                onPressed: _goToScoresStep,
+                                child: Text(tr('back')),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: Text(tr('cancel')),
+                              ),
+                              TextButton(
+                                onPressed: _skipGoals,
+                                child: Text(tr('il_28d03596d2')),
+                              ),
+                              FilledButton(
+                                onPressed: () => _submitGoalsStep(flow),
+                                child: Text(tr('confirm')),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
+}
+
+/// Rosters for finish-match goal assignment: prefer match rosters, else team membership.
+@immutable
+class MergedFinishRosters {
+  const MergedFinishRosters({required this.rosterA, required this.rosterB});
+
+  final List<String> rosterA;
+  final List<String> rosterB;
+}
+
+MergedFinishRosters mergeFinishMatchRosterLists({
+  required List<String> matchRosterA,
+  required List<String> matchRosterB,
+  required List<String> fetchedMembersA,
+  required List<String> fetchedMembersB,
+}) {
+  var a = matchRosterA.isNotEmpty
+      ? List<String>.from(matchRosterA)
+      : List<String>.from(fetchedMembersA);
+  var b = matchRosterB.isNotEmpty
+      ? List<String>.from(matchRosterB)
+      : List<String>.from(fetchedMembersB);
+  final setA = a.toSet();
+  b = b.where((id) => id.isNotEmpty && !setA.contains(id)).toList();
+  return MergedFinishRosters(rosterA: a, rosterB: b);
+}
+
+Future<List<String>> fetchFinishMatchTeamMemberUserIds(
+  SupabaseClient sb,
+  String teamId,
+) async {
+  try {
+    final rows =
+        await sb.from('team_members').select('user_id').eq('team_id', teamId);
+    return (rows as List<dynamic>)
+        .map((raw) => (raw as Map<String, dynamic>)['user_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+  } catch (_) {
+    return [];
+  }
+}
+
+Future<_FinishTeamsDisplay> loadFinishTeamsDisplay(
+  SupabaseClient sb,
+  Match match,
+  _FinishTeamIds ids,
+) async {
+  Future<_FinishTeamInfo> loadTeam(
+    String? teamId, {
+    required String fallbackName,
+    required String? fallbackLogo,
+  }) async {
+    if (teamId == null || teamId.isEmpty) {
+      return _FinishTeamInfo(
+        id: null,
+        name: fallbackName,
+        logoUrl: fallbackLogo,
+      );
+    }
+    try {
+      final row = await sb
+          .from('teams')
+          .select('id,name,logo_url')
+          .eq('id', teamId)
+          .maybeSingle();
+      return _FinishTeamInfo(
+        id: teamId,
+        name: (row?['name'] ?? fallbackName).toString(),
+        logoUrl: (row?['logo_url'] ?? fallbackLogo ?? '').toString(),
+      );
+    } catch (_) {
+      return _FinishTeamInfo(
+        id: teamId,
+        name: fallbackName,
+        logoUrl: fallbackLogo,
+      );
+    }
+  }
+
+  final fallbackAName = match.teamA?.name ?? tr('il_e18d322f14');
+  final fallbackBName = match.teamB?.name ?? tr('il_aceaf5d9ac');
+  final teams = await Future.wait([
+    loadTeam(
+      ids.teamAId,
+      fallbackName: fallbackAName,
+      fallbackLogo: null,
+    ),
+    loadTeam(
+      ids.teamBId,
+      fallbackName: fallbackBName,
+      fallbackLogo: null,
+    ),
+  ]);
+  return _FinishTeamsDisplay(teamA: teams[0], teamB: teams[1]);
+}
+
+class _FinishFlowData {
+  const _FinishFlowData({
+    required this.teamsDisplay,
+    required this.rosterA,
+    required this.rosterB,
+    required this.allPlayerIds,
+    required this.playerRows,
+  });
+
+  final _FinishTeamsDisplay teamsDisplay;
+  final List<String> rosterA;
+  final List<String> rosterB;
+  final List<String> allPlayerIds;
+  final Map<String, MatchFinishPlayerRow> playerRows;
+}
+
+class _FinishTeamIds {
+  const _FinishTeamIds({required this.teamAId, required this.teamBId});
+  final String? teamAId;
+  final String? teamBId;
+}
+
+_FinishTeamIds resolveFinishTeamIds(
+  Match match,
+  List<Map<String, dynamic>> inviteRows,
+) {
+  final hostTeamId = (match.teamAId ?? '').trim();
+  final invitedTeamId = (match.teamBId ?? '').trim();
+  final valid = inviteRows.where((row) {
+    final status = (row['status'] ?? '').toString();
+    return status == 'pending' || status == 'accepted' || status == 'declined';
+  }).toList(growable: false);
+
+  List<Map<String, dynamic>> scoped = valid;
+  if (hostTeamId.isNotEmpty) {
+    scoped = scoped.where((row) {
+      final requesting = (row['requesting_team_id'] ?? '').toString();
+      final target = (row['target_team_id'] ?? '').toString();
+      return requesting == hostTeamId && target != hostTeamId;
+    }).toList(growable: false);
+  }
+  if (invitedTeamId.isNotEmpty) {
+    final byInvitedId = scoped.where((row) {
+      final target = (row['target_team_id'] ?? '').toString();
+      return target == invitedTeamId;
+    }).toList(growable: false);
+    if (byInvitedId.isNotEmpty) scoped = byInvitedId;
+  }
+  if (scoped.isEmpty) {
+    scoped = valid.where((row) {
+      final createdBy = (row['created_by'] ?? '').toString();
+      final requesting = (row['requesting_team_id'] ?? '').toString();
+      final target = (row['target_team_id'] ?? '').toString();
+      return createdBy == match.organizerId && requesting != target;
+    }).toList(growable: false);
+  }
+  final pool = scoped.isNotEmpty ? scoped : valid;
+  pool.sort((a, b) {
+    final aDate = DateTime.tryParse((a['created_at'] ?? '').toString()) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    final bDate = DateTime.tryParse((b['created_at'] ?? '').toString()) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    return bDate.compareTo(aDate);
+  });
+  final invite = pool.isNotEmpty ? pool.first : null;
+  final resolvedA = hostTeamId.isNotEmpty
+      ? hostTeamId
+      : (invite?['requesting_team_id'] ?? '').toString();
+  final resolvedB = (invite?['target_team_id'] ?? '').toString().isNotEmpty
+      ? (invite?['target_team_id'] ?? '').toString()
+      : invitedTeamId;
+  return _FinishTeamIds(
+    teamAId: resolvedA.isEmpty ? null : resolvedA,
+    teamBId: resolvedB.isEmpty ? null : resolvedB,
+  );
+}
+
+class _FinishTeamInfo {
+  const _FinishTeamInfo({
+    required this.id,
+    required this.name,
+    required this.logoUrl,
+  });
+
+  final String? id;
+  final String name;
+  final String? logoUrl;
+}
+
+class _FinishTeamsDisplay {
+  const _FinishTeamsDisplay({required this.teamA, required this.teamB});
+  final _FinishTeamInfo teamA;
+  final _FinishTeamInfo teamB;
 }
 
 String _finishMatchDisplayNameFromProfileRow(Map<String, dynamic> row) {

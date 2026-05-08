@@ -43,7 +43,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   late final Stream<AppTeam?> _teamWatch;
   late final Stream<Map<String, dynamic>?> _teamStatsWatch;
-  late final Stream<List<TeamMatchRequest>> _requestsStream;
+  late final Stream<List<TeamMatchRequest>> _incomingMatchInvites;
+  late final Stream<List<TeamMatchRequest>> _outgoingMatchRequests;
   bool _isSendingJoinRequest = false;
   bool _isLeavingTeam = false;
   final Set<String> _processingJoinRequestIds = {};
@@ -53,7 +54,10 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     super.initState();
     _teamWatch = sl<TeamsRepository>().watchTeam(widget.teamId);
     _teamStatsWatch = sl<TeamStatsRepository>().watchTeamStats(widget.teamId);
-    _requestsStream = _teamsRepo.watchMatchRequests(widget.teamId);
+    _incomingMatchInvites =
+        _teamsRepo.watchIncomingTeamMatchInvites(widget.teamId);
+    _outgoingMatchRequests =
+        _teamsRepo.watchOutgoingTeamMatchRequests(widget.teamId);
   }
 
   @override
@@ -118,7 +122,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                     const SizedBox(height: 24),
                     _buildRecentMatches(stats),
                     const SizedBox(height: 24),
-                    _buildMatchRequests(canManage),
+                    _buildMatchRequestsSection(canManage),
                   ],
                 ),
               );
@@ -131,7 +135,6 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   Widget _buildHeroSection(AppTeam team, bool canManage, TeamStats stats) {
     final totalMatches = stats.matches;
-    final DateFormat formatter = DateFormat('MMM yyyy');
     final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     final isMember = uid != null && team.memberIds.contains(uid);
     return Container(
@@ -1265,23 +1268,52 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     }
   }
 
-  Widget _buildMatchRequests(bool canManage) {
+  Widget _buildMatchRequestsSection(bool canManage) {
     if (!canManage) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildMatchRequestPanel(
+          stream: _incomingMatchInvites,
+          title: tr('team_match_incoming_title'),
+          emptyTitle: tr('il_883a9f47c7'),
+          emptySubtitle: tr('team_match_incoming_empty'),
+          showResponseActions: true,
+        ),
+        const SizedBox(height: 24),
+        _buildMatchRequestPanel(
+          stream: _outgoingMatchRequests,
+          title: tr('team_match_outgoing_title'),
+          emptyTitle: tr('team_match_outgoing_empty_title'),
+          emptySubtitle: tr('team_match_outgoing_empty_subtitle'),
+          showResponseActions: false,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMatchRequestPanel({
+    required Stream<List<TeamMatchRequest>> stream,
+    required String title,
+    required String emptyTitle,
+    required String emptySubtitle,
+    required bool showResponseActions,
+  }) {
     return StreamBuilder<List<TeamMatchRequest>>(
-      stream: _requestsStream,
+      stream: stream,
       builder: (context, snapshot) {
         final requests = snapshot.data ?? const [];
         if (requests.isEmpty) {
           return _emptyState(
-            title: tr('il_883a9f47c7'),
-            subtitle: tr('il_b5bd1b0762'),
+            title: emptyTitle,
+            subtitle: emptySubtitle,
           );
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              tr('il_7554a1b5ec'),
+              title,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -1330,6 +1362,26 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                             ),
                           ),
                         ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _requestStatusColor(req.status).withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color:
+                                  _requestStatusColor(req.status).withOpacity(0.38),
+                            ),
+                          ),
+                          child: Text(
+                            _requestStatusLabel(req.status),
+                            style: TextStyle(
+                              color: _requestStatusColor(req.status),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -1347,36 +1399,49 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () =>
-                                _respondToMatchRequest(req, accepted: false),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white70,
-                              side: BorderSide(color: Colors.white.withOpacity(0.3)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                    if (showResponseActions &&
+                        req.status == TeamMatchRequestStatus.pending) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () =>
+                                  _respondToMatchRequest(req, accepted: false),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white70,
+                                side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                              child: Text(tr('cancel')),
                             ),
-                            child: Text(tr('cancel')),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () =>
-                                _respondToMatchRequest(req, accepted: true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4caf50),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () =>
+                                  _respondToMatchRequest(req, accepted: true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4caf50),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                              child: Text(tr('il_89713b9c9c')),
                             ),
-                            child: Text(tr('il_89713b9c9c')),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        req.status == TeamMatchRequestStatus.accepted
+                            ? tr('match_invite_status_accepted')
+                            : req.status == TeamMatchRequestStatus.declined
+                                ? tr('match_invite_status_declined')
+                                : tr('team_match_outgoing_pending'),
+                        style: const TextStyle(color: Colors.white54, fontSize: 13),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1385,6 +1450,28 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         );
       },
     );
+  }
+
+  String _requestStatusLabel(TeamMatchRequestStatus status) {
+    switch (status) {
+      case TeamMatchRequestStatus.accepted:
+        return tr('match_invite_status_accepted');
+      case TeamMatchRequestStatus.declined:
+        return tr('match_invite_status_declined');
+      case TeamMatchRequestStatus.pending:
+        return tr('match_invite_status_pending');
+    }
+  }
+
+  Color _requestStatusColor(TeamMatchRequestStatus status) {
+    switch (status) {
+      case TeamMatchRequestStatus.accepted:
+        return const Color(0xFF4caf50);
+      case TeamMatchRequestStatus.declined:
+        return const Color(0xFFE53935);
+      case TeamMatchRequestStatus.pending:
+        return const Color(0xFFFFC107);
+    }
   }
 
   Widget _emptyState({required String title, required String subtitle}) {

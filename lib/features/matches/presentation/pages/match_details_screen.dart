@@ -12,16 +12,19 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../../application/match_participation_actions_use_case.dart';
+import '../../../teams/domain/repositories/teams_repository.dart';
 import '../../../teams/data/models/app_team.dart';
 import '../../data/models/match.dart';
 import '../utils/match_status_ui.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../../widgets/player_avatar_button.dart';
+import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/user_chip.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/city_localization.dart';
 import '../../../../core/locale/football_position.dart';
 import '../widgets/team_roster_total_rating_badge.dart';
+import 'team_invite_search_screen.dart';
 
 double _profileOverallRatingFromRow(Map<String, dynamic> data) {
   final v = data['overall_rating'] ?? data['rating'];
@@ -41,6 +44,7 @@ class MatchDetailsScreen extends StatefulWidget {
 
 class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   MatchesRepository get _matchRepo => sl<MatchesRepository>();
+  TeamsRepository get _teamsRepo => sl<TeamsRepository>();
   MatchParticipationActionsUseCase get _participationActions =>
       sl<MatchParticipationActionsUseCase>();
   final SupabaseClient _sb = Supabase.instance.client;
@@ -48,6 +52,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   final NotificationService _notificationService = sl<NotificationService>();
   bool _isJoining = false;
   bool _isRespondingInvite = false;
+  bool _isRespondingTeamInvite = false;
   String? _inviteStatusOverride;
   bool _acceptedInviteLocally = false;
   bool _isUploadingCover = false;
@@ -137,7 +142,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 stream: _liveMatchStream(),
                 builder: (context, snapshot) {
                   final m = snapshot.data ?? widget.match;
-                  return _buildTeamMatchSection(m);
+                  return Column(
+                    children: [
+                      _buildTeamMatchSection(m),
+                      const SizedBox(height: 14),
+                      _buildTeamInvitationManagementSection(m),
+                    ],
+                  );
                 },
               ),
               const SizedBox(height: 20),
@@ -162,9 +173,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               },
             ),
 
-            // Participants with detail
-            _buildParticipantsSection(),
-            SizedBox(height: 20),
+            // Participants with detail (only for non-team matches)
+            if (!widget.match.isTeamMatch) ...[
+              _buildParticipantsSection(),
+              SizedBox(height: 20),
+            ],
 
             // Actions (Join and Share only)
             _buildActionButtons(),
@@ -739,6 +752,355 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         );
       },
     );
+  }
+
+  Widget _buildTeamInvitationManagementSection(Match match) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _sb
+          .from('team_match_requests')
+          .stream(primaryKey: ['id'])
+          .map(
+            (rows) => (rows as List<dynamic>)
+                .map((raw) => Map<String, dynamic>.from(raw as Map))
+                .where((row) => (row['match_id'] ?? '').toString() == match.id)
+                .toList(growable: false),
+          ),
+      builder: (context, snapshot) {
+        final invite = _resolveTeamInviteRequest(match, snapshot.data ?? const []);
+        final currentUserId = AppAuth.currentUserId;
+        final isOrganizer =
+            currentUserId != null && currentUserId == match.organizerId;
+        final inviteStatus = (invite?['status'] ?? '').toString();
+        final canChangePending = isOrganizer && inviteStatus == 'pending';
+        final canInviteFresh = isOrganizer && invite == null;
+        final creatorTeamId = ((match.teamAId ?? widget.match.teamAId) ?? '').toString();
+        final creatorTeamIdFromRequest =
+            (invite?['requesting_team_id'] ?? '').toString();
+        final effectiveCreatorTeamId = creatorTeamId.isNotEmpty
+            ? creatorTeamId
+            : creatorTeamIdFromRequest;
+        final invitedTeamId = (invite?['target_team_id'] ?? '').toString();
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.03),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Creator Team',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              FutureBuilder<AppTeam?>(
+                future: effectiveCreatorTeamId.isEmpty
+                    ? Future.value(null)
+                    : _getTeam(effectiveCreatorTeamId),
+                builder: (context, creatorSnap) {
+                  final creatorTeam = creatorSnap.data;
+                  final creatorTeamName = creatorTeam?.name ??
+                      (match.teamA?.name.isNotEmpty == true
+                          ? match.teamA!.name
+                          : tr('il_d161440e8d'));
+                  return Row(
+                    children: [
+                      if (effectiveCreatorTeamId.isNotEmpty)
+                        TeamLogoButton(
+                          teamId: creatorTeam?.id ?? effectiveCreatorTeamId,
+                          teamName: creatorTeamName,
+                          logoUrl: creatorTeam?.logoUrl,
+                          size: 36,
+                        )
+                      else
+                        const CircleAvatar(
+                          radius: 18,
+                          backgroundColor: Colors.white12,
+                          child: Icon(Icons.groups, color: Colors.white70, size: 18),
+                        ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          creatorTeamName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 14),
+              Text(
+                tr('il_ecbd71fddb'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (invite == null)
+                const Text(
+                  'No invited team yet.',
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                )
+              else
+                FutureBuilder<AppTeam?>(
+                  future: invitedTeamId.isEmpty ? Future.value(null) : _getTeam(invitedTeamId),
+                  builder: (context, teamSnap) {
+                    final invitedTeam = teamSnap.data;
+                    final teamName = invitedTeam?.name ??
+                        (invite['target_team_id'] ?? '').toString();
+                    final statusLabel = _teamInviteStatusLabel(inviteStatus);
+                    final accepted = inviteStatus == 'accepted';
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            TeamLogoButton(
+                              teamId: invitedTeam?.id ?? invitedTeamId,
+                              teamName: teamName,
+                              logoUrl: invitedTeam?.logoUrl,
+                              size: 36,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                teamName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: _teamInviteStatusColor(inviteStatus)
+                                    .withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: _teamInviteStatusColor(inviteStatus)
+                                      .withValues(alpha: 0.38),
+                                ),
+                              ),
+                              child: Text(
+                                statusLabel,
+                                style: TextStyle(
+                                  color: _teamInviteStatusColor(inviteStatus),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          accepted
+                              ? 'Invitation accepted.'
+                              : 'Invitation not accepted yet.',
+                          style:
+                              const TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              if (canInviteFresh || canChangePending) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _handleTeamInviteSelection(
+                      match: match,
+                      currentInvite: invite,
+                    ),
+                    icon: const Icon(Icons.search, color: Colors.white),
+                    label: Text(
+                      canInviteFresh ? tr('il_7ec0bce7a1') : tr('il_1f6c4a2d9e'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF4caf50)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Map<String, dynamic>? _resolveTeamInviteRequest(
+    Match match,
+    List<Map<String, dynamic>> rows,
+  ) {
+    if (rows.isEmpty) return null;
+    final hostTeamId = (match.teamAId ?? widget.match.teamAId ?? '').trim();
+    final invitedTeamId = (match.teamBId ?? widget.match.teamBId ?? '').trim();
+    final valid = rows.where((row) {
+      final status = (row['status'] ?? '').toString();
+      return status == 'pending' || status == 'accepted' || status == 'declined';
+    }).toList(growable: false);
+    if (valid.isEmpty) return null;
+
+    List<Map<String, dynamic>> scoped = valid;
+    if (hostTeamId.isNotEmpty) {
+      scoped = scoped.where((row) {
+        final requesting = (row['requesting_team_id'] ?? '').toString();
+        final target = (row['target_team_id'] ?? '').toString();
+        return requesting == hostTeamId && target != hostTeamId;
+      }).toList(growable: false);
+    }
+    if (invitedTeamId.isNotEmpty) {
+      final byInvitedId = scoped.where((row) {
+        final target = (row['target_team_id'] ?? '').toString();
+        return target == invitedTeamId;
+      }).toList(growable: false);
+      if (byInvitedId.isNotEmpty) {
+        scoped = byInvitedId;
+      }
+    }
+    if (scoped.isEmpty) {
+      scoped = valid.where((row) {
+        final createdBy = (row['created_by'] ?? '').toString();
+        final requesting = (row['requesting_team_id'] ?? '').toString();
+        final target = (row['target_team_id'] ?? '').toString();
+        return createdBy == match.organizerId && requesting != target;
+      }).toList(growable: false);
+    }
+    final pool = scoped.isNotEmpty ? scoped : valid;
+    pool.sort((a, b) {
+      final aDate = DateTime.tryParse((a['created_at'] ?? '').toString()) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = DateTime.tryParse((b['created_at'] ?? '').toString()) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    return pool.first;
+  }
+
+  Future<void> _handleTeamInviteSelection({
+    required Match match,
+    required Map<String, dynamic>? currentInvite,
+  }) async {
+    final hostTeamId = (match.teamAId ?? widget.match.teamAId ?? '').trim();
+    if (hostTeamId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Host team is not assigned yet.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final initialTargetId = (currentInvite?['target_team_id'] ?? '').toString();
+    final initialTeam =
+        initialTargetId.isEmpty ? null : await _getTeam(initialTargetId);
+    if (!mounted) return;
+
+    final selectedTeam = await Navigator.of(context).push<AppTeam>(
+      MaterialPageRoute(
+        builder: (_) => TeamInviteSearchScreen(
+          initialSelectedTeam: initialTeam,
+          excludedTeamId: hostTeamId,
+        ),
+      ),
+    );
+    if (!mounted || selectedTeam == null) return;
+
+    try {
+      // Cancel still-pending outgoing invitations for this match via RPC so
+      // RLS uses the security-definer path (organizer of the match is allowed
+      // even if not a team officer).
+      final pendingIds = await _sb
+          .from('team_match_requests')
+          .select('id')
+          .eq('match_id', match.id)
+          .eq('requesting_team_id', hostTeamId)
+          .eq('status', 'pending');
+      for (final raw in pendingIds as List<dynamic>) {
+        final id = (raw as Map<String, dynamic>)['id']?.toString() ?? '';
+        if (id.isEmpty) continue;
+        try {
+          await _teamsRepo.cancelMatchRequest(requestId: id);
+        } catch (_) {
+          // Continue - we still want to send the new invite.
+        }
+      }
+
+      await _teamsRepo.sendMatchRequest(
+        teamId: hostTeamId,
+        opponentTeamId: selectedTeam.id,
+        opponentName: selectedTeam.name,
+        matchId: match.id,
+        proposedRoster: const [],
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            currentInvite == null
+                ? 'Team invitation sent.'
+                : 'Team invitation updated.',
+          ),
+          backgroundColor: const Color(0xFF4caf50),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  String _teamInviteStatusLabel(String status) {
+    switch (status) {
+      case 'accepted':
+        return tr('match_invite_status_accepted');
+      case 'declined':
+        return tr('match_invite_status_declined');
+      default:
+        return tr('match_invite_status_pending');
+    }
+  }
+
+  Color _teamInviteStatusColor(String status) {
+    switch (status) {
+      case 'accepted':
+        return const Color(0xFF4caf50);
+      case 'declined':
+        return const Color(0xFFF44336);
+      default:
+        return const Color(0xFFFFC107);
+    }
   }
 
   Widget? _buildCaptainSectionForTeam(
@@ -1962,7 +2324,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     final isOrganizer = widget.match.organizerId == currentUser.id;
 
     if (widget.match.isTeamMatch && !isParticipant && !isOrganizer) {
-      return _buildTeamOnlyMessage();
+      return _buildTeamInviteOrTeamOnlyMessage(currentUser.id);
     }
 
     if (isOrganizer &&
@@ -2315,6 +2677,149 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         );
       },
     );
+  }
+
+  Widget _buildTeamInviteOrTeamOnlyMessage(String userId) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _loadMyTeamMatchInvite(userId),
+      builder: (context, snapshot) {
+        final invite = snapshot.data;
+        final status = (invite?['status'] ?? '').toString();
+        if (status == 'pending') {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isRespondingTeamInvite
+                          ? null
+                          : () => _respondTeamMatchInvite(
+                                requestId: (invite?['id'] ?? '').toString(),
+                                accept: true,
+                              ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4caf50),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isRespondingTeamInvite
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(tr('accept')),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isRespondingTeamInvite
+                          ? null
+                          : () => _respondTeamMatchInvite(
+                                requestId: (invite?['id'] ?? '').toString(),
+                                accept: false,
+                              ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(tr('reject')),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildShareButton(expand: false),
+            ],
+          );
+        }
+        return _buildTeamOnlyMessage();
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>?> _loadMyTeamMatchInvite(String userId) async {
+    final officerRows = await _sb
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', userId)
+        .inFilter('role', ['captain', 'vice_captain']);
+    final teamIds = (officerRows as List<dynamic>)
+        .map((row) => (row as Map<String, dynamic>)['team_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    if (teamIds.isEmpty) return null;
+
+    final requests = await _sb
+        .from('team_match_requests')
+        .select('id,status,target_team_id,created_at')
+        .eq('match_id', widget.match.id)
+        .inFilter('target_team_id', teamIds);
+    final rows = (requests as List<dynamic>)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList(growable: false);
+    if (rows.isEmpty) return null;
+    rows.sort((a, b) {
+      final aDate = DateTime.tryParse((a['created_at'] ?? '').toString()) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = DateTime.tryParse((b['created_at'] ?? '').toString()) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    return rows.first;
+  }
+
+  Future<void> _respondTeamMatchInvite({
+    required String requestId,
+    required bool accept,
+  }) async {
+    if (requestId.isEmpty || _isRespondingTeamInvite) return;
+    setState(() => _isRespondingTeamInvite = true);
+    try {
+      // Roster + match_teams propagation lives in the RPC. A direct UPDATE
+      // here would silently leave invited-team players invisible to the match
+      // and break stat aggregation.
+      if (accept) {
+        await _sb.rpc(
+          'accept_team_match_request',
+          params: <String, dynamic>{'p_request_id': requestId},
+        );
+      } else {
+        await _sb.rpc(
+          'decline_team_match_request',
+          params: <String, dynamic>{'p_request_id': requestId},
+        );
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(accept ? tr('il_d585866af0') : tr('il_d3bcba9446')),
+          backgroundColor:
+              accept ? const Color(0xFF4caf50) : Colors.orangeAccent,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()})),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isRespondingTeamInvite = false);
+    }
   }
 
   Widget _buildShareButton({bool expand = true}) {

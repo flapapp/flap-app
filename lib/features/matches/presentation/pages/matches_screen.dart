@@ -14,6 +14,7 @@ import '../../../../router/app_router.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/user_chip.dart';
+import '../../../../widgets/team_logo_button.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../ratings/presentation/utils/rating_snapshot_source_label.dart';
 import '../../../ratings/presentation/widgets/rating_history_snapshot_card.dart';
@@ -25,7 +26,6 @@ import 'finish_match_flow_page.dart';
 import '../controllers/match_list_controller.dart';
 import '../utils/match_status_ui.dart';
 import '../widgets/match_waiting_list_strip.dart';
-import '../widgets/team_roster_total_rating_badge.dart';
 
 @RoutePage()
 class MatchesScreen extends StatefulWidget {
@@ -92,6 +92,8 @@ class _MatchesScreenState extends State<MatchesScreen>
   late TabController _tabController;
   bool _isLeaving = false;
   Timer? _searchDebounce;
+  final Map<String, String> _teamNameCache = {};
+  final Map<String, String> _teamLogoCache = {};
 
   Future<bool?> _confirm(String title, String message) {
     return showDialog<bool>(
@@ -1660,8 +1662,8 @@ class _MatchesScreenState extends State<MatchesScreen>
                 filtered = all
                     .where(
                       (m) =>
-                          m.participants.contains(currentUserId) &&
-                          m.organizerId != currentUserId,
+                          m.organizerId != currentUserId &&
+                          m.isUserMatchMember(currentUserId),
                     )
                     .toList();
               }
@@ -2264,7 +2266,7 @@ class _MatchesScreenState extends State<MatchesScreen>
       ).showSnackBar(SnackBar(content: Text(tr('private_match_invite_only'))));
       return;
     }
-    if (match.participants.contains(uid) ||
+    if (match.isUserMatchMember(uid) ||
         match.hasPendingApplication(uid) ||
         _joinRequestedLocalMatchIds.contains(match.id)) {
       return;
@@ -2883,20 +2885,9 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   Widget _buildActionButtons(Match match, String currentUserId) {
-    // User status in this match
-    final rawUserStatus = match.getUserStatus(currentUserId);
-
-    // Debug / diagnostics
-    print('DEBUG: Match ${match.title}');
-    print('DEBUG: Raw user status: $rawUserStatus');
-    print('DEBUG: Match status: ${match.status}');
-    print('DEBUG: Participants: ${match.participants}');
-    print('DEBUG: Current user: $currentUserId');
-    print('DEBUG: Organizer ID: ${match.organizerId}');
-
     final isOrganizer = match.organizerId == currentUserId;
-    final isParticipant = match.participants.contains(currentUserId);
-    if (match.isTeamMatch && !isOrganizer && !isParticipant) {
+    final isTeamListedMember = match.isUserMatchMember(currentUserId);
+    if (match.isTeamMatch && !isOrganizer && !isTeamListedMember) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3005,79 +2996,123 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   Widget _buildTeamMatchBanner(Match match) {
-    final teamAName = (match.teamA?.name.isNotEmpty ?? false)
-        ? match.teamA!.name
-        : tr('il_d161440e8d');
-    final teamBName = (match.teamB?.name.isNotEmpty ?? false)
-        ? match.teamB!.name
-        : (match.teamBId != null ? tr('il_6b3e8cd77f') : tr('il_852ae4ce70'));
-    final teamARoster =
-        match.teamRosters['teamA'] ??
-        match.teamA?.playerIds ??
-        const <String>[];
-    final teamBRoster =
-        match.teamRosters['teamB'] ??
-        match.teamB?.playerIds ??
-        const <String>[];
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _sb
+          .from('team_match_requests')
+          .stream(primaryKey: ['id'])
+          .map(
+            (rows) => (rows as List<dynamic>)
+                .map((raw) => Map<String, dynamic>.from(raw as Map))
+                .where((row) => (row['match_id'] ?? '').toString() == match.id)
+                .toList(growable: false),
+          ),
+      builder: (context, snapshot) {
+        final invite = _resolveListTeamInviteRequest(match, snapshot.data ?? const []);
+        final creatorTeamId = (match.teamAId ?? '').trim().isNotEmpty
+            ? (match.teamAId ?? '').trim()
+            : (invite?['requesting_team_id'] ?? '').toString();
+        final invitedTeamId = (invite?['target_team_id'] ?? '').toString();
+        final creatorStatus = match.teamAStatus ?? 'confirmed';
+        final invitedStatus = (invite?['status'] ?? match.teamBStatus ?? 'pending').toString();
 
-    final teamAStatus = match.teamAStatus ?? 'confirmed';
-    final teamBStatus =
-        match.teamBStatus ?? (match.teamBId == null ? 'pending' : 'confirmed');
+        return FutureBuilder<List<Map<String, String?>>>(
+          future: Future.wait([
+            _resolveTeamSummary(
+              teamId: creatorTeamId,
+              fallbackName: match.teamA?.name,
+              fallbackLabel: tr('il_d161440e8d'),
+            ),
+            _resolveTeamSummary(
+              teamId: invitedTeamId,
+              fallbackName: match.teamB?.name,
+              fallbackLabel: tr('il_852ae4ce70'),
+            ),
+          ]),
+          builder: (context, summarySnap) {
+            final summaries = summarySnap.data;
+            final host = (summaries != null && summaries.isNotEmpty)
+                ? summaries[0]
+                : <String, String?>{'id': creatorTeamId, 'name': tr('il_d161440e8d'), 'logoUrl': null};
+            final invited = (summaries != null && summaries.length == 2)
+                ? summaries[1]
+                : <String, String?>{'id': invitedTeamId, 'name': tr('il_852ae4ce70'), 'logoUrl': null};
+            final waiting = invitedTeamId.isEmpty;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.sports_soccer, color: Colors.white70, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                tr('il_4f76cec7a7'),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildTeamMatchRow(
-            teamAName,
-            teamAStatus,
-            teamARoster,
-            const Color(0xFF4caf50),
-          ),
-          const SizedBox(height: 8),
-          _buildTeamMatchRow(
-            teamBName,
-            teamBStatus,
-            teamBRoster,
-            const Color(0xFF42a5f5),
-          ),
-        ],
-      ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.sports_soccer, color: Colors.white70, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        tr('il_4f76cec7a7'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildTeamMatchRow(
+                    sectionLabel: tr('il_d161440e8d'),
+                    teamId: host['id'] ?? '',
+                    teamName: host['name'] ?? tr('il_d161440e8d'),
+                    logoUrl: host['logoUrl'],
+                    status: creatorStatus,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildTeamMatchRow(
+                    sectionLabel: waiting ? tr('il_852ae4ce70') : tr('il_6b3e8cd77f'),
+                    teamId: invited['id'] ?? '',
+                    teamName: invited['name'] ?? tr('il_852ae4ce70'),
+                    logoUrl: invited['logoUrl'],
+                    status: invitedStatus,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
   Widget _buildTeamMatchRow(
-    String teamName,
-    String status,
-    List<String> roster,
-    Color accent,
+    {required String sectionLabel,
+    required String teamId,
+    required String teamName,
+    required String? logoUrl,
+    required String status}
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
+            TeamLogoButton(
+              teamId: teamId,
+              teamName: teamName,
+              logoUrl: logoUrl,
+              size: 28,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$sectionLabel: ',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             Expanded(
               child: Text(
                 teamName,
@@ -3087,40 +3122,113 @@ class _MatchesScreenState extends State<MatchesScreen>
                 ),
               ),
             ),
-            if (roster.isNotEmpty)
-              TeamRosterTotalRatingBadge(
-                playerIds: roster,
-                accent: accent,
-                iconSize: 15,
-                fontSize: 13,
-                padding: const EdgeInsets.only(right: 8),
-              ),
             _buildTeamStatusChip(status),
           ],
         ),
-        if (roster.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: roster.take(8).map((playerId) {
-                  return Container(
-                    margin: const EdgeInsets.only(right: 6),
-                    child: UserChip(
-                      userId: playerId,
-                      size: 24,
-                      showName: false,
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-        ],
       ],
     );
+  }
+
+  Future<Map<String, String?>> _resolveTeamSummary({
+    required String? teamId,
+    required String? fallbackName,
+    required String fallbackLabel,
+  }) async {
+    final cleanFallback = (fallbackName ?? '').trim();
+    if (cleanFallback.isNotEmpty &&
+        cleanFallback != tr('il_d161440e8d') &&
+        cleanFallback != tr('il_6b3e8cd77f') &&
+        cleanFallback != tr('il_852ae4ce70')) {
+      return <String, String?>{
+        'id': (teamId ?? '').trim(),
+        'name': cleanFallback,
+        'logoUrl': null,
+      };
+    }
+    final id = (teamId ?? '').trim();
+    if (id.isEmpty) {
+      return <String, String?>{
+        'id': '',
+        'name': fallbackLabel,
+        'logoUrl': null,
+      };
+    }
+    if (_teamNameCache.containsKey(id)) {
+      return <String, String?>{
+        'id': id,
+        'name': _teamNameCache[id],
+        'logoUrl': _teamLogoCache[id],
+      };
+    }
+    try {
+      final row =
+          await _sb.from('teams').select('name,logo_url').eq('id', id).maybeSingle();
+      final name = (row?['name'] ?? '').toString().trim();
+      final logo = (row?['logo_url'] ?? '').toString().trim();
+      if (name.isNotEmpty) {
+        _teamNameCache[id] = name;
+        _teamLogoCache[id] = logo;
+        return <String, String?>{
+          'id': id,
+          'name': name,
+          'logoUrl': logo.isEmpty ? null : logo,
+        };
+      }
+    } catch (_) {}
+    return <String, String?>{
+      'id': id,
+      'name': cleanFallback.isNotEmpty ? cleanFallback : fallbackLabel,
+      'logoUrl': null,
+    };
+  }
+
+  Map<String, dynamic>? _resolveListTeamInviteRequest(
+    Match match,
+    List<Map<String, dynamic>> rows,
+  ) {
+    if (rows.isEmpty) return null;
+    final hostTeamId = (match.teamAId ?? '').trim();
+    final invitedTeamId = (match.teamBId ?? '').trim();
+    final valid = rows.where((row) {
+      final status = (row['status'] ?? '').toString();
+      return status == 'pending' || status == 'accepted' || status == 'declined';
+    }).toList(growable: false);
+    if (valid.isEmpty) return null;
+
+    List<Map<String, dynamic>> scoped = valid;
+    if (hostTeamId.isNotEmpty) {
+      scoped = scoped.where((row) {
+        final requesting = (row['requesting_team_id'] ?? '').toString();
+        final target = (row['target_team_id'] ?? '').toString();
+        return requesting == hostTeamId && target != hostTeamId;
+      }).toList(growable: false);
+    }
+    if (invitedTeamId.isNotEmpty) {
+      final byInvitedId = scoped.where((row) {
+        final target = (row['target_team_id'] ?? '').toString();
+        return target == invitedTeamId;
+      }).toList(growable: false);
+      if (byInvitedId.isNotEmpty) {
+        scoped = byInvitedId;
+      }
+    }
+    if (scoped.isEmpty) {
+      scoped = valid.where((row) {
+        final createdBy = (row['created_by'] ?? '').toString();
+        final requesting = (row['requesting_team_id'] ?? '').toString();
+        final target = (row['target_team_id'] ?? '').toString();
+        return createdBy == match.organizerId && requesting != target;
+      }).toList(growable: false);
+    }
+    final pool = scoped.isNotEmpty ? scoped : valid;
+    pool.sort((a, b) {
+      final aDate = DateTime.tryParse((a['created_at'] ?? '').toString()) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = DateTime.tryParse((b['created_at'] ?? '').toString()) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    return pool.first;
   }
 
   Widget _buildTeamStatusChip(String status) {
@@ -3147,6 +3255,7 @@ class _MatchesScreenState extends State<MatchesScreen>
   String _getTeamStatusText(String? status) {
     switch (status) {
       case 'confirmed':
+      case 'accepted':
         return tr('il_fe00b67b6d');
       case 'declined':
         return tr('il_dce083a2c4');
@@ -3158,6 +3267,7 @@ class _MatchesScreenState extends State<MatchesScreen>
   Color _getTeamStatusColor(String? status) {
     switch (status) {
       case 'confirmed':
+      case 'accepted':
         return const Color(0xFF4caf50);
       case 'declined':
         return const Color(0xFFF44336);
@@ -4003,7 +4113,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                 ),
                 const SizedBox(width: 8),
                 if (match.status == MatchStatus.finished &&
-                    match.participants.contains(currentUserId))
+                    match.isUserMatchMember(currentUserId))
                   TextButton(
                     onPressed: () {
                       context.router.push(MatchRatingRoute(match: match));

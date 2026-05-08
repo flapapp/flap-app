@@ -2,6 +2,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'match_participation_stats_remote_datasource.dart';
 
+/// Whether a roster row should count for finished-match statistics.
+/// Declined spots never played; empty/null legacy rows still count.
+bool rosterStatusCountsForMatchStats(String? status) {
+  final s = (status ?? '').trim().toLowerCase();
+  if (s.isEmpty) return true;
+  return s != 'declined';
+}
+
 class MatchParticipationStatsRemoteDataSourceImpl
     implements MatchParticipationStatsRemoteDataSource {
   MatchParticipationStatsRemoteDataSourceImpl(this._client);
@@ -13,15 +21,10 @@ class MatchParticipationStatsRemoteDataSourceImpl
     try {
       final goalsFuture = _sumParticipantGoals(userId);
 
-      final partRows = await _client
-          .from('match_participants')
-          .select('match_id')
-          .eq('user_id', userId)
-          .eq('status', 'accepted');
-      final matchIds = (partRows as List<dynamic>)
-          .map((r) => (r as Map<String, dynamic>)['match_id'] as String)
-          .toSet()
-          .toList();
+      final participantIds = await _finishedMatchIdsFromParticipants(userId);
+      final rosterIds = await _finishedMatchIdsFromTeamRosters(userId);
+      final matchIds =
+          {...participantIds, ...rosterIds}.toList(growable: false);
       if (matchIds.isEmpty) {
         final g = await goalsFuture;
         return {..._empty, 'totalGoals': g};
@@ -75,6 +78,54 @@ class MatchParticipationStatsRemoteDataSourceImpl
       };
     } catch (_) {
       return _empty;
+    }
+  }
+
+  Future<List<String>> _finishedMatchIdsFromParticipants(String userId) async {
+    try {
+      final partRows = await _client
+          .from('match_participants')
+          .select('match_id')
+          .eq('user_id', userId)
+          .eq('status', 'accepted');
+      return (partRows as List<dynamic>)
+          .map((r) => (r as Map<String, dynamic>)['match_id'].toString())
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Team matches often omit `match_participants`; roster defines participation.
+  Future<List<String>> _finishedMatchIdsFromTeamRosters(String userId) async {
+    try {
+      final rows = await _client
+          .from('match_team_rosters')
+          .select('status, match_teams(match_id)')
+          .eq('player_id', userId);
+      final ids = <String>{};
+      for (final raw in rows as List<dynamic>) {
+        final r = raw as Map<String, dynamic>;
+        if (!rosterStatusCountsForMatchStats(r['status']?.toString())) {
+          continue;
+        }
+        final nested = r['match_teams'];
+        String? mid;
+        if (nested is Map<String, dynamic>) {
+          mid = nested['match_id']?.toString();
+        } else if (nested is List && nested.isNotEmpty) {
+          final first = nested.first;
+          if (first is Map<String, dynamic>) {
+            mid = first['match_id']?.toString();
+          }
+        }
+        if (mid != null && mid.isNotEmpty) ids.add(mid);
+      }
+      return ids.toList();
+    } catch (_) {
+      return [];
     }
   }
 
@@ -234,10 +285,11 @@ class MatchParticipationStatsRemoteDataSourceImpl
   Future<bool> _rosterContains(String matchTeamId, String userId) async {
     final row = await _client
         .from('match_team_rosters')
-        .select('player_id')
+        .select('player_id,status')
         .eq('match_team_id', matchTeamId)
         .eq('player_id', userId)
         .maybeSingle();
-    return row != null;
+    if (row == null) return false;
+    return rosterStatusCountsForMatchStats(row['status']?.toString());
   }
 }

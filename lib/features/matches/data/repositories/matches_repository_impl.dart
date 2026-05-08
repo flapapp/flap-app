@@ -35,6 +35,43 @@ class MatchesRepositoryImpl implements MatchesRepository {
   }
 
   @override
+  Future<String> createTeamMatch({
+    required String title,
+    required String description,
+    required DateTime scheduledAt,
+    required String location,
+    required String city,
+    double? latitude,
+    double? longitude,
+    required int maxPlayers,
+    required double cost,
+    required app_match.MatchLevel level,
+    required bool isPrivate,
+    required String hostTeamId,
+    List<String> hostRoster = const <String>[],
+    String? opponentTeamId,
+    List<String> opponentProposedRoster = const <String>[],
+  }) {
+    return _matches.createTeamMatch(
+      title: title,
+      description: description,
+      scheduledAt: scheduledAt,
+      location: location,
+      city: city,
+      latitude: latitude,
+      longitude: longitude,
+      maxPlayers: maxPlayers,
+      cost: cost,
+      level: level,
+      isPrivate: isPrivate,
+      hostTeamId: hostTeamId,
+      hostRoster: hostRoster,
+      opponentTeamId: opponentTeamId,
+      opponentProposedRoster: opponentProposedRoster,
+    );
+  }
+
+  @override
   Future<bool> joinMatch(String matchId, String userId) {
     return _matches.joinMatch(matchId, userId);
   }

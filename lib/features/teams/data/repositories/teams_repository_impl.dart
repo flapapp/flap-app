@@ -107,8 +107,18 @@ class TeamsRepositoryImpl implements TeamsRepository {
   }
 
   @override
-  Stream<List<TeamMatchRequest>> watchMatchRequests(String teamId) {
-    return _teams.watchMatchRequests(teamId);
+  Stream<List<TeamMatchRequest>> watchIncomingTeamMatchInvites(String teamId) {
+    return _teams.watchIncomingTeamMatchInvites(teamId);
+  }
+
+  @override
+  Stream<List<TeamMatchRequest>> watchOutgoingTeamMatchRequests(String teamId) {
+    return _teams.watchOutgoingTeamMatchRequests(teamId);
+  }
+
+  @override
+  Future<List<AppTeam>> fetchTeamsWhereUserIsOfficer(String userId) {
+    return _teams.fetchTeamsWhereUserIsOfficer(userId);
   }
 
   @override
@@ -148,6 +158,11 @@ class TeamsRepositoryImpl implements TeamsRepository {
       accept: accept,
       confirmedRoster: confirmedRoster,
     );
+  }
+
+  @override
+  Future<void> cancelMatchRequest({required String requestId}) {
+    return _teams.cancelMatchRequest(requestId: requestId);
   }
 
   @override

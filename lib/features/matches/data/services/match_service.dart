@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -10,6 +11,68 @@ import '../../../teams/data/models/app_team.dart';
 import '../models/match.dart';
 import '../supabase/match_legacy_remote_mapper.dart';
 import '../../../../core/auth/app_auth.dart';
+
+/// Builds the parameter map for the `public.create_team_match` RPC.
+///
+/// Pure function so the SQL contract from
+/// `20260508160000_create_team_match_rpc.sql` can be locked in by unit
+/// tests. The RPC validates each field server-side, but keeping the
+/// trim/dedup logic here keeps surprising input out of Postgres logs and
+/// matches the pattern already used by the team-match acceptance RPCs.
+@visibleForTesting
+Map<String, dynamic> buildCreateTeamMatchRpcParams({
+  required String title,
+  required String description,
+  required DateTime scheduledAt,
+  required String location,
+  required String city,
+  double? latitude,
+  double? longitude,
+  required int maxPlayers,
+  required double cost,
+  required String level,
+  required bool isPrivate,
+  required String hostTeamId,
+  List<String> hostRoster = const <String>[],
+  String? opponentTeamId,
+  List<String> opponentProposedRoster = const <String>[],
+}) {
+  List<String> dedup(List<String> input) {
+    final out = <String>{};
+    for (final raw in input) {
+      final v = raw.trim();
+      if (v.isNotEmpty) out.add(v);
+    }
+    return out.toList(growable: false);
+  }
+
+  final cleanedHost = dedup(hostRoster);
+  final cleanedOpp = dedup(opponentProposedRoster);
+  final trimmedTitle = title.trim();
+  final trimmedDescription = description.trim();
+  final trimmedLocation = location.trim();
+  final trimmedCity = city.trim();
+  final trimmedOpponent = opponentTeamId?.trim();
+
+  return <String, dynamic>{
+    'p_title': trimmedTitle,
+    'p_description': trimmedDescription,
+    'p_scheduled_at': scheduledAt.toUtc().toIso8601String(),
+    'p_location': trimmedLocation,
+    'p_city': trimmedCity,
+    'p_latitude': latitude,
+    'p_longitude': longitude,
+    'p_max_players': maxPlayers,
+    'p_participation_cost': cost,
+    'p_level': level,
+    'p_is_private': isPrivate,
+    'p_host_team_id': hostTeamId,
+    'p_host_roster': cleanedHost,
+    if (trimmedOpponent != null && trimmedOpponent.isNotEmpty)
+      'p_opponent_team_id': trimmedOpponent,
+    'p_opponent_proposed_roster': cleanedOpp,
+  };
+}
 
 class MatchService {
   final SupabaseClient _sb = Supabase.instance.client;
@@ -109,14 +172,17 @@ class MatchService {
           .from('match_participants')
           .select('match_id')
           .eq('user_id', userId);
-      final ids = (participantRows as List<dynamic>)
+      final fromParticipants = (participantRows as List<dynamic>)
           .map(
             (raw) =>
                 (raw as Map<String, dynamic>)['match_id']?.toString() ?? '',
           )
           .where((id) => id.isNotEmpty)
-          .toSet()
-          .toList();
+          .toSet();
+
+      final fromRosters = await _matchIdsFromUserTeamRosters(userId);
+
+      final ids = {...fromParticipants, ...fromRosters}.toList();
       if (ids.isEmpty) return <Match>[];
 
       final legacyMaps = await MatchLegacyRemoteMapper.loadLegacyMapsBatch(
@@ -135,6 +201,7 @@ class MatchService {
 
     late StreamController<List<Match>> outCtrl;
     StreamSubscription<List<Map<String, dynamic>>>? subParticipants;
+    StreamSubscription<List<Map<String, dynamic>>>? subTeamRosters;
     StreamSubscription<List<Map<String, dynamic>>>? subMatches;
 
     outCtrl = StreamController<List<Match>>(
@@ -153,6 +220,10 @@ class MatchService {
               .from('match_participants')
               .stream(primaryKey: ['id'])
               .listen((_) => emit());
+          subTeamRosters = _sb
+              .from('match_team_rosters')
+              .stream(primaryKey: ['match_team_id', 'player_id'])
+              .listen((_) => emit());
           subMatches = _sb
               .from('matches')
               .stream(primaryKey: ['id'])
@@ -161,13 +232,44 @@ class MatchService {
       },
       onCancel: () async {
         await subParticipants?.cancel();
+        await subTeamRosters?.cancel();
         await subMatches?.cancel();
         subParticipants = null;
+        subTeamRosters = null;
         subMatches = null;
       },
     );
 
     return outCtrl.stream;
+  }
+
+  Future<Set<String>> _matchIdsFromUserTeamRosters(String userId) async {
+    try {
+      final rows = await _sb
+          .from('match_team_rosters')
+          .select('status, match_teams(match_id)')
+          .eq('player_id', userId);
+      final ids = <String>{};
+      for (final raw in rows as List<dynamic>) {
+        final r = raw as Map<String, dynamic>;
+        final st = (r['status'] ?? '').toString().trim().toLowerCase();
+        if (st == 'declined') continue;
+        final nested = r['match_teams'];
+        String? mid;
+        if (nested is Map<String, dynamic>) {
+          mid = nested['match_id']?.toString();
+        } else if (nested is List && nested.isNotEmpty) {
+          final first = nested.first;
+          if (first is Map<String, dynamic>) {
+            mid = first['match_id']?.toString();
+          }
+        }
+        if (mid != null && mid.isNotEmpty) ids.add(mid);
+      }
+      return ids;
+    } catch (_) {
+      return {};
+    }
   }
 
   /// DB `matches.level` allows `'pro'`, not enum name `'professional'`.
@@ -248,6 +350,63 @@ class MatchService {
           'status': 'pending',
         }, onConflict: 'match_id,user_id');
       }
+    }
+    return matchId;
+  }
+
+  /// Atomic team-match creation. Delegates to the SECURITY DEFINER RPC
+  /// `public.create_team_match` so matches + slot 1 + host roster +
+  /// team_match_requests commit together. RLS misalignments and
+  /// partial-success retries can no longer leave orphan matches.
+  Future<String> createTeamMatch({
+    required String title,
+    required String description,
+    required DateTime scheduledAt,
+    required String location,
+    required String city,
+    double? latitude,
+    double? longitude,
+    required int maxPlayers,
+    required double cost,
+    required MatchLevel level,
+    required bool isPrivate,
+    required String hostTeamId,
+    List<String> hostRoster = const <String>[],
+    String? opponentTeamId,
+    List<String> opponentProposedRoster = const <String>[],
+  }) async {
+    final sessionUser = _sb.auth.currentUser;
+    if (sessionUser == null) {
+      throw StateError('createTeamMatch: no Supabase session');
+    }
+
+    final response = await _sb.rpc(
+      'create_team_match',
+      params: buildCreateTeamMatchRpcParams(
+        title: title,
+        description: description,
+        scheduledAt: scheduledAt,
+        location: location,
+        city: CityCatalog.toEnglishStorageKey(city) ?? city,
+        latitude: latitude,
+        longitude: longitude,
+        maxPlayers: maxPlayers,
+        cost: cost,
+        level: _levelToSupabase(level),
+        isPrivate: isPrivate,
+        hostTeamId: hostTeamId,
+        hostRoster: hostRoster,
+        opponentTeamId: opponentTeamId,
+        opponentProposedRoster: opponentProposedRoster,
+      ),
+    );
+
+    final payload = response is Map<String, dynamic>
+        ? response
+        : (response is Map ? Map<String, dynamic>.from(response) : null);
+    final matchId = payload?['matchId']?.toString();
+    if (matchId == null || matchId.isEmpty) {
+      throw StateError('create_team_match returned no matchId');
     }
     return matchId;
   }
@@ -669,7 +828,10 @@ class MatchService {
       if (m == null) return false;
       final currentUserId = AppAuth.currentUserId;
       if (currentUserId == null || currentUserId != m.organizerId) return false;
-      if (m.isInProgress || m.participants.length < 2) return false;
+      if (m.isInProgress) return false;
+      // Team matches should not require manual team formation/participant count
+      // to start. Keep that requirement only for non-team matches.
+      if (!m.isTeamMatch && m.participants.length < 2) return false;
 
       await _sb
           .from('matches')
@@ -734,18 +896,23 @@ class MatchService {
   }
 
   Stream<List<Match>> getMatchesForRating(String userId) {
-    return _sb.from('match_participants').stream(primaryKey: ['id']).asyncMap((
-      rows,
-    ) async {
-      final ids = (rows as List<dynamic>)
-          .where(
+    Future<List<Match>> loadFinishedParticipatedMatches() async {
+      final participantRows = await _sb
+          .from('match_participants')
+          .select('match_id')
+          .eq('user_id', userId)
+          .eq('status', 'accepted');
+      final fromParticipants = (participantRows as List<dynamic>)
+          .map(
             (raw) =>
-                (raw as Map<String, dynamic>)['user_id'] == userId &&
-                raw['status'] == 'accepted',
+                (raw as Map<String, dynamic>)['match_id']?.toString() ?? '',
           )
-          .map((raw) => (raw as Map<String, dynamic>)['match_id'].toString())
-          .toSet()
-          .toList();
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      final fromRosters = await _matchIdsFromUserTeamRosters(userId);
+
+      final ids = {...fromParticipants, ...fromRosters}.toList();
       if (ids.isEmpty) return <Match>[];
 
       final legacyMaps = await MatchLegacyRemoteMapper.loadLegacyMapsBatch(
@@ -761,7 +928,50 @@ class MatchService {
       }
       out.sort((a, b) => b.date.compareTo(a.date));
       return out;
-    });
+    }
+
+    late StreamController<List<Match>> outCtrl;
+    StreamSubscription<List<Map<String, dynamic>>>? subParticipants;
+    StreamSubscription<List<Map<String, dynamic>>>? subTeamRosters;
+    StreamSubscription<List<Map<String, dynamic>>>? subMatches;
+
+    outCtrl = StreamController<List<Match>>(
+      onListen: () {
+        scheduleMicrotask(() async {
+          Future<void> emit() async {
+            try {
+              outCtrl.add(await loadFinishedParticipatedMatches());
+            } catch (e, st) {
+              outCtrl.addError(e, st);
+            }
+          }
+
+          await emit();
+          subParticipants = _sb
+              .from('match_participants')
+              .stream(primaryKey: ['id'])
+              .listen((_) => emit());
+          subTeamRosters = _sb
+              .from('match_team_rosters')
+              .stream(primaryKey: ['match_team_id', 'player_id'])
+              .listen((_) => emit());
+          subMatches = _sb
+              .from('matches')
+              .stream(primaryKey: ['id'])
+              .listen((_) => emit());
+        });
+      },
+      onCancel: () async {
+        await subParticipants?.cancel();
+        await subTeamRosters?.cancel();
+        await subMatches?.cancel();
+        subParticipants = null;
+        subTeamRosters = null;
+        subMatches = null;
+      },
+    );
+
+    return outCtrl.stream;
   }
 
   Future<bool> cancelMatch(String matchId) async {
@@ -819,7 +1029,14 @@ class MatchService {
     required List<String> playerIds,
   }) async {
     final slot = teamKey == 'teamA' ? 1 : 2;
-    final matchTeamId = await _ensureMatchTeam(matchId, slot, team.name);
+    // Persist source_team_id so the legacy mapper can resolve teamAId/teamBId
+    // and stat aggregation can correlate match_teams to the originating team.
+    final matchTeamId = await _ensureMatchTeam(
+      matchId,
+      slot,
+      team.name,
+      sourceTeamId: team.id,
+    );
     await _sb
         .from('match_team_rosters')
         .delete()
@@ -882,6 +1099,7 @@ class MatchService {
     int slot,
     String name, {
     double totalRating = 0,
+    String? sourceTeamId,
   }) async {
     final inserted = await _sb
         .from('match_teams')
@@ -890,20 +1108,92 @@ class MatchService {
           'team_slot': slot,
           'display_name': name,
           'team_total_rating': totalRating,
+          if (sourceTeamId != null && sourceTeamId.isNotEmpty)
+            'source_team_id': sourceTeamId,
         })
         .select('id')
         .single();
     return inserted['id'].toString();
   }
 
-  Future<String> _ensureMatchTeam(String matchId, int slot, String name) async {
-    final existing = await _sb
+  Future<String> _ensureMatchTeam(
+    String matchId,
+    int slot,
+    String name, {
+    String? sourceTeamId,
+  }) async {
+    // Prefer existing row keyed by source_team_id so a re-roster from the
+    // captain UI never duplicates a team into the wrong slot.
+    if (sourceTeamId != null && sourceTeamId.isNotEmpty) {
+      final bySource = await _sb
+          .from('match_teams')
+          .select('id,team_slot,source_team_id,display_name')
+          .eq('match_id', matchId)
+          .eq('source_team_id', sourceTeamId)
+          .maybeSingle();
+      if (bySource != null) {
+        final id = bySource['id'].toString();
+        await _backfillMatchTeamMetadata(
+          id,
+          slot: slot,
+          sourceTeamId: sourceTeamId,
+          name: name,
+          existing: bySource,
+        );
+        return id;
+      }
+    }
+
+    final bySlot = await _sb
         .from('match_teams')
-        .select('id')
+        .select('id,team_slot,source_team_id,display_name')
         .eq('match_id', matchId)
         .eq('team_slot', slot)
         .maybeSingle();
-    if (existing != null) return existing['id'].toString();
-    return _createMatchTeam(matchId, slot, name);
+    if (bySlot != null) {
+      final id = bySlot['id'].toString();
+      await _backfillMatchTeamMetadata(
+        id,
+        slot: slot,
+        sourceTeamId: sourceTeamId,
+        name: name,
+        existing: bySlot,
+      );
+      return id;
+    }
+
+    return _createMatchTeam(
+      matchId,
+      slot,
+      name,
+      sourceTeamId: sourceTeamId,
+    );
+  }
+
+  Future<void> _backfillMatchTeamMetadata(
+    String matchTeamId, {
+    required int slot,
+    required String? sourceTeamId,
+    required String name,
+    required Map<String, dynamic> existing,
+  }) async {
+    final updates = <String, dynamic>{};
+    if (sourceTeamId != null && sourceTeamId.isNotEmpty) {
+      final currentSource =
+          (existing['source_team_id'] ?? '').toString();
+      if (currentSource.isEmpty) {
+        updates['source_team_id'] = sourceTeamId;
+      }
+    }
+    final currentName = (existing['display_name'] ?? '').toString().trim();
+    if (currentName.isEmpty && name.isNotEmpty) {
+      updates['display_name'] = name;
+    }
+    final currentSlot = existing['team_slot'];
+    if (currentSlot is num && currentSlot.toInt() != slot) {
+      updates['team_slot'] = slot;
+    }
+    if (updates.isEmpty) return;
+    await _sb.from('match_teams').update(updates).eq('id', matchTeamId);
   }
 }

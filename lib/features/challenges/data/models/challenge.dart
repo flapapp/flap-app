@@ -61,6 +61,126 @@ int challengeDurationDaysFromRow(Map<String, dynamic> row) {
   return challengeDurationDaysFromSpan(start, end);
 }
 
+/// Canonical running prize-pool formula.
+///
+/// Every joined player has paid the entry fee on join, so the pot is
+/// `participantCount × entryFee`. This single helper is used by:
+///   * [ChallengesScreen] cards
+///   * [ChallengeDetailsScreen] header
+///   * [ChallengeService._loadChallenge] / `_effectivePrizePool`
+///   * Finalization flow
+/// so prize values stay identical across screens and survive realtime
+/// updates (joining/leaving recomputes deterministically).
+///
+/// Returns `0` for non-positive inputs (defensive against `null`/0 entry
+/// fees or pre-emit empty participant lists).
+int computeChallengePrizePoolCoins({
+  required int participantCount,
+  required int entryFee,
+}) {
+  if (participantCount <= 0 || entryFee <= 0) return 0;
+  return participantCount * entryFee;
+}
+
+/// Maximum theoretical prize pool when the challenge is full. Used by the
+/// create screen so the "if it fills up" preview is honest about the cap
+/// instead of a hardcoded multiplier.
+int computeChallengeMaxPrizePoolCoins({
+  required int maxParticipants,
+  required int entryFee,
+}) {
+  if (maxParticipants <= 0 || entryFee <= 0) return 0;
+  return maxParticipants * entryFee;
+}
+
+/// Groups rows from [challenge_participants] or [challenge_submissions] into
+/// `challenge_id → [user_id]` for card/list aggregation.
+///
+/// The `challenges` table does not store participant or submission arrays;
+/// counts must always be derived from these join tables.
+Map<String, List<String>> groupUserIdsByChallengeIdFromJoinRows(
+  List<Map<String, dynamic>> rows, {
+  required String userIdKey,
+}) {
+  final out = <String, List<String>>{};
+  for (final row in rows) {
+    final cid = row['challenge_id']?.toString() ?? '';
+    if (cid.isEmpty) continue;
+    final uid = row[userIdKey]?.toString() ?? '';
+    if (uid.isEmpty) continue;
+    (out[cid] ??= <String>[]).add(uid);
+  }
+  return out;
+}
+
+/// Maps a raw `challenges` row plus aggregates from [challenge_participants] /
+/// [challenge_submissions] into the map shape used by list UIs.
+///
+/// [participantsByChallenge] and [submissionsByChallenge] must be built from
+/// those tables (e.g. via [groupUserIdsByChallengeIdFromJoinRows]); never pass
+/// denormalized columns from `challenges` — they do not exist in the schema.
+Map<String, dynamic> mapChallengeRowForListUi(
+  Map<String, dynamic> row, {
+  Map<String, List<String>> participantsByChallenge =
+      const <String, List<String>>{},
+  Map<String, List<String>> submissionsByChallenge =
+      const <String, List<String>>{},
+}) {
+  final id = row['id']?.toString() ?? '';
+  final entryFee = (row['entry_fee'] as num?)?.toInt() ?? 10;
+  final participants =
+      participantsByChallenge[id] ?? const <String>[];
+  final submissions = submissionsByChallenge[id] ?? const <String>[];
+  final participantCount = participants.length;
+  final submissionCount = submissions.length;
+  final prizePool = computeChallengePrizePoolCoins(
+    participantCount: participantCount,
+    entryFee: entryFee,
+  ).toDouble();
+
+  return <String, dynamic>{
+    'id': id,
+    'title': row['title'],
+    'description': row['description'],
+    'creatorId': row['creator_id']?.toString() ?? '',
+    'creatorName': row['creator_name'] ?? '',
+    'creatorVideoUrl': row['video_url'] ?? row['creator_video_url'],
+    'creatorThumbnailUrl': row['video_thumbnail_url'] ??
+        row['creator_thumbnail_url'] ??
+        row['thumbnail_url'],
+    'thumbnailUrl': row['video_thumbnail_url'] ?? row['thumbnail_url'],
+    'participants': participants,
+    'submissions': submissions,
+    'participantCount': participantCount,
+    'submissionCount': submissionCount,
+    'entryFee': entryFee,
+    'status': row['status'] ?? 'recruiting',
+    'endDate': row['ends_at'] ?? row['end_date'],
+    'votingDeadline': row['voting_deadline'],
+    'type': row['type'] ?? row['challenge_type'] ?? 'goal',
+    'audience': row['audience'] ?? 'city',
+    'city': row['city'] ?? '',
+    'duration': challengeDurationDaysFromRow(
+      Map<String, dynamic>.from(row),
+    ),
+    'createdAt': row['created_at'],
+    'startDate': row['starts_at'] ?? row['start_date'],
+    'submissionDeadline': row['submission_deadline'],
+    'maxParticipants': row['max_participants'] ?? 50,
+    'currentParticipants': participantCount,
+    'prizePool': prizePool,
+    'isActive': (row['status'] ?? '').toString() != 'completed',
+    'tags': row['tags'] ?? const <String>[],
+    'views': row['views'] ?? 0,
+    'averageRating': row['average_rating'] ?? row['rating'] ?? 0.0,
+    'votes': row['votes'] ?? const <String, dynamic>{},
+    'detailedVotes': row['detailed_votes'] ?? const <String, dynamic>{},
+    'winners': row['winners'] ?? const <String>[],
+    'finalScores': row['final_scores'] ?? const <String, dynamic>{},
+    'imageUrl': row['image_url'],
+  };
+}
+
 /// Same date resolution as [challengeDurationDaysFromRow]; prefers span over raw `duration`.
 String challengeDurationDisplayFromRow(Map<String, dynamic> row) {
   final (start, end) = _challengeStartEndFromRow(row);

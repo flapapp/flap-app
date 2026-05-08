@@ -22,6 +22,18 @@ TeamStats _$TeamStatsFromJson(Map<String, dynamic> json) => TeamStats(
               ?.map((e) => e as Map<String, dynamic>)
               .toList() ??
           const [],
+      cleanSheets: (json['cleanSheets'] as num?)?.toInt() ?? 0,
+      currentWinStreak: (json['currentWinStreak'] as num?)?.toInt() ?? 0,
+      currentUnbeatenStreak:
+          (json['currentUnbeatenStreak'] as num?)?.toInt() ?? 0,
+      longestWinStreak: (json['longestWinStreak'] as num?)?.toInt() ?? 0,
+      recentForm: (json['recentForm'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
+      lastFinishedMatchAt: json['lastFinishedMatchAt'] == null
+          ? null
+          : DateTime.parse(json['lastFinishedMatchAt'] as String),
       updatedAt: json['updatedAt'] == null
           ? null
           : DateTime.parse(json['updatedAt'] as String),
@@ -37,5 +49,11 @@ Map<String, dynamic> _$TeamStatsToJson(TeamStats instance) => <String, dynamic>{
       'goalsAgainst': instance.goalsAgainst,
       'playerGoals': instance.playerGoals,
       'recentMatches': instance.recentMatches,
+      'cleanSheets': instance.cleanSheets,
+      'currentWinStreak': instance.currentWinStreak,
+      'currentUnbeatenStreak': instance.currentUnbeatenStreak,
+      'longestWinStreak': instance.longestWinStreak,
+      'recentForm': instance.recentForm,
+      'lastFinishedMatchAt': instance.lastFinishedMatchAt?.toIso8601String(),
       'updatedAt': instance.updatedAt?.toIso8601String(),
     };
