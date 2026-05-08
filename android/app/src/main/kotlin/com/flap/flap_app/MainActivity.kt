@@ -1,4 +1,4 @@
-package com.flapdev.flap_app
+package com.flap.flap_app
 
 import io.flutter.embedding.android.FlutterActivity
 

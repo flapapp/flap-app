@@ -8,7 +8,7 @@
 PRODUCT_NAME = flap_app
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.flapdev.flap_app
+PRODUCT_BUNDLE_IDENTIFIER = com.flap.flap_app
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2025 com.flapdev. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2025 com.flap. All rights reserved.
