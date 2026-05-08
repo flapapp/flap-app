@@ -99,6 +99,9 @@ final participantsSet = widget.match.participants.toSet();
 final allTeams = widget.match.allTeams;
 
 List<String> basePlayers = [];
+// Team matches list squad members via rosters; [participants] is often only the
+// organizer. Intersecting with [participants] would drop every teammate.
+var peersDerivedFromTeamRoster = false;
 
 if (currentUserId != null && allTeams.isNotEmpty) {
   MatchTeamEntity? myTeam;
@@ -110,6 +113,7 @@ if (currentUserId != null && allTeams.isNotEmpty) {
 
   if (myTeam != null) {
     basePlayers = myTeam.playerIds.where((id) => id != currentUserId).toList();
+    peersDerivedFromTeamRoster = true;
   }
 }
 
@@ -117,12 +121,15 @@ if (basePlayers.isEmpty) {
   basePlayers = widget.match.participants
       .where((id) => id != currentUserId)
       .toList();
+  peersDerivedFromTeamRoster = false;
 }
 
-final playersToRate = basePlayers
-    .where((id) => participantsSet.contains(id))
-    .toSet()
-    .toList();
+final playersToRate = peersDerivedFromTeamRoster
+    ? basePlayers.toSet().toList()
+    : basePlayers
+          .where((id) => participantsSet.contains(id))
+          .toSet()
+          .toList();
 final sanitizedPlayers = playersToRate.where((id) =>
   id != 'current_user_i' && id != 'current_user' && !id.startsWith('current_')
 ).toList();

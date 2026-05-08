@@ -3050,19 +3050,32 @@ class _MatchesScreenState extends State<MatchesScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.sports_soccer, color: Colors.white70, size: 18),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Icon(
+                          Icons.sports_soccer,
+                          color: Colors.white.withValues(alpha: 0.7),
+                          size: 18,
+                        ),
+                      ),
                       const SizedBox(width: 8),
-                      Text(
-                        tr('il_4f76cec7a7'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                      Expanded(
+                        child: Text(
+                          tr('il_4f76cec7a7'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 2,
+                          softWrap: true,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   _buildTeamMatchRow(
                     sectionLabel: tr('il_d161440e8d'),
                     teamId: host['id'] ?? '',
@@ -3070,7 +3083,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                     logoUrl: host['logoUrl'],
                     status: creatorStatus,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 14),
                   _buildTeamMatchRow(
                     sectionLabel: waiting ? tr('il_852ae4ce70') : tr('il_6b3e8cd77f'),
                     teamId: invited['id'] ?? '',
@@ -3087,43 +3100,74 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
-  Widget _buildTeamMatchRow(
-    {required String sectionLabel,
+  Widget _buildTeamMatchRow({
+    required String sectionLabel,
     required String teamId,
     required String teamName,
     required String? logoUrl,
-    required String status}
-  ) {
-    return Column(
+    required String status,
+  }) {
+    const logoSize = 32.0;
+    final trimmedLabel = sectionLabel.trimRight();
+    final labelText =
+        trimmedLabel.endsWith(':') ? trimmedLabel : '$trimmedLabel:';
+    final labelStyle = TextStyle(
+      color: Colors.white.withValues(alpha: 0.72),
+      fontWeight: FontWeight.w600,
+      fontSize: 12.5,
+      height: 1.3,
+    );
+    final nameStyle = TextStyle(
+      color: Colors.white.withValues(alpha: 0.98),
+      fontWeight: FontWeight.w700,
+      fontSize: 15,
+      height: 1.25,
+    );
+
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            TeamLogoButton(
-              teamId: teamId,
-              teamName: teamName,
-              logoUrl: logoUrl,
-              size: 28,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '$sectionLabel: ',
-              style: const TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.w500,
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: TeamLogoButton(
+            teamId: teamId,
+            teamName: teamName,
+            logoUrl: logoUrl,
+            size: logoSize,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                labelText,
+                style: labelStyle,
+                softWrap: true,
               ),
-            ),
-            Expanded(
-              child: Text(
-                teamName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      teamName,
+                      style: nameStyle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: true,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: _buildTeamStatusChip(status),
+                  ),
+                ],
               ),
-            ),
-            _buildTeamStatusChip(status),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -3235,7 +3279,8 @@ class _MatchesScreenState extends State<MatchesScreen>
     final text = _getTeamStatusText(status);
     final color = _getTeamStatusColor(status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      constraints: const BoxConstraints(maxWidth: 140),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(999),
@@ -3243,10 +3288,14 @@ class _MatchesScreenState extends State<MatchesScreen>
       ),
       child: Text(
         text,
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: color,
           fontSize: 11,
           fontWeight: FontWeight.w600,
+          height: 1.15,
         ),
       ),
     );

@@ -109,6 +109,62 @@ class RatingService {
     }
   }
 
+  /// Users who may rate or be rated for a match: accepted [match_participants]
+  /// plus active (non-declined) [match_team_rosters] for that match.
+  ///
+  /// Team matches often only insert the organizer into [match_participants];
+  /// squad members are represented solely on rosters.
+  Future<Set<String>> _eligibleMatchRatingUserIds(String matchId) async {
+    final out = <String>{};
+    try {
+      final participants = await _sb
+          .from('match_participants')
+          .select('user_id,status')
+          .eq('match_id', matchId)
+          .eq('status', 'accepted');
+      for (final raw in participants as List<dynamic>) {
+        final uid =
+            ((raw as Map<String, dynamic>)['user_id'] ?? '').toString();
+        if (uid.isNotEmpty) out.add(uid);
+      }
+    } catch (_) {}
+
+    out.addAll(await _activeRosterPlayerIdsForMatch(matchId));
+    return out;
+  }
+
+  Future<Set<String>> _activeRosterPlayerIdsForMatch(String matchId) async {
+    try {
+      final teams = await _sb
+          .from('match_teams')
+          .select('id')
+          .eq('match_id', matchId);
+      final teamIds = <String>[];
+      for (final raw in teams as List<dynamic>) {
+        final id = (raw as Map<String, dynamic>)['id']?.toString();
+        if (id != null && id.isNotEmpty) teamIds.add(id);
+      }
+      if (teamIds.isEmpty) return {};
+
+      final rows = await _sb
+          .from('match_team_rosters')
+          .select('player_id,status')
+          .inFilter('match_team_id', teamIds);
+
+      final out = <String>{};
+      for (final raw in rows as List<dynamic>) {
+        final r = raw as Map<String, dynamic>;
+        final st = (r['status'] ?? '').toString().trim().toLowerCase();
+        if (st == 'declined') continue;
+        final pid = (r['player_id'] ?? '').toString();
+        if (pid.isNotEmpty) out.add(pid);
+      }
+      return out;
+    } catch (_) {
+      return {};
+    }
+  }
+
   Future<void> ratePlayerAfterMatch({
     required String matchId,
     required String playerId,
@@ -129,14 +185,7 @@ class RatingService {
       }
     }
 
-    final participants = await _sb
-        .from('match_participants')
-        .select('user_id,status')
-        .eq('match_id', matchId)
-        .eq('status', 'accepted');
-    final ids = (participants as List<dynamic>)
-        .map((r) => (r as Map<String, dynamic>)['user_id'].toString())
-        .toSet();
+    final ids = await _eligibleMatchRatingUserIds(matchId);
     if (!ids.contains(playerId) || !ids.contains(ratedBy)) {
       throw Exception(tr('rating_error_match_participants_only'));
     }
