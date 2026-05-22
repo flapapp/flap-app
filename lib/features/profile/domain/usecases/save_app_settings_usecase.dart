@@ -11,12 +11,14 @@ class SaveAppSettingsParams {
     required this.autoplayVideos,
     required this.showOnlineStatus,
     required this.allowFriendRequests,
+    required this.locale,
   });
 
   final bool notificationsEnabled;
   final bool autoplayVideos;
   final bool showOnlineStatus;
   final bool allowFriendRequests;
+  final String locale;
 }
 
 /// Persists app preference flags under `users/{uid}.settings` (merged).
@@ -40,6 +42,7 @@ class SaveAppSettingsUseCase implements UseCase<Result<Unit>, SaveAppSettingsPar
         'autoplayVideos': params.autoplayVideos,
         'showOnlineStatus': params.showOnlineStatus,
         'allowFriendRequests': params.allowFriendRequests,
+        'locale': params.locale,
       });
       return const Result.success(Unit.value);
     } catch (e) {

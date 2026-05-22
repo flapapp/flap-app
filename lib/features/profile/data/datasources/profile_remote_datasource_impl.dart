@@ -38,17 +38,23 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     String userId,
     Map<String, dynamic> settingsPatch,
   ) async {
-    final localeRaw = settingsPatch['locale']?.toString();
-    final localeDb = localeRaw == 'uk' ? 'ua' : (localeRaw ?? 'en');
+    final row = <String, dynamic>{
+      'user_id': userId,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+    if (settingsPatch.containsKey('notificationsEnabled')) {
+      row['notifications_enabled'] = settingsPatch['notificationsEnabled'] == true;
+    }
+    if (settingsPatch.containsKey('autoplayVideos')) {
+      row['autoplay_videos'] = settingsPatch['autoplayVideos'] == true;
+    }
+    if (settingsPatch.containsKey('locale')) {
+      final localeRaw = settingsPatch['locale']?.toString();
+      row['locale'] = localeRaw == 'uk' ? 'ua' : (localeRaw ?? 'en');
+    }
 
     await _client.from('user_settings').upsert(
-      <String, dynamic>{
-        'user_id': userId,
-        'notifications_enabled': settingsPatch['notificationsEnabled'] ?? true,
-        'autoplay_videos': settingsPatch['autoplayVideos'] ?? true,
-        'locale': localeDb,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      },
+      row,
       onConflict: 'user_id',
     );
   }

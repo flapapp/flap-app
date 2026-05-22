@@ -6,6 +6,7 @@ class ProfileSettings {
     this.autoplayVideos = true,
     this.showOnlineStatus = true,
     this.allowFriendRequests = true,
+    this.locale = 'en',
   });
 
   final bool hideDonationPrompt;
@@ -13,15 +14,20 @@ class ProfileSettings {
   final bool autoplayVideos;
   final bool showOnlineStatus;
   final bool allowFriendRequests;
+  /// App UI language code: `en` or `uk`.
+  final String locale;
 
   static ProfileSettings fromFirestoreMap(Map<String, dynamic>? raw) {
     final map = Map<String, dynamic>.from(raw ?? const <String, dynamic>{});
+    final localeRaw = (map['locale'] ?? 'en').toString();
+    final locale = localeRaw == 'ua' ? 'uk' : localeRaw;
     return ProfileSettings(
       hideDonationPrompt: map['hideDonationPrompt'] == true,
       notificationsEnabled: map['notificationsEnabled'] != false,
       autoplayVideos: map['autoplayVideos'] != false,
       showOnlineStatus: map['showOnlineStatus'] != false,
       allowFriendRequests: map['allowFriendRequests'] != false,
+      locale: locale == 'uk' ? 'uk' : 'en',
     );
   }
 }

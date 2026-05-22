@@ -1694,6 +1694,8 @@
   "match_reject_application_body": "The player will be moved to rejected.",
   "welcome_language_ukrainian": "Ukrainian",
   "welcome_language_english": "English",
+  "settings_language_title": "Language",
+  "settings_language_subtitle": "Choose the app display language",
   "rating_reason_post_match_legacy": "Post-match rating",
   "rating_reason_post_match_legacy_variants": "Оцінка після матчу,Post-match rating",
   "challenge_type_defending": "Defending",

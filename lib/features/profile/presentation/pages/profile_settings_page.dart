@@ -31,8 +31,14 @@ class _ProfileSettingsBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocConsumer<ProfileSettingsCubit, ProfileSettingsState>(
       listenWhen: (p, c) =>
-          p.saveProgress != c.saveProgress || p.loadProgress != c.loadProgress,
+          p.saveProgress != c.saveProgress ||
+          p.loadProgress != c.loadProgress ||
+          p.locale != c.locale,
       listener: (context, state) {
+        if (state.loadProgress == ProgressStatus.success &&
+            context.locale.languageCode != state.locale) {
+          context.setLocale(Locale(state.locale));
+        }
         if (state.saveProgress == ProgressStatus.success) {
           unawaited(sl<NotificationService>().initialize());
           ScaffoldMessenger.of(context).showSnackBar(
@@ -133,6 +139,15 @@ class _ProfileSettingsBody extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 20),
+                    _buildSectionTitle(
+                      context,
+                      tr('settings_language_title'),
+                      tr('settings_language_subtitle'),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildLanguageToggle(context, state.locale),
+                    const SizedBox(height: 12),
                     _buildSwitchTile(
                       title: tr('il_682be64ae7'),
                       subtitle: tr('il_79a518f1e6'),
@@ -226,6 +241,83 @@ class _ProfileSettingsBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildLanguageToggle(BuildContext context, String locale) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildLanguageOption(
+              label: tr('welcome_language_ukrainian'),
+              selected: locale == 'uk',
+              onTap: () => _selectLanguage(context, 'uk'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildLanguageOption(
+              label: tr('welcome_language_english'),
+              selected: locale == 'en',
+              onTap: () => _selectLanguage(context, 'en'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _selectLanguage(BuildContext context, String code) {
+    if (context.locale.languageCode == code) {
+      return;
+    }
+    context.setLocale(Locale(code));
+    context.read<ProfileSettingsCubit>().setLocale(code);
+  }
+
+  Widget _buildLanguageOption({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            gradient: selected
+                ? const LinearGradient(
+                    colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+                  )
+                : null,
+            color: selected ? null : Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? Colors.white70 : Colors.white24,
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ),
     );
   }
 

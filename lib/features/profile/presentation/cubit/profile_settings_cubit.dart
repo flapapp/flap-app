@@ -16,6 +16,7 @@ class ProfileSettingsState {
     this.autoplayVideos = true,
     this.showOnlineStatus = true,
     this.allowFriendRequests = true,
+    this.locale = 'en',
   });
 
   final ProgressStatus loadProgress;
@@ -26,6 +27,7 @@ class ProfileSettingsState {
   final bool autoplayVideos;
   final bool showOnlineStatus;
   final bool allowFriendRequests;
+  final String locale;
 }
 
 class ProfileSettingsCubit extends Cubit<ProfileSettingsState> {
@@ -38,16 +40,7 @@ class ProfileSettingsCubit extends Cubit<ProfileSettingsState> {
   final SaveAppSettingsUseCase _saveAppSettings;
 
   Future<void> load() async {
-    emit(
-      ProfileSettingsState(
-        loadProgress: ProgressStatus.loading,
-        saveProgress: state.saveProgress,
-        notificationsEnabled: state.notificationsEnabled,
-        autoplayVideos: state.autoplayVideos,
-        showOnlineStatus: state.showOnlineStatus,
-        allowFriendRequests: state.allowFriendRequests,
-      ),
-    );
+    emit(_copy(loadProgress: ProgressStatus.loading));
     final result = await _loadCurrentProfile(const NoParams());
     result.when(
       success: (profile) {
@@ -59,94 +52,78 @@ class ProfileSettingsCubit extends Cubit<ProfileSettingsState> {
             autoplayVideos: s.autoplayVideos,
             showOnlineStatus: s.showOnlineStatus,
             allowFriendRequests: s.allowFriendRequests,
+            locale: s.locale,
           ),
         );
       },
       failure: (f) => emit(
-        ProfileSettingsState(
+        _copy(
           loadProgress: ProgressStatus.failure,
           loadFailure: f,
-          notificationsEnabled: state.notificationsEnabled,
-          autoplayVideos: state.autoplayVideos,
-          showOnlineStatus: state.showOnlineStatus,
-          allowFriendRequests: state.allowFriendRequests,
         ),
       ),
     );
   }
 
   void setNotificationsEnabled(bool v) =>
-      emit(_withToggles(notificationsEnabled: v));
+      emit(_copy(notificationsEnabled: v));
 
-  void setAutoplayVideos(bool v) => emit(_withToggles(autoplayVideos: v));
+  void setAutoplayVideos(bool v) => emit(_copy(autoplayVideos: v));
 
-  void setShowOnlineStatus(bool v) => emit(_withToggles(showOnlineStatus: v));
+  void setShowOnlineStatus(bool v) => emit(_copy(showOnlineStatus: v));
 
-  void setAllowFriendRequests(bool v) =>
-      emit(_withToggles(allowFriendRequests: v));
+  void setAllowFriendRequests(bool v) => emit(_copy(allowFriendRequests: v));
 
-  ProfileSettingsState _withToggles({
-    bool? notificationsEnabled,
-    bool? autoplayVideos,
-    bool? showOnlineStatus,
-    bool? allowFriendRequests,
-  }) {
-    return ProfileSettingsState(
-      loadProgress: state.loadProgress,
-      saveProgress: state.saveProgress,
-      loadFailure: state.loadFailure,
-      saveFailure: state.saveFailure,
-      notificationsEnabled: notificationsEnabled ?? state.notificationsEnabled,
-      autoplayVideos: autoplayVideos ?? state.autoplayVideos,
-      showOnlineStatus: showOnlineStatus ?? state.showOnlineStatus,
-      allowFriendRequests: allowFriendRequests ?? state.allowFriendRequests,
-    );
+  void setLocale(String locale) {
+    final code = locale == 'uk' ? 'uk' : 'en';
+    emit(_copy(locale: code));
   }
 
   Future<void> save() async {
-    emit(
-      ProfileSettingsState(
-        loadProgress: state.loadProgress,
-        saveProgress: ProgressStatus.loading,
-        loadFailure: state.loadFailure,
-        notificationsEnabled: state.notificationsEnabled,
-        autoplayVideos: state.autoplayVideos,
-        showOnlineStatus: state.showOnlineStatus,
-        allowFriendRequests: state.allowFriendRequests,
-      ),
-    );
+    emit(_copy(saveProgress: ProgressStatus.loading));
     final result = await _saveAppSettings(
       SaveAppSettingsParams(
         notificationsEnabled: state.notificationsEnabled,
         autoplayVideos: state.autoplayVideos,
         showOnlineStatus: state.showOnlineStatus,
         allowFriendRequests: state.allowFriendRequests,
+        locale: state.locale,
       ),
     );
     result.when(
       success: (_) => emit(
-        ProfileSettingsState(
-          loadProgress: state.loadProgress,
-          saveProgress: ProgressStatus.success,
-          loadFailure: state.loadFailure,
-          notificationsEnabled: state.notificationsEnabled,
-          autoplayVideos: state.autoplayVideos,
-          showOnlineStatus: state.showOnlineStatus,
-          allowFriendRequests: state.allowFriendRequests,
-        ),
+        _copy(saveProgress: ProgressStatus.success),
       ),
       failure: (f) => emit(
-        ProfileSettingsState(
-          loadProgress: state.loadProgress,
+        _copy(
           saveProgress: ProgressStatus.failure,
           saveFailure: f,
-          loadFailure: state.loadFailure,
-          notificationsEnabled: state.notificationsEnabled,
-          autoplayVideos: state.autoplayVideos,
-          showOnlineStatus: state.showOnlineStatus,
-          allowFriendRequests: state.allowFriendRequests,
         ),
       ),
+    );
+  }
+
+  ProfileSettingsState _copy({
+    ProgressStatus? loadProgress,
+    ProgressStatus? saveProgress,
+    Failure? loadFailure,
+    Failure? saveFailure,
+    bool? notificationsEnabled,
+    bool? autoplayVideos,
+    bool? showOnlineStatus,
+    bool? allowFriendRequests,
+    String? locale,
+  }) {
+    return ProfileSettingsState(
+      loadProgress: loadProgress ?? state.loadProgress,
+      saveProgress: saveProgress ?? state.saveProgress,
+      loadFailure: loadFailure ?? state.loadFailure,
+      saveFailure: saveFailure ?? state.saveFailure,
+      notificationsEnabled: notificationsEnabled ?? state.notificationsEnabled,
+      autoplayVideos: autoplayVideos ?? state.autoplayVideos,
+      showOnlineStatus: showOnlineStatus ?? state.showOnlineStatus,
+      allowFriendRequests: allowFriendRequests ?? state.allowFriendRequests,
+      locale: locale ?? state.locale,
     );
   }
 }
