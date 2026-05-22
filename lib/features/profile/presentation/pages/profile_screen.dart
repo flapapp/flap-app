@@ -1454,7 +1454,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           TextButton(
             onPressed: () async {
               await sl<AuthSessionRepository>().signOut();
-              context.router.replace(const LoginRoute());
+              context.router.replace(const WelcomeRoute());
             },
             child: Text(
               tr('logout'),
