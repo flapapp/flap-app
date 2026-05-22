@@ -13,12 +13,6 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
 
   final SupabaseClient _client;
 
-  static String _formatTime(DateTime dt) {
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '$h:$m';
-  }
-
   String _profileDisplayName(Map<String, dynamic>? row) {
     if (row == null) {
       return tr('player');
@@ -130,13 +124,7 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
     }
   }
 
-  String _scheduledLabel(dynamic raw) {
-    final dt = asDateTimeOrNull(raw);
-    if (dt == null) {
-      return '—';
-    }
-    return _formatTime(dt.toLocal());
-  }
+  String _scheduledLabel(dynamic raw) => formatLocalKickoffTime(raw);
 
   @override
   Future<ModeNewsItem?> fetchLatestVideoHighlight() async {

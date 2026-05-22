@@ -58,6 +58,20 @@ void main() {
       return <String, dynamic>{'player_id': playerId, 'status': status};
     }
 
+    test('maps scheduled_at to local date and time for display', () {
+      final row = _baseRowWithTeams(const <Map<String, dynamic>>[]);
+      final mapped = MatchLegacyRemoteMapper.legacyMapFromJoinedRow(row);
+      final local = DateTime.parse('2026-05-07T10:00:00Z').toLocal();
+      expect(
+        mapped['time'],
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}',
+      );
+      final date = DateTime.parse(mapped['date'] as String);
+      expect(date.year, local.year);
+      expect(date.month, local.month);
+      expect(date.day, local.day);
+    });
+
     test('derives confirmed status when all team roster entries are confirmed', () {
       final row = _baseRowWithTeams([
         _teamRow(

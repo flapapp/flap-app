@@ -436,22 +436,29 @@ bool get isInProgress => status == MatchStatus.inProgress;
 bool get isFinished => status == MatchStatus.finished;
 bool get isCancelled => status == MatchStatus.cancelled;
 
-/// Normalized scheduled match time (date + time).
+/// Local kickoff from legacy [date] + [time] (mapped from `scheduled_at`).
 DateTime get scheduledDateTime {
+  final d = date.toLocal();
   final raw = time.trim();
-  final match = RegExp(r'^(\d{1,2}):(\d{1,2})$').firstMatch(raw);
-  if (match == null) {
-    return DateTime(date.year, date.month, date.day, 0, 0);
+  final parsed = RegExp(r'^(\d{1,2}):(\d{1,2})$').firstMatch(raw);
+  if (parsed == null) {
+    return DateTime(d.year, d.month, d.day, 0, 0);
   }
-  final h = int.tryParse(match.group(1) ?? '') ?? 0;
-  final m = int.tryParse(match.group(2) ?? '') ?? 0;
+  final h = int.tryParse(parsed.group(1) ?? '') ?? 0;
+  final m = int.tryParse(parsed.group(2) ?? '') ?? 0;
   return DateTime(
-    date.year,
-    date.month,
-    date.day,
+    d.year,
+    d.month,
+    d.day,
     h.clamp(0, 23),
     m.clamp(0, 59),
   );
+}
+
+/// `HH:mm` kickoff label for list cards (same rules as Mode Hub).
+String get scheduledKickoffTimeLabel {
+  final dt = scheduledDateTime;
+  return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
 /// Unstarted match overdue by more than 24 hours.

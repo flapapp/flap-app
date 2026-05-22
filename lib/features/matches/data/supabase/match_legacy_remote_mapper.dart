@@ -242,12 +242,12 @@ match_teams(
       }
     }
 
-    final scheduled =
-        asDateTimeOrNull(matchRow['scheduled_at']) ??
-        asDateTimeOrNull(matchRow['created_at']) ??
-        DateTime.now();
-    final time =
-        '${scheduled.hour.toString().padLeft(2, '0')}:${scheduled.minute.toString().padLeft(2, '0')}';
+    final scheduledRaw =
+        matchRow['scheduled_at'] ??
+        matchRow['created_at'] ??
+        DateTime.now().toUtc().toIso8601String();
+    final scheduled = localKickoffFromScheduledAt(scheduledRaw) ?? DateTime.now();
+    final time = formatLocalKickoffTime(scheduledRaw);
 
     final invitedFriends = inviteRows
         .where((r) => (r['status'] ?? '').toString() == 'pending')
@@ -273,7 +273,8 @@ match_teams(
       'description': matchRow['description'] ?? '',
       'organizerId': matchRow['organizer_id'],
       'organizerName': _displayName(organizerProfile),
-      'date': scheduled.toIso8601String(),
+      'date': DateTime(scheduled.year, scheduled.month, scheduled.day)
+          .toIso8601String(),
       'time': time,
       'location': matchRow['location'] ?? '',
       'city': matchRow['city'] ?? '',

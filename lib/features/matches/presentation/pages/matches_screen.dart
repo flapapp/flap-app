@@ -2693,32 +2693,30 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   Widget _buildMatchDetails(Match match) {
-    // Debug / diagnostics
-    print('DEBUG: Building match details for ${match.title}');
     final totalParticipants = match.participants.length;
     final confirmedCount = match.isTeamMatch
         ? match.confirmedParticipantsCount
         : totalParticipants;
-    print('DEBUG: Participants count: $confirmedCount');
-    print('DEBUG: Participants: ${match.participants}');
 
     return Column(
       children: [
-        // Date and time
+        // Kickoff (from scheduled_at via date + time)
         Row(
           children: [
-            Icon(Icons.calendar_today, color: Colors.white70, size: 16),
-            SizedBox(width: 8),
-            Text(
-              '${match.date.day}.${match.date.month}.${match.date.year}',
-              style: TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-            SizedBox(width: 16),
-            Icon(Icons.access_time, color: Colors.white70, size: 16),
-            SizedBox(width: 8),
-            Text(
-              match.time,
-              style: TextStyle(color: Colors.white70, fontSize: 14),
+            const Icon(Icons.schedule, color: Colors.white70, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                tr(
+                  'match_card_short_date_time',
+                  namedArgs: {
+                    'day': '${match.scheduledDateTime.day}',
+                    'month': '${match.scheduledDateTime.month}',
+                    'time': match.scheduledKickoffTimeLabel,
+                  },
+                ),
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
             ),
           ],
         ),
@@ -3468,9 +3466,9 @@ class _MatchesScreenState extends State<MatchesScreen>
                       tr(
                         'match_card_short_date_time',
                         namedArgs: {
-                          'day': '${match.date.day}',
-                          'month': '${match.date.month}',
-                          'time': match.time,
+                          'day': '${match.scheduledDateTime.day}',
+                          'month': '${match.scheduledDateTime.month}',
+                          'time': match.scheduledKickoffTimeLabel,
                         },
                       ),
                       maxLines: 1,

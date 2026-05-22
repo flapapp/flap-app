@@ -269,7 +269,7 @@ class MatchService {
           'organizer_id': uid,
           'title': match.title,
           'description': match.description,
-          'scheduled_at': match.date.toUtc().toIso8601String(),
+          'scheduled_at': match.scheduledDateTime.toUtc().toIso8601String(),
           'location': match.location,
           'city': CityCatalog.toEnglishStorageKey(match.city) ?? match.city,
           'latitude': match.coordinates?.latitude,
