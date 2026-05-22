@@ -32,9 +32,22 @@ class _VideosScreenState extends State<VideosScreen> {
   final Set<String> _selectedCategories = <String>{};
   String _selectedRating = '';
   String _selectedTab = 'all'; // all, trending, my
-  String _selectedSortKey = 'new'; // new, rating, views
+  String _selectedSortKey = 'new'; // new, rating
+  bool _trendingUsesViewsSort = true;
   String? _cachedListKey;
   Future<List<Map<String, dynamic>>>? _cachedListFuture;
+
+  void _invalidateVideoListCache() {
+    _cachedListKey = null;
+    _cachedListFuture = null;
+  }
+
+  void _applyVideoFilterChange(VoidCallback update) {
+    setState(() {
+      update();
+      _invalidateVideoListCache();
+    });
+  }
 
   List<String> get _cities => [
     tr('all_cities'),
@@ -99,7 +112,7 @@ class _VideosScreenState extends State<VideosScreen> {
                       final category = _categories[index];
                       final isSelected = _selectedCategories.contains(category);
                       return GestureDetector(
-                        onTap: () => setState(() {
+                        onTap: () => _applyVideoFilterChange(() {
                           if (category == tr('all_categories')) {
                             _selectedCategories.clear();
                           } else {
@@ -166,7 +179,10 @@ class _VideosScreenState extends State<VideosScreen> {
                         '🏙️',
                         _selectedCity,
                         _cities,
-                        (value) => setState(() => _selectedCity = value),
+                        (value) => _applyVideoFilterChange(() {
+                          _selectedCity =
+                              value == tr('all_cities') ? '' : value;
+                        }),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -176,7 +192,10 @@ class _VideosScreenState extends State<VideosScreen> {
                         '⭐',
                         _selectedRating,
                         _ratings,
-                        (value) => setState(() => _selectedRating = value),
+                        (value) => _applyVideoFilterChange(() {
+                          _selectedRating =
+                              value == tr('all_ratings') ? '' : value;
+                        }),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -205,21 +224,23 @@ class _VideosScreenState extends State<VideosScreen> {
                             fontSize: 12,
                           ),
                           icon: const Icon(Icons.sort, color: Colors.white70),
-                          items:
-                              [
-                                    {'key': 'new', 'label': tr('new')},
-                                    {'key': 'rating', 'label': tr('rating')},
-                                    {'key': 'views', 'label': tr('views')},
-                                  ]
-                                  .map(
-                                    (m) => DropdownMenuItem<String>(
-                                      value: m['key'] as String,
-                                      child: Text(m['label'] as String),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged: (v) =>
-                              setState(() => _selectedSortKey = v ?? 'new'),
+                          items: [
+                                {'key': 'new', 'label': tr('new')},
+                                {'key': 'rating', 'label': tr('rating')},
+                              ]
+                              .map(
+                                (m) => DropdownMenuItem<String>(
+                                  value: m['key'] as String,
+                                  child: Text(m['label'] as String),
+                                ),
+                              )
+                              .toList(),
+                            onChanged: (v) => _applyVideoFilterChange(() {
+                              _selectedSortKey = v ?? 'new';
+                              if (_selectedTab == 'trending') {
+                                _trendingUsesViewsSort = false;
+                              }
+                            }),
                         ),
                       ),
                     ),
@@ -280,7 +301,9 @@ class _VideosScreenState extends State<VideosScreen> {
     _selectedCity,
     _selectedCategories.join(','),
     _selectedRating,
-    _selectedSortKey,
+    _selectedTab == 'trending' && _trendingUsesViewsSort
+        ? 'views'
+        : _selectedSortKey,
   ].join('|');
 
   double? _minRatingParam() {
@@ -309,14 +332,12 @@ class _VideosScreenState extends State<VideosScreen> {
   }
 
   VideoFeedSort _sortForScreen() {
-    if (_selectedTab == 'trending') {
-      return VideoFeedSort.likesDesc;
+    if (_selectedTab == 'trending' && _trendingUsesViewsSort) {
+      return VideoFeedSort.viewsDesc;
     }
     switch (_selectedSortKey) {
       case 'rating':
         return VideoFeedSort.ratingDesc;
-      case 'views':
-        return VideoFeedSort.viewsDesc;
       case 'new':
       default:
         return VideoFeedSort.newest;
@@ -345,7 +366,7 @@ class _VideosScreenState extends State<VideosScreen> {
 
   Future<List<Map<String, dynamic>>> _memoizedVideoList() {
     final k = _feedStateKey;
-    if (_cachedListKey == k) {
+    if (_cachedListKey == k && _cachedListFuture != null) {
       return _cachedListFuture!;
     }
     _cachedListKey = k;
@@ -356,7 +377,12 @@ class _VideosScreenState extends State<VideosScreen> {
     final isSelected = _selectedTab == value;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedTab = value),
+        onTap: () => _applyVideoFilterChange(() {
+          _selectedTab = value;
+          if (value == 'trending') {
+            _trendingUsesViewsSort = true;
+          }
+        }),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(

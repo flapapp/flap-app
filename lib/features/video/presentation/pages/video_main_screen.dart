@@ -68,6 +68,8 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   String _selectedRating = '';
   String _selectedSort = 'newest';
   String _selectedTab = 'all'; // all, challenges, trending
+  /// Trending tab defaults to views until the user picks another sort.
+  bool _trendingUsesViewsSort = true;
   bool _showOnlyMyVideos = false;
   bool _showOnlyMyChallenges = false;
   late final ChallengesListCubit _challengesListCubit;
@@ -85,8 +87,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   final Map<String, String?> _challengeCreatorThumbCache = {};
   final Set<String> _challengeCreatorThumbLoading = {};
   int _myVideosRefreshToken = 0;
-  String? _cachedMainListKey;
-  Future<List<Map<String, dynamic>>>? _cachedMainListFuture;
+  String? _cachedAllListKey;
+  Future<List<Map<String, dynamic>>>? _cachedAllListFuture;
+  String? _cachedTrendingListKey;
+  Future<List<Map<String, dynamic>>>? _cachedTrendingListFuture;
   String? _cachedMyListKey;
   Future<List<Map<String, dynamic>>>? _cachedMyListFuture;
   bool _didInitFromRouteArgs = false;
@@ -96,10 +100,23 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     if (!mounted) return;
     setState(() {
       _myVideosRefreshToken++;
-      _cachedMainListKey = null;
-      _cachedMainListFuture = null;
+      _cachedAllListKey = null;
+      _cachedAllListFuture = null;
+      _cachedTrendingListKey = null;
+      _cachedTrendingListFuture = null;
       _cachedMyListKey = null;
       _cachedMyListFuture = null;
+    });
+  }
+
+  void _applyVideoFilterChange(VoidCallback update) {
+    if (!mounted) return;
+    setState(() {
+      update();
+      _cachedAllListKey = null;
+      _cachedAllListFuture = null;
+      _cachedTrendingListKey = null;
+      _cachedTrendingListFuture = null;
     });
   }
 
@@ -444,8 +461,9 @@ Widget build(BuildContext context) {
                               child: ChoiceChip(
                                 selected: _selectedCategory == category.id,
                                 onSelected: (selected) {
-                                  setState(() {
-                                    _selectedCategory = selected ? category.id : '';
+                                  _applyVideoFilterChange(() {
+                                    _selectedCategory =
+                                        selected ? category.id : '';
                                   });
                                 },
                                 label: Text(category.label()),
@@ -505,7 +523,7 @@ Widget build(BuildContext context) {
                         };
 
                         if (v.isEmpty) {
-                          setState(() {
+                          _applyVideoFilterChange(() {
                             _selectedCity = '';
                             _cityFilterController.text = '';
                           });
@@ -514,7 +532,7 @@ Widget build(BuildContext context) {
 
                         final isAll = allValues.contains(v.toLowerCase());
 
-                        setState(() {
+                        _applyVideoFilterChange(() {
                           _selectedCity = isAll ? '' : v;
                           _cityFilterController.text = isAll ? '' : v;
                           _cityFilterController.selection = TextSelection.collapsed(
@@ -539,17 +557,14 @@ Widget build(BuildContext context) {
                         ? tr('il_a90e7e92a6')
                         : _selectedRating,
                     (value) {
-                      setState(() {
+                      _applyVideoFilterChange(() {
                         _selectedRating =
-                            value == tr('il_a90e7e92a6')
-                                ? ''
-                                : value;
+                            value == tr('il_a90e7e92a6') ? '' : value;
                       });
                     },
                     '⭐',
                   ),
                   const SizedBox(height: 10),
-
                   _buildSortDropdown(),
                 ],
               ),
@@ -1242,6 +1257,11 @@ Widget build(BuildContext context) {
         if (_selectedTab == tab) return;
         setState(() {
           _selectedTab = tab;
+          if (tab == 'trending') {
+            _trendingUsesViewsSort = true;
+            _cachedTrendingListKey = null;
+            _cachedTrendingListFuture = null;
+          }
         });
       },
         child: AnimatedContainer(
@@ -1352,7 +1372,12 @@ Widget build(BuildContext context) {
               .toList(),
           onChanged: (String? mode) {
             if (mode == null) return;
-            setState(() => _selectedSort = mode);
+            _applyVideoFilterChange(() {
+              _selectedSort = mode;
+              if (_selectedTab == 'trending') {
+                _trendingUsesViewsSort = false;
+              }
+            });
           },
         ),
       ),
@@ -1394,7 +1419,7 @@ Widget build(BuildContext context) {
           style: const TextStyle(color: Colors.black87, fontSize: 14),
           items: items,
           onChanged: (String? newValue) {
-            setState(() {
+            _applyVideoFilterChange(() {
               _selectedCategory = newValue ?? '';
             });
           },
@@ -1403,8 +1428,7 @@ Widget build(BuildContext context) {
     );
   }
 
-  String get _videoFeedStateKey => [
-        _selectedTab,
+  String get _videoFeedFilterKey => [
         _showOnlyMyVideos,
         _showOnlyMyChallenges,
         _selectedCategory,
@@ -1440,11 +1464,11 @@ Widget build(BuildContext context) {
     if (_selectedCategory.isEmpty) {
       return <String>[];
     }
-    return <String>[_selectedCategory];
+    return <String>[normalizeVideoCategoryValue(_selectedCategory)];
   }
 
-  VideoFeedSort _mapSortForFeed({required bool useTrendingViews}) {
-    if (useTrendingViews) {
+  VideoFeedSort _mapSortForFeed({bool forTrending = false}) {
+    if (forTrending && _trendingUsesViewsSort) {
       return VideoFeedSort.viewsDesc;
     }
     switch (_selectedSort) {
@@ -1463,14 +1487,14 @@ Widget build(BuildContext context) {
     }
   }
 
-  VideoFeedParams _defaultFeedParams({required bool trendingLayout}) {
+  VideoFeedParams _defaultFeedParams() {
     return VideoFeedParams(
       onlyUserId: null,
       categoryCodes: _categoryCodesForFilter(),
       minAvgRating: _minRatingParam(),
       cityKey: _cityKeyForFeed(),
       excludeChallengeRelated: true,
-      sort: _mapSortForFeed(useTrendingViews: trendingLayout),
+      sort: _mapSortForFeed(),
       limit: 400,
     );
   }
@@ -1482,36 +1506,66 @@ Widget build(BuildContext context) {
       minAvgRating: _minRatingParam(),
       cityKey: _cityKeyForFeed(),
       excludeChallengeRelated: true,
-      sort: _mapSortForFeed(useTrendingViews: false),
+      sort: _mapSortForFeed(),
       limit: 400,
     );
-  }
-
-  Future<List<Map<String, dynamic>>> _loadFeedForMainList() {
-    final isTrendingTab = _selectedTab == 'trending';
-    final p = isTrendingTab
-        ? _defaultFeedParams(trendingLayout: true)
-        : _defaultFeedParams(trendingLayout: false);
-    return getVideosFromDatabase(_sb, p);
   }
 
   Future<List<Map<String, dynamic>>> _loadFeedForMyList() {
     return getVideosFromDatabase(_sb, _myVideosFeedParams());
   }
 
-  /// Stable future per filter/tab so [FutureBuilder] is not re-started every frame.
-  Future<List<Map<String, dynamic>>> _memoizedMainListFuture() {
-    final k = 'main-$_videoFeedStateKey';
-    if (_cachedMainListKey == k) {
-      return _cachedMainListFuture!;
+  /// Stable future per filter set so [FutureBuilder] is not re-started every frame.
+  Future<List<Map<String, dynamic>>> _memoizedAllListFuture() {
+    final k = 'all-$_videoFeedFilterKey';
+    if (_cachedAllListKey == k && _cachedAllListFuture != null) {
+      return _cachedAllListFuture!;
     }
-    _cachedMainListKey = k;
-    return _cachedMainListFuture = _loadFeedForMainList();
+    _cachedAllListKey = k;
+    return _cachedAllListFuture = getVideosFromDatabase(
+      _sb,
+      _defaultFeedParams(),
+    );
+  }
+
+  VideoFeedParams _trendingFeedParams() {
+    return VideoFeedParams(
+      onlyUserId: null,
+      categoryCodes: _categoryCodesForFilter(),
+      minAvgRating: _minRatingParam(),
+      cityKey: _cityKeyForFeed(),
+      excludeChallengeRelated: true,
+      sort: _mapSortForFeed(forTrending: true),
+      limit: 400,
+    );
+  }
+
+  String get _trendingFeedFilterKey => [
+        _showOnlyMyVideos,
+        _showOnlyMyChallenges,
+        _selectedCategory,
+        _selectedCity,
+        _selectedRating,
+        _trendingUsesViewsSort ? 'views' : _selectedSort,
+        _currentUserCity,
+        _myVideosRefreshToken,
+      ].join('|');
+
+  Future<List<Map<String, dynamic>>> _memoizedTrendingListFuture() {
+    final k = 'trending-$_trendingFeedFilterKey';
+    if (_cachedTrendingListKey == k && _cachedTrendingListFuture != null) {
+      return _cachedTrendingListFuture!;
+    }
+    _cachedTrendingListKey = k;
+    return _cachedTrendingListFuture = getVideosFromDatabase(
+      _sb,
+      _trendingFeedParams(),
+    );
   }
 
   Future<List<Map<String, dynamic>>> _memoizedMyListFuture() {
-    final k = 'my-$_videoFeedStateKey';
-    if (_cachedMyListKey == k) {
+    final k = 'my-$_videoFeedFilterKey';
+    if (_cachedMyListKey == k && _cachedMyListFuture != null) {
       return _cachedMyListFuture!;
     }
     _cachedMyListKey = k;
@@ -1539,9 +1593,9 @@ Widget build(BuildContext context) {
   Widget _buildVideosList() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       key: ValueKey<String>(
-        'vm-feed-$_videoFeedStateKey',
+        'vm-feed-$_videoFeedFilterKey',
       ),
-      future: _memoizedMainListFuture(),
+      future: _memoizedAllListFuture(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -2904,7 +2958,7 @@ Widget build(BuildContext context) {
 
     return FutureBuilder<List<Map<String, dynamic>>>(
       key: ValueKey<String>(
-        'my-videos-feed-$_videoFeedStateKey',
+        'my-videos-feed-$_videoFeedFilterKey',
       ),
       future: _memoizedMyListFuture(),
       builder: (context, snapshot) {
@@ -3052,13 +3106,7 @@ Widget build(BuildContext context) {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _myVideosRefreshToken++;
-        _cachedMyListKey = null;
-        _cachedMyListFuture = null;
-        _cachedMainListKey = null;
-        _cachedMainListFuture = null;
-      });
+      _invalidateVideoFeedCaches();
       sl<ProfileBloc>().add(const ProfileEvent.userProfileSyncRequested());
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(tr('il_fbb5de3b38'))),
@@ -3081,9 +3129,9 @@ Widget build(BuildContext context) {
   Widget _buildTrendingVideos() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       key: ValueKey<String>(
-        'vm-trending-$_videoFeedStateKey',
+        'vm-trending-$_trendingFeedFilterKey',
       ),
-      future: _memoizedMainListFuture(),
+      future: _memoizedTrendingListFuture(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
