@@ -7,7 +7,6 @@ import '../../../app_navigator_key.dart';
 import '../../../core/di/injection.dart';
 import '../../../router/app_router.dart';
 import '../../challenges/data/models/challenge.dart';
-import '../../matches/data/models/match.dart';
 import '../../matches/domain/repositories/matches_repository.dart';
 import '../data/models/notification.dart';
 
@@ -307,30 +306,11 @@ class NotificationRouter {
     final router = _router;
     if (router == null) return false;
     try {
-      final sb = Supabase.instance.client;
-      final row =
-          await sb.from('matches').select().eq('id', matchId).maybeSingle();
-      if (row == null) {
+      final match = await sl<MatchesRepository>().fetchMatchById(matchId);
+      if (match == null) {
         _snack(tr('il_6b539d4234', namedArgs: {'matchId': matchId}));
         return false;
       }
-      final match = Match.fromFirestore(
-        _NotifMapDoc(matchId, <String, dynamic>{
-          'title': row['title'],
-          'description': row['description'],
-          'location': row['location_name'] ?? row['city'],
-          'city': row['city'],
-          'date': row['start_time'],
-          'maxPlayers': row['max_players'],
-          'currentPlayers': 0,
-          'participants': const <String>[],
-          'isActive':
-              row['status'] == 'scheduled' || row['status'] == 'open',
-          'createdBy': row['organizer_id'],
-          'createdAt': row['created_at'],
-          'status': row['status'],
-        }),
-      );
       await router.push(MatchDetailsRoute(match: match));
       return true;
     } catch (e) {
