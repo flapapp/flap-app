@@ -484,7 +484,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Future<void> _initializePlayer() async {
     try {
-      _autoplayVideos = await UserSettingsService().isAutoplayEnabled();
+      _autoplayVideos = (await sl<UserSettingsService>().getSettings()).autoplayVideos;
       _videoPlayerController = VideoPlayerController.networkUrl(
         Uri.parse(widget.videoUrl),
       );

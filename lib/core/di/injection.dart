@@ -89,7 +89,8 @@ import '../../features/subscriptions/data/services/subscription_service.dart';
 import '../../features/teams/data/services/team_service.dart';
 import '../../features/profile/presentation/bloc/profile_bloc.dart';
 import '../../features/profile/presentation/cubit/profile_creation_cubit.dart';
-import '../../features/profile/presentation/cubit/profile_settings_cubit.dart';
+import '../../core/settings/app_settings_cubit.dart';
+import '../../features/profile/data/services/user_settings_service.dart';
 import '../../features/profile/presentation/profile_user_data_sync.dart';
 import '../../features/video/presentation/video_feed_sync.dart';
 import '../../features/mode_selection/data/datasources/mode_dashboard_remote_datasource.dart';
@@ -175,8 +176,11 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<ProfileBloc>(
       () => ProfileBloc(sl(), sl(), sl(), sl(), sl<ProfileUserDataSync>()),
     )
-    ..registerFactory(
-      () => ProfileSettingsCubit(sl(), sl()),
+    ..registerLazySingleton<UserSettingsService>(
+      () => UserSettingsService(sl()),
+    )
+    ..registerLazySingleton<AppSettingsCubit>(
+      () => AppSettingsCubit(sl(), sl(), sl()),
     )
     ..registerFactory(
       () => ProfileCreationCubit(sl()),

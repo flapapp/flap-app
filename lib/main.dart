@@ -16,6 +16,7 @@ import 'router/app_router.dart';
 import 'features/badges/domain/repositories/badges_repository.dart';
 import 'features/subscriptions/domain/repositories/subscriptions_repository.dart';
 import 'features/notifications/data/services/notification_service.dart';
+import 'core/settings/app_settings_cubit.dart';
 import 'features/profile/data/services/user_settings_service.dart';
 import 'features/notifications/data/services/fcm_transport_service.dart';
 import 'firebase_options.dart';
@@ -86,7 +87,10 @@ Future<void> _bootstrapAppServices() async {
 Future<void> _initMessaging() async {
   if (kIsWeb || SupabaseEnv.url.isEmpty || SupabaseEnv.anonKey.isEmpty) return;
   if (Firebase.apps.isEmpty) return;
-  if (!await UserSettingsService().isNotificationsEnabled()) return;
+  if (AppAuth.currentUserId != null) {
+    await sl<AppSettingsCubit>().load(forceRefresh: true);
+  }
+  if (!sl<UserSettingsService>().notificationsEnabled) return;
   await sl<NotificationService>().syncCurrentUserToken();
 }
 
@@ -104,15 +108,23 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    if (AppAuth.currentUserId != null) {
+      unawaited(sl<AppSettingsCubit>().load(forceRefresh: true));
+    }
     try {
       _authSubscription = AppAuth.onAuthStateChange.listen((state) {
         if (_skipFirstAuthEvent) {
           _skipFirstAuthEvent = false;
+          if (state.session != null) {
+            unawaited(sl<AppSettingsCubit>().load(forceRefresh: true));
+          }
           return;
         }
         if (state.session != null) {
+          unawaited(sl<AppSettingsCubit>().load(forceRefresh: true));
           return;
         }
+        sl<AppSettingsCubit>().reset();
         appRouter.replaceAll([const WelcomeRoute()]);
       });
     } catch (_) {}
@@ -131,16 +143,18 @@ class _MyAppState extends State<MyApp> {
       useMaterial3: true,
     );
 
-    return BlocProvider<AuthBloc>(
-      create: (_) => AuthBloc(
-        resolveStartup: sl(),
-        signIn: sl(),
-        registerNewUser: sl(),
-        checkIntroCompleted: sl(),
-        markIntroCompleted: sl(),
-        postLoginActions: sl(),
-      ),
-      child: MaterialApp.router(
+    return BlocProvider.value(
+      value: sl<AppSettingsCubit>(),
+      child: BlocProvider<AuthBloc>(
+        create: (_) => AuthBloc(
+          resolveStartup: sl(),
+          signIn: sl(),
+          registerNewUser: sl(),
+          checkIntroCompleted: sl(),
+          markIntroCompleted: sl(),
+          postLoginActions: sl(),
+        ),
+        child: MaterialApp.router(
         debugShowCheckedModeBanner: false,
         title: 'Flap',
         localizationsDelegates: context.localizationDelegates,
@@ -161,6 +175,7 @@ class _MyAppState extends State<MyApp> {
           ),
         ),
         routerConfig: appRouter.config(),
+        ),
       ),
     );
   }

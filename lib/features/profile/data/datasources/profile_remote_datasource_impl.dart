@@ -52,6 +52,13 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
       final localeRaw = settingsPatch['locale']?.toString();
       row['locale'] = localeRaw == 'uk' ? 'ua' : (localeRaw ?? 'en');
     }
+    if (settingsPatch.containsKey('showOnlineStatus')) {
+      row['show_online_status'] = settingsPatch['showOnlineStatus'] == true;
+    }
+    if (settingsPatch.containsKey('allowFriendRequests')) {
+      row['allow_friend_requests'] =
+          settingsPatch['allowFriendRequests'] == true;
+    }
 
     await _client.from('user_settings').upsert(
       row,

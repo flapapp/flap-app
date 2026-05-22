@@ -1,4 +1,8 @@
+import 'dart:developer' as developer;
+
 import '../../../../core/common/unit.dart';
+import '../../../profile/data/services/user_settings_service.dart';
+import '../../../../core/di/injection.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/error/result.dart';
 import '../../../../core/usecases/usecase.dart';
@@ -37,6 +41,12 @@ class SaveAppSettingsUseCase implements UseCase<Result<Unit>, SaveAppSettingsPar
       );
     }
     try {
+      developer.log(
+        'Saving settings for $uid: locale=${params.locale}, '
+        'notifications=${params.notificationsEnabled}, '
+        'autoplay=${params.autoplayVideos}',
+        name: 'SaveAppSettingsUseCase',
+      );
       await _profileRepository.mergeUserSettings(uid, <String, dynamic>{
         'notificationsEnabled': params.notificationsEnabled,
         'autoplayVideos': params.autoplayVideos,
@@ -44,8 +54,18 @@ class SaveAppSettingsUseCase implements UseCase<Result<Unit>, SaveAppSettingsPar
         'allowFriendRequests': params.allowFriendRequests,
         'locale': params.locale,
       });
+      if (sl.isRegistered<UserSettingsService>()) {
+        sl<UserSettingsService>().invalidateCache();
+      }
+      developer.log('Settings saved', name: 'SaveAppSettingsUseCase');
       return const Result.success(Unit.value);
-    } catch (e) {
+    } catch (e, st) {
+      developer.log(
+        'Settings save error',
+        name: 'SaveAppSettingsUseCase',
+        error: e,
+        stackTrace: st,
+      );
       return Result.failure(Failure.unexpected(e.toString()));
     }
   }

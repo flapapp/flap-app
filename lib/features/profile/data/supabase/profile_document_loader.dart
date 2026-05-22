@@ -143,8 +143,8 @@ class ProfileDocumentLoader {
       'hideDonationPrompt': false,
       'notificationsEnabled': settingsRow?['notifications_enabled'] != false,
       'autoplayVideos': settingsRow?['autoplay_videos'] != false,
-      'showOnlineStatus': true,
-      'allowFriendRequests': true,
+      'showOnlineStatus': settingsRow?['show_online_status'] != false,
+      'allowFriendRequests': settingsRow?['allow_friend_requests'] != false,
       'locale': localeUi,
     };
 

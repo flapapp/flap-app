@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/di/injection.dart';
 import '../../../profile/data/services/user_settings_service.dart';
 import '../../../../widgets/user_chip.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -63,7 +64,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
 
   Future<void> _initializeVideo() async {
     try {
-      _autoplayVideos = await UserSettingsService().isAutoplayEnabled();
+      _autoplayVideos = (await sl<UserSettingsService>().getSettings()).autoplayVideos;
       _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
       await _videoPlayerController.initialize();
       

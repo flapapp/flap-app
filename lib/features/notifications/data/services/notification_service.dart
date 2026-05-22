@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../application/notification_router.dart';
 import '../../data/models/notification.dart';
+import '../../../../core/di/injection.dart';
 import '../../../profile/data/services/user_settings_service.dart';
 import 'fcm_transport_service.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -51,7 +52,7 @@ class NotificationService {
   // Initialize notifications
   Future<void> initialize() async {
     try {
-      if (!await UserSettingsService().isNotificationsEnabled()) {
+      if (!await sl<UserSettingsService>().isNotificationsEnabled()) {
         await _clearNotificationTokens();
         return;
       }
@@ -65,7 +66,7 @@ class NotificationService {
       AppAuth.onAuthStateChange.listen((state) async {
         final u = state.session?.user;
         if (u != null) {
-          if (!await UserSettingsService().isNotificationsEnabled()) {
+          if (!await sl<UserSettingsService>().isNotificationsEnabled()) {
             await _clearNotificationTokens(u.id);
           } else {
             await syncCurrentUserToken();
@@ -83,7 +84,7 @@ class NotificationService {
 
   Future<void> syncCurrentUserToken() async {
     if (Firebase.apps.isEmpty) return;
-    if (!await UserSettingsService().isNotificationsEnabled()) {
+    if (!await sl<UserSettingsService>().isNotificationsEnabled()) {
       await _clearNotificationTokens();
       return;
     }
@@ -95,7 +96,7 @@ class NotificationService {
   Future<void> _saveFCMToken(String token) async {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null || !_hasSb) return;
-    if (!await UserSettingsService().isNotificationsEnabled()) {
+    if (!await sl<UserSettingsService>().isNotificationsEnabled()) {
       await _clearNotificationTokens(currentUser.id);
       return;
     }
