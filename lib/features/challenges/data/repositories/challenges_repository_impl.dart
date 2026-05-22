@@ -8,23 +8,34 @@ class ChallengesRepositoryImpl implements ChallengesRepository {
   final ChallengeService _challenges;
 
   @override
-  Stream<List<Challenge>> getActiveChallenges() {
-    return _challenges.getActiveChallenges();
+  Future<List<Challenge>> fetchActiveChallenges() {
+    return _challenges.fetchActiveChallenges();
   }
 
   @override
-  Stream<List<Challenge>> getChallengesByStatus(ChallengeStatus status) {
-    return _challenges.getChallengesByStatus(status);
+  Future<List<Challenge>> fetchChallengesByStatus(ChallengeStatus status) {
+    return _challenges.fetchChallengesByStatus(status);
   }
 
   @override
-  Stream<List<Challenge>> getChallengesByCity(String city) {
-    return _challenges.getChallengesByCity(city);
+  Future<List<Challenge>> fetchChallengesByCity(String city) {
+    return _challenges.fetchChallengesByCity(city);
   }
 
   @override
-  Stream<List<Challenge>> getChallengesByType(ChallengeType type) {
-    return _challenges.getChallengesByType(type);
+  Future<List<Challenge>> fetchChallengesByType(ChallengeType type) {
+    return _challenges.fetchChallengesByType(type);
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchChallengesForListUi({
+    int limit = 50,
+    String? onlyCreatorUserId,
+  }) {
+    return _challenges.fetchChallengesForListUi(
+      limit: limit,
+      onlyCreatorUserId: onlyCreatorUserId,
+    );
   }
 
   @override
@@ -62,13 +73,13 @@ class ChallengesRepositoryImpl implements ChallengesRepository {
   }
 
   @override
-  Stream<List<Challenge>> getUserChallenges(String userId) {
-    return _challenges.getUserChallenges(userId);
+  Future<List<Challenge>> fetchUserChallenges(String userId) {
+    return _challenges.fetchUserChallenges(userId);
   }
 
   @override
-  Stream<List<Challenge>> getCreatedChallenges(String userId) {
-    return _challenges.getCreatedChallenges(userId);
+  Future<List<Challenge>> fetchCreatedChallenges(String userId) {
+    return _challenges.fetchCreatedChallenges(userId);
   }
 
   @override

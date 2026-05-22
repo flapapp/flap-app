@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:rxdart/rxdart.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../profile/presentation/bloc/profile_bloc.dart';
@@ -12,11 +12,12 @@ import '../../../../router/app_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_app_storage.dart';
-import '../../../../core/supabase/guard_supabase_realtime_stream.dart';
 import '../../../../core/supabase/supabase_date.dart';
 import '../../../../constants/video_categories.dart';
 import '../../../challenges/data/models/challenge.dart';
 import '../../../challenges/domain/repositories/challenges_repository.dart';
+import '../../../challenges/presentation/cubit/challenges_list_cubit.dart';
+import '../../../challenges/presentation/cubit/challenges_list_state.dart';
 import '../../../ratings/presentation/utils/rating_snapshot_source_label.dart';
 import '../../../ratings/presentation/widgets/rating_history_snapshot_card.dart';
 import '../../../../widgets/rating_display.dart';
@@ -69,6 +70,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   String _selectedTab = 'all'; // all, challenges, trending
   bool _showOnlyMyVideos = false;
   bool _showOnlyMyChallenges = false;
+  late final ChallengesListCubit _challengesListCubit;
   String _currentUserCity = '';
   final Map<String, double> _videoRatingCache = {};
   final Set<String> _videoRatingLoading = {};
@@ -194,12 +196,22 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
     }
   }
 
+  void _loadChallengesList() {
+    final onlyMine = _showOnlyMyChallenges ? AppAuth.currentUserId : null;
+    unawaited(
+      _challengesListCubit.load(onlyCreatorUserId: onlyMine, limit: 20),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    _challengesListCubit = ChallengesListCubit(sl<ChallengesRepository>());
+    _loadChallengesList();
     _videoFeedSyncSub = sl<VideoFeedSync>().onMutated.listen((_) {
       if (mounted) {
         _invalidateVideoFeedCaches();
+        _loadChallengesList();
       }
     });
     _cityFilterController.text = '';
@@ -209,6 +221,7 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
   @override
   void dispose() {
     _videoFeedSyncSub?.cancel();
+    _challengesListCubit.close();
     _cityFilterController.dispose();
     super.dispose();
   }
@@ -253,12 +266,15 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
       _showOnlyMyVideos = myContent == 'videos';
       _showOnlyMyChallenges = myContent == 'challenges';
       _selectedTab = _showOnlyMyChallenges ? 'challenges' : 'all';
+      _loadChallengesList();
     }
   }
 
   @override
 Widget build(BuildContext context) {
-  return Scaffold(
+  return BlocProvider.value(
+    value: _challengesListCubit,
+    child: Scaffold(
     backgroundColor: const Color(0xFF0f0f23), // Dark background (HTML MVP style)
     appBar: AppBar(
       backgroundColor: const Color(0xFF0f0f23).withValues(alpha: 0.95),
@@ -564,6 +580,7 @@ Widget build(BuildContext context) {
       createGradient: const [Color(0xFFFF6B35), Color(0xFFFF8A65)],
     ),
     floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    ),
   );
 }
 
@@ -2134,82 +2151,24 @@ Widget build(BuildContext context) {
   // `challenge_participants` / `challenge_submissions`, not from `challenges`
   // (those columns do not exist on the table).
   Widget _buildChallengesList() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: (() {
-        final uid = _showOnlyMyChallenges ? AppAuth.currentUserId : null;
-        final challengesStream = guardSupabaseRealtimeStream(
-          _sb
-              .from('challenges')
-              .stream(primaryKey: ['id'])
-              .order('created_at', ascending: false)
-              .limit(20),
-        );
-
-        final participantsStream = guardSupabaseRealtimeStream(
-          _sb
-              .from('challenge_participants')
-              .stream(primaryKey: ['challenge_id', 'user_id'])
-              .startWith(const <Map<String, dynamic>>[]),
-        );
-
-        final submissionsStream = guardSupabaseRealtimeStream(
-          _sb
-              .from('challenge_submissions')
-              .stream(primaryKey: ['id'])
-              .startWith(const <Map<String, dynamic>>[]),
-        );
-
-        return Rx.combineLatest3<
-            List<Map<String, dynamic>>,
-            List<Map<String, dynamic>>,
-            List<Map<String, dynamic>>,
-            List<Map<String, dynamic>>>(
-          challengesStream,
-          participantsStream,
-          submissionsStream,
-          (challenges, participants, submissions) {
-            final participantsByChallenge =
-                groupUserIdsByChallengeIdFromJoinRows(
-              participants,
-              userIdKey: 'user_id',
-            );
-            final submissionsByChallenge =
-                groupUserIdsByChallengeIdFromJoinRows(
-              submissions,
-              userIdKey: 'user_id',
-            );
-            return challenges
-                .where((row) =>
-                    uid == null ||
-                    (row['creator_id'] ?? '').toString() == uid)
-                .map(
-                  (row) => mapChallengeRowForListUi(
-                    row,
-                    participantsByChallenge: participantsByChallenge,
-                    submissionsByChallenge: submissionsByChallenge,
-                  ),
-                )
-                .toList(growable: false);
-          },
-        );
-      })(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
+    return BlocBuilder<ChallengesListCubit, ChallengesListState>(
+      builder: (context, listState) {
+        if (listState.status == ChallengesListStatus.error) {
           return Center(
             child: Text(
               tr(
                 'il_3a6e650bec',
-                args: [snapshot.error?.toString() ?? ''],
+                args: [listState.errorMessage ?? ''],
               ),
             ),
           );
         }
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (listState.isLoading && listState.items.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final challenges = snapshot.data ?? const <Map<String, dynamic>>[];
+        final challenges = listState.items;
 
         if (challenges.isEmpty) {
           return Center(
@@ -2264,7 +2223,10 @@ Widget build(BuildContext context) {
           itemCount: challenges.length,
           itemBuilder: (context, index) {
             final challenge = challenges[index];
-            return _buildChallengeCard(challenge, (challenge['id'] ?? '').toString());
+            return _buildChallengeCard(
+              challenge,
+              (challenge['id'] ?? '').toString(),
+            );
           },
         );
       },

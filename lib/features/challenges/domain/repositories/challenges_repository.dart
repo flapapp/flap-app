@@ -2,13 +2,19 @@ import '../../data/models/challenge.dart';
 
 /// Challenge discovery, creation, participation, and lifecycle (domain).
 abstract class ChallengesRepository {
-  Stream<List<Challenge>> getActiveChallenges();
+  Future<List<Challenge>> fetchActiveChallenges();
 
-  Stream<List<Challenge>> getChallengesByStatus(ChallengeStatus status);
+  Future<List<Challenge>> fetchChallengesByStatus(ChallengeStatus status);
 
-  Stream<List<Challenge>> getChallengesByCity(String city);
+  Future<List<Challenge>> fetchChallengesByCity(String city);
 
-  Stream<List<Challenge>> getChallengesByType(ChallengeType type);
+  Future<List<Challenge>> fetchChallengesByType(ChallengeType type);
+
+  /// Card/list UI rows with participant and submission aggregates.
+  Future<List<Map<String, dynamic>>> fetchChallengesForListUi({
+    int limit = 50,
+    String? onlyCreatorUserId,
+  });
 
   Future<Challenge?> getChallenge(String challengeId);
 
@@ -26,9 +32,9 @@ abstract class ChallengesRepository {
 
   Future<bool> completeChallenge(String challengeId);
 
-  Stream<List<Challenge>> getUserChallenges(String userId);
+  Future<List<Challenge>> fetchUserChallenges(String userId);
 
-  Stream<List<Challenge>> getCreatedChallenges(String userId);
+  Future<List<Challenge>> fetchCreatedChallenges(String userId);
 
   Future<bool> deleteChallenge(String challengeId);
 

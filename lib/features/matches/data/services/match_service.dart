@@ -117,39 +117,38 @@ class MatchService {
     return sum;
   }
 
-  Stream<List<Match>> getAvailableMatches() {
-    return _sb.from('matches').stream(primaryKey: ['id']).asyncMap((
-      rows,
-    ) async {
-      final openIds = <String>[];
-      final seen = <String>{};
-      for (final raw in rows as List<dynamic>) {
-        final row = raw as Map<String, dynamic>;
-        if ((row['status'] ?? '').toString() != 'open') continue;
-        final id = (row['id'] ?? '').toString();
-        if (id.isEmpty || !seen.add(id)) continue;
-        openIds.add(id);
-      }
-      if (openIds.isEmpty) return <Match>[];
+  Future<List<Match>> fetchAvailableMatches() async {
+    final rows = await _sb
+        .from('matches')
+        .select('id, status')
+        .eq('status', 'open');
+    final openIds = <String>[];
+    final seen = <String>{};
+    for (final raw in rows as List<dynamic>) {
+      final row = raw as Map<String, dynamic>;
+      final id = (row['id'] ?? '').toString();
+      if (id.isEmpty || !seen.add(id)) continue;
+      openIds.add(id);
+    }
+    if (openIds.isEmpty) return <Match>[];
 
-      final legacyMaps = await MatchLegacyRemoteMapper.loadLegacyMapsBatch(
-        _sb,
-        openIds,
-      );
-      final out = <Match>[];
-      for (final id in openIds) {
-        final legacy = legacyMaps[id];
-        if (legacy == null) continue;
-        final m = Match.fromLegacyMap(id, legacy);
-        if (m.isUnplayedByTimeout) {
-          await _markAsUnplayedTimedOut(id);
-          continue;
-        }
-        out.add(m);
+    final legacyMaps = await MatchLegacyRemoteMapper.loadLegacyMapsBatch(
+      _sb,
+      openIds,
+    );
+    final out = <Match>[];
+    for (final id in openIds) {
+      final legacy = legacyMaps[id];
+      if (legacy == null) continue;
+      final m = Match.fromLegacyMap(id, legacy);
+      if (m.isUnplayedByTimeout) {
+        await _markAsUnplayedTimedOut(id);
+        continue;
       }
-      out.sort((a, b) => a.date.compareTo(b.date));
-      return out;
-    });
+      out.add(m);
+    }
+    out.sort((a, b) => a.date.compareTo(b.date));
+    return out;
   }
 
   Future<void> _markAsUnplayedTimedOut(String matchId) async {
@@ -166,81 +165,35 @@ class MatchService {
     }
   }
 
-  Stream<List<Match>> getUserMatches(String userId) {
-    Future<List<Match>> loadMatches() async {
-      final participantRows = await _sb
-          .from('match_participants')
-          .select('match_id')
-          .eq('user_id', userId);
-      final fromParticipants = (participantRows as List<dynamic>)
-          .map(
-            (raw) =>
-                (raw as Map<String, dynamic>)['match_id']?.toString() ?? '',
-          )
-          .where((id) => id.isNotEmpty)
-          .toSet();
+  Future<List<Match>> fetchUserMatches(String userId) async {
+    final participantRows = await _sb
+        .from('match_participants')
+        .select('match_id')
+        .eq('user_id', userId);
+    final fromParticipants = (participantRows as List<dynamic>)
+        .map(
+          (raw) => (raw as Map<String, dynamic>)['match_id']?.toString() ?? '',
+        )
+        .where((id) => id.isNotEmpty)
+        .toSet();
 
-      final fromRosters = await _matchIdsFromUserTeamRosters(userId);
+    final fromRosters = await _matchIdsFromUserTeamRosters(userId);
 
-      final ids = {...fromParticipants, ...fromRosters}.toList();
-      if (ids.isEmpty) return <Match>[];
+    final ids = {...fromParticipants, ...fromRosters}.toList();
+    if (ids.isEmpty) return <Match>[];
 
-      final legacyMaps = await MatchLegacyRemoteMapper.loadLegacyMapsBatch(
-        _sb,
-        ids,
-      );
-      final out = <Match>[];
-      for (final id in ids) {
-        final legacy = legacyMaps[id];
-        if (legacy == null) continue;
-        out.add(Match.fromLegacyMap(id, legacy));
-      }
-      out.sort((a, b) => b.date.compareTo(a.date));
-      return out;
-    }
-
-    late StreamController<List<Match>> outCtrl;
-    StreamSubscription<List<Map<String, dynamic>>>? subParticipants;
-    StreamSubscription<List<Map<String, dynamic>>>? subTeamRosters;
-    StreamSubscription<List<Map<String, dynamic>>>? subMatches;
-
-    outCtrl = StreamController<List<Match>>(
-      onListen: () {
-        scheduleMicrotask(() async {
-          Future<void> emit() async {
-            try {
-              outCtrl.add(await loadMatches());
-            } catch (e, st) {
-              outCtrl.addError(e, st);
-            }
-          }
-
-          await emit();
-          subParticipants = _sb
-              .from('match_participants')
-              .stream(primaryKey: ['id'])
-              .listen((_) => emit());
-          subTeamRosters = _sb
-              .from('match_team_rosters')
-              .stream(primaryKey: ['match_team_id', 'player_id'])
-              .listen((_) => emit());
-          subMatches = _sb
-              .from('matches')
-              .stream(primaryKey: ['id'])
-              .listen((_) => emit());
-        });
-      },
-      onCancel: () async {
-        await subParticipants?.cancel();
-        await subTeamRosters?.cancel();
-        await subMatches?.cancel();
-        subParticipants = null;
-        subTeamRosters = null;
-        subMatches = null;
-      },
+    final legacyMaps = await MatchLegacyRemoteMapper.loadLegacyMapsBatch(
+      _sb,
+      ids,
     );
-
-    return outCtrl.stream;
+    final out = <Match>[];
+    for (final id in ids) {
+      final legacy = legacyMaps[id];
+      if (legacy == null) continue;
+      out.add(Match.fromLegacyMap(id, legacy));
+    }
+    out.sort((a, b) => b.date.compareTo(a.date));
+    return out;
   }
 
   Future<Set<String>> _matchIdsFromUserTeamRosters(String userId) async {

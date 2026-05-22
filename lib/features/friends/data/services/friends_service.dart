@@ -95,32 +95,6 @@ class FriendsService {
     return tr('il_b512d97e7c');
   }
 
-  Stream<List<FriendRequest>> getIncomingFriendRequests() {
-    final currentUser = AppAuth.currentUser;
-    if (currentUser == null) {
-      return Stream.value([]);
-    }
-
-    return _client
-        .from('friend_requests')
-        .stream(primaryKey: ['id'])
-        .eq('to_user_id', currentUser.id)
-        .asyncMap((_) => _loadFriendRequests(incoming: true, userId: currentUser.id));
-  }
-
-  Stream<List<FriendRequest>> getOutgoingFriendRequests() {
-    final currentUser = AppAuth.currentUser;
-    if (currentUser == null) {
-      return Stream.value([]);
-    }
-
-    return _client
-        .from('friend_requests')
-        .stream(primaryKey: ['id'])
-        .eq('from_user_id', currentUser.id)
-        .asyncMap((_) => _loadFriendRequests(incoming: false, userId: currentUser.id));
-  }
-
   Future<List<FriendRequest>> fetchPendingIncomingFriendRequests() async {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return [];

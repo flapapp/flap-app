@@ -1,15 +1,18 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:rxdart/rxdart.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../router/app_router.dart';
 import '../../../../core/di/injection.dart';
-import '../../../../core/supabase/guard_supabase_realtime_stream.dart';
 import '../../../../core/supabase/supabase_date.dart';
 import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
+import '../cubit/challenges_list_cubit.dart';
+import '../cubit/challenges_list_state.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../../widgets/player_avatar_button.dart';
@@ -28,16 +31,83 @@ class ChallengesScreen extends StatefulWidget {
 class _ChallengesScreenState extends State<ChallengesScreen> {
   final SupabaseClient _sb = Supabase.instance.client;
   ChallengesRepository get _challengesRepo => sl<ChallengesRepository>();
+  late final ChallengesListCubit _challengesListCubit;
 
   String _selectedFilter = 'all'; // all, active, my, completed
   String _selectedSort = 'new'; // 'new', 'rating', 'views'
-  
+
+  @override
+  void initState() {
+    super.initState();
+    _challengesListCubit = ChallengesListCubit(_challengesRepo);
+    _loadChallenges();
+  }
+
+  @override
+  void dispose() {
+    _challengesListCubit.close();
+    super.dispose();
+  }
+
+  void _loadChallenges() {
+    final onlyMine = widget.showOnlyMyChallenges
+        ? AppAuth.currentUserId
+        : null;
+    unawaited(_challengesListCubit.load(onlyCreatorUserId: onlyMine));
+  }
+
+  List<Map<String, dynamic>> _filterAndSortChallenges(
+    List<Map<String, dynamic>> all,
+  ) {
+    final currentUser = AppAuth.currentUser;
+    final filtered = all.where((data) {
+      switch (_selectedFilter) {
+        case 'active':
+          final status = (data['status'] ?? '').toString();
+          return status == 'recruiting' ||
+              status == 'submission' ||
+              status == 'voting';
+        case 'my':
+          if (currentUser == null) return false;
+          return (data['creatorId'] ?? '') == currentUser.id;
+        case 'completed':
+          return (data['status'] ?? '') == 'completed';
+        default:
+          return true;
+      }
+    }).toList()
+      ..sort((ad, bd) {
+        switch (_selectedSort) {
+          case 'rating':
+            final ar = (ad['averageRating'] ?? 0.0) as num;
+            final br = (bd['averageRating'] ?? 0.0) as num;
+            return br.compareTo(ar);
+          case 'views':
+            final av = (ad['views'] ?? 0) as num;
+            final bv = (bd['views'] ?? 0) as num;
+            return bv.compareTo(av);
+          case 'new':
+          default:
+            final at = ad['createdAt'];
+            final bt = bd['createdAt'];
+            final adt =
+                asDateTimeOrNull(at) ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bdt =
+                asDateTimeOrNull(bt) ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bdt.compareTo(adt);
+        }
+      });
+    return filtered;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.showOnlyMyChallenges && _selectedFilter != 'my') {
       _selectedFilter = 'my';
     }
-    return Scaffold(
+    return BlocProvider.value(
+      value: _challengesListCubit,
+      child: Scaffold(
       backgroundColor: const Color(0xFF0f0f23),
       body: Column(
         children: [
@@ -85,54 +155,32 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           
           // Challenges list
           Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _getChallengesStream(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+            child: BlocBuilder<ChallengesListCubit, ChallengesListState>(
+              builder: (context, listState) {
+                if (listState.isLoading && listState.items.isEmpty) {
                   return const Center(
                     child: CircularProgressIndicator(color: Color(0xFF4caf50)),
                   );
                 }
 
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                if (listState.status == ChallengesListStatus.error) {
+                  return Center(
+                    child: Text(
+                      tr('challenges_open_failed'),
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  );
+                }
+
+                if (listState.items.isEmpty) {
                   return _buildEmptyState();
                 }
 
-                final all = snapshot.data!;
-                final currentUser = AppAuth.currentUser;
-                final filtered = all.where((data) {
-                  switch (_selectedFilter) {
-                    case 'active':
-                      final status = (data['status'] ?? '').toString();
-                      return status == 'recruiting' || status == 'submission' || status == 'voting';
-                    case 'my':
-                      if (currentUser == null) return false;
-                      return (data['creatorId'] ?? '') == currentUser.id;
-                    case 'completed':
-                      return (data['status'] ?? '') == 'completed';
-                    default:
-                      return true;
-                  }
-                }).toList()
-                ..sort((ad, bd) {
-                  switch (_selectedSort) {
-                    case 'rating':
-                      final ar = (ad['averageRating'] ?? 0.0) as num; // When server provides aggregate rating
-                      final br = (bd['averageRating'] ?? 0.0) as num;
-                      return br.compareTo(ar);
-                    case 'views':
-                      final av = (ad['views'] ?? 0) as num;
-                      final bv = (bd['views'] ?? 0) as num;
-                      return bv.compareTo(av);
-                    case 'new':
-                    default:
-                      final at = ad['createdAt'];
-                      final bt = bd['createdAt'];
-                      final adt = asDateTimeOrNull(at) ?? DateTime.fromMillisecondsSinceEpoch(0);
-                      final bdt = asDateTimeOrNull(bt) ?? DateTime.fromMillisecondsSinceEpoch(0);
-                      return bdt.compareTo(adt);
-                  }
-                });
+                final filtered = _filterAndSortChallenges(listState.items);
+                if (filtered.isEmpty) {
+                  return _buildEmptyState();
+                }
+
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: filtered.length,
@@ -147,6 +195,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
         ],
       ),
       // No FloatingActionButton here — MainScreen already provides one
+      ),
     );
   }
 
@@ -174,62 +223,20 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     );
   }
 
-  /// Combines `challenges`, `challenge_participants`, and
-  /// `challenge_submissions` realtime streams so cards always reflect the
-  /// current participant count, submission count, and computed prize pool.
-  ///
-  /// All three tables grant `select` to authenticated users (see RLS in
-  /// `20260423000001_flap_initial.sql`), so the join is safe and stays
-  /// reactive when participants join or submissions are uploaded.
-  Stream<List<Map<String, dynamic>>> _getChallengesStream() {
-    final challengesStream = guardSupabaseRealtimeStream(
-      _sb
-          .from('challenges')
-          .stream(primaryKey: ['id'])
-          .order('created_at', ascending: false)
-          .limit(50),
-    );
-
-    final participantsStream = guardSupabaseRealtimeStream(
-      _sb
-          .from('challenge_participants')
-          .stream(primaryKey: ['challenge_id', 'user_id'])
-          .startWith(const <Map<String, dynamic>>[]),
-    );
-
-    final submissionsStream = guardSupabaseRealtimeStream(
-      _sb
-          .from('challenge_submissions')
-          .stream(primaryKey: ['id'])
-          .startWith(const <Map<String, dynamic>>[]),
-    );
-
-    return Rx.combineLatest3<
-        List<Map<String, dynamic>>,
-        List<Map<String, dynamic>>,
-        List<Map<String, dynamic>>,
-        List<Map<String, dynamic>>>(
-      challengesStream,
-      participantsStream,
-      submissionsStream,
-      (challenges, participants, submissions) {
-        final participantsByChallenge = groupUserIdsByChallengeIdFromJoinRows(
-          participants,
-          userIdKey: 'user_id',
-        );
-        final submissionsByChallenge = groupUserIdsByChallengeIdFromJoinRows(
-          submissions,
-          userIdKey: 'user_id',
-        );
-        return challenges
-            .map((row) => mapChallengeRowForListUi(
-                  row,
-                  participantsByChallenge: participantsByChallenge,
-                  submissionsByChallenge: submissionsByChallenge,
-                ))
-            .toList(growable: false);
-      },
-    );
+  Future<List<Map<String, dynamic>>> _fetchSubmissionPreview(
+    String challengeId,
+    String creatorId,
+  ) async {
+    final rows = await _sb
+        .from('challenge_submissions')
+        .select()
+        .eq('challenge_id', challengeId)
+        .order('submitted_at', ascending: false)
+        .limit(8);
+    return (rows as List<dynamic>)
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .where((r) => (r['user_id'] ?? '').toString() != creatorId)
+        .toList(growable: false);
   }
 
   int _daysLeftFromDeadline(Map<String, dynamic> challengeData) {
@@ -542,24 +549,18 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               const SizedBox(height: 8),
               SizedBox(
                 height: 60,
-                child: StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: guardSupabaseRealtimeStream(
-                    _sb
-                        .from('challenge_submissions')
-                        .stream(primaryKey: ['id'])
-                        .eq('challenge_id', challengeId)
-                        .order('submitted_at', ascending: false)
-                        .limit(8),
-                  ).map((rows) => rows
-                      .where((r) =>
-                          (r['user_id'] ?? '').toString() != creatorId)
-                      .toList()),
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _fetchSubmissionPreview(challengeId, creatorId),
                   builder: (context, submissionSnapshot) {
-                    if (!submissionSnapshot.hasData) {
-                          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                    if (submissionSnapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      );
                     }
-                    
-                    final submissionDocs = submissionSnapshot.data!;
+
+                    final submissionDocs =
+                        submissionSnapshot.data ?? const <Map<String, dynamic>>[];
                         
                         if (submissionDocs.isEmpty) {
                           return Container(

@@ -7,6 +7,7 @@ import 'package:flap_app/city_localization.dart';
 import '../../../../core/locale/football_position.dart';
 import '../../../../utils/city_catalog.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/di/injection.dart';
@@ -24,6 +25,8 @@ import '../../data/models/match.dart';
 import '../../domain/repositories/matches_repository.dart';
 import 'finish_match_flow_page.dart';
 import '../controllers/match_list_controller.dart';
+import '../cubit/matches_list_cubit.dart';
+import '../cubit/matches_list_state.dart';
 import '../utils/match_status_ui.dart';
 import '../widgets/match_waiting_list_strip.dart';
 
@@ -141,17 +144,13 @@ class _MatchesScreenState extends State<MatchesScreen>
   /// Optimistic "requested" until [Match.pendingApplications] updates from stream.
   final Set<String> _joinRequestedLocalMatchIds = <String>{};
 
-  /// Avoids new stream subscriptions on every rebuild (see [_memoizedFilteredMatchesStream]).
-  Stream<List<Match>>? _memoFilteredMatchesStream;
-  String? _memoFilteredMatchesKey;
-
-  Stream<List<Match>>? _memoUserMatchesStream;
-  Stream<List<Match>>? _memoHistoryMatchesStream;
+  late final MatchesListCubit _matchesListCubit;
 
   @override
   void initState() {
     super.initState();
     _matchListController = MatchListController(_matchRepo);
+    _matchesListCubit = MatchesListCubit(_matchRepo)..load();
     _tabController = TabController(length: _tabKeys.length, vsync: this);
     _tabController.addListener(_onMatchesPrimaryTabChanged);
 
@@ -184,15 +183,9 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
   }
 
-  /// Clears memoized match streams so lists refetch after creating/updating a match.
-  void _invalidateMatchStreamCaches() {
+  void _refreshMatchLists() {
     if (!mounted) return;
-    setState(() {
-      _memoFilteredMatchesStream = null;
-      _memoFilteredMatchesKey = null;
-      _memoUserMatchesStream = null;
-      _memoHistoryMatchesStream = null;
-    });
+    unawaited(_matchesListCubit.load());
   }
 
   void _ensureRatingsTopPlayersLoaded({bool force = false}) {
@@ -203,6 +196,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
   @override
   void dispose() {
+    _matchesListCubit.close();
     _tabController.removeListener(_onMatchesPrimaryTabChanged);
     _searchDebounce?.cancel();
     _cityFilterController.dispose();
@@ -559,10 +553,37 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
+  MatchListFilters _matchListFilters() {
+    return MatchListFilters(
+      selectedCity: _selectedCity,
+      allCitiesLabel: tr('all_cities'),
+      selectedLevel: _selectedLevel,
+      allLevelsLabel: tr('all_levels'),
+      selectedTime: _selectedTime,
+      anytimeLabel: tr('anytime'),
+      todayLabel: tr('il_2b065c7c9c'),
+      tomorrowLabel: tr('il_456a73bbce'),
+      weekLabel: tr('il_8c4eef5ab2'),
+      selectedSort: _selectedSort,
+      searchQuery: _searchQuery,
+      currentUserCity: _currentUserCity,
+    );
+  }
+
+  List<Match> _filteredAvailableMatches(MatchesListState listState) {
+    return _matchListController.filterMatches(
+      listState.availableMatches,
+      _matchListFilters(),
+      levelTextResolver: _getLevelText,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isCompact = MediaQuery.of(context).size.width < 400;
-    return Scaffold(
+    return BlocProvider.value(
+      value: _matchesListCubit,
+      child: Scaffold(
       backgroundColor: const Color(0xFF1a1a2e),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -780,9 +801,10 @@ class _MatchesScreenState extends State<MatchesScreen>
         onCreate: () async {
           await context.router.push(const CreateMatchRoute());
           if (!mounted) return;
-          _invalidateMatchStreamCaches();
+          _refreshMatchLists();
         },
         createTooltip: tr('il_4759498ac2'),
+      ),
       ),
     );
   }
@@ -1418,28 +1440,29 @@ class _MatchesScreenState extends State<MatchesScreen>
           if (_filtersExpanded) _buildFilters(),
 
           // Available matches list
-          StreamBuilder<List<Match>>(
-            stream: _memoizedFilteredMatchesStream(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
+          BlocBuilder<MatchesListCubit, MatchesListState>(
+            builder: (context, listState) {
+              if (listState.status == MatchesListStatus.error) {
                 return Center(
                   child: Text(
                     tr(
                       'il_c64c77589a',
-                      args: [snapshot.error?.toString() ?? ''],
+                      args: [listState.errorMessage ?? ''],
                     ),
                     style: const TextStyle(color: Colors.red),
                   ),
                 );
               }
 
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (listState.isLoading &&
+                  listState.availableMatches.isEmpty) {
                 return Center(
                   child: CircularProgressIndicator(color: Color(0xFF4caf50)),
                 );
               }
 
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              final items = _filteredAvailableMatches(listState);
+              if (items.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1470,8 +1493,6 @@ class _MatchesScreenState extends State<MatchesScreen>
                 );
               }
 
-              // Counter + match list
-              final items = snapshot.data!;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1597,31 +1618,27 @@ class _MatchesScreenState extends State<MatchesScreen>
 
         // User's match list
         Expanded(
-          child: StreamBuilder<List<Match>>(
-            stream: _memoizedUserMatchesStream(),
-            builder: (context, snapshot) {
-              // Show error if present
-              if (snapshot.hasError) {
+          child: BlocBuilder<MatchesListCubit, MatchesListState>(
+            builder: (context, listState) {
+              if (listState.status == MatchesListStatus.error) {
                 return Center(
                   child: Text(
                     tr(
                       'il_c64c77589a',
-                      args: [snapshot.error?.toString() ?? ''],
+                      args: [listState.errorMessage ?? ''],
                     ),
                     style: const TextStyle(color: Colors.red),
                   ),
                 );
               }
 
-              // Show loading indicator
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (listState.isLoading && listState.userMatches.isEmpty) {
                 return Center(
                   child: CircularProgressIndicator(color: Color(0xFF4caf50)),
                 );
               }
 
-              // Empty state when no matches
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              if (listState.userMatches.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1648,8 +1665,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                 );
               }
 
-              // Chip-based filtering
-              final all = snapshot.data!;
+              final all = listState.userMatches;
               final currentUserId = AppAuth.currentUserId;
               List<Match> filtered = all;
               if (_selectedMyMatchesFilter == 'organized' &&
@@ -1693,23 +1709,22 @@ class _MatchesScreenState extends State<MatchesScreen>
 
   // TAB 3: History
   Widget _buildHistoryTab() {
-    return StreamBuilder<List<Match>>(
-      stream: _memoizedHistoryMatchesStream(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
+    return BlocBuilder<MatchesListCubit, MatchesListState>(
+      builder: (context, listState) {
+        if (listState.status == MatchesListStatus.error) {
           return Center(
             child: Text(
-              tr('il_3a6e650bec', args: [snapshot.error?.toString() ?? '']),
+              tr('il_3a6e650bec', args: [listState.errorMessage ?? '']),
               style: const TextStyle(color: Colors.red),
             ),
           );
         }
-        if (!snapshot.hasData) {
+        if (listState.isLoading && listState.historyMatches.isEmpty) {
           return const Center(
             child: CircularProgressIndicator(color: Color(0xFF4caf50)),
           );
         }
-        final matches = snapshot.data!;
+        final matches = listState.historyMatches;
         if (matches.isEmpty) {
           return Center(
             child: Column(
@@ -2304,7 +2319,7 @@ class _MatchesScreenState extends State<MatchesScreen>
             backgroundColor: const Color(0xFF4caf50),
           ),
         );
-        _invalidateMatchStreamCaches();
+        _refreshMatchLists();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3325,55 +3340,6 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
   }
 
-  String _filteredMatchesCacheKey() => <String>[
-    _selectedCity,
-    _selectedLevel,
-    _selectedTime,
-    _selectedSort,
-    _searchQuery,
-    _currentUserCity,
-    tr('all_cities'),
-    tr('all_levels'),
-    tr('anytime'),
-    tr('il_2b065c7c9c'),
-    tr('il_456a73bbce'),
-    tr('il_8c4eef5ab2'),
-  ].join('\u001e');
-
-  /// Stable stream instance while filters are unchanged — prevents [StreamBuilder]
-  /// from resubscribing on unrelated rebuilds (e.g. async profile city load).
-  Stream<List<Match>> _memoizedFilteredMatchesStream() {
-    final key = _filteredMatchesCacheKey();
-    if (_memoFilteredMatchesKey == key && _memoFilteredMatchesStream != null) {
-      return _memoFilteredMatchesStream!;
-    }
-    _memoFilteredMatchesKey = key;
-    _memoFilteredMatchesStream = _matchListController.getFilteredMatches(
-      MatchListFilters(
-        selectedCity: _selectedCity,
-        allCitiesLabel: tr('all_cities'),
-        selectedLevel: _selectedLevel,
-        allLevelsLabel: tr('all_levels'),
-        selectedTime: _selectedTime,
-        anytimeLabel: tr('anytime'),
-        todayLabel: tr('il_2b065c7c9c'),
-        tomorrowLabel: tr('il_456a73bbce'),
-        weekLabel: tr('il_8c4eef5ab2'),
-        selectedSort: _selectedSort,
-        searchQuery: _searchQuery,
-        currentUserCity: _currentUserCity,
-      ),
-      levelTextResolver: _getLevelText,
-    );
-    return _memoFilteredMatchesStream!;
-  }
-
-  Stream<List<Match>> _memoizedUserMatchesStream() =>
-      _memoUserMatchesStream ??= _getUserMatches();
-
-  Stream<List<Match>> _memoizedHistoryMatchesStream() =>
-      _memoHistoryMatchesStream ??= _getHistoryMatches();
-
   String _sortLabel(String key) {
     switch (key) {
       case 'my_city':
@@ -3382,26 +3348,6 @@ class _MatchesScreenState extends State<MatchesScreen>
       default:
         return tr('il_ffb6f5764b');
     }
-  }
-
-  // Fetch user's matches
-  Stream<List<Match>> _getUserMatches() {
-    final currentUser = AppAuth.currentUser;
-    if (currentUser == null) return Stream.value([]);
-    return _matchRepo.getUserMatches(currentUser.id);
-  }
-
-  // HISTORY: user's finished matches (newest first)
-  Stream<List<Match>> _getHistoryMatches() {
-    final currentUser = AppAuth.currentUser;
-    if (currentUser == null) return Stream.value([]);
-    return _matchRepo.getUserMatches(currentUser.id).map((list) {
-      final finished = list
-          .where((m) => m.status == MatchStatus.finished)
-          .toList();
-      finished.sort((a, b) => b.date.compareTo(a.date));
-      return finished;
-    });
   }
 
   // Status color helper
@@ -3445,7 +3391,7 @@ class _MatchesScreenState extends State<MatchesScreen>
             onPressed: () async {
               await context.router.push(const CreateMatchRoute());
               if (!mounted) return;
-              _invalidateMatchStreamCaches();
+              _refreshMatchLists();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFF4caf50),

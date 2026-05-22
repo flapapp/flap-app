@@ -14,16 +14,6 @@ class FriendsRepositoryImpl implements FriendsRepository {
   }
 
   @override
-  Stream<List<FriendRequest>> getIncomingFriendRequests() {
-    return _friends.getIncomingFriendRequests();
-  }
-
-  @override
-  Stream<List<FriendRequest>> getOutgoingFriendRequests() {
-    return _friends.getOutgoingFriendRequests();
-  }
-
-  @override
   Future<List<FriendRequest>> fetchPendingIncomingFriendRequests() {
     return _friends.fetchPendingIncomingFriendRequests();
   }

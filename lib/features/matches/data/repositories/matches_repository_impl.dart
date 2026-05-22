@@ -20,13 +20,13 @@ class MatchesRepositoryImpl implements MatchesRepository {
   }
 
   @override
-  Stream<List<app_match.Match>> getAvailableMatches() {
-    return _matches.getAvailableMatches();
+  Future<List<app_match.Match>> fetchAvailableMatches() {
+    return _matches.fetchAvailableMatches();
   }
 
   @override
-  Stream<List<app_match.Match>> getUserMatches(String userId) {
-    return _matches.getUserMatches(userId);
+  Future<List<app_match.Match>> fetchUserMatches(String userId) {
+    return _matches.fetchUserMatches(userId);
   }
 
   @override

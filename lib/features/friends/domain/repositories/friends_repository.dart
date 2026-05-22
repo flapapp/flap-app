@@ -5,14 +5,8 @@ import '../entities/friendship_state.dart';
 abstract class FriendsRepository {
   Future<bool> sendFriendRequest(String toUserId, {String? message});
 
-  Stream<List<FriendRequest>> getIncomingFriendRequests();
-
-  Stream<List<FriendRequest>> getOutgoingFriendRequests();
-
-  /// Pending incoming requests (snapshot; same data as [getIncomingFriendRequests] stream).
   Future<List<FriendRequest>> fetchPendingIncomingFriendRequests();
 
-  /// Pending outgoing requests (snapshot; same data as [getOutgoingFriendRequests] stream).
   Future<List<FriendRequest>> fetchPendingOutgoingFriendRequests();
 
   Future<bool> respondToFriendRequest(String requestId, bool accept);

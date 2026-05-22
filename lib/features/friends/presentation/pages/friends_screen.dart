@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/city_localization.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/friends_repository.dart';
 import '../../../../router/app_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/models/friend_request.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 
@@ -34,8 +34,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _friendsPageCubit = FriendsPageCubit(_friendsRepo, Supabase.instance.client);
-    _friendsPageCubit.subscribe();
+    _friendsPageCubit = FriendsPageCubit(_friendsRepo);
+    _friendsPageCubit.load();
   }
 
   @override

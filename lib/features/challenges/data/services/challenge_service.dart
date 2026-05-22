@@ -9,76 +9,102 @@ import '../../data/models/challenge.dart';
 class ChallengeService {
   final SupabaseClient _sb = Supabase.instance.client;
 
-  Stream<List<Challenge>> getActiveChallenges() {
-    return _sb
+  Future<List<Challenge>> fetchActiveChallenges() async {
+    final rows = await _sb
         .from('challenges')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) async {
-      final out = <Challenge>[];
-      for (final raw in rows as List<dynamic>) {
-        final row = raw as Map<String, dynamic>;
-        if ((row['status'] ?? '') == 'completed') continue;
-        final c = await _loadChallenge((row['id'] ?? '').toString());
-        if (c != null) out.add(c);
-      }
-      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return out;
-    });
+        .select('id, status')
+        .neq('status', 'completed')
+        .order('created_at', ascending: false);
+    return _loadChallengesFromIdRows(rows as List<dynamic>);
   }
 
-  Stream<List<Challenge>> getChallengesByStatus(ChallengeStatus status) {
-    return _sb
+  Future<List<Challenge>> fetchChallengesByStatus(ChallengeStatus status) async {
+    final rows = await _sb
         .from('challenges')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) async {
-      final out = <Challenge>[];
-      for (final raw in rows as List<dynamic>) {
-        final row = raw as Map<String, dynamic>;
-        final rowStatus = (row['status'] ?? '').toString();
-        if (rowStatus != status.name) continue;
-        final c = await _loadChallenge((row['id'] ?? '').toString());
-        if (c != null) out.add(c);
-      }
-      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return out;
-    });
+        .select('id')
+        .eq('status', status.name)
+        .order('created_at', ascending: false);
+    return _loadChallengesFromIdRows(rows as List<dynamic>);
   }
 
-  Stream<List<Challenge>> getChallengesByCity(String city) {
-    return _sb
+  Future<List<Challenge>> fetchChallengesByCity(String city) async {
+    final rows = await _sb
         .from('challenges')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) async {
-      final out = <Challenge>[];
-      for (final raw in rows as List<dynamic>) {
-        final row = raw as Map<String, dynamic>;
-        if ((row['city'] ?? '').toString() != city) continue;
-        if ((row['status'] ?? '').toString() == 'completed') continue;
-        final c = await _loadChallenge((row['id'] ?? '').toString());
-        if (c != null) out.add(c);
-      }
-      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return out;
-    });
+        .select('id, status')
+        .eq('city', city)
+        .neq('status', 'completed')
+        .order('created_at', ascending: false);
+    return _loadChallengesFromIdRows(rows as List<dynamic>);
   }
 
-  Stream<List<Challenge>> getChallengesByType(ChallengeType type) {
+  Future<List<Challenge>> fetchChallengesByType(ChallengeType type) async {
     final slug = challengeTypeToSlug(type);
-    return _sb
+    final rows = await _sb
         .from('challenges')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) async {
-      final out = <Challenge>[];
-      for (final raw in rows as List<dynamic>) {
-        final row = raw as Map<String, dynamic>;
-        final typeCode = (row['type'] ?? 'other').toString();
-        if (typeCode != slug) continue;
-        final c = await _loadChallenge((row['id'] ?? '').toString());
-        if (c != null) out.add(c);
-      }
-      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return out;
-    });
+        .select('id')
+        .eq('type', slug)
+        .order('created_at', ascending: false);
+    return _loadChallengesFromIdRows(rows as List<dynamic>);
+  }
+
+  /// List rows for challenge cards (participants/submissions aggregated in one fetch).
+  Future<List<Map<String, dynamic>>> fetchChallengesForListUi({
+    int limit = 50,
+    String? onlyCreatorUserId,
+  }) async {
+    var query = _sb.from('challenges').select();
+    if (onlyCreatorUserId != null && onlyCreatorUserId.isNotEmpty) {
+      query = query.eq('creator_id', onlyCreatorUserId);
+    }
+    final challengeRows = await query
+        .order('created_at', ascending: false)
+        .limit(limit);
+    final challenges = (challengeRows as List<dynamic>)
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .toList(growable: false);
+    if (challenges.isEmpty) return const [];
+
+    final participantsRows = await _sb
+        .from('challenge_participants')
+        .select('challenge_id, user_id');
+    final submissionsRows = await _sb
+        .from('challenge_submissions')
+        .select('challenge_id, user_id');
+
+    final participantsByChallenge = groupUserIdsByChallengeIdFromJoinRows(
+      (participantsRows as List<dynamic>)
+          .map((raw) => Map<String, dynamic>.from(raw as Map))
+          .toList(growable: false),
+      userIdKey: 'user_id',
+    );
+    final submissionsByChallenge = groupUserIdsByChallengeIdFromJoinRows(
+      (submissionsRows as List<dynamic>)
+          .map((raw) => Map<String, dynamic>.from(raw as Map))
+          .toList(growable: false),
+      userIdKey: 'user_id',
+    );
+
+    return challenges
+        .map(
+          (row) => mapChallengeRowForListUi(
+            row,
+            participantsByChallenge: participantsByChallenge,
+            submissionsByChallenge: submissionsByChallenge,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<List<Challenge>> _loadChallengesFromIdRows(List<dynamic> rows) async {
+    final out = <Challenge>[];
+    for (final raw in rows) {
+      final id = (raw as Map<String, dynamic>)['id']?.toString() ?? '';
+      if (id.isEmpty) continue;
+      final c = await _loadChallenge(id);
+      if (c != null) out.add(c);
+    }
+    out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return out;
   }
 
   Future<Challenge?> getChallenge(String challengeId) async {
@@ -325,40 +351,31 @@ class ChallengeService {
     }
   }
 
-  Stream<List<Challenge>> getUserChallenges(String userId) {
-    return _sb
+  Future<List<Challenge>> fetchUserChallenges(String userId) async {
+    final rows = await _sb
         .from('challenge_participants')
-        .stream(primaryKey: ['challenge_id', 'user_id'])
-        .asyncMap((rows) async {
-      final ids = (rows as List<dynamic>)
-          .where((raw) => (raw as Map<String, dynamic>)['user_id'] == userId)
-          .map((raw) => (raw as Map<String, dynamic>)['challenge_id'].toString())
-          .toSet();
-      final out = <Challenge>[];
-      for (final id in ids) {
-        final c = await _loadChallenge(id);
-        if (c != null) out.add(c);
-      }
-      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return out;
-    });
+        .select('challenge_id')
+        .eq('user_id', userId);
+    final ids = (rows as List<dynamic>)
+        .map((raw) => (raw as Map<String, dynamic>)['challenge_id'].toString())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final out = <Challenge>[];
+    for (final id in ids) {
+      final c = await _loadChallenge(id);
+      if (c != null) out.add(c);
+    }
+    out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return out;
   }
 
-  Stream<List<Challenge>> getCreatedChallenges(String userId) {
-    return _sb
+  Future<List<Challenge>> fetchCreatedChallenges(String userId) async {
+    final rows = await _sb
         .from('challenges')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) async {
-      final out = <Challenge>[];
-      for (final raw in rows as List<dynamic>) {
-        final row = raw as Map<String, dynamic>;
-        if ((row['creator_id'] ?? '').toString() != userId) continue;
-        final c = await _loadChallenge((row['id'] ?? '').toString());
-        if (c != null) out.add(c);
-      }
-      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return out;
-    });
+        .select('id')
+        .eq('creator_id', userId)
+        .order('created_at', ascending: false);
+    return _loadChallengesFromIdRows(rows as List<dynamic>);
   }
 
   Future<bool> deleteChallenge(String challengeId) async {

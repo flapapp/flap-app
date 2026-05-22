@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../router/app_router.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
+import '../cubit/challenge_catalog_cubit.dart';
+import '../cubit/challenge_catalog_state.dart';
 import '../../../../widgets/player_avatar_button.dart';
 
 @RoutePage()
@@ -18,6 +23,7 @@ class ChallengeListScreen extends StatefulWidget {
 
 class _ChallengeListScreenState extends State<ChallengeListScreen> {
   ChallengesRepository get _challengesRepo => sl<ChallengesRepository>();
+  late final ChallengeCatalogCubit _catalogCubit;
 
   String _selectedStatus = 'all';
   String _selectedType = 'all';
@@ -58,8 +64,33 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _catalogCubit = ChallengeCatalogCubit(_challengesRepo);
+    unawaited(_catalogCubit.load());
+  }
+
+  @override
+  void dispose() {
+    _catalogCubit.close();
+    super.dispose();
+  }
+
+  void _reloadCatalog() {
+    _catalogCubit.updateFilters(
+      selectedStatus: _selectedStatus,
+      selectedType: _selectedType,
+      selectedCity: _selectedCity,
+      searchQuery: _searchQuery,
+    );
+    unawaited(_catalogCubit.load());
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocProvider.value(
+      value: _catalogCubit,
+      child: Scaffold(
       backgroundColor: const Color(0xFF1e7d32),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -92,6 +123,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         child: const Icon(Icons.add, color: Colors.white),
         tooltip: tr('il_a15fecd2a4'),
       ),
+      ),
     );
   }
 
@@ -108,9 +140,8 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
             ),
             child: TextField(
               onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
+                setState(() => _searchQuery = value);
+                _catalogCubit.updateFilters(searchQuery: value);
               },
               decoration: InputDecoration(
                 hintText: tr('il_062314f3ab'),
@@ -135,9 +166,8 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                   _statuses,
                   _selectedStatus,
                   (value) {
-                    setState(() {
-                      _selectedStatus = value;
-                    });
+                    setState(() => _selectedStatus = value);
+                    _reloadCatalog();
                   },
                   '📊',
                 ),
@@ -149,9 +179,8 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                   _types,
                   _selectedType,
                   (value) {
-                    setState(() {
-                      _selectedType = value;
-                    });
+                    setState(() => _selectedType = value);
+                    _reloadCatalog();
                   },
                   '🎯',
                 ),
@@ -167,9 +196,8 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
             _cities.map((c) => c == tr('all_cities') ? '' : c).toList(),
             _selectedCity,
             (value) {
-              setState(() {
-                _selectedCity = value;
-              });
+              setState(() => _selectedCity = value);
+              _reloadCatalog();
             },
             '🏙️',
           ),
@@ -232,10 +260,9 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   }
 
   Widget _buildChallengesList() {
-    return StreamBuilder<List<Challenge>>(
-      stream: _getFilteredChallengesStream(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    return BlocBuilder<ChallengeCatalogCubit, ChallengeCatalogState>(
+      builder: (context, catalogState) {
+        if (catalogState.isLoading && catalogState.challenges.isEmpty) {
           return const Center(
             child: CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -243,16 +270,19 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
           );
         }
 
-        if (snapshot.hasError) {
+        if (catalogState.status == ChallengeCatalogStatus.error) {
           return Center(
             child: Text(
-              tr('il_24ffa7c8c5', args: [snapshot.error?.toString() ?? '']),
+              tr(
+                'il_24ffa7c8c5',
+                args: [catalogState.errorMessage ?? ''],
+              ),
               style: const TextStyle(color: Colors.white),
             ),
           );
         }
 
-        final challenges = snapshot.data ?? [];
+        final challenges = catalogState.filteredChallenges;
 
         if (challenges.isEmpty) {
           return Center(
@@ -642,44 +672,6 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
         ),
       ),
     );
-  }
-
-  Stream<List<Challenge>> _getFilteredChallengesStream() {
-    Stream<List<Challenge>> stream = _challengesRepo.getActiveChallenges();
-
-    // Filter by status
-    if (_selectedStatus != 'all') {
-      final status = ChallengeStatus.values.firstWhere(
-        (s) => s.toString().split('.').last == _selectedStatus,
-        orElse: () => ChallengeStatus.recruiting,
-      );
-      stream = _challengesRepo.getChallengesByStatus(status);
-    }
-
-    // Filter by type
-    if (_selectedType != 'all') {
-      final type = parseChallengeType(_selectedType);
-      stream = _challengesRepo.getChallengesByType(type);
-    }
-
-    // Filter by city
-    if (_selectedCity.isNotEmpty) {
-      stream = _challengesRepo.getChallengesByCity(_selectedCity);
-    }
-
-    return stream.map((challenges) {
-      // Filter by search query
-      if (_searchQuery.isNotEmpty) {
-        return challenges.where((challenge) {
-          final query = _searchQuery.toLowerCase();
-          return challenge.title.toLowerCase().contains(query) ||
-              challenge.description.toLowerCase().contains(query) ||
-              challenge.creatorName.toLowerCase().contains(query) ||
-              challenge.city.toLowerCase().contains(query);
-        }).toList();
-      }
-      return challenges;
-    });
   }
 
   String _getStatusText(String status) {

@@ -5,9 +5,9 @@ import '../../data/models/match.dart' as app_match;
 abstract class MatchesRepository {
   Future<app_match.Match?> fetchMatchById(String matchId);
 
-  Stream<List<app_match.Match>> getAvailableMatches();
+  Future<List<app_match.Match>> fetchAvailableMatches();
 
-  Stream<List<app_match.Match>> getUserMatches(String userId);
+  Future<List<app_match.Match>> fetchUserMatches(String userId);
 
   Future<String> createMatch(app_match.Match match);
 
