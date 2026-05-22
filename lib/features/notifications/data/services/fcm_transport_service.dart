@@ -4,13 +4,23 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flap_app/firebase_options.dart';
 
 typedef ForegroundMessageHandler = Future<void> Function(RemoteMessage message);
 typedef NotificationTapHandler = Future<void> Function(Map<String, dynamic> data);
 typedef TokenHandler = Future<void> Function(String token);
 
 @pragma('vm:entry-point')
-Future<void> notificationBackgroundMessageHandler(RemoteMessage message) async {}
+Future<void> notificationBackgroundMessageHandler(RemoteMessage message) async {
+  if (Firebase.apps.isEmpty) {
+    final options = DefaultFirebaseOptions.currentPlatform;
+    if (options != null) {
+      await Firebase.initializeApp(options: options);
+    } else {
+      await Firebase.initializeApp();
+    }
+  }
+}
 
 class FcmTransportService {
   static const _channelId = 'flap_notifications';
@@ -47,6 +57,14 @@ class FcmTransportService {
     );
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
       return;
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      await _messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
     }
 
     await _initializeLocalNotifications();

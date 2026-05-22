@@ -46,9 +46,9 @@ Future<void> _initializeFirebase() async {
     final options = DefaultFirebaseOptions.currentPlatform;
     if (options != null) {
       await Firebase.initializeApp(options: options);
-      return;
+    } else {
+      await Firebase.initializeApp();
     }
-    await Firebase.initializeApp();
   } catch (e) {
     print('Firebase initialization failed: $e');
   }
