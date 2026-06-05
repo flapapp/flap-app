@@ -17,7 +17,6 @@ import '../../../../widgets/city_autocomplete_field.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../../widgets/team_logo_button.dart';
-import '../../../notifications/data/services/notification_service.dart';
 import '../../../ratings/presentation/utils/rating_snapshot_source_label.dart';
 import '../../../ratings/presentation/widgets/rating_history_snapshot_card.dart';
 import '../../../ratings/domain/repositories/ratings_repository.dart';
@@ -48,7 +47,6 @@ class _MatchesScreenState extends State<MatchesScreen>
     'find_match',
     'my_matches',
     'history',
-    'ratings',
   ];
 
   // Filter state variables
@@ -58,6 +56,8 @@ class _MatchesScreenState extends State<MatchesScreen>
   late String _selectedSort;
   String _searchQuery = '';
   bool _filtersExpanded = false;
+  bool _searchVisible = false;
+  bool _openToJoinOnly = false;
   final TextEditingController _cityFilterController = TextEditingController();
   String _currentUserCity = '';
 
@@ -130,7 +130,6 @@ class _MatchesScreenState extends State<MatchesScreen>
     Color(0xFF43A047),
     Color(0xFFFF7043),
   ];
-  final NotificationService _notificationService = sl<NotificationService>();
   // Rating filter state (plain setState instead of ValueNotifier)
   String _ratingsSelectedCity = tr('all_cities');
   String _ratingsSelectedPosition = tr('il_0e333190c1');
@@ -230,87 +229,8 @@ class _MatchesScreenState extends State<MatchesScreen>
       _selectedTime = tr('anytime');
       _selectedSort = 'newest';
       _searchQuery = '';
+      _openToJoinOnly = false;
     });
-  }
-
-  // Build filter chips
-  bool get _hasActiveFilters =>
-      _cityFilterController.text.trim().isNotEmpty ||
-      _selectedLevel != tr('all_levels') ||
-      _selectedTime != tr('anytime') ||
-      _searchQuery.isNotEmpty;
-
-  Widget _buildFilterToggle() {
-    final hasFilters = _hasActiveFilters;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      child: GestureDetector(
-        onTap: () => setState(() => _filtersExpanded = !_filtersExpanded),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            color: Colors.white.withValues(alpha: 0.04),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                _filtersExpanded ? Icons.filter_alt_off : Icons.filter_alt,
-                color: Colors.white70,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      tr('il_be8a172001'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      _filtersExpanded
-                          ? tr('il_9e6ea475a2')
-                          : tr('il_de3c130792'),
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (hasFilters)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4caf50).withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    tr('il_4a2689be5a'),
-                    style: const TextStyle(
-                      color: Color(0xFF4caf50),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              Icon(
-                _filtersExpanded ? Icons.expand_less : Icons.expand_more,
-                color: Colors.white70,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildFilters() {
@@ -534,6 +454,49 @@ class _MatchesScreenState extends State<MatchesScreen>
             },
           ),
 
+          // Sort
+          SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _selectedSort,
+            decoration: InputDecoration(
+              labelText: tr('matches_sort_by'),
+              labelStyle: const TextStyle(color: Colors.white70),
+              prefixIcon:
+                  const Icon(Icons.swap_vert, color: Colors.white70, size: 20),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide:
+                    BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide:
+                    BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFF4caf50)),
+              ),
+            ),
+            dropdownColor: const Color(0xFF070A08),
+            style: const TextStyle(color: Colors.white),
+            items: _sortOptions
+                .map(
+                  (option) => DropdownMenuItem(
+                    value: option,
+                    child: Text(
+                      _sortLabel(option),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _selectedSort = value);
+            },
+          ),
+
           // Reset filters button
           SizedBox(height: 16),
           Row(
@@ -572,16 +535,22 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   List<Match> _filteredAvailableMatches(MatchesListState listState) {
-    return _matchListController.filterMatches(
+    var list = _matchListController.filterMatches(
       listState.availableMatches,
       _matchListFilters(),
       levelTextResolver: _getLevelText,
     );
+    if (_openToJoinOnly) {
+      list = list
+          .where((m) =>
+              m.status == MatchStatus.open && m.currentPlayers < m.maxPlayers)
+          .toList();
+    }
+    return list;
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isCompact = MediaQuery.of(context).size.width < 400;
     return BlocProvider.value(
       value: _matchesListCubit,
       child: Scaffold(
@@ -598,193 +567,48 @@ class _MatchesScreenState extends State<MatchesScreen>
             ),
           ),
         ),
-        title: InkWell(
-          onTap: () => context.router.push(const ModeSelectionRoute()),
-          borderRadius: BorderRadius.circular(10),
-          child: Row(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Image.asset(
-                  'assets/logo/flap_logo.jpg',
-                  fit: BoxFit.cover,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'Flap',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
+        titleSpacing: 4,
+        title: Text(
+          tr('matches'),
+          style: FlapText.sora(fontSize: 22, fontWeight: FontWeight.w800),
         ),
         actions: [
-          StreamBuilder<int>(
-            stream: _notificationService.getUnreadCount(),
-            builder: (context, snapshot) {
-              final unreadCount = snapshot.data ?? 0;
-              return Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    onPressed: () =>
-                        context.router.push(const NotificationsRoute()),
-                    padding: EdgeInsets.zero,
-                    tooltip: tr('notifications'),
-                  ),
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            unreadCount > 9 ? '9+' : unreadCount.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
+          _segIconButton(
+            Icons.search,
+            () => setState(() => _searchVisible = !_searchVisible),
+            active: _searchVisible,
+            tooltip: tr('search_label'),
           ),
-          StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _sb
-                .from('profiles')
-                .stream(primaryKey: ['id'])
-                .eq('id', AppAuth.currentUserId ?? ''),
-            builder: (context, snapshot) {
-              String avatarUrl = '';
-              String displayName = '';
-              final rows = snapshot.data ?? const <Map<String, dynamic>>[];
-              if (rows.isNotEmpty) {
-                final d = rows.first;
-                avatarUrl = (d['avatar_url'] ?? '').toString();
-                displayName =
-                    (d['display_name'] ??
-                            d['email']?.toString().split('@').first ??
-                            tr('il_a25513c7e0'))
-                        .toString();
-              }
-              return IconButton(
-                padding: EdgeInsets.zero,
-                onPressed: () => context.router.push(const ProfileRoute()),
-                icon: CircleAvatar(
-                  radius: 14,
-                  backgroundColor: const Color(0xFF4caf50),
-                  backgroundImage: avatarUrl.isNotEmpty
-                      ? NetworkImage(avatarUrl)
-                      : null,
-                  child: avatarUrl.isEmpty
-                      ? Text(
-                          displayName.isNotEmpty
-                              ? displayName[0].toUpperCase()
-                              : 'U',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        )
-                      : null,
-                ),
-              );
-            },
+          _segIconButton(
+            Icons.tune,
+            () => setState(() => _filtersExpanded = !_filtersExpanded),
+            active: _filtersExpanded || _openToJoinOnly,
+            tooltip: tr('matches_filters'),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
         ],
-
-        bottom: PreferredSize(
-          preferredSize: Size.fromHeight(70),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0x0AFFFFFF),
-                border: Border.all(color: FlapColors.border),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                dividerColor: Colors.transparent,
-                labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-                tabs: _tabKeys
-                    .map(
-                      (key) => Tab(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: isCompact ? 6 : 8,
-                          ),
-                          child: Text(
-                            tr(key),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: isCompact ? 13 : 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white70,
-                indicator: BoxDecoration(
-                  color: const Color(0xFF4caf50),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                indicatorPadding: const EdgeInsets.all(4),
-              ),
+      ),
+      body: Column(
+        children: [
+          if (_searchVisible)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: _buildSearchBar(),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+            child: _buildSegTabs(),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildFindMatchTab(),
+                _buildMyMatchesTab(),
+                _buildHistoryTab(),
+              ],
             ),
           ),
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // TAB 1: Find match
-          _buildFindMatchTab(),
-
-          // TAB 2: My matches
-          _buildMyMatchesTab(),
-
-          // TAB 3: History
-          _buildHistoryTab(),
-
-          // TAB 4: Ratings
-          _buildRatingsTab(),
         ],
       ),
       floatingActionButton: ModeSpeedDial(
@@ -1434,11 +1258,218 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   // TAB 1: Find match
+  // ---- design chrome: appbar icons, segmented tabs, search, filter chips ----
+
+  Widget _segIconButton(
+    IconData icon,
+    VoidCallback onTap, {
+    bool active = false,
+    String? tooltip,
+  }) {
+    final button = GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active ? const Color(0x294CAF50) : const Color(0x0DFFFFFF),
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(
+            color: active ? const Color(0x804CAF50) : FlapColors.border,
+          ),
+        ),
+        child: Icon(icon,
+            size: 19,
+            color: active ? FlapColors.greenBright : FlapColors.text),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: tooltip != null ? Tooltip(message: tooltip, child: button) : button,
+    );
+  }
+
+  Widget _buildSegTabs() {
+    return AnimatedBuilder(
+      animation: _tabController,
+      builder: (context, _) {
+        return Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0x0AFFFFFF),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: FlapColors.border),
+          ),
+          child: Row(
+            children: [
+              for (int i = 0; i < _tabKeys.length; i++)
+                Expanded(child: _segButton(i)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _segButton(int i) {
+    final on = _tabController.index == i;
+    return GestureDetector(
+      onTap: () => _tabController.animateTo(i),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: on ? const Color(0x1AFFFFFF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: on
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          tr(_tabKeys[i]),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: FlapText.sora(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            color: on ? FlapColors.text : FlapColors.muted,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return TextField(
+      autofocus: true,
+      style: FlapText.sora(fontSize: 15),
+      onChanged: (value) {
+        _searchDebounce?.cancel();
+        _searchQuery = value;
+        _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+          if (!mounted) return;
+          setState(() {});
+        });
+      },
+      decoration: InputDecoration(
+        isDense: true,
+        filled: true,
+        fillColor: const Color(0x09FFFFFF),
+        hintText: tr('search_matches'),
+        hintStyle: FlapText.sora(fontSize: 15, color: FlapColors.muted2),
+        prefixIcon: const Icon(Icons.search, color: FlapColors.muted, size: 20),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: FlapColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: FlapColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: FlapColors.green),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFindFilterChips() {
+    final nearbyOn =
+        _currentUserCity.isNotEmpty && _selectedCity == _currentUserCity;
+    final weekOn = _selectedTime == tr('il_8c4eef5ab2');
+    final levelOn = _selectedLevel != tr('all_levels');
+    final levelLabel = levelOn ? _selectedLevel : tr('matches_filter_level');
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        children: [
+          _filterChip(Icons.place_outlined, tr('matches_filter_nearby'),
+              nearbyOn, () {
+            setState(() {
+              if (nearbyOn) {
+                _selectedCity = tr('all_cities');
+                _cityFilterController.clear();
+              } else if (_currentUserCity.isNotEmpty) {
+                _selectedCity = _currentUserCity;
+                _cityFilterController.text = _currentUserCity;
+              }
+            });
+          }),
+          _filterChip(Icons.calendar_today_outlined,
+              tr('matches_filter_this_week'), weekOn, () {
+            setState(() {
+              _selectedTime = weekOn ? tr('anytime') : tr('il_8c4eef5ab2');
+            });
+          }),
+          _filterChip(Icons.add, tr('matches_filter_open'), _openToJoinOnly,
+              () {
+            setState(() => _openToJoinOnly = !_openToJoinOnly);
+          }),
+          _filterChip(Icons.bar_chart_rounded, levelLabel,
+              levelOn || _filtersExpanded, () {
+            setState(() => _filtersExpanded = !_filtersExpanded);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterChip(IconData icon, String label, bool on, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: on ? const Color(0x294CAF50) : const Color(0x0DFFFFFF),
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(
+              color: on ? const Color(0x804CAF50) : FlapColors.border,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 14,
+                  color: on ? FlapColors.greenBright : FlapColors.muted),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: FlapText.sora(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: on ? FlapColors.greenBright : FlapColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFindMatchTab() {
     return SingleChildScrollView(
       child: Column(
         children: [
-          _buildFilterToggle(),
+          const SizedBox(height: 2),
+          _buildFindFilterChips(),
           if (_filtersExpanded) _buildFilters(),
 
           // Available matches list
@@ -1498,72 +1529,6 @@ class _MatchesScreenState extends State<MatchesScreen>
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.filter_alt,
-                              color: Colors.white70,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              tr('il_3a10c3ba9b', args: ['${items.length}']),
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.04),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.white10),
-                          ),
-                          child: DropdownButton<String>(
-                            value: _selectedSort,
-                            underline: const SizedBox.shrink(),
-                            dropdownColor: const Color(0xFF070A08),
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
-                            items: _sortOptions
-                                .map(
-                                  (option) => DropdownMenuItem<String>(
-                                    value: option,
-                                    child: Text(_sortLabel(option)),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              setState(() {
-                                _selectedSort = value;
-                              });
-                            },
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: _resetFindFilters,
-                          child: Text(
-                            tr('reset_filters'),
-                            style: const TextStyle(color: Colors.white70),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -1774,6 +1739,8 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   // TAB 4: Ratings (MVP)
+  // Standalone ratings live elsewhere; embedded tab dropped per design.
+  // ignore: unused_element
   Widget _buildRatingsTab() {
     // Reuse cached Future instead of creating a new one
     final topFuture =
