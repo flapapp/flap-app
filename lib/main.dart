@@ -5,9 +5,9 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/auth/app_auth.dart';
+import 'theme/flap_tokens.dart';
 import 'core/config/supabase_env.dart';
 import 'core/supabase/supabase_bootstrap.dart';
 import 'core/di/injection.dart';
@@ -138,10 +138,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    final baseTheme = ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4caf50)),
-      useMaterial3: true,
-    );
+    final flapTheme = buildFlapTheme();
 
     return BlocProvider.value(
       value: sl<AppSettingsCubit>(),
@@ -160,20 +157,7 @@ class _MyAppState extends State<MyApp> {
         localizationsDelegates: context.localizationDelegates,
         supportedLocales: context.supportedLocales,
         locale: context.locale,
-        theme: baseTheme.copyWith(
-          textTheme: GoogleFonts.robotoTextTheme(baseTheme.textTheme),
-          appBarTheme: baseTheme.appBarTheme.copyWith(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            iconTheme: const IconThemeData(color: Colors.white),
-            titleTextStyle: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-            foregroundColor: Colors.white,
-          ),
-        ),
+        theme: flapTheme,
         routerConfig: appRouter.config(),
         ),
       ),

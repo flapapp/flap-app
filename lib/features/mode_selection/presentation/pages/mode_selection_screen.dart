@@ -7,6 +7,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/auth/app_auth.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../router/app_router.dart';
+import '../../../../theme/flap_tokens.dart';
+import '../../../../widgets/flap/flap_kit.dart';
+import '../../../../widgets/player_avatar_button.dart';
 import '../../../profile/presentation/profile_user_data_sync.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
 import '../../domain/entities/mode_navigation_target.dart';
@@ -14,7 +18,6 @@ import '../../domain/entities/mode_hero_stats.dart';
 import '../cubit/mode_selection_cubit.dart';
 import '../cubit/mode_selection_state.dart';
 import '../navigation/mode_selection_router.dart';
-import '../widgets/mode_art.dart';
 import '../widgets/mode_card.dart';
 import '../widgets/mode_hero_panel.dart';
 import '../widgets/mode_news_section.dart';
@@ -70,207 +73,259 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
     return '0';
   }
 
+  /// Position · city subtitle from the profile document, if present.
+  String _subtitle(Map<String, dynamic>? data) {
+    final parts = <String>[];
+    final pos = (data?['position'] ?? data?['preferredPosition'] ?? '')
+        .toString()
+        .trim();
+    final city =
+        (data?['city'] ?? data?['location'] ?? '').toString().trim();
+    if (pos.isNotEmpty) parts.add(pos);
+    if (city.isNotEmpty) parts.add(city);
+    return parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0f1923),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          BlocBuilder<ModeSelectionCubit, ModeSelectionState>(
-            buildWhen: (a, b) => a.profileDocument != b.profileDocument,
-            builder: (context, state) {
-              final data = state.profileDocument;
-              final rating = (data?['rating'] ?? 0.0).toDouble();
-              return Row(
-                children: [
-                  Text(
-                    '⭐ ${rating.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.sports_soccer, color: Colors.white),
-                    onPressed: () =>
-                        context.pushModeTarget(ModeNavigationTarget.matches),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.video_collection, color: Colors.white),
-                    onPressed: () =>
-                        context.pushModeTarget(ModeNavigationTarget.videoMain),
-                  ),
-                  StreamBuilder<int>(
-                    stream: _notificationsRepo.getUnreadCount(),
-                    builder: (context, notifSnapshot) {
-                      final unreadCount = notifSnapshot.data ?? 0;
-                      return Stack(
-                        children: [
-                          IconButton(
-                            tooltip: tr('notifications'),
-                            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                            onPressed: () => context.pushModeTarget(
-                              ModeNavigationTarget.notifications,
-                            ),
-                          ),
-                          if (unreadCount > 0)
-                            Positioned(
-                              right: 6,
-                              top: 6,
-                              child: IgnorePointer(
-                                child: Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 16,
-                                    minHeight: 16,
-                                  ),
-                                  child: Text(
-                                    unreadCount > 99 ? '99+' : unreadCount.toString(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
+      backgroundColor: FlapColors.bg,
+      body: Stack(
+        children: [
+          // Radial green glow behind the top of the screen.
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(gradient: FlapColors.screenGlow),
+            ),
+          ),
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _buildHeader(context),
+                Expanded(
+                  child: BlocBuilder<ModeSelectionCubit, ModeSelectionState>(
+                    builder: (context, state) {
+                      final cubit = context.read<ModeSelectionCubit>();
+                      final data = state.profileDocument;
+
+                      final displayName = data?['displayName'] ??
+                          data?['name'] ??
+                          data?['authorName'] ??
+                          data?['email']?.toString().split('@').first ??
+                          tr('player');
+                      final avatarUrl =
+                          (data?['avatarUrl'] ?? data?['avatar'] ?? '')
+                              .toString();
+                      final rating = (data?['rating'] ?? 0.0).toDouble();
+                      final coins =
+                          (data?['coins'] ?? data?['flCoins'] ?? 0).toString();
+
+                      return FutureBuilder<ModeHeroStats>(
+                        future: state.heroStatsFuture,
+                        builder: (context, snap) {
+                          final stats = snap.data;
+                          return ListView(
+                            padding: const EdgeInsets.only(bottom: 104),
+                            physics: const BouncingScrollPhysics(),
+                            children: [
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 6, 20, 0),
+                                child: ModeHeroPanel(
+                                  cubit: cubit,
+                                  userId: AppAuth.currentUserId ?? '',
+                                  displayName: displayName,
+                                  avatarUrl: avatarUrl.isNotEmpty
+                                      ? avatarUrl
+                                      : null,
+                                  subtitle: _subtitle(data),
+                                  rating: rating,
+                                  matchesLabel: _matchesLabel(data, stats),
+                                  coinsLabel: coins,
                                 ),
                               ),
-                            ),
-                        ],
+                              FlapSectionHeader(
+                                title: tr('mode_for_you'),
+                                actionLabel: tr('see_all'),
+                                onAction: () => context.pushModeTarget(
+                                    ModeNavigationTarget.notifications),
+                                padding:
+                                    const EdgeInsets.fromLTRB(22, 22, 22, 12),
+                              ),
+                              ModeNewsSection(
+                                loading: state.newsLoading,
+                                items: state.newsItems,
+                              ),
+                              FlapSectionHeader(
+                                title: tr('mode_jump_in'),
+                                padding:
+                                    const EdgeInsets.fromLTRB(22, 22, 22, 12),
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 20),
+                                child: Column(
+                                  children: [
+                                    ModeCard(
+                                      title: tr('matches'),
+                                      subtitle: tr('il_d090197fc0'),
+                                      icon: Icons.sports_soccer,
+                                      accent: FlapColors.green,
+                                      onTap: () => context.pushModeTarget(
+                                          ModeNavigationTarget.matches),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    ModeCard(
+                                      title: tr('videos'),
+                                      subtitle: tr('il_2862424bdc'),
+                                      icon: Icons.play_arrow_rounded,
+                                      accent: FlapColors.amber,
+                                      onTap: () => context.pushModeTarget(
+                                          ModeNavigationTarget.videoMain),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    ModeCard(
+                                      title: tr('il_1e1a1c078a'),
+                                      subtitle: tr('il_8d98f0bec9'),
+                                      icon: Icons.shield_outlined,
+                                      accent: FlapColors.blue,
+                                      onTap: () => context.pushModeTarget(
+                                          ModeNavigationTarget.teams),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       );
                     },
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.person, color: Colors.white),
-                    onPressed: () =>
-                        context.pushModeTarget(ModeNavigationTarget.profile),
-                  ),
-                ],
-              );
-            },
+                ),
+              ],
+            ),
+          ),
+          // Floating glass bottom nav.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: FlapBottomNav(
+              activeId: 'home',
+              createTooltip: tr('il_5a0f12a92f'),
+              onCreate: () => context.router.push(const CreateMatchRoute()),
+              onSelect: (id) {
+                switch (id) {
+                  case 'home':
+                    break;
+                  case 'matches':
+                    context.pushModeTarget(ModeNavigationTarget.matches);
+                  case 'teams':
+                    context.pushModeTarget(ModeNavigationTarget.teams);
+                  case 'profile':
+                    context.pushModeTarget(ModeNavigationTarget.profile);
+                }
+              },
+              items: [
+                FlapNavItem(
+                    icon: Icons.home_rounded, label: tr('mode_nav_home'), id: 'home'),
+                FlapNavItem(
+                    icon: Icons.sports_soccer,
+                    label: tr('matches'),
+                    id: 'matches'),
+                FlapNavItem(
+                    icon: Icons.shield_outlined,
+                    label: tr('il_1e1a1c078a'),
+                    id: 'teams'),
+                FlapNavItem(
+                    icon: Icons.person_rounded,
+                    label: tr('profile'),
+                    id: 'profile'),
+              ],
+            ),
           ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: BlocBuilder<ModeSelectionCubit, ModeSelectionState>(
-            builder: (context, state) {
-              final cubit = context.read<ModeSelectionCubit>();
-              final data = state.profileDocument;
-              const matchColors = [Color(0xFF0f9d58), Color(0xFF0c6f3c)];
-              const videoColors = [Color(0xFFc62828), Color(0xFF8e24aa)];
-              const teamColors = [Color(0xFF1976d2), Color(0xFF0d47a1)];
+    );
+  }
 
-              final displayName = data?['displayName'] ??
-                  data?['name'] ??
-                  data?['authorName'] ??
-                  data?['email']?.toString().split('@').first ??
-                  tr('player');
-              final avatarUrl =
-                  (data?['avatarUrl'] ?? data?['avatar'] ?? '').toString();
-              final rating = (data?['rating'] ?? 0.0).toDouble();
-              final coins = (data?['coins'] ?? data?['flCoins'] ?? 0).toString();
+  Widget _buildHeader(BuildContext context) {
+    return BlocBuilder<ModeSelectionCubit, ModeSelectionState>(
+      buildWhen: (a, b) => a.profileDocument != b.profileDocument,
+      builder: (context, state) {
+        final data = state.profileDocument;
+        final displayName = (data?['displayName'] ??
+                data?['name'] ??
+                data?['authorName'] ??
+                data?['email']?.toString().split('@').first ??
+                tr('player'))
+            .toString();
+        final firstName = displayName.split(RegExp(r'\s+')).first;
+        final avatarUrl =
+            (data?['avatarUrl'] ?? data?['avatar'] ?? '').toString();
 
-              return FutureBuilder<ModeHeroStats>(
-                future: state.heroStatsFuture,
-                builder: (context, snap) {
-                  final stats = snap.data;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ModeHeroPanel(
-                        cubit: cubit,
-                        userId: AppAuth.currentUserId ?? '',
-                        displayName: displayName,
-                        avatarUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
-                        rating: rating,
-                        matchesLabel: _matchesLabel(data, stats),
-                        coinsLabel: coins,
-                        greeting: state.greetingText,
-                        ratingLine: state.ratingLineText,
-                        onRefreshGreeting: cubit.refreshGreeting,
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      tr('welcome_back'),
+                      style: FlapText.sora(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: FlapColors.muted,
                       ),
-                      const SizedBox(height: 20),
-                      ModeNewsSection(
-                        loading: state.newsLoading,
-                        items: state.newsItems,
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      firstName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: FlapText.sora(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.21,
                       ),
-                      const SizedBox(height: 24),
-                      ModeCard(
-                        title: tr('matches'),
-                        subtitle: tr('il_d090197fc0'),
-                        highlights: [
-                          tr('il_e64edb9f1e'),
-                          tr('il_68442c9a0e'),
-                          tr('il_a0921488a1'),
-                        ],
-                        icon: Icons.sports_soccer,
-                        colors: matchColors,
-                        badge: tr('il_25f50629be'),
-                        actionLabel: tr('il_5a0f12a92f'),
-                        illustration: const ModeArt(
-                          type: ModeArtType.matches,
-                          colors: matchColors,
-                        ),
-                        onTap: () =>
-                            context.pushModeTarget(ModeNavigationTarget.matches),
-                      ),
-                      const SizedBox(height: 16),
-                      ModeCard(
-                        title: tr('videos'),
-                        subtitle: tr('il_2862424bdc'),
-                        highlights: [
-                          tr('il_2f247110e8'),
-                          tr('il_6a74de50d1'),
-                          tr('il_8ca3167d86'),
-                        ],
-                        icon: Icons.video_collection,
-                        colors: videoColors,
-                        badge: tr('il_d9efc2bb26'),
-                        actionLabel: tr('il_948ce0fcb1'),
-                        illustration: const ModeArt(
-                          type: ModeArtType.videos,
-                          colors: videoColors,
-                        ),
-                        onTap: () => context.pushModeTarget(
-                          ModeNavigationTarget.videoMain,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ModeCard(
-                        title: tr('il_1e1a1c078a'),
-                        subtitle: tr('il_8d98f0bec9'),
-                        highlights: [
-                          tr('il_d8280e8655'),
-                          tr('il_83be379446'),
-                          tr('il_650d92acb0'),
-                        ],
-                        icon: Icons.groups_2,
-                        colors: teamColors,
-                        badge: tr('il_a595761987'),
-                        actionLabel: tr('il_ff5d6ccdf0'),
-                        illustration: const ModeArt(
-                          type: ModeArtType.teams,
-                          colors: teamColors,
-                        ),
-                        onTap: () =>
-                            context.pushModeTarget(ModeNavigationTarget.teams),
-                      ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              StreamBuilder<int>(
+                stream: _notificationsRepo.getUnreadCount(),
+                builder: (context, notifSnapshot) {
+                  final unread = notifSnapshot.data ?? 0;
+                  return FlapIconButton(
+                    icon: Icons.notifications_none_rounded,
+                    tooltip: tr('notifications'),
+                    dot: unread > 0,
+                    onTap: () => context
+                        .pushModeTarget(ModeNavigationTarget.notifications),
                   );
                 },
-              );
-            },
+              ),
+              const SizedBox(width: 12),
+              PlayerAvatarButton(
+                userId: AppAuth.currentUserId ?? '',
+                displayName: displayName,
+                avatarUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
+                size: 42,
+                backgroundColor: FlapColors.green,
+                borderColor: FlapColors.green,
+                borderWidth: 2,
+                onTap: () =>
+                    context.pushModeTarget(ModeNavigationTarget.profile),
+              ),
+            ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
