@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../router/app_router.dart';
+import '../../../../theme/flap_tokens.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/di/injection.dart';
@@ -116,12 +118,30 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       appBar: AppBar(
         title: Text(
           tr('il_f6e1977cf4'),
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          style: FlapText.sora(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Colors.white,
-        iconTheme: IconThemeData(color: Colors.white),
+        scrolledUnderElevation: 0,
+        foregroundColor: FlapColors.text,
+        iconTheme: const IconThemeData(color: FlapColors.text),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF13241B), FlapColors.bg],
+            ),
+          ),
+        ),
+        actions: [
+          _detailAppBarIcon(
+            Icons.ios_share,
+            () => _shareMatch(),
+            tooltip: tr('share'),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(20),
@@ -179,9 +199,32 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               SizedBox(height: 20),
             ],
 
-            // Actions (Join and Share only)
-            _buildActionButtons(),
           ],
+        ),
+      ),
+      bottomNavigationBar: _buildActionDock(),
+    );
+  }
+
+  // Sticky bottom action dock (design `.dock`).
+  Widget _buildActionDock() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0x00070A08), FlapColors.bg],
+          stops: [0.0, 0.32],
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+      child: SafeArea(
+        top: false,
+        // mainAxisSize.min so the dock hugs its content height (the bottom
+        // bar otherwise hands the action column a full-screen height budget).
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [_buildActionButtons()],
         ),
       ),
     );
@@ -193,59 +236,127 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       match: widget.match,
     );
 
+    final m = widget.match;
+    final IconData statusIcon = m.isTeamMatch
+        ? Icons.shield_outlined
+        : m.status == MatchStatus.open
+            ? Icons.check_circle_outline
+            : m.status == MatchStatus.full
+                ? Icons.people_alt_outlined
+                : Icons.sports_soccer;
+
     return Container(
-      padding: EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF2D3748), Color(0xFF1A202C)],
+          colors: [Color(0x2E4CAF50), Color(0x05FFFFFF)],
+          stops: [0.0, 0.5],
         ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 15,
-            offset: Offset(0, 8),
-          ),
-        ],
+        color: FlapColors.card2,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: FlapColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.match.title,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+          // status chip
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+            decoration: BoxDecoration(
+              color: statusUi.color.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(statusIcon, size: 13, color: statusUi.color),
+                const SizedBox(width: 6),
+                Text(
+                  statusUi.label,
+                  style: FlapText.sora(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: statusUi.color,
+                  ),
+                ),
+              ],
             ),
           ),
-          SizedBox(height: 8),
-          if (widget.match.description.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          // condensed athletic title
+          Text(
+            m.title.toUpperCase(),
+            style: FlapText.cond(fontSize: 30, height: 0.98),
+          ),
+          if (m.description.isNotEmpty) ...[
+            const SizedBox(height: 6),
             Text(
-              widget.match.description,
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+              m.description,
+              style: FlapText.sora(fontSize: 13.5, color: FlapColors.muted),
             ),
-            SizedBox(height: 12),
           ],
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: statusUi.color,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              statusUi.label,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+          const SizedBox(height: 12),
+          // level + cost pills
+          Row(
+            children: [
+              _detailPill(Icons.bar_chart_rounded, _getLevelText(m.level)),
+              const SizedBox(width: 8),
+              _detailPill(
+                Icons.monetization_on_outlined,
+                m.cost <= 0
+                    ? tr('match_cost_free')
+                    : tr('match_cost_uah', namedArgs: {'amount': '${m.cost}'}),
+                iconColor: FlapColors.gold,
               ),
-            ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _detailPill(IconData icon, String text,
+      {Color iconColor = FlapColors.text}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0x0FFFFFFF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: FlapColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: iconColor),
+          const SizedBox(width: 4),
+          Text(text,
+              style: FlapText.sora(fontSize: 11, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailAppBarIcon(IconData icon, VoidCallback onTap, {String? tooltip}) {
+    final btn = GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0x0DFFFFFF),
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: FlapColors.border),
+        ),
+        child: Icon(icon, size: 18, color: FlapColors.text),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: tooltip != null ? Tooltip(message: tooltip, child: btn) : btn,
     );
   }
 
@@ -464,121 +575,105 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildInfoSection() {
+    final m = widget.match;
+    final locale = context.locale.toString();
+    final dateStr =
+        DateFormat('EEE, d MMM yyyy', locale).format(m.scheduledDateTime);
+    final isOrganizer = AppAuth.currentUserId == m.organizerId;
+    final city = localizeCity(m.city);
+    final locationValue =
+        city.isNotEmpty ? '${m.location}, $city' : m.location;
+
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF2D3748), Color(0xFF1A202C)],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: Offset(0, 5),
+        color: FlapColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: FlapColors.border),
+      ),
+      child: Column(
+        children: [
+          _infoRow(
+            icon: Icons.calendar_today_outlined,
+            label: tr('il_99c40ab405'),
+            value: dateStr,
+          ),
+          _infoRow(
+            icon: Icons.schedule,
+            label: tr('il_33b93476cf'),
+            value: m.scheduledKickoffTimeLabel,
+          ),
+          _infoRow(
+            icon: Icons.place_outlined,
+            label: tr('match_location_label'),
+            value: locationValue,
+          ),
+          _infoRow(
+            label: tr('organizer'),
+            value: isOrganizer
+                ? '${m.organizerName} ${tr('match_organizer_you')}'
+                : m.organizerName,
+            leading: UserChip(
+              userId: m.organizerId,
+              name: m.organizerName.isNotEmpty ? m.organizerName : null,
+              size: 38,
+              showName: false,
+            ),
+            last: true,
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _infoRow({
+    IconData? icon,
+    Widget? leading,
+    required String label,
+    required String value,
+    bool last = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 13),
+      decoration: BoxDecoration(
+        border: last
+            ? null
+            : const Border(bottom: BorderSide(color: FlapColors.border)),
+      ),
+      child: Row(
         children: [
-          Text(
-            tr('il_1286a9ab94'),
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          SizedBox(height: 16),
-
-          // Stats rows
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  '🗓️',
-                  '${widget.match.date.day}.${widget.match.date.month}.${widget.match.date.year}',
-                  tr('il_99c40ab405'),
+          leading ??
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0x0DFFFFFF),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(color: FlapColors.border),
                 ),
+                child: Icon(icon, size: 18, color: FlapColors.greenBright),
               ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  '⏰',
-                  widget.match.time,
-                  tr('il_33b93476cf'),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  '👥',
-                  '${_effectiveParticipants.length}/${widget.match.maxPlayers}',
-                  tr('il_84e12ac655'),
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  '💰',
-                  tr(
-                    'match_cost_uah',
-                    namedArgs: {'amount': '${widget.match.cost}'},
-                  ),
-                  tr('il_204a5eb2cd'),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  '⭐',
-                  _getLevelText(widget.match.level),
-                  tr('il_1709305c9f'),
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  '🏙️',
-                  localizeCity(widget.match.city),
-                  tr('il_fc33f73246'),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-
-          // Location
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.location_on, color: Colors.white70, size: 20),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    widget.match.location,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
+                Text(
+                  label.toUpperCase(),
+                  style: FlapText.sora(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: FlapColors.muted,
+                    letterSpacing: 0.8,
                   ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style:
+                      FlapText.sora(fontSize: 14.5, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -1943,6 +2038,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     }
   }
 
+  // Superseded by the design info rows (kept for reference).
+  // ignore: unused_element
   Widget _buildStatCard(String icon, String value, String label) {
     return Container(
       padding: EdgeInsets.all(12),
@@ -1969,77 +2066,231 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildParticipantsSection() {
+    final filled = _effectiveParticipants.length;
+    final cap = widget.match.maxPlayers;
+    final pct = cap > 0 ? (filled / cap).clamp(0.0, 1.0) : 0.0;
+    final remaining = cap - filled;
+    final openSlots = remaining < 0 ? 0 : (remaining > 4 ? 4 : remaining);
+
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF2D3748), Color(0xFF1A202C)],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: Offset(0, 5),
-          ),
-        ],
+        color: FlapColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: FlapColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                tr('il_1610626016', args: ['${_effectiveParticipants.length}']),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  tr('players'),
+                  style:
+                      FlapText.sora(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Color(0xFF4caf50),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${_effectiveParticipants.length}/${widget.match.maxPlayers}',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '$filled',
+                      style: FlapText.sora(
+                          fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
+                    TextSpan(
+                      text: '/$cap',
+                      style: FlapText.sora(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: FlapColors.muted),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          SizedBox(height: 16),
-
-          if (_effectiveParticipants.isEmpty)
-            Container(
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  tr('il_e051442724'),
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
+          const SizedBox(height: 12),
+          // fill progress bar
+          Container(
+            height: 6,
+            decoration: BoxDecoration(
+              color: const Color(0x14FFFFFF),
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: pct,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [FlapColors.green, FlapColors.greenBright],
+                  ),
+                  borderRadius: BorderRadius.circular(99),
                 ),
               ),
-            )
-          else
-            Column(
-              children: _effectiveParticipants.map((participantId) {
-                return _buildParticipantCard(participantId);
-              }).toList(),
             ),
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, c) {
+              const gap = 10.0;
+              final tileW = (c.maxWidth - gap) / 2;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final id in _effectiveParticipants)
+                    SizedBox(width: tileW, child: _buildRosterTile(id)),
+                  for (int i = 0; i < openSlots; i++)
+                    SizedBox(width: tileW, child: _buildOpenSlot()),
+                ],
+              );
+            },
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRosterTile(String participantId) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _sb
+          .from('profiles')
+          .select()
+          .eq('id', participantId)
+          .maybeSingle(),
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        final displayName = (data?['display_name'] ??
+                data?['first_name'] ??
+                data?['author_name'] ??
+                tr('player'))
+            .toString()
+            .trim();
+        final firstName = displayName.split(RegExp(r'\s+')).first;
+        final positionLabel =
+            positionLabelForDisplay(data?['position'] as String?);
+        final rating = data != null ? _profileOverallRatingFromRow(data) : 0.0;
+        final isOrganizer = participantId == widget.match.organizerId;
+        return GestureDetector(
+          onTap: () => _openPlayerProfile(participantId, displayName),
+          child: Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: const Color(0x0BFFFFFF),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isOrganizer
+                    ? const Color(0x594CAF50)
+                    : FlapColors.border,
+              ),
+            ),
+            child: Row(
+              children: [
+                UserChip(
+                  userId: participantId,
+                  name: displayName.isNotEmpty ? displayName : null,
+                  size: 36,
+                  showName: false,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        firstName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: FlapText.sora(
+                            fontSize: 13.5, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        positionLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            FlapText.sora(fontSize: 11, color: FlapColors.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                if (rating > 0) ...[
+                  const SizedBox(width: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.star_rounded,
+                          size: 13, color: FlapColors.gold),
+                      const SizedBox(width: 2),
+                      Text(
+                        rating.toStringAsFixed(1),
+                        style: FlapText.cond(
+                            fontSize: 15, color: FlapColors.gold),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOpenSlot() {
+    return Opacity(
+      opacity: 0.7,
+      child: Container(
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: const Color(0x05FFFFFF),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: FlapColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0x0DFFFFFF),
+              ),
+              child: const Icon(Icons.add, size: 18, color: FlapColors.muted),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    tr('match_open_spot'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: FlapText.sora(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: FlapColors.muted),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    tr('match_waiting'),
+                    style:
+                        FlapText.sora(fontSize: 11, color: FlapColors.muted2),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2050,6 +2301,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
+  // Superseded by the design roster grid (_buildRosterTile).
+  // ignore: unused_element
   Widget _buildParticipantCard(String participantId) {
     return FutureBuilder<Map<String, dynamic>?>(
       future: _sb
