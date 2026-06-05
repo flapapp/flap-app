@@ -177,7 +177,7 @@ class _MatchInviteSearchScreenState extends State<MatchInviteSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1a1a2e),
+      backgroundColor: const Color(0xFF070A08),
       appBar: AppBar(
         title: Text(tr('il_146ee72e30')),
         backgroundColor: Colors.transparent,

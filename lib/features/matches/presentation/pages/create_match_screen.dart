@@ -74,7 +74,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1a1a2e),
+      backgroundColor: const Color(0xFF070A08),
       appBar: AppBar(
         title: Text(tr('create_match'), style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.transparent,
@@ -144,7 +144,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                             data: Theme.of(context).copyWith(
                               colorScheme: ColorScheme.dark(
                                 primary: Color(0xFF4caf50),
-                                surface: Color(0xFF1a1a2e),
+                                surface: Color(0xFF070A08),
                               ),
                             ),
                             child: child!,
@@ -186,7 +186,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                             data: Theme.of(context).copyWith(
                               colorScheme: ColorScheme.dark(
                                 primary: Color(0xFF4caf50),
-                                surface: Color(0xFF1a1a2e),
+                                surface: Color(0xFF070A08),
                               ),
                             ),
                             child: child!,
@@ -279,7 +279,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                       ),
                     ),
                     style: TextStyle(color: Colors.white),
-                    dropdownColor: Color(0xFF1a1a2e),
+                    dropdownColor: Color(0xFF070A08),
                     items: _levels.map((level) => 
                       DropdownMenuItem(value: level, child: Text(level))
                     ).toList(),
@@ -310,7 +310,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                       ),
                     ),
                     style: TextStyle(color: Colors.white),
-                    dropdownColor: Color(0xFF1a1a2e),
+                    dropdownColor: Color(0xFF070A08),
                     items: _playerOptions.map((players) => 
                       DropdownMenuItem(
                         value: players, 
@@ -1400,7 +1400,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     final action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1a1a2e),
+        backgroundColor: const Color(0xFF070A08),
         title: Text(
           tr('il_283da721cc'),
           style: const TextStyle(color: Colors.white),

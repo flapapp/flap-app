@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/user_chip.dart';
 
 /// Compact “waiting list” for users who applied to join but are not confirmed.
@@ -19,6 +20,10 @@ class MatchWaitingListStrip extends StatelessWidget {
   static const double _avatarSize = 22;
   static const double _overlap = 13;
 
+  // Restrained gold accent matching the design's pending/invite tokens.
+  static const Color _tint = Color(0x12E7C25A); // gold ~7%
+  static const Color _tintBorder = Color(0x2EE7C25A); // gold ~18%
+
   @override
   Widget build(BuildContext context) {
     final ids = pendingUserIds.where((id) => id.isNotEmpty).toList();
@@ -36,9 +41,9 @@ class MatchWaitingListStrip extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.amber.withValues(alpha: 0.28)),
+        color: _tint,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _tintBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -46,10 +51,10 @@ class MatchWaitingListStrip extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
+              const Icon(
                 Icons.hourglass_top_rounded,
                 size: 17,
-                color: Colors.amber.shade200,
+                color: FlapColors.gold,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -60,8 +65,7 @@ class MatchWaitingListStrip extends StatelessWidget {
                       tr('match_waiting_list_title'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: FlapText.sora(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
                       ),
@@ -71,9 +75,9 @@ class MatchWaitingListStrip extends StatelessWidget {
                       tr('match_waiting_list_subtitle'),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
+                      style: FlapText.sora(
                         fontSize: 11.5,
+                        color: FlapColors.muted,
                         height: 1.25,
                       ),
                     ),
@@ -86,10 +90,10 @@ class MatchWaitingListStrip extends StatelessWidget {
                   'match_waiting_list_total_badge',
                   namedArgs: {'count': '$total'},
                 ),
-                style: TextStyle(
-                  color: Colors.amber.shade100,
+                style: FlapText.sora(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
+                  color: FlapColors.gold,
                 ),
               ),
             ],
@@ -113,7 +117,7 @@ class MatchWaitingListStrip extends StatelessWidget {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: const Color(0xFF1a1a2e),
+                                  color: FlapColors.card,
                                   width: 2,
                                 ),
                               ),
@@ -157,14 +161,13 @@ class _OverflowChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: const Color(0x12FFFFFF),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: FlapColors.border),
       ),
       child: Text(
         tr('match_waiting_list_overflow', namedArgs: {'count': '$count'}),
-        style: const TextStyle(
-          color: Colors.white,
+        style: FlapText.sora(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
         ),

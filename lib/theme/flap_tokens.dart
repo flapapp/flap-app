@@ -134,5 +134,27 @@ ThemeData buildFlapTheme() {
       iconTheme: IconThemeData(color: FlapColors.text),
       foregroundColor: FlapColors.text,
     ),
+    chipTheme: ChipThemeData(
+      backgroundColor: const Color(0x0DFFFFFF), // rgba(255,255,255,.05)
+      selectedColor: const Color(0x294CAF50), // rgba(76,175,80,.16)
+      disabledColor: const Color(0x0DFFFFFF),
+      checkmarkColor: FlapColors.greenBright,
+      side: const BorderSide(color: FlapColors.border),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(FlapRadii.chip),
+        side: const BorderSide(color: FlapColors.border),
+      ),
+      labelStyle: GoogleFonts.sora(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: FlapColors.muted,
+      ),
+      secondaryLabelStyle: GoogleFonts.sora(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: FlapColors.greenBright,
+      ),
+      showCheckmark: false,
+    ),
   );
 }

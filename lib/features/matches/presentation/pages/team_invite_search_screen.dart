@@ -71,7 +71,7 @@ class _TeamInviteSearchScreenState extends State<TeamInviteSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1a1a2e),
+      backgroundColor: const Color(0xFF070A08),
       appBar: AppBar(
         title: Text(tr('il_7ec0bce7a1')),
         backgroundColor: Colors.transparent,

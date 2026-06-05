@@ -12,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../router/app_router.dart';
+import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/user_chip.dart';
@@ -393,7 +394,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                       borderSide: BorderSide(color: Color(0xFF4caf50)),
                     ),
                   ),
-                  dropdownColor: Color(0xFF1a1a2e),
+                  dropdownColor: Color(0xFF070A08),
                   style: TextStyle(color: Colors.white),
                   items: _levelOptions
                       .map(
@@ -457,7 +458,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                       borderSide: BorderSide(color: Color(0xFF4caf50)),
                     ),
                   ),
-                  dropdownColor: Color(0xFF1a1a2e),
+                  dropdownColor: Color(0xFF070A08),
                   style: TextStyle(color: Colors.white),
                   items: _timeOptions
                       .map(
@@ -584,16 +585,16 @@ class _MatchesScreenState extends State<MatchesScreen>
     return BlocProvider.value(
       value: _matchesListCubit,
       child: Scaffold(
-      backgroundColor: const Color(0xFF1a1a2e),
+      backgroundColor: const Color(0xFF070A08),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF1a1a2e), Color(0xFF16213e)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF13241B), FlapColors.bg],
             ),
           ),
         ),
@@ -731,12 +732,13 @@ class _MatchesScreenState extends State<MatchesScreen>
             borderRadius: BorderRadius.circular(16),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                color: const Color(0x0AFFFFFF),
+                border: Border.all(color: FlapColors.border),
               ),
               child: TabBar(
                 controller: _tabController,
                 isScrollable: true,
+                dividerColor: Colors.transparent,
                 labelPadding: const EdgeInsets.symmetric(horizontal: 8),
                 tabs: _tabKeys
                     .map(
@@ -816,7 +818,7 @@ class _MatchesScreenState extends State<MatchesScreen>
       barrierDismissible: true,
       builder: (context) {
         return Dialog(
-          backgroundColor: const Color(0xFF0f0f23),
+          backgroundColor: const Color(0xFF0E1310),
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 24,
             vertical: 24,
@@ -827,7 +829,7 @@ class _MatchesScreenState extends State<MatchesScreen>
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF0f0f23),
+              color: const Color(0xFF0E1310),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
@@ -1212,7 +1214,7 @@ class _MatchesScreenState extends State<MatchesScreen>
   void _showCoinsSheet(int currentCoins) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1a1a2e),
+      backgroundColor: const Color(0xFF070A08),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1531,7 +1533,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                           child: DropdownButton<String>(
                             value: _selectedSort,
                             underline: const SizedBox.shrink(),
-                            dropdownColor: const Color(0xFF1a1a2e),
+                            dropdownColor: const Color(0xFF070A08),
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 12,
@@ -1835,7 +1837,7 @@ class _MatchesScreenState extends State<MatchesScreen>
               .toList(),
           onChanged: onChanged,
           style: const TextStyle(color: Colors.white),
-          dropdownColor: const Color(0xFF16213e),
+          dropdownColor: const Color(0xFF0B0F0C),
           iconEnabledColor: Colors.white70,
           decoration: InputDecoration(
             isDense: true,
@@ -2345,25 +2347,21 @@ class _MatchesScreenState extends State<MatchesScreen>
 
   Widget _buildMatchSecondaryAction(Match match, String uid) {
     final buttonStyle = OutlinedButton.styleFrom(
-      foregroundColor: Colors.white,
-      disabledForegroundColor: Colors.white54,
-      side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      foregroundColor: FlapColors.text,
+      disabledForegroundColor: FlapColors.muted,
+      side: const BorderSide(color: FlapColors.borderStrong),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+      minimumSize: const Size(0, 34),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
     const labelStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w700);
 
     if (match.organizerId == uid) {
-      return OutlinedButton.icon(
-        onPressed: () => context.router.push(MatchDetailsRoute(match: match)),
-        icon: const Icon(Icons.tune, size: 16),
-        label: Text(
-          tr('manage'),
-          overflow: TextOverflow.ellipsis,
-          style: labelStyle,
-        ),
-        style: buttonStyle,
-      );
+      // Organizer manages via tapping the card; ownership shown as a top-right
+      // badge instead of a bottom action (see _matchCardTop / _ownerBadge).
+      return const SizedBox.shrink();
     }
 
     if (match.getUserStatus(uid) == 'participant') {
@@ -2506,70 +2504,340 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
   }
 
-  // Match card builder
+  // Match card builder (design `.mcard`: date block · meta · pills /
+  // avatar stack · spots · eligibility tag, with join actions preserved).
   Widget _buildMatchCard(Match match) {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return SizedBox.shrink();
 
-    final userStatus = match.getUserStatus(currentUser.id);
-    final isParticipant = userStatus == 'participant';
+    final isOrganizer = match.organizerId == currentUser.id;
+
+    // Functional section content. The state-aware action (Join / Joined /
+    // Requested …) now lives in the top-right corner; organizers show an
+    // ownership badge there and team matches show only the "Team match" tag.
+    final functional = <Widget>[
+      if (_shouldShowMatchWaitingList(match))
+        MatchWaitingListStrip(pendingUserIds: match.pendingApplications),
+      if (match.coverPhotoUrl?.isNotEmpty == true) _buildMatchPhotoFooter(match),
+    ];
 
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      padding: EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        color: FlapColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: FlapColors.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          // Tap anywhere on the card (except the inner buttons) → details.
+          onTap: () => context.router.push(MatchDetailsRoute(match: match)),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      match.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+              // ---- top: date block + info ----
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+                child: _matchCardTop(
+                  match,
+                  trailing:
+                      _cornerTrailing(match, isOrganizer, currentUser.id),
                 ),
               ),
-              if (isParticipant) ...[
-                const SizedBox(width: 10),
-                _buildJoinedIndicator(),
-              ],
+              // ---- bottom: avatar stack + spots + eligibility tag ----
+              _matchCardBottom(match),
+              // ---- functional section (logic preserved) ----
+              if (functional.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < functional.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 12),
+                        functional[i],
+                      ],
+                    ],
+                  ),
+                ),
             ],
           ),
+        ),
+      ),
+    );
+  }
 
-          SizedBox(height: 12),
+  // ---- design match-card pieces ----
 
-          // Match details
-          _buildMatchDetails(match),
+  Widget _matchCardTop(Match match, {Widget? trailing}) {
+    final dt = match.scheduledDateTime;
+    final locale = context.locale.toString();
+    final month = DateFormat.MMM(locale).format(dt).toUpperCase();
+    final weekday = DateFormat.E(locale).format(dt);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // date block
+        Container(
+          width: 52,
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          decoration: BoxDecoration(
+            color: const Color(0x0AFFFFFF),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: FlapColors.border),
+          ),
+          child: Column(
+            children: [
+              Text('${dt.day}',
+                  style: FlapText.cond(fontSize: 22, height: 0.9)),
+              const SizedBox(height: 2),
+              Text(month,
+                  style: FlapText.sora(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: FlapColors.muted,
+                    letterSpacing: 1,
+                  )),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      match.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: FlapText.sora(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                  if (trailing != null) ...[
+                    const SizedBox(width: 10),
+                    trailing,
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 12,
+                runSpacing: 5,
+                children: [
+                  _metaItem(Icons.schedule, '$weekday · ${match.scheduledKickoffTimeLabel}'),
+                  _metaItem(Icons.place_outlined, match.location.split(',').first),
+                ],
+              ),
+              const SizedBox(height: 9),
+              Row(
+                children: [
+                  _pill(Icons.bar_chart_rounded, _getLevelText(match.level)),
+                  const SizedBox(width: 8),
+                  _pill(
+                    Icons.monetization_on_outlined,
+                    match.cost <= 0
+                        ? tr('match_cost_free')
+                        : '${match.cost.toInt()} ₴',
+                    iconColor: FlapColors.gold,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
-          SizedBox(height: 16),
+  Widget _metaItem(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: FlapColors.greenBright),
+        const SizedBox(width: 5),
+        Text(text,
+            style: FlapText.sora(fontSize: 12, color: FlapColors.muted)),
+      ],
+    );
+  }
 
-          // Action buttons
-          _buildActionButtons(match, currentUser.id),
-          if (match.coverPhotoUrl?.isNotEmpty == true) ...[
-            const SizedBox(height: 16),
-            _buildMatchPhotoFooter(match),
-          ],
+  Widget _pill(IconData icon, String text, {Color iconColor = FlapColors.text}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0x0FFFFFFF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: FlapColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: iconColor),
+          const SizedBox(width: 4),
+          Text(text,
+              style: FlapText.sora(
+                  fontSize: 11, fontWeight: FontWeight.w700)),
         ],
       ),
     );
   }
 
+  Widget _matchCardBottom(Match match) {
+    final filled = match.participants.length;
+    final cap = match.maxPlayers;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        color: Color(0x05FFFFFF),
+        border: Border(top: BorderSide(color: FlapColors.border)),
+      ),
+      child: Row(
+        children: [
+          _avatarStack(match.participants),
+          const SizedBox(width: 10),
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: '$filled',
+                  style: FlapText.sora(
+                      fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+                TextSpan(
+                  text: '/$cap ${tr('players')}',
+                  style: FlapText.sora(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: FlapColors.muted),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          _eligibilityTag(match, filled, cap),
+        ],
+      ),
+    );
+  }
+
+  Widget _avatarStack(List<String> ids) {
+    final shown = ids.take(3).toList();
+    if (shown.isEmpty) return const SizedBox(width: 0, height: 30);
+    const outer = 30.0;
+    const step = 18.0;
+    return SizedBox(
+      width: outer + step * (shown.length - 1),
+      height: outer,
+      child: Stack(
+        children: [
+          for (int i = 0; i < shown.length; i++)
+            Positioned(
+              left: i * step,
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: FlapColors.card, width: 2),
+                ),
+                child: UserChip(userId: shown[i], size: 26, showName: false),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _eligibilityTag(Match match, int filled, int cap) {
+    late final Color bg;
+    late final Color fg;
+    late final IconData icon;
+    late final String label;
+    if (match.isTeamMatch) {
+      bg = const Color(0x265C97E0);
+      fg = FlapColors.blue;
+      icon = Icons.shield_outlined;
+      label = tr('match_tag_team');
+    } else if (cap > 0 && filled >= cap) {
+      bg = const Color(0x10FFFFFF);
+      fg = FlapColors.muted;
+      icon = Icons.people_alt_outlined;
+      label = tr('match_tag_full');
+    } else {
+      bg = const Color(0x294CAF50);
+      fg = FlapColors.greenBright;
+      icon = Icons.add_rounded;
+      label = tr('match_tag_open');
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: fg),
+          const SizedBox(width: 5),
+          Text(label,
+              style: FlapText.sora(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: fg)),
+        ],
+      ),
+    );
+  }
+
+  // Top-right corner widget for upcoming/active cards: ownership badge for
+  // organizers, the compact state action for joinable matches, nothing for
+  // team matches (join is team-invite only).
+  Widget? _cornerTrailing(Match match, bool isOrganizer, String uid) {
+    if (isOrganizer) return _ownerBadge();
+    if (match.isTeamMatch) return null;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 132),
+      child: _buildMatchSecondaryAction(match, uid),
+    );
+  }
+
+  // Compact top-right ownership badge for matches you organize.
+  Widget _ownerBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0x1A4CAF50),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0x334CAF50)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.verified_rounded,
+              size: 12, color: FlapColors.greenBright),
+          const SizedBox(width: 4),
+          Text(
+            tr('match_your_match'),
+            style: FlapText.sora(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: FlapColors.greenBright,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Superseded by the corner action (kept for reference).
+  // ignore: unused_element
   Widget _buildJoinedIndicator() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -2692,6 +2960,8 @@ class _MatchesScreenState extends State<MatchesScreen>
     }
   }
 
+  // Retained for reference; superseded by the design match-card pieces above.
+  // ignore: unused_element
   Widget _buildMatchDetails(Match match) {
     final totalParticipants = match.participants.length;
     final confirmedCount = match.isTeamMatch
@@ -2897,6 +3167,8 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
+  // Superseded by the corner action + functional list (kept for reference).
+  // ignore: unused_element
   Widget _buildActionButtons(Match match, String currentUserId) {
     final isOrganizer = match.organizerId == currentUserId;
     final isTeamListedMember = match.isUserMatchMember(currentUserId);
@@ -2966,45 +3238,11 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   Widget _buildDetailActionRow(Match match, String currentUserId) {
-    return Row(
-      children: [
-        Expanded(
-          child: SizedBox(
-            height: 40,
-            child: OutlinedButton.icon(
-              onPressed: () =>
-                  context.router.push(MatchDetailsRoute(match: match)),
-              icon: const Icon(Icons.info_outline, size: 16),
-              label: Text(
-                tr('details'),
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 10,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: SizedBox(
-            height: 40,
-            child: _buildMatchSecondaryAction(match, currentUserId),
-          ),
-        ),
-      ],
+    // Details is reached by tapping the card; the primary action spans full width.
+    return SizedBox(
+      height: 44,
+      width: double.infinity,
+      child: _buildMatchSecondaryAction(match, currentUserId),
     );
   }
 
@@ -3417,412 +3655,272 @@ class _MatchesScreenState extends State<MatchesScreen>
 
   Widget _buildMyMatchCard(Match match) {
     final currentUser = AppAuth.currentUser;
+    final uid = currentUser?.id ?? '';
     final isOrganizer = AppAuth.currentUserId == match.organizerId;
-    final role = isOrganizer ? tr('organizer') : tr('participant');
 
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Card header: status on its own row to avoid overflow
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                match.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              // Date/time + location in Wrap for narrow screens
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.calendar_today,
-                    color: Colors.white70,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 4),
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width - 140,
-                    ),
-                    child: Text(
-                      tr(
-                        'match_card_short_date_time',
-                        namedArgs: {
-                          'day': '${match.scheduledDateTime.day}',
-                          'month': '${match.scheduledDateTime.month}',
-                          'time': match.scheduledKickoffTimeLabel,
-                        },
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                  const Icon(
-                    Icons.location_on,
-                    color: Colors.white70,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 4),
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width - 160,
-                    ),
-                    child: Text(
-                      match.location,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  isOrganizer
-                      ? const Text('👑', style: TextStyle(fontSize: 16))
-                      : const Icon(
-                          Icons.person,
-                          color: Colors.white70,
-                          size: 16,
-                        ),
-                  const SizedBox(width: 4),
-                  Text(
-                    role,
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-          SizedBox(height: 16),
+    // Functional actions live below the design strip. Details is reached by
+    // tapping the card; ownership/state shows in the top-right corner.
+    final actions = <Widget>[];
 
-          Row(
-            children: [
-              Icon(Icons.people, color: Colors.white70, size: 16),
-              SizedBox(width: 4),
-              Text(
-                '${match.currentPlayers}/${match.maxPlayers}',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-              Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(match.status),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  _getStatusText(match.status, match: match),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          // Participant avatars (initials)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.only(top: 4, bottom: 4),
-            child: Row(
-              children: match.participants.take(10).map((id) {
-                return Container(
-                  margin: const EdgeInsets.only(right: 6),
-                  child: UserChip(
-                    userId: id,
-                    size: 24, // ~ radius 12
-                    showName: false,
-                  ),
-                );
-              }).toList(),
+    if (isOrganizer &&
+        match.status != MatchStatus.finished &&
+        match.status != MatchStatus.cancelled &&
+        !match.isUnplayedByTimeout) {
+      actions.add(
+        ElevatedButton(
+          onPressed: () {
+            context.router.push(MatchManagementRoute(match: match));
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF4caf50),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
-
-          SizedBox(height: 16),
-
-          // Action buttons
-          Row(
-            children: [
-              if (isOrganizer &&
-                  match.status != MatchStatus.finished &&
-                  match.status != MatchStatus.cancelled &&
-                  !match.isUnplayedByTimeout)
-                ElevatedButton(
-                  onPressed: () {
-                    context.router.push(MatchManagementRoute(match: match));
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF4caf50),
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    tr('manage'),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              if (isOrganizer && match.status != MatchStatus.finished)
-                SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () {
-                  context.router.push(MatchDetailsRoute(match: match));
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.1),
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(
-                  tr('details'),
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+          child: Text(
+            tr('manage'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
+        ),
+      );
+    }
 
-          // Leave match (participant, not organizer, open match)
-          if (!isOrganizer &&
-              match.status == MatchStatus.open &&
-              !match.isUnplayedByTimeout &&
-              currentUser != null &&
-              match.participants.contains(currentUser.id)) ...[
-            const SizedBox(height: 8),
-            Row(
+    if (!isOrganizer &&
+        match.status == MatchStatus.open &&
+        !match.isUnplayedByTimeout &&
+        currentUser != null &&
+        match.participants.contains(currentUser.id)) {
+      actions.add(
+        ElevatedButton(
+          onPressed: _isLeaving
+              ? null
+              : () async {
+                  final sure = await _confirm(
+                    tr('leave_match_confirm'),
+                    tr('leave_match_sure'),
+                  );
+                  if (sure != true) return;
+                  setState(() => _isLeaving = true);
+                  await _onLeaveMatch(match);
+                  setState(() => _isLeaving = false);
+                },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.redAccent,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          child: Text(
+            _isLeaving ? tr('leaving') : tr('leave_match'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (isOrganizer &&
+        match.status != MatchStatus.cancelled &&
+        !match.isUnplayedByTimeout) {
+      actions.add(
+        Builder(
+          builder: (context) {
+            final canStartNow = match.hasTeams
+                ? match.hasConfirmedPlayersForBothTeams
+                : match.participants.length >= 2;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ElevatedButton(
-                  onPressed: _isLeaving
-                      ? null
-                      : () async {
+                Row(
+                  children: [
+                    if (!match.hasTeams &&
+                        match.participants.length >= 4 &&
+                        match.status != MatchStatus.finished)
+                      ElevatedButton(
+                        onPressed: () async {
                           final sure = await _confirm(
-                            tr('leave_match_confirm'),
-                            tr('leave_match_sure'),
+                            tr('matches_autobalance_confirm_title'),
+                            tr('matches_autobalance_confirm_body'),
                           );
                           if (sure != true) return;
-                          setState(() => _isLeaving = true);
-                          await _onLeaveMatch(match);
-                          setState(() => _isLeaving = false);
+                          await _onAutoBalance(match);
                         },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    _isLeaving ? tr('leaving') : tr('leave_match'),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-
-          // Quick organizer actions
-          if (isOrganizer &&
-              match.status != MatchStatus.cancelled &&
-              !match.isUnplayedByTimeout) ...[
-            const SizedBox(height: 12),
-            Builder(
-              builder: (context) {
-                final canStartNow = match.hasTeams
-                    ? match.hasConfirmedPlayersForBothTeams
-                    : match.participants.length >= 2;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        if (!match.hasTeams &&
-                            match.participants.length >= 4 &&
-                            match.status != MatchStatus.finished)
-                          ElevatedButton(
-                            onPressed: () async {
-                              final sure = await _confirm(
-                                tr('matches_autobalance_confirm_title'),
-                                tr('matches_autobalance_confirm_body'),
-                              );
-                              if (sure != true) return;
-                              await _onAutoBalance(match);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF66bb6a),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: Text(
-                              tr('matches_autobalance_action'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF66bb6a),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
                           ),
-                        if (!match.hasTeams && match.participants.length >= 4)
-                          const SizedBox(width: 8),
-                        if (match.hasTeams &&
-                            match.status != MatchStatus.inProgress &&
-                            match.status != MatchStatus.finished)
-                          ElevatedButton(
-                            onPressed: canStartNow
-                                ? () async {
-                                    final sure = await _confirm(
-                                      tr('matches_start_confirm_title'),
-                                      tr('matches_start_confirm_body'),
-                                    );
-                                    if (sure != true) return;
-                                    await _onStartMatch(match);
-                                  }
-                                : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: canStartNow
-                                  ? const Color(0xFF2196f3)
-                                  : Colors.grey,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: Text(
-                              tr('action_start_match_ui'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        if (match.status != MatchStatus.inProgress &&
-                            match.hasTeams)
-                          const SizedBox(width: 8),
-                        if (match.status == MatchStatus.inProgress)
-                          ElevatedButton(
-                            onPressed: () async {
-                              final sure = await _confirm(
-                                tr('finish_match') + '?',
-                                tr('il_a2eff0d408'),
-                              );
-                              if (sure != true) return;
-                              await _onFinishMatch(match);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFF9800),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: Text(
-                              tr('finish_match'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (match.hasTeams &&
-                        match.status == MatchStatus.open &&
-                        !canStartNow)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
+                        ),
                         child: Text(
-                          tr('il_72b3134a15'),
+                          tr('matches_autobalance_action'),
                           style: const TextStyle(
-                            color: Colors.white60,
+                            color: Colors.white,
                             fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    if (!match.hasTeams && match.participants.length >= 4)
+                      const SizedBox(width: 8),
+                    if (match.hasTeams &&
+                        match.status != MatchStatus.inProgress &&
+                        match.status != MatchStatus.finished)
+                      ElevatedButton(
+                        onPressed: canStartNow
+                            ? () async {
+                                final sure = await _confirm(
+                                  tr('matches_start_confirm_title'),
+                                  tr('matches_start_confirm_body'),
+                                );
+                                if (sure != true) return;
+                                await _onStartMatch(match);
+                              }
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: canStartNow
+                              ? const Color(0xFF2196f3)
+                              : Colors.grey,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          tr('action_start_match_ui'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    if (match.status != MatchStatus.inProgress &&
+                        match.hasTeams)
+                      const SizedBox(width: 8),
+                    if (match.status == MatchStatus.inProgress)
+                      ElevatedButton(
+                        onPressed: () async {
+                          final sure = await _confirm(
+                            '${tr('finish_match')}?',
+                            tr('il_a2eff0d408'),
+                          );
+                          if (sure != true) return;
+                          await _onFinishMatch(match);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF9800),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          tr('finish_match'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                   ],
-                );
-              },
+                ),
+                if (match.hasTeams &&
+                    match.status == MatchStatus.open &&
+                    !canStartNow)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      tr('il_72b3134a15'),
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      );
+    }
+
+    if (!isOrganizer) {
+      actions.add(
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.info_outline, color: Colors.white54, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                tr('il_508bc5f440'),
+                style: const TextStyle(color: Colors.white60, fontSize: 12),
+              ),
             ),
           ],
+        ),
+      );
+    }
 
-          // Info for non-organizers
-          if (!isOrganizer) ...[
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline, color: Colors.white54, size: 16),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    tr('il_508bc5f440'),
-                    style: TextStyle(color: Colors.white60, fontSize: 12),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: FlapColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: FlapColors.border),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => context.router.push(MatchDetailsRoute(match: match)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+                child: _matchCardTop(
+                  match,
+                  trailing: _cornerTrailing(match, isOrganizer, uid),
+                ),
+              ),
+              _matchCardBottom(match),
+              if (actions.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < actions.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 10),
+                        actions[i],
+                      ],
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ],
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -3930,199 +4028,131 @@ class _MatchesScreenState extends State<MatchesScreen>
     final currentUserId = AppAuth.currentUserId;
     if (currentUserId == null) return const SizedBox.shrink();
 
-    // Outcome for current user
     final matchResult = _getMatchResultForUser(match, currentUserId);
     final resultColor = _getResultColor(matchResult);
     final resultText = _getResultText(matchResult);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+    // Result (W/D/L) chip lives in the top-right corner.
+    final resultChip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withValues(alpha: 0.08),
-            Colors.white.withValues(alpha: 0.04),
-          ],
+        color: resultColor.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: resultColor.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        resultText,
+        style: FlapText.sora(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: resultColor,
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.15),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+      ),
+    );
+
+    final body = <Widget>[
+      Row(
+        children: [
+          const Icon(Icons.people_alt_outlined,
+              size: 16, color: FlapColors.greenBright),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${match.teamA?.name ?? tr('il_e18d322f14')} vs ${match.teamB?.name ?? tr('il_aceaf5d9ac')}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: FlapText.sora(fontSize: 13.5, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      if (match.teamAScore != null && match.teamBScore != null)
+        Row(
           children: [
-            // Header and result
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    match.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                // Match result
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: resultColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: resultColor.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Text(
-                    resultText,
-                    style: TextStyle(
-                      color: resultColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Meta info
-            Row(
-              children: [
-                const Icon(
-                  Icons.calendar_today,
-                  color: Colors.white70,
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    '${match.date.day}.${match.date.month}.${match.date.year}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Icon(Icons.people, color: Colors.white70, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${match.teamA?.name ?? tr('il_e18d322f14')} vs ${match.teamB?.name ?? tr('il_aceaf5d9ac')}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 8),
-
-            // Score (if available)
-            if (match.teamAScore != null && match.teamBScore != null) ...[
-              Row(
-                children: [
-                  Icon(Icons.sports_soccer, color: Colors.white70, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${tr('score')} ${match.teamAScore}:${match.teamBScore}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
-
-            // User rating after match
-            FutureBuilder<double>(
-              future: _ratingsRepo.getUserRating(currentUserId),
-              builder: (context, snapshot) {
-                final rating = snapshot.hasData ? snapshot.data! : 0.0;
-                return Row(
-                  children: [
-                    Icon(Icons.star, color: const Color(0xFFFFD700), size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${tr('your_rating')} ${rating.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            if (match.coverPhotoUrl?.isNotEmpty == true) ...[
-              _buildMatchPhotoFooter(match),
-              const SizedBox(height: 12),
-            ],
-
-            // Details button
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () =>
-                      context.router.push(MatchDetailsRoute(match: match)),
-                  child: Text(
-                    tr('match_details'),
-                    style: TextStyle(
-                      color: Color(0xFF4caf50),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (match.status == MatchStatus.finished &&
-                    match.isUserMatchMember(currentUserId))
-                  TextButton(
-                    onPressed: () {
-                      context.router.push(MatchRatingRoute(match: match));
-                    },
-                    child: Text(
-                      tr('rate_players'),
-                      style: TextStyle(
-                        color: Color(0xFF4caf50),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-              ],
+            const Icon(Icons.sports_soccer,
+                size: 16, color: FlapColors.greenBright),
+            const SizedBox(width: 8),
+            Text(
+              '${tr('score')} ${match.teamAScore}:${match.teamBScore}',
+              style: FlapText.sora(fontSize: 14, fontWeight: FontWeight.w700),
             ),
           ],
+        ),
+      FutureBuilder<double>(
+        future: _ratingsRepo.getUserRating(currentUserId),
+        builder: (context, snapshot) {
+          final rating = snapshot.hasData ? snapshot.data! : 0.0;
+          return Row(
+            children: [
+              const Icon(Icons.star_rounded, size: 16, color: FlapColors.gold),
+              const SizedBox(width: 8),
+              Text(
+                '${tr('your_rating')} ${rating.toStringAsFixed(2)}',
+                style: FlapText.sora(fontSize: 13.5, color: FlapColors.muted),
+              ),
+            ],
+          );
+        },
+      ),
+      if (match.coverPhotoUrl?.isNotEmpty == true)
+        _buildMatchPhotoFooter(match),
+      if (match.status == MatchStatus.finished &&
+          match.isUserMatchMember(currentUserId))
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () {
+              context.router.push(MatchRatingRoute(match: match));
+            },
+            icon: const Icon(Icons.star_outline_rounded,
+                size: 18, color: FlapColors.greenBright),
+            label: Text(
+              tr('rate_players'),
+              style: FlapText.sora(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: FlapColors.greenBright,
+              ),
+            ),
+            style: TextButton.styleFrom(padding: EdgeInsets.zero),
+          ),
+        ),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: FlapColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: FlapColors.border),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => context.router.push(MatchDetailsRoute(match: match)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+                child: _matchCardTop(match, trailing: resultChip),
+              ),
+              const Divider(height: 1, thickness: 1, color: FlapColors.border),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < body.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 10),
+                      body[i],
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

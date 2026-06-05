@@ -319,7 +319,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF1a1a2e), Color(0xFF16213e)],
+              colors: [Color(0xFF070A08), Color(0xFF0B0F0C)],
             ),
           ),
         ),

@@ -112,7 +112,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1a1a2e),
+      backgroundColor: const Color(0xFF070A08),
       appBar: AppBar(
         title: Text(
           tr('il_f6e1977cf4'),
@@ -1702,7 +1702,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     final selectedResult = await showModalBottomSheet<List<String>>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0f0f23),
+      backgroundColor: const Color(0xFF0E1310),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
