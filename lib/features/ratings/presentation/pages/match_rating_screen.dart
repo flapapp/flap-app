@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../theme/flap_tokens.dart';
 import '../../domain/repositories/ratings_repository.dart';
 import '../../../matches/data/models/match.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -47,8 +48,81 @@ class _MatchRatingScreenState extends State<MatchRatingScreen> {
 
   RatingMode _mode = RatingMode.advanced;
   final Map<String, double> _simpleRating = {}; // playerId -> 0..5
+  final Set<String> _touched = {}; // players the user has actively rated
+
+  IconData _criterionIcon(String criterion) {
+    switch (criterion) {
+      case 'technical':
+        return Icons.sports_soccer;
+      case 'physical':
+        return Icons.local_fire_department;
+      case 'tactical':
+        return Icons.insights;
+      case 'teamwork':
+        return Icons.groups;
+      default:
+        return Icons.star_rounded;
+    }
+  }
+
+  /// Tap-to-rate 1–5 star row (design `.stars`).
+  Widget _stars(double value, ValueChanged<int> onTap, {double size = 26}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (i) {
+        final filled = i < value.round();
+        return GestureDetector(
+          onTap: () => onTap(i + 1),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2.5),
+            child: Icon(
+              filled ? Icons.star_rounded : Icons.star_outline_rounded,
+              size: size,
+              color: filled ? FlapColors.gold : const Color(0x29FFFFFF),
+            ),
+          ),
+        );
+      }),
+    );
+  }
   
   
+  Widget _modeSegment(String label, RatingMode mode) {
+    final on = _mode == mode;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _mode = mode),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: on ? const Color(0x1AFFFFFF) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: on
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            label,
+            style: FlapText.sora(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: on ? FlapColors.text : FlapColors.muted,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   bool _isSubmitting = false;
   // User profile cache (displayName, photoUrl)
 final Map<String, Map<String, String>> _userCache = {};
@@ -169,162 +243,64 @@ final sanitizedPlayers = playersToRate.where((id) =>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0f0f23),
+      backgroundColor: FlapColors.bg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0f0f23).withOpacity(0.95),
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Row(
+        scrolledUnderElevation: 0,
+        foregroundColor: FlapColors.text,
+        iconTheme: const IconThemeData(color: FlapColors.text),
+        titleSpacing: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF4CAF50), Color(0xFF66BB6A)],
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.star, color: Colors.white, size: 18),
+            Text(
+              tr('il_315b687966'),
+              style: FlapText.sora(fontSize: 12, color: FlapColors.muted),
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tr('il_315b687966'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
-                ),
-                Text(
-                  tr('il_a160524e96'),
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+            Text(
+              widget.match.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: FlapText.sora(fontSize: 18, fontWeight: FontWeight.w800),
             ),
           ],
         ),
-        actions: [
-                    TextButton(
-            onPressed: (_isSubmitting || _playerRatings.isEmpty) ? null : _submitAllRatings,
-            child: Text(
-              _isSubmitting ? tr('il_dc85af8f2b') : tr('save'),
-              style: TextStyle(
-                color: (_isSubmitting || _playerRatings.isEmpty) ? Colors.white54 : Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
       ),
       body: Column(
         children: [
-          // Match info
-          Container(
-            margin: const EdgeInsets.all(15),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xFF4CAF50).withOpacity(0.2),
-                  const Color(0xFF66BB6A).withOpacity(0.1),
+          // Quick / Detailed segmented toggle (design `.seg`).
+          Padding(
+            padding: const EdgeInsets.fromLTRB(15, 14, 15, 8),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0x0AFFFFFF),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: FlapColors.border),
+              ),
+              child: Row(
+                children: [
+                  _modeSegment(tr('rating_quick'), RatingMode.simple),
+                  _modeSegment(tr('rating_detailed'), RatingMode.advanced),
                 ],
               ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFF4CAF50).withOpacity(0.3),
-                width: 1,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '🏆 ${widget.match.title}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${widget.match.teamA?.name ?? tr('il_e18d322f14')} vs ${widget.match.teamB?.name ?? tr('il_aceaf5d9ac')}',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '📅 ${_formatDate(widget.match.date)} • 📍 ${widget.match.city}',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: const Color(0xFF4CAF50),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    tr('il_b09b392002'),
-                    style: TextStyle(
-                      color: const Color(0xFF4CAF50),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
-
           Padding(
-  padding: const EdgeInsets.fromLTRB(15, 0, 15, 8),
-  child: Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.05),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withOpacity(0.1)),
-    ),
-    child: Row(
-      children: [
-        Text(tr('mode_colon'), style: const TextStyle(color: Colors.white70)),
-        const SizedBox(width: 10),
-        ToggleButtons(
-          isSelected: [_mode == RatingMode.simple, _mode == RatingMode.advanced],
-          onPressed: (i) => setState(() => _mode = i == 0 ? RatingMode.simple : RatingMode.advanced),
-          borderRadius: BorderRadius.circular(8),
-          selectedColor: Colors.white,
-          fillColor: const Color(0xFF4CAF50).withOpacity(0.3),
-          color: Colors.white70,
-          children: [
-            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text(tr('simple'))),
-            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text(tr('advanced_mode'))),
-          ],
-        ),
-      ],
-    ),
-  ),
-),
+            padding: const EdgeInsets.fromLTRB(15, 4, 15, 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _mode == RatingMode.simple
+                    ? tr('rating_quick_hint')
+                    : tr('rating_detailed_hint'),
+                style: FlapText.sora(
+                    fontSize: 12.5, color: FlapColors.muted, height: 1.4),
+              ),
+            ),
+          ),
 
           Expanded(
             child: _playerRatings.isEmpty
@@ -339,42 +315,47 @@ final sanitizedPlayers = playersToRate.where((id) =>
                     },
                   ),
           ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(15, 0, 15, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: (_isSubmitting || _playerRatings.isEmpty)
-                      ? null
-                      : _submitAllRatings,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    backgroundColor: const Color(0xFF4CAF50),
-                    foregroundColor: Colors.white,
-                    textStyle: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x00070A08), FlapColors.bg],
+                stops: [0.0, 0.4],
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(15, 8, 15, 14),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: (_isSubmitting || _playerRatings.isEmpty)
+                        ? null
+                        : _submitAllRatings,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: FlapColors.green,
+                      foregroundColor: FlapColors.onGreen,
+                      disabledBackgroundColor: const Color(0x1A4CAF50),
+                      disabledForegroundColor: FlapColors.muted,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle:
+                          FlapText.sora(fontSize: 15.5, fontWeight: FontWeight.w700),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  icon: _isSubmitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.check_circle_outline),
-                  label: Text(
-                    _isSubmitting
-                        ? tr('il_dc85af8f2b')
-                        : tr('il_fa204511ae'),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: FlapColors.onGreen,
+                            ),
+                          )
+                        : Text(_submitLabel()),
                   ),
                 ),
               ),
@@ -384,6 +365,13 @@ final sanitizedPlayers = playersToRate.where((id) =>
       ),
     );
   }
+
+  String _submitLabel() {
+    final total = _playerRatings.length;
+    final n = _touched.length;
+    final base = tr('il_fa204511ae');
+    return n > 0 ? '$base ($n/$total)' : base;
+  }
   
   Widget _buildEmptyRatingsState() {
     return Padding(
@@ -391,13 +379,13 @@ final sanitizedPlayers = playersToRate.where((id) =>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          color: FlapColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: FlapColors.border),
         ),
         child: Text(
           tr('il_432d30edd9'),
-          style: const TextStyle(color: Colors.white70, height: 1.4),
+          style: FlapText.sora(color: FlapColors.muted, height: 1.4),
         ),
       ),
     );
@@ -406,161 +394,142 @@ final sanitizedPlayers = playersToRate.where((id) =>
   // Player rating card
   Widget _buildPlayerRatingCard(String playerId, Map<String, double> ratings) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 11),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.1),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
+        color: const Color(0x0BFFFFFF),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
+        border: Border.all(color: FlapColors.border),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Player header
-            Row(
-  children: [
-    FutureBuilder<Map<String, String>>(
-      future: _getUserProfile(playerId),
-      builder: (context, snap) {
-        final profile = snap.data ?? const {};
-        final displayName = (profile['displayName'] ?? '').trim();
-        final avatarUrl = (profile['avatarUrl'] ?? '').trim();
-        final initials = (displayName.isNotEmpty
-                ? displayName.split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join()
-                : playerId.substring(0, 2))
-            .toUpperCase();
-
-        return Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: ClipOval(
-  child: (avatarUrl.isNotEmpty)
-      ? Image.network(
-          avatarUrl,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _AvatarFallback(initials: initials),
-        )
-      : _AvatarFallback(initials: initials),
-)
-            ),
-            const SizedBox(width: 12),
-            // Player name
-            Text(
-              displayName.isNotEmpty
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FutureBuilder<Map<String, String>>(
+            future: _getUserProfile(playerId),
+            builder: (context, snap) {
+              final profile = snap.data ?? const {};
+              final displayName = (profile['displayName'] ?? '').trim();
+              final avatarUrl = (profile['avatarUrl'] ?? '').trim();
+              final initials = (displayName.isNotEmpty
+                      ? displayName
+                          .split(' ')
+                          .map((p) => p.isNotEmpty ? p[0] : '')
+                          .take(2)
+                          .join()
+                      : playerId.substring(0, 2))
+                  .toUpperCase();
+              final name = displayName.isNotEmpty
                   ? displayName
-                  : tr(
-                      'il_9e4608e723',
-                      args: [
-                        playerId.length > 8
-                            ? playerId.substring(0, 8)
-                            : playerId,
-                      ],
+                  : tr('il_9e4608e723', args: [
+                      playerId.length > 8 ? playerId.substring(0, 8) : playerId
+                    ]);
+              return Row(
+                children: [
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: ClipOval(
+                      child: avatarUrl.isNotEmpty
+                          ? Image.network(
+                              avatarUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  _AvatarFallback(initials: initials),
+                            )
+                          : _AvatarFallback(initials: initials),
                     ),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        );
-      },
-    ),
-    const Spacer(),
-  ],
-),
-            
-            const SizedBox(height: 16),
-            
-            if (_mode == RatingMode.simple) ...[
-  Text(tr('il_ee62b83057'), style: const TextStyle(color: Colors.white70)),
-  const SizedBox(height: 8),
-  SliderTheme(
-    data: SliderTheme.of(context).copyWith(
-      activeTrackColor: const Color(0xFF4CAF50),
-      inactiveTrackColor: Colors.white24,
-      thumbColor: const Color(0xFF4CAF50),
-      overlayColor: const Color(0xFF4CAF50).withOpacity(0.2),
-      valueIndicatorColor: const Color(0xFF4CAF50),
-      valueIndicatorTextStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-    ),
-    child: Slider(
-      value: _simpleRating[playerId] ?? 2.5,
-      min: 0.0,
-      max: 5.0,
-      divisions: 50,
-      label: (_simpleRating[playerId] ?? 2.5).toStringAsFixed(2),
-      onChanged: (v) => setState(() => _simpleRating[playerId] = v),
-    ),
-  ),
-  const SizedBox(height: 8),
-] else ...[
-  ...List.generate(_criteria.length, (index) {
-    final criterion = _criteria[index];
-    final label = _criteriaLabels[index];
-    final value = ratings[criterion] ?? 2.5;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(label, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14, fontWeight: FontWeight.w600)),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white24)),
-              child: Text(value.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            activeTrackColor: const Color(0xFF4CAF50),
-            inactiveTrackColor: Colors.white24,
-            thumbColor: const Color(0xFF4CAF50),
-            overlayColor: const Color(0xFF4CAF50).withOpacity(0.2),
-            valueIndicatorColor: const Color(0xFF4CAF50),
-            valueIndicatorTextStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: FlapText.sora(
+                          fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (_mode == RatingMode.simple)
+                    _stars(
+                      _simpleRating[playerId] ?? 0,
+                      (v) => setState(() {
+                        _simpleRating[playerId] = v.toDouble();
+                        _touched.add(playerId);
+                      }),
+                      size: 24,
+                    ),
+                ],
+              );
+            },
           ),
-          child: Slider(
-            value: value,
-            min: 0.0,
-            max: 5.0,
-            divisions: 50,
-            label: value.toStringAsFixed(2),
-            onChanged: (nv) => setState(() => _playerRatings[playerId]![criterion] = nv),
-          ),
-        ),
-        const SizedBox(height: 16),
-      ],
-    );
-  }),
-]
-          ],
-        ),
+          if (_mode == RatingMode.advanced)
+            ...List.generate(_criteria.length, (index) {
+              final criterion = _criteria[index];
+              final label = _criteriaLabels[index];
+              final value = ratings[criterion] ?? 0;
+              return Padding(
+                padding: const EdgeInsets.only(top: 11),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Icon(_criterionIcon(criterion),
+                              size: 14, color: FlapColors.greenBright),
+                          const SizedBox(width: 7),
+                          Flexible(
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: FlapText.sora(
+                                  fontSize: 12.5, color: FlapColors.muted),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 52,
+                      child: Container(
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: const Color(0x14FFFFFF),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: (value / 5).clamp(0.0, 1.0),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [FlapColors.green, FlapColors.greenBright],
+                              ),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _stars(
+                      value,
+                      (v) => setState(() {
+                        _playerRatings[playerId]![criterion] = v.toDouble();
+                        _touched.add(playerId);
+                      }),
+                      size: 18,
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
       ),
     );
   }
-  
-  // Save all ratings
+
+    // Save all ratings
   Future<void> _submitAllRatings() async {
     setState(() {
       _isSubmitting = true;
@@ -661,6 +630,7 @@ final sanitizedPlayers = playersToRate.where((id) =>
   }
   
   // Date formatting
+  // ignore: unused_element
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
