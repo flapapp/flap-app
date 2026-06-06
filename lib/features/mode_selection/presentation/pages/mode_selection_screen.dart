@@ -11,6 +11,9 @@ import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../widgets/player_avatar_button.dart';
+import '../../../matches/presentation/pages/matches_screen.dart';
+import '../../../teams/presentation/pages/team_hub_screen.dart';
+import '../../../profile/presentation/pages/profile_screen.dart';
 import '../../../profile/presentation/profile_user_data_sync.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
 import '../../domain/entities/mode_navigation_target.dart';
@@ -46,6 +49,20 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
   StreamSubscription<void>? _profileSyncSub;
 
   NotificationsRepository get _notificationsRepo => sl<NotificationsRepository>();
+
+  // Bottom-nav tab shell. Tabs are built lazily on first visit and kept alive
+  // by the IndexedStack so switching is instant and preserves state.
+  static const List<String> _navIds = ['home', 'matches', 'teams', 'profile'];
+  int _tab = 0;
+  final Set<int> _visited = <int>{0};
+
+  void _selectTab(int index) {
+    if (index < 0 || index >= _navIds.length) return;
+    setState(() {
+      _tab = index;
+      _visited.add(index);
+    });
+  }
 
   @override
   void initState() {
@@ -90,163 +107,156 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: FlapColors.bg,
-      body: Stack(
+      body: IndexedStack(
+        index: _tab,
         children: [
-          // Radial green glow behind the top of the screen.
-          const Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(gradient: FlapColors.screenGlow),
-            ),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                _buildHeader(context),
-                Expanded(
-                  child: BlocBuilder<ModeSelectionCubit, ModeSelectionState>(
-                    builder: (context, state) {
-                      final cubit = context.read<ModeSelectionCubit>();
-                      final data = state.profileDocument;
-
-                      final displayName = data?['displayName'] ??
-                          data?['name'] ??
-                          data?['authorName'] ??
-                          data?['email']?.toString().split('@').first ??
-                          tr('player');
-                      final avatarUrl =
-                          (data?['avatarUrl'] ?? data?['avatar'] ?? '')
-                              .toString();
-                      final rating = (data?['rating'] ?? 0.0).toDouble();
-                      final coins =
-                          (data?['coins'] ?? data?['flCoins'] ?? 0).toString();
-
-                      return FutureBuilder<ModeHeroStats>(
-                        future: state.heroStatsFuture,
-                        builder: (context, snap) {
-                          final stats = snap.data;
-                          return ListView(
-                            padding: const EdgeInsets.only(bottom: 104),
-                            physics: const BouncingScrollPhysics(),
-                            children: [
-                              Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(20, 6, 20, 0),
-                                child: ModeHeroPanel(
-                                  cubit: cubit,
-                                  userId: AppAuth.currentUserId ?? '',
-                                  displayName: displayName,
-                                  avatarUrl: avatarUrl.isNotEmpty
-                                      ? avatarUrl
-                                      : null,
-                                  subtitle: _subtitle(data),
-                                  rating: rating,
-                                  matchesLabel: _matchesLabel(data, stats),
-                                  coinsLabel: coins,
-                                ),
-                              ),
-                              FlapSectionHeader(
-                                title: tr('mode_for_you'),
-                                actionLabel: tr('see_all'),
-                                onAction: () => context.pushModeTarget(
-                                    ModeNavigationTarget.notifications),
-                                padding:
-                                    const EdgeInsets.fromLTRB(22, 22, 22, 12),
-                              ),
-                              ModeNewsSection(
-                                loading: state.newsLoading,
-                                items: state.newsItems,
-                              ),
-                              FlapSectionHeader(
-                                title: tr('mode_jump_in'),
-                                padding:
-                                    const EdgeInsets.fromLTRB(22, 22, 22, 12),
-                              ),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 20),
-                                child: Column(
-                                  children: [
-                                    ModeCard(
-                                      title: tr('matches'),
-                                      subtitle: tr('il_d090197fc0'),
-                                      icon: Icons.sports_soccer,
-                                      accent: FlapColors.green,
-                                      onTap: () => context.pushModeTarget(
-                                          ModeNavigationTarget.matches),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    ModeCard(
-                                      title: tr('videos'),
-                                      subtitle: tr('il_2862424bdc'),
-                                      icon: Icons.play_arrow_rounded,
-                                      accent: FlapColors.amber,
-                                      onTap: () => context.pushModeTarget(
-                                          ModeNavigationTarget.videoMain),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    ModeCard(
-                                      title: tr('il_1e1a1c078a'),
-                                      subtitle: tr('il_8d98f0bec9'),
-                                      icon: Icons.shield_outlined,
-                                      accent: FlapColors.blue,
-                                      onTap: () => context.pushModeTarget(
-                                          ModeNavigationTarget.teams),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Floating glass bottom nav.
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: FlapBottomNav(
-              activeId: 'home',
-              createTooltip: tr('il_5a0f12a92f'),
-              onCreate: () => context.router.push(const CreateMatchRoute()),
-              onSelect: (id) {
-                switch (id) {
-                  case 'home':
-                    break;
-                  case 'matches':
-                    context.pushModeTarget(ModeNavigationTarget.matches);
-                  case 'teams':
-                    context.pushModeTarget(ModeNavigationTarget.teams);
-                  case 'profile':
-                    context.pushModeTarget(ModeNavigationTarget.profile);
-                }
-              },
-              items: [
-                FlapNavItem(
-                    icon: Icons.home_rounded, label: tr('mode_nav_home'), id: 'home'),
-                FlapNavItem(
-                    icon: Icons.sports_soccer,
-                    label: tr('matches'),
-                    id: 'matches'),
-                FlapNavItem(
-                    icon: Icons.shield_outlined,
-                    label: tr('il_1e1a1c078a'),
-                    id: 'teams'),
-                FlapNavItem(
-                    icon: Icons.person_rounded,
-                    label: tr('profile'),
-                    id: 'profile'),
-              ],
-            ),
-          ),
+          _visited.contains(0) ? _buildHomeTab(context) : const SizedBox.shrink(),
+          _visited.contains(1) ? const MatchesScreen() : const SizedBox.shrink(),
+          _visited.contains(2) ? const TeamHubScreen() : const SizedBox.shrink(),
+          _visited.contains(3) ? const ProfileScreen() : const SizedBox.shrink(),
         ],
       ),
+      bottomNavigationBar: FlapBottomNav(
+        activeId: _navIds[_tab],
+        createTooltip: tr('il_5a0f12a92f'),
+        onCreate: () => context.router.push(const CreateMatchRoute()),
+        onSelect: (id) => _selectTab(_navIds.indexOf(id)),
+        items: [
+          FlapNavItem(
+              icon: Icons.home_rounded,
+              label: tr('mode_nav_home'),
+              id: 'home'),
+          FlapNavItem(
+              icon: Icons.sports_soccer,
+              label: tr('matches'),
+              id: 'matches'),
+          FlapNavItem(
+              icon: Icons.shield_outlined,
+              label: tr('il_1e1a1c078a'),
+              id: 'teams'),
+          FlapNavItem(
+              icon: Icons.person_rounded,
+              label: tr('profile'),
+              id: 'profile'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHomeTab(BuildContext context) {
+    return Stack(
+      children: [
+        // Radial green glow behind the top of the screen.
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(gradient: FlapColors.screenGlow),
+          ),
+        ),
+        SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Expanded(
+                child: BlocBuilder<ModeSelectionCubit, ModeSelectionState>(
+                  builder: (context, state) {
+                    final cubit = context.read<ModeSelectionCubit>();
+                    final data = state.profileDocument;
+
+                    final displayName = data?['displayName'] ??
+                        data?['name'] ??
+                        data?['authorName'] ??
+                        data?['email']?.toString().split('@').first ??
+                        tr('player');
+                    final avatarUrl =
+                        (data?['avatarUrl'] ?? data?['avatar'] ?? '')
+                            .toString();
+                    final rating = (data?['rating'] ?? 0.0).toDouble();
+                    final coins =
+                        (data?['coins'] ?? data?['flCoins'] ?? 0).toString();
+
+                    return FutureBuilder<ModeHeroStats>(
+                      future: state.heroStatsFuture,
+                      builder: (context, snap) {
+                        final stats = snap.data;
+                        return ListView(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          physics: const BouncingScrollPhysics(),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+                              child: ModeHeroPanel(
+                                cubit: cubit,
+                                userId: AppAuth.currentUserId ?? '',
+                                displayName: displayName,
+                                avatarUrl:
+                                    avatarUrl.isNotEmpty ? avatarUrl : null,
+                                subtitle: _subtitle(data),
+                                rating: rating,
+                                matchesLabel: _matchesLabel(data, stats),
+                                coinsLabel: coins,
+                              ),
+                            ),
+                            FlapSectionHeader(
+                              title: tr('mode_for_you'),
+                              actionLabel: tr('see_all'),
+                              onAction: () => context.pushModeTarget(
+                                  ModeNavigationTarget.notifications),
+                              padding:
+                                  const EdgeInsets.fromLTRB(22, 22, 22, 12),
+                            ),
+                            ModeNewsSection(
+                              loading: state.newsLoading,
+                              items: state.newsItems,
+                            ),
+                            FlapSectionHeader(
+                              title: tr('mode_jump_in'),
+                              padding:
+                                  const EdgeInsets.fromLTRB(22, 22, 22, 12),
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              child: Column(
+                                children: [
+                                  ModeCard(
+                                    title: tr('matches'),
+                                    subtitle: tr('il_d090197fc0'),
+                                    icon: Icons.sports_soccer,
+                                    accent: FlapColors.green,
+                                    onTap: () => _selectTab(1),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ModeCard(
+                                    title: tr('videos'),
+                                    subtitle: tr('il_2862424bdc'),
+                                    icon: Icons.play_arrow_rounded,
+                                    accent: FlapColors.amber,
+                                    onTap: () => context.pushModeTarget(
+                                        ModeNavigationTarget.videoMain),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ModeCard(
+                                    title: tr('il_1e1a1c078a'),
+                                    subtitle: tr('il_8d98f0bec9'),
+                                    icon: Icons.shield_outlined,
+                                    accent: FlapColors.blue,
+                                    onTap: () => _selectTab(2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -319,8 +329,8 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
                 backgroundColor: FlapColors.green,
                 borderColor: FlapColors.green,
                 borderWidth: 2,
-                onTap: () =>
-                    context.pushModeTarget(ModeNavigationTarget.profile),
+                // Switch to the Profile tab rather than pushing a new screen.
+                onTap: () => _selectTab(3),
               ),
             ],
           ),

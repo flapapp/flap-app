@@ -13,8 +13,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
-import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../../widgets/team_crest.dart';
 import '../../../../widgets/team_logo_button.dart';
@@ -611,26 +611,6 @@ class _MatchesScreenState extends State<MatchesScreen>
             ),
           ),
         ],
-      ),
-      floatingActionButton: ModeSpeedDial(
-        shortcuts: [
-          ModeDialAction(
-            icon: Icons.groups_outlined,
-            tooltip: tr('teams'),
-            onTap: () => context.router.push(const TeamHubRoute()),
-          ),
-          ModeDialAction(
-            icon: Icons.play_circle_outline,
-            tooltip: tr('videos'),
-            onTap: () => context.router.push(VideoMainRoute()),
-          ),
-        ],
-        onCreate: () async {
-          await context.router.push(const CreateMatchRoute());
-          if (!mounted) return;
-          _refreshMatchLists();
-        },
-        createTooltip: tr('il_4759498ac2'),
       ),
       ),
     );
@@ -1490,9 +1470,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
               if (listState.isLoading &&
                   listState.availableMatches.isEmpty) {
-                return Center(
-                  child: CircularProgressIndicator(color: Color(0xFF4caf50)),
-                );
+                return _buildMatchSkeletonList();
               }
 
               final items = _filteredAvailableMatches(listState);
@@ -1601,9 +1579,7 @@ class _MatchesScreenState extends State<MatchesScreen>
               }
 
               if (listState.isLoading && listState.userMatches.isEmpty) {
-                return Center(
-                  child: CircularProgressIndicator(color: Color(0xFF4caf50)),
-                );
+                return _buildMatchSkeletonList();
               }
 
               if (listState.userMatches.isEmpty) {
@@ -1688,9 +1664,7 @@ class _MatchesScreenState extends State<MatchesScreen>
           );
         }
         if (listState.isLoading && listState.historyMatches.isEmpty) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF4caf50)),
-          );
+          return _buildMatchSkeletonList();
         }
         final matches = listState.historyMatches;
         if (matches.isEmpty) {
@@ -2661,6 +2635,80 @@ class _MatchesScreenState extends State<MatchesScreen>
               style: FlapText.sora(
                   fontSize: 11, fontWeight: FontWeight.w700)),
         ],
+      ),
+    );
+  }
+
+  // Skeleton placeholders shown while the match list loads (no spinner).
+  // A Column (not ListView) so it sizes safely in both the scrollable Find tab
+  // and the Expanded My/History tabs.
+  Widget _buildMatchSkeletonList() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        children: [for (var i = 0; i < 4; i++) _matchSkeletonCard()],
+      ),
+    );
+  }
+
+  Widget _matchSkeletonCard() {
+    return FlapShimmer(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        decoration: BoxDecoration(
+          color: FlapColors.card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: FlapColors.border),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  FlapSkeletonBox(width: 52, height: 52, radius: 13),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        FlapSkeletonBox(
+                            width: double.infinity, height: 15, radius: 6),
+                        SizedBox(height: 10),
+                        FlapSkeletonBox(width: 150, height: 12, radius: 6),
+                        SizedBox(height: 12),
+                        Row(
+                          children: [
+                            FlapSkeletonBox(width: 84, height: 22, radius: 8),
+                            SizedBox(width: 8),
+                            FlapSkeletonBox(width: 64, height: 22, radius: 8),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(
+                color: Color(0x05FFFFFF),
+                border: Border(top: BorderSide(color: FlapColors.border)),
+              ),
+              child: Row(
+                children: const [
+                  FlapSkeletonBox(width: 70, height: 30, radius: 99),
+                  SizedBox(width: 10),
+                  FlapSkeletonBox(width: 80, height: 12, radius: 6),
+                  Spacer(),
+                  FlapSkeletonBox(width: 70, height: 26, radius: 9),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

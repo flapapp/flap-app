@@ -371,3 +371,81 @@ class FlapBottomNav extends StatelessWidget {
     );
   }
 }
+
+/// A subtle shimmer that sweeps a highlight across its [child] — wrap skeleton
+/// shapes in it for loading placeholders (use instead of a spinner).
+class FlapShimmer extends StatefulWidget {
+  const FlapShimmer({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<FlapShimmer> createState() => _FlapShimmerState();
+}
+
+class _FlapShimmerState extends State<FlapShimmer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1250),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) {
+        return ShaderMask(
+          blendMode: BlendMode.srcATop,
+          shaderCallback: (bounds) {
+            final t = _controller.value;
+            return LinearGradient(
+              begin: Alignment(-1.0 - 2 * (1 - t), 0),
+              end: Alignment(1.0 + 2 * t, 0),
+              colors: const [
+                Color(0x00FFFFFF),
+                Color(0x16FFFFFF),
+                Color(0x00FFFFFF),
+              ],
+              stops: const [0.35, 0.5, 0.65],
+            ).createShader(bounds);
+          },
+          child: child,
+        );
+      },
+    );
+  }
+}
+
+/// A single skeleton placeholder block (`FlapColors.surface`-ish tone).
+class FlapSkeletonBox extends StatelessWidget {
+  const FlapSkeletonBox({
+    super.key,
+    this.width,
+    required this.height,
+    this.radius = 8,
+  });
+
+  final double? width;
+  final double height;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: const Color(0x12FFFFFF),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
