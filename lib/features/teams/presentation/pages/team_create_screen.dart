@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../theme/flap_tokens.dart';
 import '../../domain/repositories/teams_repository.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 
@@ -76,21 +77,34 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
   @override
   Widget build(BuildContext context) {
     final limitReached = widget.existingTeams >= 3;
-    const accent = Color(0xFF36D399);
+    const accent = Color(0xFF4CAF50);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF05080F),
+      backgroundColor: const Color(0xFF070A08),
       appBar: AppBar(
         elevation: 0,
+        scrolledUnderElevation: 0,
         backgroundColor: Colors.transparent,
-        title: Text(tr('il_b5ad09892b')),
+        title: Text(
+          tr('il_b5ad09892b'),
+          style: FlapText.sora(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF13241B), FlapColors.bg],
+            ),
+          ),
+        ),
       ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF05080F), Color(0xFF071A26)],
+            colors: [Color(0xFF070A08), Color(0xFF070A08)],
           ),
         ),
         child: SafeArea(
@@ -186,7 +200,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                             borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
                           ),
                           focusedBorder: const OutlineInputBorder(
-                            borderSide: BorderSide(color: Color(0xFF36D399)),
+                            borderSide: BorderSide(color: Color(0xFF4CAF50)),
                           ),
                           prefixIcon: const Icon(Icons.location_city, color: Colors.white70),
                         ),
@@ -224,7 +238,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                                 onPressed: _isSaving ? null : _createTeam,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: accent,
-                                  foregroundColor: const Color(0xFF041013),
+                                  foregroundColor: const Color(0xFF06140A),
                                   padding: const EdgeInsets.symmetric(vertical: 16),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(18),
@@ -241,7 +255,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
                                           valueColor: AlwaysStoppedAnimation<Color>(
-                                            Color(0xFF041013),
+                                            Color(0xFF06140A),
                                           ),
                                         ),
                                       )
@@ -263,7 +277,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
   }
 
   Widget _buildHeroBanner(bool limitReached) {
-    final accent = limitReached ? Colors.redAccent : const Color(0xFF36D399);
+    final accent = limitReached ? Colors.redAccent : const Color(0xFF4CAF50);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -274,7 +288,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
           end: Alignment.bottomRight,
           colors: limitReached
               ? [const Color(0xFF3B121B), const Color(0xFF150608)]
-              : [const Color(0xFF0F2B2F), const Color(0xFF0A111E)],
+              : [const Color(0xFF13241B), const Color(0xFF070A08)],
         ),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         boxShadow: [
@@ -405,7 +419,7 @@ class _TeamCreateScreenState extends State<TeamCreateScreen> {
               ),
               child: CircleAvatar(
                 radius: 52,
-                backgroundColor: const Color(0xFF09121F),
+                backgroundColor: const Color(0xFF0E1310),
                 backgroundImage:
                     _logoBytes != null ? MemoryImage(_logoBytes!) : null,
                 child: _logoBytes == null
