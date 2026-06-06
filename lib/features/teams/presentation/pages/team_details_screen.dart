@@ -64,95 +64,216 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF070A08),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        foregroundColor: FlapColors.text,
-        iconTheme: const IconThemeData(color: FlapColors.text),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF13241B), FlapColors.bg],
+    return StreamBuilder<AppTeam?>(
+      stream: _teamWatch,
+      builder: (context, snapshot) {
+        final team = snapshot.data;
+        final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
+        final isCaptain = team != null && uid == team.captainId;
+        final isVice = team != null && team.viceCaptainIds.contains(uid);
+        final canManage = isCaptain || isVice;
+        final isMember =
+            team != null && uid != null && team.memberIds.contains(uid);
+        return Scaffold(
+          backgroundColor: const Color(0xFF070A08),
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            foregroundColor: FlapColors.text,
+            iconTheme: const IconThemeData(color: FlapColors.text),
+            actions: [
+              if (team != null && uid != null && !isMember)
+                _buildAppBarJoinAction(team, uid),
+              const SizedBox(width: 8),
+            ],
+            flexibleSpace: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF13241B), FlapColors.bg],
+                ),
+              ),
+            ),
+          ),
+          body: _buildBody(snapshot, team, uid, canManage, isMember),
+        );
+      },
+    );
+  }
+
+  Widget _buildBody(
+    AsyncSnapshot<AppTeam?> snapshot,
+    AppTeam? team,
+    String? uid,
+    bool canManage,
+    bool isMember,
+  ) {
+    if (snapshot.connectionState == ConnectionState.waiting && team == null) {
+      return _buildDetailsSkeleton();
+    }
+    if (team == null) {
+      return Center(
+        child: Text(
+          tr('il_34d918824a'),
+          style: const TextStyle(color: Colors.white70),
+        ),
+      );
+    }
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: _teamStatsWatch,
+      builder: (context, statsSnap) {
+        final stats = TeamStats.fromFirestoreMap(
+          team.id,
+          statsSnap.data,
+          fallbackName: team.name,
+        );
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeroSection(team, canManage, stats),
+              const SizedBox(height: 16),
+              _buildDetailTabs(),
+              const SizedBox(height: 16),
+              if (_detailTab == 0) ...[
+                if (canManage) ...[
+                  _buildCoachDesk(team),
+                  const SizedBox(height: 24),
+                ],
+                _buildMembers(team, canManage),
+                const SizedBox(height: 24),
+                _buildRecentMatches(stats),
+                const SizedBox(height: 24),
+                _buildMatchRequestsSection(canManage),
+              ] else ...[
+                _buildHighlights(team, stats),
+                const SizedBox(height: 20),
+                _buildScorersList(stats),
+                const SizedBox(height: 20),
+                _buildMetricGrid(team, stats),
+              ],
+              if (uid != null && isMember) ...[
+                const SizedBox(height: 24),
+                _buildLeaveTeamButton(team, uid),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Shimmer placeholder shown while the team loads (no spinner).
+  Widget _buildDetailsSkeleton() {
+    Widget bar(double h, {double? w, double r = 8}) =>
+        FlapSkeletonBox(width: w, height: h, radius: r);
+    return FlapShimmer(
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
+              decoration: BoxDecoration(
+                color: FlapColors.card2,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: FlapColors.border),
+              ),
+              child: Column(
+                children: [
+                  bar(64, w: 64, r: 18),
+                  const SizedBox(height: 14),
+                  bar(24, w: 170, r: 7),
+                  const SizedBox(height: 10),
+                  bar(12, w: 210, r: 6),
+                  const SizedBox(height: 20),
+                  Row(children: [
+                    Expanded(child: bar(56, r: 14)),
+                    const SizedBox(width: 10),
+                    Expanded(child: bar(56, r: 14)),
+                  ]),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(child: bar(56, r: 14)),
+                    const SizedBox(width: 10),
+                    Expanded(child: bar(56, r: 14)),
+                  ]),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            bar(46, r: 14),
+            const SizedBox(height: 18),
+            bar(16, w: 120, r: 6),
+            const SizedBox(height: 12),
+            for (var i = 0; i < 4; i++) ...[
+              bar(60, r: 14),
+              const SizedBox(height: 9),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Join / Requested pill in the app bar for non-members (mirrors the match
+  /// detail page).
+  Widget _buildAppBarJoinAction(AppTeam team, String uid) {
+    return StreamBuilder<TeamJoinRequest?>(
+      stream: _teamsRepo.watchMyJoinRequest(team.id, uid),
+      builder: (context, reqSnap) {
+        final pending = reqSnap.data?.status == TeamJoinRequestStatus.pending;
+        if (pending) {
+          return _appBarJoinPill(
+            icon: Icons.mark_email_read_outlined,
+            label: tr('match_feed_join_requested'),
+            onPressed: null,
+          );
+        }
+        return _appBarJoinPill(
+          icon: Icons.person_add_outlined,
+          label: tr('join'),
+          onPressed:
+              _isSendingJoinRequest ? null : () => _sendJoinRequest(team),
+        );
+      },
+    );
+  }
+
+  Widget _appBarJoinPill({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: OutlinedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 16),
+          label: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: FlapColors.text,
+            disabledForegroundColor: FlapColors.muted,
+            side: const BorderSide(color: FlapColors.borderStrong),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+            minimumSize: const Size(0, 34),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
         ),
-      ),
-      body: StreamBuilder<AppTeam?>(
-        stream: _teamWatch,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              snapshot.data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final team = snapshot.data;
-          if (team == null) {
-            return Center(
-              child: Text(
-                tr('il_34d918824a'),
-                style: const TextStyle(color: Colors.white70),
-              ),
-            );
-          }
-          final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
-          final isCaptain = uid == team.captainId;
-          final isVice = team.viceCaptainIds.contains(uid);
-          final canManage = isCaptain || isVice;
-          final isMember = uid != null && team.memberIds.contains(uid);
-          return StreamBuilder<Map<String, dynamic>?>(
-            stream: _teamStatsWatch,
-            builder: (context, statsSnap) {
-              final stats = TeamStats.fromFirestoreMap(
-                team.id,
-                statsSnap.data,
-                fallbackName: team.name,
-              );
-              return SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeroSection(team, canManage, stats),
-                    const SizedBox(height: 16),
-                    _buildDetailTabs(),
-                    const SizedBox(height: 16),
-                    if (_detailTab == 0) ...[
-                      if (canManage) ...[
-                        _buildJoinRequests(team),
-                        const SizedBox(height: 24),
-                        _buildCoachDesk(team),
-                        const SizedBox(height: 24),
-                      ],
-                      _buildMembers(team, canManage),
-                      const SizedBox(height: 24),
-                      _buildRecentMatches(stats),
-                      const SizedBox(height: 24),
-                      _buildMatchRequestsSection(canManage),
-                    ] else ...[
-                      _buildHighlights(team, stats),
-                      const SizedBox(height: 20),
-                      _buildScorersList(stats),
-                      const SizedBox(height: 20),
-                      _buildMetricGrid(team, stats),
-                    ],
-                    if (uid != null && !isMember) ...[
-                      const SizedBox(height: 24),
-                      _buildJoinRequestWidget(team, uid),
-                    ],
-                    if (uid != null && isMember) ...[
-                      const SizedBox(height: 24),
-                      _buildLeaveTeamButton(team, uid),
-                    ],
-                  ],
-                ),
-              );
-            },
-          );
-        },
       ),
     );
   }
@@ -269,66 +390,6 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     );
   }
 
-  Widget _buildJoinRequestWidget(AppTeam team, String userId) {
-    return StreamBuilder<TeamJoinRequest?>(
-      stream: _teamsRepo.watchMyJoinRequest(team.id, userId),
-      builder: (context, snapshot) {
-        final request = snapshot.data;
-        if (request != null) {
-          if (request.status == TeamJoinRequestStatus.pending) {
-            return _joinStatusBanner(
-              icon: Icons.hourglass_top,
-              color: FlapColors.gold,
-              title: tr('il_a73f99f6bf'),
-              subtitle: tr('il_61ce3136de'),
-            );
-          } else if (request.status == TeamJoinRequestStatus.declined) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _joinStatusBanner(
-                  icon: Icons.close,
-                  color: FlapColors.red,
-                  title: tr('il_1df48b2da0'),
-                  subtitle: tr('il_3b89bf7a40'),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: _isSendingJoinRequest
-                      ? null
-                      : () => _sendJoinRequest(team),
-                  icon: const Icon(Icons.refresh),
-                  label: Text(tr('il_d8b8392e2c')),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.08),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }
-        }
-        return ElevatedButton.icon(
-          onPressed:
-              _isSendingJoinRequest ? null : () => _sendJoinRequest(team),
-          icon: const Icon(Icons.group_add),
-          label: Text(tr('il_9353afae8b')),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF4caf50),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildLeaveTeamButton(AppTeam team, String userId) {
   final isCaptain = userId == team.captainId;
 
@@ -411,47 +472,6 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   );
 }
 
-  Widget _joinStatusBanner({
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String subtitle,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style:
-                      FlapText.sora(fontSize: 13.5, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: FlapText.sora(fontSize: 11.5, color: FlapColors.muted),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _sendJoinRequest(AppTeam team) async {
     if (_isSendingJoinRequest) return;
     setState(() => _isSendingJoinRequest = true);
@@ -530,68 +550,163 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0x474CAF50)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: StreamBuilder<List<TeamJoinRequest>>(
+        stream: _teamsRepo.watchJoinRequests(team.id),
+        builder: (context, snapshot) {
+          final requests = snapshot.data ?? const <TeamJoinRequest>[];
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.sports, size: 18, color: FlapColors.greenBright),
-              const SizedBox(width: 9),
-              Text(
-                tr('il_af22c9dd60'),
-                style:
-                    FlapText.sora(fontSize: 14.5, fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _openInviteSheet(team),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: FlapColors.text,
-                    side: const BorderSide(color: FlapColors.borderStrong),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              Row(
+                children: [
+                  const Icon(Icons.sports,
+                      size: 18, color: FlapColors.greenBright),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      tr('il_af22c9dd60'),
+                      style: FlapText.sora(
+                          fontSize: 14.5, fontWeight: FontWeight.w700),
                     ),
                   ),
-                  icon: const Icon(Icons.person_add_alt_1, size: 18),
-                  label: Text(tr('il_6442e97ac6'),
-                      style: FlapText.sora(
-                          fontSize: 13, fontWeight: FontWeight.w700)),
-                ),
+                  if (requests.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: FlapColors.gold.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        tr('team_requests_count',
+                            namedArgs: {'count': '${requests.length}'}),
+                        style: FlapText.sora(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: FlapColors.gold),
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const CreateMatchScreen()),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: FlapColors.green,
-                    foregroundColor: FlapColors.onGreen,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              if (requests.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ...requests.map(_deskRequestRow),
+              ],
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openInviteSheet(team),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: FlapColors.text,
+                        side: const BorderSide(color: FlapColors.borderStrong),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.person_add_alt_1, size: 18),
+                      label: Text(tr('il_6442e97ac6'),
+                          style: FlapText.sora(
+                              fontSize: 13, fontWeight: FontWeight.w700)),
                     ),
                   ),
-                  icon: const Icon(Icons.sports_soccer, size: 18),
-                  label: Text(tr('il_4f76cec7a7'),
-                      style: FlapText.sora(
-                          fontSize: 13, fontWeight: FontWeight.w700)),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const CreateMatchScreen()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: FlapColors.green,
+                        foregroundColor: FlapColors.onGreen,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.sports_soccer, size: 18),
+                      label: Text(tr('il_4f76cec7a7'),
+                          style: FlapText.sora(
+                              fontSize: 13, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
+    );
+  }
+
+  /// A single join-request row rendered inline inside the captain's desk
+  /// (no card surface — the desk is the card).
+  Widget _deskRequestRow(TeamJoinRequest request) {
+    final busy = _processingJoinRequestIds.contains(request.id);
+    return FutureBuilder<UserProfile?>(
+      future: sl<ProfileRepository>().fetchUserProfile(request.userId),
+      builder: (context, snapshot) {
+        final userData = snapshot.data?.document ?? const <String, dynamic>{};
+        final avatarUrl =
+            (userData['avatarUrl'] ?? userData['photoUrl'] ?? '').toString();
+        final name =
+            (userData['displayName'] ?? userData['name'] ?? request.userName)
+                .toString();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              PlayerAvatarButton(
+                userId: request.userId,
+                displayName: name,
+                avatarUrl: avatarUrl,
+                size: 38,
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: FlapText.sora(
+                          fontSize: 13.5, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      DateFormat('dd MMM, HH:mm').format(request.createdAt),
+                      style: FlapText.sora(
+                          fontSize: 11.5, color: FlapColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _reqMiniButton(
+                Icons.check,
+                FlapColors.greenBright,
+                busy ? null : () => _handleJoinResponse(request, true),
+              ),
+              const SizedBox(width: 7),
+              _reqMiniButton(
+                Icons.close,
+                FlapColors.muted,
+                busy ? null : () => _handleJoinResponse(request, false),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -850,95 +965,6 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     );
   }
 
-  Widget _buildJoinRequests(AppTeam team) {
-    return StreamBuilder<List<TeamJoinRequest>>(
-      stream: _teamsRepo.watchJoinRequests(team.id),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        final requests = snapshot.data!;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              tr('il_a1321fc27d'),
-              style: FlapText.sora(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 12),
-            ...requests.map(_joinRequestTile),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _joinRequestTile(TeamJoinRequest request) {
-    final busy = _processingJoinRequestIds.contains(request.id);
-    return FutureBuilder<UserProfile?>(
-      future: sl<ProfileRepository>().fetchUserProfile(request.userId),
-      builder: (context, snapshot) {
-        final userData = snapshot.data?.document ?? const <String, dynamic>{};
-        final avatarUrl = (userData['avatarUrl'] ?? userData['photoUrl'] ?? '').toString();
-        final name = userData['displayName'] ??
-            userData['name'] ??
-            request.userName;
-        return Container(
-          margin: const EdgeInsets.only(bottom: 9),
-          padding: const EdgeInsets.all(11),
-          decoration: BoxDecoration(
-            color: const Color(0x0BFFFFFF),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: FlapColors.border),
-          ),
-          child: Row(
-            children: [
-              PlayerAvatarButton(
-                userId: request.userId,
-                displayName: name.toString(),
-                avatarUrl: avatarUrl,
-                size: 38,
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      name.toString(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: FlapText.sora(
-                          fontSize: 13.5, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      DateFormat('dd MMM, HH:mm').format(request.createdAt),
-                      style:
-                          FlapText.sora(fontSize: 11.5, color: FlapColors.muted),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              _reqMiniButton(
-                Icons.check,
-                FlapColors.greenBright,
-                busy ? null : () => _handleJoinResponse(request, true),
-              ),
-              const SizedBox(width: 7),
-              _reqMiniButton(
-                Icons.close,
-                FlapColors.muted,
-                busy ? null : () => _handleJoinResponse(request, false),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
 
   Widget _reqMiniButton(IconData icon, Color color, VoidCallback? onTap) {
@@ -1173,110 +1199,143 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          tr('il_cd4795809e'),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                tr('il_cd4795809e'),
+                style: FlapText.sora(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ),
+            Text(
+              tr('il_5d379b3bb6', args: ['${team.memberIds.length}']),
+              style: FlapText.sora(fontSize: 12, color: FlapColors.muted),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
-        ...team.memberIds.map(
-          (memberId) => FutureBuilder<UserProfile?>(
-            future: sl<ProfileRepository>().fetchUserProfile(memberId),
-            builder: (context, snapshot) {
-              final data = snapshot.data?.document;
-              final name = data?['displayName'] ??
-                  data?['name'] ??
-                  tr('il_64aee8c6cb');
-              final role = memberId == team.captainId
-                  ? tr('il_2e786c488b')
-                  : team.viceCaptainIds.contains(memberId)
-                      ? tr('il_9a9036ab0f')
-                      : tr('il_64aee8c6cb');
-              final avatarUrl = (data?['avatarUrl'] ?? data?['avatar']) as String?;
-              return InkWell(
-                onTap: () {
-                  context.router.push(
-                    PlayerProfileRoute(
-                      playerId: memberId,
-                      playerName: name,
-                    ),
-                  );
-                },
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.02),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withOpacity(0.08)),
-                  ),
-                  child: Row(
+        ...team.memberIds.map((id) => _memberRow(team, id, canManage)),
+      ],
+    );
+  }
+
+  Widget _memberRow(AppTeam team, String memberId, bool canManage) {
+    final isCaptain = memberId == team.captainId;
+    final isVice = team.viceCaptainIds.contains(memberId);
+    final role = isCaptain
+        ? tr('il_2e786c488b')
+        : isVice
+            ? tr('il_9a9036ab0f')
+            : tr('il_64aee8c6cb');
+    return FutureBuilder<UserProfile?>(
+      future: sl<ProfileRepository>().fetchUserProfile(memberId),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.document;
+        final name =
+            (data?['displayName'] ?? data?['name'] ?? tr('il_64aee8c6cb'))
+                .toString();
+        final avatarUrl = (data?['avatarUrl'] ?? data?['avatar']) as String?;
+        final position =
+            (data?['position'] ?? data?['preferredPosition'] ?? '')
+                .toString()
+                .trim();
+        final ratingRaw =
+            data?['overall_rating'] ?? data?['rating'] ?? data?['averageRating'];
+        final rating = ratingRaw is num ? ratingRaw.toDouble() : 0.0;
+        return InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => context.router.push(
+              PlayerProfileRoute(playerId: memberId, playerName: name)),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 9),
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: const Color(0x0BFFFFFF),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: FlapColors.border),
+            ),
+            child: Row(
+              children: [
+                PlayerAvatarButton(
+                  userId: memberId,
+                  displayName: name,
+                  avatarUrl: avatarUrl,
+                  size: 38,
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      PlayerAvatarButton(
-                        userId: memberId,
-                        displayName: name,
-                        avatarUrl: avatarUrl,
-                        size: 36,
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: FlapText.sora(
+                            fontSize: 13.5, fontWeight: FontWeight.w600),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              name,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            _roleBadge(role),
-                          ],
+                      if (position.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          position,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: FlapText.sora(
+                              fontSize: 11.5, color: FlapColors.muted),
                         ),
-                      ),
-                      if (canManage && memberId != team.captainId)
-                        PopupMenuButton<String>(
-                          color: const Color(0xFF141B14),
-                          onSelected: (action) =>
-                              _handleMemberAction(action, team, memberId),
-                          itemBuilder: (_) => [
-                            if (!team.viceCaptainIds.contains(memberId))
-                              PopupMenuItem(
-                                value: 'promote',
-                                child: Text(
-                                  tr('il_d470396292'),
-                                  style: const TextStyle(color: Colors.white),
-                                ),
-                              )
-                            else
-                              PopupMenuItem(
-                                value: 'demote',
-                                child: Text(
-                                  tr('il_6d9eea42f3'),
-                                  style: const TextStyle(color: Colors.white),
-                                ),
-                              ),
-                            PopupMenuItem(
-                              value: 'remove',
-                              child: Text(
-                                tr('il_c3812fc4ac'),
-                                style: const TextStyle(color: Colors.redAccent),
-                              ),
-                            ),
-                          ],
-                        ),
+                      ],
                     ],
                   ),
                 ),
-              );
-            },
+                const SizedBox(width: 8),
+                _roleBadge(role),
+                if (rating > 0) ...[
+                  const SizedBox(width: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.star_rounded,
+                          size: 14, color: FlapColors.gold),
+                      const SizedBox(width: 3),
+                      Text(rating.toStringAsFixed(1),
+                          style: FlapText.sora(
+                              fontSize: 12, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ],
+                if (canManage && !isCaptain)
+                  PopupMenuButton<String>(
+                    color: const Color(0xFF141B14),
+                    icon: const Icon(Icons.more_vert,
+                        size: 18, color: FlapColors.muted),
+                    onSelected: (action) =>
+                        _handleMemberAction(action, team, memberId),
+                    itemBuilder: (_) => [
+                      if (!isVice)
+                        PopupMenuItem(
+                          value: 'promote',
+                          child: Text(tr('il_d470396292'),
+                              style: const TextStyle(color: Colors.white)),
+                        )
+                      else
+                        PopupMenuItem(
+                          value: 'demote',
+                          child: Text(tr('il_6d9eea42f3'),
+                              style: const TextStyle(color: Colors.white)),
+                        ),
+                      PopupMenuItem(
+                        value: 'remove',
+                        child: Text(tr('il_c3812fc4ac'),
+                            style: const TextStyle(color: Colors.redAccent)),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -1388,48 +1447,44 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 9, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(999),
+                            color: FlapColors.blue.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             tr('il_8db1a2e199'),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: FlapText.sora(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: FlapColors.blue),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             req.opponentName,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: FlapText.sora(
+                                fontSize: 15, fontWeight: FontWeight.w700),
                           ),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
+                              horizontal: 9, vertical: 4),
                           decoration: BoxDecoration(
-                            color: _requestStatusColor(req.status).withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color:
-                                  _requestStatusColor(req.status).withOpacity(0.38),
-                            ),
+                            color: _requestStatusColor(req.status)
+                                .withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             _requestStatusLabel(req.status),
-                            style: TextStyle(
-                              color: _requestStatusColor(req.status),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: FlapText.sora(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: _requestStatusColor(req.status)),
                           ),
                         ),
                       ],
@@ -1439,13 +1494,15 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          tr('il_ea317e322b', args: ['${req.proposedRoster.length}']),
-                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          tr('il_ea317e322b',
+                              args: ['${req.proposedRoster.length}']),
+                          style: FlapText.sora(
+                              fontSize: 12, color: FlapColors.muted),
                         ),
                         Text(
-                          DateFormat('d MMM, HH:mm')
-                              .format(req.createdAt),
-                          style: const TextStyle(color: Colors.white30, fontSize: 11),
+                          DateFormat('d MMM, HH:mm').format(req.createdAt),
+                          style: FlapText.sora(
+                              fontSize: 11, color: FlapColors.muted2),
                         ),
                       ],
                     ),
@@ -1459,24 +1516,40 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                               onPressed: () =>
                                   _respondToMatchRequest(req, accepted: false),
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white70,
-                                side: BorderSide(color: Colors.white.withOpacity(0.3)),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                foregroundColor: FlapColors.text,
+                                side: const BorderSide(
+                                    color: FlapColors.borderStrong),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                              child: Text(tr('cancel')),
+                              child: Text(tr('cancel'),
+                                  style: FlapText.sora(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700)),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: ElevatedButton(
                               onPressed: () =>
                                   _respondToMatchRequest(req, accepted: true),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4caf50),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                backgroundColor: FlapColors.green,
+                                foregroundColor: FlapColors.onGreen,
+                                elevation: 0,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                              child: Text(tr('il_89713b9c9c')),
+                              child: Text(tr('il_89713b9c9c'),
+                                  style: FlapText.sora(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700)),
                             ),
                           ),
                         ],
@@ -1489,7 +1562,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                             : req.status == TeamMatchRequestStatus.declined
                                 ? tr('match_invite_status_declined')
                                 : tr('team_match_outgoing_pending'),
-                        style: const TextStyle(color: Colors.white54, fontSize: 13),
+                        style:
+                            FlapText.sora(fontSize: 13, color: FlapColors.muted),
                       ),
                     ],
                   ],

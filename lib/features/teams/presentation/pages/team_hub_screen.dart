@@ -80,6 +80,10 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
       body: StreamBuilder<List<AppTeam>>(
         stream: _teamsLeaderboardStream,
         builder: (context, teamSnapshot) {
+          if (teamSnapshot.connectionState == ConnectionState.waiting &&
+              teamSnapshot.data == null) {
+            return _buildHubSkeleton();
+          }
           final teams = teamSnapshot.data ?? const [];
           return StreamBuilder<Map<String, TeamStats>>(
             stream: _teamStatsIndexStream,
@@ -152,6 +156,88 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         _myTeamsStreamEpoch++;
       });
     }
+  }
+
+  // Shimmer placeholder shown while the hub streams load (no spinner).
+  Widget _buildHubSkeleton() {
+    Widget bar(double h, {double? w, double r = 8}) =>
+        FlapSkeletonBox(width: w, height: h, radius: r);
+    return FlapShimmer(
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // leader hero
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: FlapColors.card,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: FlapColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    bar(54, w: 54, r: 16),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          bar(20, w: 150, r: 6),
+                          const SizedBox(height: 8),
+                          bar(12, w: 90, r: 6),
+                        ],
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 18),
+                  Row(children: [
+                    Expanded(child: bar(54, r: 14)),
+                    const SizedBox(width: 10),
+                    Expanded(child: bar(54, r: 14)),
+                  ]),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(child: bar(54, r: 14)),
+                    const SizedBox(width: 10),
+                    Expanded(child: bar(54, r: 14)),
+                  ]),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            // my clubs
+            bar(16, w: 110, r: 6),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 128,
+              child: Row(children: [
+                bar(128, w: 168, r: 18),
+                const SizedBox(width: 12),
+                bar(128, w: 140, r: 18),
+              ]),
+            ),
+            const SizedBox(height: 24),
+            // league table
+            bar(16, w: 130, r: 6),
+            const SizedBox(height: 12),
+            bar(280, r: 16),
+            const SizedBox(height: 24),
+            // golden boot
+            bar(16, w: 120, r: 6),
+            const SizedBox(height: 12),
+            for (var i = 0; i < 4; i++) ...[
+              bar(52, r: 12),
+              const SizedBox(height: 9),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildHero(_TeamWithStats? leader) {
