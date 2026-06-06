@@ -76,6 +76,16 @@ class _TeamInviteSearchScreenState extends State<TeamInviteSearchScreen> {
         title: Text(tr('il_7ec0bce7a1')),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF13241B), Color(0xFF070A08)],
+            ),
+          ),
+        ),
       ),
       body: Column(
         children: [

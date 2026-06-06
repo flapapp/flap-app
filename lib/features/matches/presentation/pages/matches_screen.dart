@@ -2501,7 +2501,12 @@ class _MatchesScreenState extends State<MatchesScreen>
         color: Colors.transparent,
         child: InkWell(
           // Tap anywhere on the card (except the inner buttons) → details.
-          onTap: () => context.router.push(MatchDetailsRoute(match: match)),
+          // Refresh on return so a request made in details shows as "Requested".
+          onTap: () async {
+            await context.router.push(MatchDetailsRoute(match: match));
+            if (!mounted) return;
+            _refreshMatchLists();
+          },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

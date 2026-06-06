@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/core/supabase/supabase_date.dart';
 
 import '../../../../router/app_router.dart';
+import '../../../../theme/flap_tokens.dart';
 import '../../../../core/di/injection.dart';
 import '../../application/match_management_actions_use_case.dart';
 import '../../domain/repositories/matches_repository.dart';
@@ -70,10 +71,10 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   Match? _latestMatch;
   int _teamCount = 2;
   final List<Color> _teamColors = [
-    const Color(0xFF1976D2),
+    const Color(0xFF5C97E0),
     const Color(0xFF8E24AA),
-    const Color(0xFF43A047),
-    const Color(0xFFFF7043),
+    const Color(0xFF4CAF50),
+    const Color(0xFFE0A94C),
   ];
   List<List<String>> _editingTeams = [[], []];
 
@@ -256,7 +257,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF1a1a1a),
+      backgroundColor: Color(0xFF070A08),
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -317,14 +318,14 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF070A08), Color(0xFF0B0F0C)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF13241B), FlapColors.bg],
             ),
           ),
         ),
         bottom: PreferredSize(
-          preferredSize: Size.fromHeight(48),
+          preferredSize: Size.fromHeight(62),
           child: StreamBuilder<Match?>(
             stream: _liveMatchStream(),
             builder: (context, snap) {
@@ -378,12 +379,39 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                 tabs.add(Tab(text: tr('invitations')));
               }
 
-              return TabBar(
-                controller: _tabController,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white70,
-                indicatorColor: Colors.white,
-                tabs: tabs,
+              return Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0x0AFFFFFF),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: FlapColors.border),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  dividerColor: Colors.transparent,
+                  labelColor: FlapColors.text,
+                  unselectedLabelColor: FlapColors.muted,
+                  labelStyle:
+                      FlapText.sora(fontSize: 13.5, fontWeight: FontWeight.w600),
+                  unselectedLabelStyle:
+                      FlapText.sora(fontSize: 13.5, fontWeight: FontWeight.w600),
+                  indicator: BoxDecoration(
+                    color: const Color(0x1AFFFFFF),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicatorPadding: EdgeInsets.zero,
+                  splashBorderRadius: BorderRadius.circular(10),
+                  tabs: tabs,
+                ),
               );
             },
           ),
@@ -514,9 +542,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
             return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.03),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.08)),
+                color: const Color(0x0BFFFFFF),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: FlapColors.border),
               ),
               child: Row(
                 children: [
@@ -584,34 +612,33 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
 
   Widget _buildInviteStatusChip(String status) {
     final normalized = status.trim().toLowerCase();
-    Color bg = Colors.white24;
+    Color accent = FlapColors.muted;
     String label = normalized;
     if (normalized == 'pending') {
-      bg = Colors.orange;
+      accent = FlapColors.gold;
       label = tr('match_invite_status_pending');
     } else if (normalized == 'accepted') {
-      bg = const Color(0xFF4caf50);
+      accent = FlapColors.greenBright;
       label = tr('match_invite_status_accepted');
     } else if (normalized == 'declined') {
-      bg = Colors.redAccent;
+      accent = FlapColors.red;
       label = tr('match_invite_status_declined');
     } else if (normalized == 'cancelled') {
-      bg = Colors.grey;
+      accent = FlapColors.muted;
       label = tr('match_invite_status_cancelled');
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: bg.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: bg.withOpacity(0.45)),
+        color: accent.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(9),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: Colors.white,
+        style: FlapText.sora(
           fontSize: 11,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
+          color: accent,
         ),
       ),
     );
@@ -1156,7 +1183,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         if (m.isInProgress) {
           primaryIcon = Icons.flag;
           primaryLabel = tr('finish_match');
-          primaryColor = const Color(0xFFFFA000);
+          primaryColor = const Color(0xFFE0A94C);
           primaryAction = totalTeams > 2
               ? () {
                   setState(() {
@@ -1221,7 +1248,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                         style: const TextStyle(color: Colors.white),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE53935),
+                        backgroundColor: const Color(0xFFE06464),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
@@ -1554,7 +1581,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                         decoration: BoxDecoration(
                           color: bothConfirmed
                               ? const Color(0xFF4caf50)
-                              : const Color(0xFFFFC107),
+                              : const Color(0xFFE7C25A),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
@@ -1586,21 +1613,21 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                     status: statusB,
                     roster: rosterB,
                     rosterStatuses: rosterStatusesB,
-                    accent: const Color(0xFF42a5f5),
+                    accent: const Color(0xFF5C97E0),
                   ),
                   if (m.teamsReadyNotified && isOrganizer) ...[
                     const SizedBox(height: 12),
                     _infoPill(
                       icon: Icons.check_circle,
                       text: tr('il_6ed73f6fcc'),
-                      color: const Color(0xFF81C784),
+                      color: const Color(0xFF66D16C),
                     ),
                   ] else if (!bothConfirmed && isOrganizer) ...[
                     const SizedBox(height: 12),
                     _infoPill(
                       icon: Icons.info_outline,
                       text: tr('il_c7df816a19'),
-                      color: const Color(0xFFFFC107),
+                      color: const Color(0xFFE7C25A),
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -1736,13 +1763,13 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                 const SizedBox(width: 8),
                 _statusCounter(
                   icon: Icons.timelapse,
-                  color: const Color(0xFFFFC107),
+                  color: const Color(0xFFE7C25A),
                   value: max(pending, 0),
                 ),
                 const SizedBox(width: 8),
                 _statusCounter(
                   icon: Icons.cancel,
-                  color: const Color(0xFFE53935),
+                  color: const Color(0xFFE06464),
                   value: max(declined, 0),
                 ),
               ],
@@ -1840,9 +1867,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
       case 'accepted':
         return const Color(0xFF4caf50);
       case 'declined':
-        return const Color(0xFFE53935);
+        return const Color(0xFFE06464);
       default:
-        return const Color(0xFFFFC107);
+        return const Color(0xFFE7C25A);
     }
   }
 
@@ -2198,7 +2225,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F1A2B),
+      backgroundColor: const Color(0xFF0E1310),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -2729,7 +2756,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                 }
                               : _showFinishMatchDialog),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFf44336),
+                      backgroundColor: const Color(0xFFE06464),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -2812,12 +2839,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   // Application card
   Widget _buildApplicationCard(String userId) {
     return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        color: FlapColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: FlapColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2874,7 +2901,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                             children: [
                               const Icon(
                                 Icons.star,
-                                color: Color(0xFFFFD54F),
+                                color: Color(0xFFE7C25A),
                                 size: 16,
                               ),
                               const SizedBox(width: 4),
@@ -2922,16 +2949,21 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                           setState(() => _busyUserIds.remove(userId));
                         },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF4caf50),
-                    padding: EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: FlapColors.green,
+                    foregroundColor: FlapColors.onGreen,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: Text(
                     _busyUserIds.contains(userId)
                         ? tr('il_a168fd64e9')
                         : tr('accept'),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                    style: const TextStyle(
+                      color: FlapColors.onGreen,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -2952,16 +2984,22 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                           setState(() => _busyUserIds.remove(userId));
                         },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    padding: EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: const Color(0x1FE06464),
+                    foregroundColor: FlapColors.red,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: Color(0x3DE06464)),
+                    ),
                   ),
                   child: Text(
                     _busyUserIds.contains(userId)
                         ? tr('il_09868524d9')
                         : tr('reject'),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                    style: const TextStyle(
+                      color: FlapColors.red,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -3114,7 +3152,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
           const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.bolt, color: Color(0xFFFFD54F), size: 20),
+              const Icon(Icons.bolt, color: Color(0xFFE7C25A), size: 20),
               const SizedBox(width: 6),
               Text(
                 total.toStringAsFixed(1),
@@ -3268,7 +3306,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                     ),
                   ),
                   const Spacer(),
-                  const Icon(Icons.bolt, color: Color(0xFFFFD54F), size: 16),
+                  const Icon(Icons.bolt, color: Color(0xFFE7C25A), size: 16),
                   const SizedBox(width: 4),
                   Text(
                     total.toStringAsFixed(1),
@@ -3369,7 +3407,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF101018),
+                              color: const Color(0xFF0E1310),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(color: Colors.white24),
                             ),

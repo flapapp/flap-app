@@ -182,6 +182,16 @@ class _MatchInviteSearchScreenState extends State<MatchInviteSearchScreen> {
         title: Text(tr('il_146ee72e30')),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF13241B), Color(0xFF070A08)],
+            ),
+          ),
+        ),
       ),
       body: Column(
         children: [

@@ -54,12 +54,39 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
   final NotificationService _notificationService = sl<NotificationService>();
   bool _isJoining = false;
+  bool _joinRequested = false;
   bool _isRespondingInvite = false;
   bool _isRespondingTeamInvite = false;
   String? _inviteStatusOverride;
   bool _acceptedInviteLocally = false;
   bool _isUploadingCover = false;
+  // The current viewer's direct match-invite status ('pending'/'declined'/'').
+  // Loaded once so the join affordances and dock can decide synchronously.
+  String _myInviteStatus = '';
   final ImagePicker _imagePicker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMyInviteStatus();
+  }
+
+  Future<void> _loadMyInviteStatus() async {
+    final uid = AppAuth.currentUserId;
+    if (uid == null) return;
+    try {
+      final row = await _sb
+          .from('match_invites')
+          .select('status')
+          .eq('match_id', widget.match.id)
+          .eq('user_id', uid)
+          .maybeSingle();
+      final status = (row?['status'] ?? '').toString();
+      if (mounted && status.isNotEmpty) {
+        setState(() => _myInviteStatus = status);
+      }
+    } catch (_) {}
+  }
 
   // Profile cache to avoid duplicate fetches
   final Map<String, Map<String, dynamic>> _profileCache = {};
@@ -136,6 +163,25 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           ),
         ),
         actions: [
+          if (AppAuth.currentUserId == widget.match.organizerId)
+            _detailAppBarIcon(
+              Icons.settings_outlined,
+              () => context.router
+                  .push(MatchManagementRoute(match: widget.match)),
+              tooltip: tr('manage'),
+            ),
+          if (_canJoin)
+            _appBarJoinPill(
+              icon: Icons.person_add_outlined,
+              label: tr('join'),
+              onPressed: _isJoining ? null : _joinMatch,
+            )
+          else if (_hasRequestedJoin)
+            _appBarJoinPill(
+              icon: Icons.mark_email_read_outlined,
+              label: tr('match_feed_join_requested'),
+              onPressed: null,
+            ),
           _detailAppBarIcon(
             Icons.ios_share,
             () => _shareMatch(),
@@ -209,6 +255,14 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
   // Sticky bottom action dock (design `.dock`).
   Widget _buildActionDock() {
+    // Joinable viewers act via the app-bar join button + open-spot slots;
+    // requested viewers see the "Requested" badge in the app bar. Either way
+    // there's no bottom Join / Share / message.
+    if (_canJoin || _hasRequestedJoin) return const SizedBox.shrink();
+    final action = _buildActionButtons();
+    // No dock when there's no bottom action (e.g. organizers, who manage and
+    // share from the app bar).
+    if (action is SizedBox) return const SizedBox.shrink();
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -225,7 +279,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         // bar otherwise hands the action column a full-screen height budget).
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [_buildActionButtons()],
+          children: [action],
         ),
       ),
     );
@@ -336,6 +390,40 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           Text(text,
               style: FlapText.sora(fontSize: 11, fontWeight: FontWeight.w700)),
         ],
+      ),
+    );
+  }
+
+  // App-bar Join / Requested pill — matches the Matches-card secondary action.
+  Widget _appBarJoinPill({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: OutlinedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 16),
+          label: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: FlapColors.text,
+            disabledForegroundColor: FlapColors.muted,
+            side: const BorderSide(color: FlapColors.borderStrong),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+            minimumSize: const Size(0, 34),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -2148,6 +2236,36 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
+  /// Whether the current viewer can join this match as an individual.
+  bool get _canJoin {
+    final user = AppAuth.currentUser;
+    if (user == null) return false;
+    final m = widget.match;
+    if (m.organizerId == user.id) return false;
+    if (m.isTeamMatch) return false;
+    if (m.status != MatchStatus.open) return false;
+    if (m.isUnplayedByTimeout) return false;
+    // Direct invitees respond via the dock (accept/decline), not "join".
+    if (_myInviteStatus == 'pending' || _myInviteStatus == 'declined') {
+      return false;
+    }
+    if (_effectiveParticipants.length >= m.maxPlayers) return false;
+    if (_effectiveParticipants.contains(user.id)) return false;
+    if (_joinRequested || m.hasPendingApplication(user.id)) return false;
+    if (m.isPrivate && !m.invitedFriends.contains(user.id)) return false;
+    return true;
+  }
+
+  /// Whether the viewer has a pending join request (shows a "Requested" badge).
+  bool get _hasRequestedJoin {
+    final user = AppAuth.currentUser;
+    if (user == null) return false;
+    final m = widget.match;
+    if (m.organizerId == user.id) return false;
+    if (_effectiveParticipants.contains(user.id)) return false;
+    return _joinRequested || m.hasPendingApplication(user.id);
+  }
+
   Widget _buildParticipantsSection() {
     final filled = _effectiveParticipants.length;
     final cap = widget.match.maxPlayers;
@@ -2227,7 +2345,15 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   for (final id in _effectiveParticipants)
                     SizedBox(width: tileW, child: _buildRosterTile(id)),
                   for (int i = 0; i < openSlots; i++)
-                    SizedBox(width: tileW, child: _buildOpenSlot()),
+                    SizedBox(
+                      width: tileW,
+                      // Only the first open spot acts as the join button.
+                      child: _buildOpenSlot(
+                        onJoin: (i == 0 && _canJoin && !_isJoining)
+                            ? _joinMatch
+                            : null,
+                      ),
+                    ),
                 ],
               );
             },
@@ -2326,55 +2452,63 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
-  Widget _buildOpenSlot() {
-    return Opacity(
-      opacity: 0.7,
-      child: Container(
-        padding: const EdgeInsets.all(11),
-        decoration: BoxDecoration(
-          color: const Color(0x05FFFFFF),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: FlapColors.border),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0x0DFFFFFF),
-              ),
-              child: const Icon(Icons.add, size: 18, color: FlapColors.muted),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    tr('match_open_spot'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: FlapText.sora(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: FlapColors.muted),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    tr('match_waiting'),
-                    style:
-                        FlapText.sora(fontSize: 11, color: FlapColors.muted2),
-                  ),
-                ],
-              ),
-            ),
-          ],
+  Widget _buildOpenSlot({VoidCallback? onJoin}) {
+    final joinable = onJoin != null;
+    final slot = Container(
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: joinable ? const Color(0x144CAF50) : const Color(0x05FFFFFF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: joinable ? const Color(0x4D4CAF50) : FlapColors.border,
         ),
       ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: joinable ? const Color(0x294CAF50) : const Color(0x0DFFFFFF),
+            ),
+            child: Icon(Icons.add,
+                size: 18,
+                color: joinable ? FlapColors.greenBright : FlapColors.muted),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  joinable ? tr('join') : tr('match_open_spot'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: FlapText.sora(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: joinable ? FlapColors.greenBright : FlapColors.muted,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  joinable ? tr('match_open_spot') : tr('match_waiting'),
+                  style: FlapText.sora(fontSize: 11, color: FlapColors.muted2),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!joinable) return Opacity(opacity: 0.7, child: slot);
+    return GestureDetector(
+      onTap: onJoin,
+      behavior: HitTestBehavior.opaque,
+      child: slot,
     );
   }
 
@@ -2667,14 +2801,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         widget.match.status != MatchStatus.finished &&
         widget.match.status != MatchStatus.cancelled &&
         !widget.match.isUnplayedByTimeout) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildManageMatchButton(),
-          const SizedBox(height: 12),
-          _buildShareButton(expand: false),
-        ],
-      );
+      // Manage + share now live in the app bar (gear + share); no bottom dock.
+      return const SizedBox.shrink();
     }
 
     if (isFull && !isParticipant) {
@@ -2966,51 +3094,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             ],
           );
         }
-        return Container(
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-            ),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF4caf50).withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _isJoining ? null : _joinMatch,
-              borderRadius: BorderRadius.circular(12),
-              child: Center(
-                child: _isJoining
-                    ? const CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.add, color: Colors.white, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            tr('join'),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-            ),
-          ),
-        );
+        // Join now lives on the open-spot slots + the app-bar join icon.
+        return const SizedBox.shrink();
       },
     );
   }
@@ -3254,6 +3339,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     }
   }
 
+  // Manage now lives in the app-bar gear (kept for reference).
+  // ignore: unused_element
   Widget _buildManageMatchButton() {
     return SizedBox(
       height: 50,
@@ -3301,13 +3388,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       if (!mounted) return;
 
       if (success) {
+        setState(() => _joinRequested = true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr('applied_wait')),
             backgroundColor: const Color(0xFF4caf50),
           ),
         );
-        Navigator.pop(context);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
