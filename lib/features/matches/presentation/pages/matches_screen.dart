@@ -16,6 +16,7 @@ import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/user_chip.dart';
+import '../../../../widgets/team_crest.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../ratings/presentation/utils/rating_snapshot_source_label.dart';
 import '../../../ratings/presentation/widgets/rating_history_snapshot_card.dart';
@@ -2670,30 +2671,59 @@ class _MatchesScreenState extends State<MatchesScreen>
       ),
       child: Row(
         children: [
-          _avatarStack(match.participants),
-          const SizedBox(width: 10),
-          Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: '$filled',
-                  style: FlapText.sora(
-                      fontSize: 12, fontWeight: FontWeight.w700),
-                ),
-                TextSpan(
-                  text: '/$cap ${tr('players')}',
-                  style: FlapText.sora(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: FlapColors.muted),
-                ),
-              ],
+          if (match.isTeamMatch) ...[
+            // Team matches show the matchup as crests, not a participant count.
+            _teamLogo(
+                match.teamAId, match.teamA?.name ?? tr('il_e18d322f14')),
+            const SizedBox(width: 8),
+            Text(
+              tr('match_vs'),
+              style: FlapText.sora(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: FlapColors.muted),
             ),
-          ),
-          const Spacer(),
+            const SizedBox(width: 8),
+            _teamLogo(
+                match.teamBId, match.teamB?.name ?? tr('il_aceaf5d9ac')),
+            const Spacer(),
+          ] else ...[
+            _avatarStack(match.participants),
+            const SizedBox(width: 10),
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '$filled',
+                    style: FlapText.sora(
+                        fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  TextSpan(
+                    text: '/$cap ${tr('players')}',
+                    style: FlapText.sora(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: FlapColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+          ],
+          const SizedBox(width: 10),
           _eligibilityTag(match, filled, cap),
         ],
       ),
+    );
+  }
+
+  Widget _teamLogo(String? teamId, String name) {
+    return TeamCrest(
+      teamId: teamId,
+      teamName: name,
+      size: 28,
+      circular: false,
+      borderRadius: 8,
     );
   }
 

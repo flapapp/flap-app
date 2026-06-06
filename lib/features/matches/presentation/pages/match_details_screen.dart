@@ -21,6 +21,7 @@ import '../utils/match_status_ui.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/team_logo_button.dart';
+import '../../../../widgets/team_crest.dart';
 import '../../../../widgets/user_chip.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/city_localization.dart';
@@ -710,41 +711,35 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         match.teamAScore != null && match.teamBScore != null;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF283046), Color(0xFF1F2435)],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: FlapColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: FlapColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.sports_soccer, color: Colors.white70),
-              const SizedBox(width: 8),
-              Text(
-                tr('il_4f76cec7a7'),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  tr('il_4f76cec7a7'),
+                  style:
+                      FlapText.sora(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
-              const Spacer(),
               _buildTeamStatusChip(),
             ],
+          ),
+          const SizedBox(height: 14),
+          _buildVsBlock(
+            teamAName: teamAName,
+            teamBName: teamBName,
+            teamAId: match.teamAId,
+            teamBId: match.teamBId,
+            rosterA: rosterA,
+            rosterB: rosterB,
           ),
           if (hasScore) ...[
             const SizedBox(height: 12),
@@ -798,6 +793,94 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             const SizedBox(height: 14),
             _buildRosterStatusLegend(),
           ],
+        ],
+      ),
+    );
+  }
+
+  // Design `.vs` block: two team cards facing off with a VS divider.
+  Widget _buildVsBlock({
+    required String teamAName,
+    required String teamBName,
+    required String? teamAId,
+    required String? teamBId,
+    required List<String> rosterA,
+    required List<String> rosterB,
+  }) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _vsTeamCard(
+              name: teamAName,
+              teamId: teamAId,
+              playerIds: rosterA,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('VS',
+                    style: FlapText.cond(fontSize: 20, color: FlapColors.muted)),
+                const SizedBox(height: 6),
+                const Icon(Icons.sports_soccer,
+                    size: 20, color: FlapColors.muted),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _vsTeamCard(
+              name: teamBName,
+              teamId: teamBId,
+              playerIds: rosterB,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _vsTeamCard({
+    required String name,
+    required String? teamId,
+    required List<String> playerIds,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0x0BFFFFFF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: FlapColors.border),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          TeamCrest(
+            teamId: teamId,
+            teamName: name,
+            size: 46,
+            circular: false,
+            borderRadius: 14,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            name.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: FlapText.cond(fontSize: 18),
+          ),
+          const SizedBox(height: 6),
+          if (playerIds.isNotEmpty)
+            TeamRosterTotalRatingBadge(
+              playerIds: playerIds,
+              accent: FlapColors.gold,
+              iconSize: 13,
+              fontSize: 13,
+            ),
         ],
       ),
     );
