@@ -2092,5 +2092,14 @@
   "video_filters_reset": "Reset",
   "video_filter_city": "City",
   "video_filter_rating": "Minimum rating",
-  "video_filter_sort": "Sort by"
+  "video_filter_sort": "Sort by",
+  "video_upload_sub": "New video · ≤10s · ≤25MB",
+  "video_upload_clip": "Upload clip",
+  "video_upload_box_title": "Add your clip",
+  "video_upload_box_hint": "Tap to record or choose",
+  "video_trim_label": "Trim to 10s",
+  "video_trim_end": "0:10 max",
+  "video_field_title": "Title",
+  "video_upload_title_hint": "Describe your skill…",
+  "video_publish": "Publish video"
 }

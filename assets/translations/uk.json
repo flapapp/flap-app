@@ -2092,5 +2092,14 @@
   "video_filters_reset": "Скинути",
   "video_filter_city": "Місто",
   "video_filter_rating": "Мінімальний рейтинг",
-  "video_filter_sort": "Сортувати за"
+  "video_filter_sort": "Сортувати за",
+  "video_upload_sub": "Нове відео · ≤10с · ≤25МБ",
+  "video_upload_clip": "Завантажити кліп",
+  "video_upload_box_title": "Додайте кліп",
+  "video_upload_box_hint": "Торкніться, щоб зняти або обрати",
+  "video_trim_label": "Обрізати до 10с",
+  "video_trim_end": "0:10 макс",
+  "video_field_title": "Назва",
+  "video_upload_title_hint": "Опишіть свій трюк…",
+  "video_publish": "Опублікувати відео"
 }
