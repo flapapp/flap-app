@@ -3,19 +3,24 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/admin/data/repositories/admin_repository_impl.dart';
 import '../../features/admin/domain/repositories/admin_repository.dart';
+import '../../features/auth/data/datasources/account_remote_datasource.dart';
+import '../../features/auth/data/datasources/account_remote_datasource_impl.dart';
 import '../../features/auth/data/datasources/auth_session_remote_datasource.dart';
 import '../../features/auth/data/datasources/auth_session_remote_datasource_impl.dart';
 import '../../features/auth/data/datasources/intro_local_datasource.dart';
 import '../../features/auth/data/datasources/intro_local_datasource_impl.dart';
+import '../../features/auth/data/repositories/account_repository_impl.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/data/repositories/auth_session_repository_impl.dart';
 import '../../features/auth/data/repositories/intro_settings_repository_impl.dart';
 import '../../features/auth/data/integrations/post_login_actions_impl.dart';
 import '../../features/auth/domain/contracts/post_login_actions.dart';
+import '../../features/auth/domain/repositories/account_repository.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/auth/domain/repositories/auth_session_repository.dart';
 import '../../features/auth/domain/repositories/intro_settings_repository.dart';
 import '../../features/auth/domain/usecases/check_intro_completed_usecase.dart';
+import '../../features/auth/domain/usecases/delete_account_usecase.dart';
 import '../../features/auth/domain/usecases/mark_intro_completed_usecase.dart';
 import '../../features/auth/domain/usecases/register_new_user_usecase.dart';
 import '../../features/auth/domain/usecases/resolve_startup_navigation_usecase.dart';
@@ -122,6 +127,15 @@ Future<void> configureDependencies() async {
     )
     ..registerLazySingleton<AuthSessionRepository>(
       () => AuthSessionRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<AccountRemoteDataSource>(
+      AccountRemoteDataSourceImpl.new,
+    )
+    ..registerLazySingleton<AccountRepository>(
+      () => AccountRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton(
+      () => DeleteAccountUseCase(sl(), sl()),
     )
     ..registerLazySingleton<IntroSettingsRepository>(
       () => IntroSettingsRepositoryImpl(sl()),

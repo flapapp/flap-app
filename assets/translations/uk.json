@@ -2070,5 +2070,19 @@
   "stats_your_stats": "Твоя статистика",
   "stats_this_season": "Цей сезон",
   "stats_last_n_matches": "Останні {count} матчів",
-  "stats_no_matches": "Поки немає завершених матчів"
+  "stats_no_matches": "Поки немає завершених матчів",
+  "settings_preferences": "Параметри",
+  "settings_account": "Акаунт",
+  "settings_danger_zone": "Небезпечна зона",
+  "settings_saved": "Збережено",
+  "settings_logout_sub": "Вийти з цього пристрою",
+  "settings_delete_account": "Видалити акаунт",
+  "settings_delete_sub": "Назавжди видалити ваші дані",
+  "settings_delete_title": "Видалити акаунт?",
+  "settings_delete_body": "Це назавжди видалить ваш профіль, рейтинг, відео та клуби. Цю дію не можна скасувати.",
+  "settings_delete_requested": "Запит на видалення акаунта надіслано",
+  "settings_version": "Flap v1.0.0 · Відчуй себе профі",
+  "logout_confirm_body": "Ви завжди зможете увійти знову за своєю поштою.",
+  "settings_delete_failed": "Не вдалося видалити акаунт. Спробуйте ще раз.",
+  "auth_error_with_detail": "Помилка входу: {detail}"
 }

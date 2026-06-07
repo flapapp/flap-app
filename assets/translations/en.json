@@ -2070,5 +2070,19 @@
   "stats_your_stats": "Your stats",
   "stats_this_season": "This season",
   "stats_last_n_matches": "Last {count} matches",
-  "stats_no_matches": "No finished matches yet"
+  "stats_no_matches": "No finished matches yet",
+  "settings_preferences": "Preferences",
+  "settings_account": "Account",
+  "settings_danger_zone": "Danger zone",
+  "settings_saved": "Saved",
+  "settings_logout_sub": "Sign out of this device",
+  "settings_delete_account": "Delete account",
+  "settings_delete_sub": "Permanently remove your data",
+  "settings_delete_title": "Delete account?",
+  "settings_delete_body": "This permanently removes your profile, rating, videos and clubs. This can't be undone.",
+  "settings_delete_requested": "Account deletion requested",
+  "settings_version": "Flap v1.0.0 · Feel like a pro",
+  "logout_confirm_body": "You can always sign back in with your email.",
+  "settings_delete_failed": "Couldn't delete account. Please try again.",
+  "auth_error_with_detail": "Sign-in failed: {detail}"
 }
