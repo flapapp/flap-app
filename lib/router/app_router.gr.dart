@@ -1033,6 +1033,8 @@ class VideoPlayerRoute extends PageRouteInfo<VideoPlayerRouteArgs> {
     String? challengeId,
     String? submissionUserId,
     bool autoOpenRating = false,
+    List<Map<String, dynamic>>? playlist,
+    int initialIndex = 0,
     List<PageRouteInfo>? children,
   }) : super(
           VideoPlayerRoute.name,
@@ -1045,6 +1047,8 @@ class VideoPlayerRoute extends PageRouteInfo<VideoPlayerRouteArgs> {
             challengeId: challengeId,
             submissionUserId: submissionUserId,
             autoOpenRating: autoOpenRating,
+            playlist: playlist,
+            initialIndex: initialIndex,
           ),
           initialChildren: children,
         );
@@ -1064,6 +1068,8 @@ class VideoPlayerRoute extends PageRouteInfo<VideoPlayerRouteArgs> {
         challengeId: args.challengeId,
         submissionUserId: args.submissionUserId,
         autoOpenRating: args.autoOpenRating,
+        playlist: args.playlist,
+        initialIndex: args.initialIndex,
       );
     },
   );
@@ -1079,6 +1085,8 @@ class VideoPlayerRouteArgs {
     this.challengeId,
     this.submissionUserId,
     this.autoOpenRating = false,
+    this.playlist,
+    this.initialIndex = 0,
   });
 
   final Key? key;
@@ -1097,9 +1105,13 @@ class VideoPlayerRouteArgs {
 
   final bool autoOpenRating;
 
+  final List<Map<String, dynamic>>? playlist;
+
+  final int initialIndex;
+
   @override
   String toString() {
-    return 'VideoPlayerRouteArgs{key: $key, videoUrl: $videoUrl, title: $title, authorName: $authorName, videoId: $videoId, challengeId: $challengeId, submissionUserId: $submissionUserId, autoOpenRating: $autoOpenRating}';
+    return 'VideoPlayerRouteArgs{key: $key, videoUrl: $videoUrl, title: $title, authorName: $authorName, videoId: $videoId, challengeId: $challengeId, submissionUserId: $submissionUserId, autoOpenRating: $autoOpenRating, playlist: $playlist, initialIndex: $initialIndex}';
   }
 }
 

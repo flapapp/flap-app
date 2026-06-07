@@ -2084,5 +2084,13 @@
   "settings_version": "Flap v1.0.0 · Feel like a pro",
   "logout_confirm_body": "You can always sign back in with your email.",
   "settings_delete_failed": "Couldn't delete account. Please try again.",
-  "auth_error_with_detail": "Sign-in failed: {detail}"
+  "auth_error_with_detail": "Sign-in failed: {detail}",
+  "video_avg": "avg",
+  "video_rate_hint": "Your rating feeds the creator's overall score.",
+  "video_ratings_count": "{count} ratings",
+  "video_filters_title": "Filters",
+  "video_filters_reset": "Reset",
+  "video_filter_city": "City",
+  "video_filter_rating": "Minimum rating",
+  "video_filter_sort": "Sort by"
 }

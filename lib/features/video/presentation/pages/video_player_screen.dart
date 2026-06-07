@@ -9,8 +9,10 @@ import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../profile/data/services/user_settings_service.dart';
-import '../../../../widgets/rating_display.dart';
-import '../../../../widgets/user_chip.dart';
+import '../../../../theme/flap_tokens.dart';
+import '../../../../widgets/flap/flap_kit.dart';
+import '../../../../constants/video_categories.dart';
+import '../../../../core/locale/football_position.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import '../../../../core/supabase/supabase_date.dart';
 
@@ -24,6 +26,12 @@ class VideoPlayerScreen extends StatefulWidget {
   final String? submissionUserId; // Submission author for voting
   final bool autoOpenRating;
 
+  /// Optional feed for TikTok-style vertical paging. Each entry should carry
+  /// at least `id`, `videoUrl`, `title` and an author-name field. When omitted
+  /// (or single-item), the screen shows just the one video.
+  final List<Map<String, dynamic>>? playlist;
+  final int initialIndex;
+
   const VideoPlayerScreen({
     Key? key,
     required this.videoUrl,
@@ -33,13 +41,111 @@ class VideoPlayerScreen extends StatefulWidget {
     this.challengeId,
     this.submissionUserId,
     this.autoOpenRating = false,
+    this.playlist,
+    this.initialIndex = 0,
   }) : super(key: key);
 
   @override
-  _VideoPlayerScreenState createState() => _VideoPlayerScreenState();
+  State<VideoPlayerScreen> createState() => _VideoPlayerScreenState();
 }
 
 class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
+  late final PageController _pageController;
+  late int _currentIndex;
+
+  bool get _hasPlaylist =>
+      widget.playlist != null && widget.playlist!.length > 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = _hasPlaylist
+        ? widget.initialIndex.clamp(0, widget.playlist!.length - 1)
+        : 0;
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  String _str(Map<String, dynamic> v, List<String> keys) {
+    for (final k in keys) {
+      final val = v[k];
+      if (val != null && val.toString().isNotEmpty) return val.toString();
+    }
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_hasPlaylist) {
+      return _VideoPage(
+        videoUrl: widget.videoUrl,
+        title: widget.title,
+        authorName: widget.authorName,
+        videoId: widget.videoId,
+        challengeId: widget.challengeId,
+        submissionUserId: widget.submissionUserId,
+        autoOpenRating: widget.autoOpenRating,
+        isActive: true,
+      );
+    }
+    final items = widget.playlist!;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        itemCount: items.length,
+        onPageChanged: (i) => setState(() => _currentIndex = i),
+        itemBuilder: (context, i) {
+          final v = items[i];
+          final id = _str(v, ['id']);
+          return _VideoPage(
+            key: ValueKey(id.isNotEmpty ? id : 'page-$i'),
+            videoId: id,
+            videoUrl: _str(v, ['videoUrl']),
+            title: _str(v, ['title']),
+            authorName: _str(v, ['authorName', 'displayName', 'userName']),
+            autoOpenRating: false,
+            isActive: i == _currentIndex,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _VideoPage extends StatefulWidget {
+  final String videoUrl;
+  final String title;
+  final String authorName;
+  final String videoId;
+  final String? challengeId;
+  final String? submissionUserId;
+  final bool autoOpenRating;
+  final bool isActive;
+
+  const _VideoPage({
+    Key? key,
+    required this.videoUrl,
+    required this.title,
+    required this.authorName,
+    required this.videoId,
+    this.challengeId,
+    this.submissionUserId,
+    this.autoOpenRating = false,
+    this.isActive = true,
+  }) : super(key: key);
+
+  @override
+  State<_VideoPage> createState() => _VideoPageState();
+}
+
+class _VideoPageState extends State<_VideoPage> {
   final SupabaseClient _sb = Supabase.instance.client;
   late VideoPlayerController _videoPlayerController;
   ChewieController? _chewieController;
@@ -63,11 +169,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   String? _videoAuthorId;
   String? _videoAuthorName;
   String? _videoAuthorAvatar;
+  String? _authorPosition;
+  String _videoCategory = '';
   bool get _isChallengeSubmission => widget.challengeId != null && widget.submissionUserId != null;
   double? _videoAverageRating;
   int? _videoVoteCount;
-  /// After voting, show this until next navigation (avoids stale FutureBuilder snapshot).
-  double? _authorRatingOverride;
   bool _pendingRatingPrompt = false;
   bool _autoplayVideos = true;
 
@@ -77,6 +183,20 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _initializePlayer();
     _loadVideoData();
     _pendingRatingPrompt = widget.autoOpenRating;
+  }
+
+  @override
+  void didUpdateWidget(covariant _VideoPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Play only the page the user is currently looking at (TikTok-style).
+    if (widget.isActive != oldWidget.isActive && !_isLoading) {
+      if (widget.isActive) {
+        if (_autoplayVideos) _videoPlayerController.play();
+      } else {
+        _videoPlayerController.pause();
+        _videoPlayerController.seekTo(Duration.zero);
+      }
+    }
   }
 
   Future<void> _loadVideoData() async {
@@ -89,7 +209,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty) {
           final ud = await _sb
               .from('profiles')
-              .select('display_name, avatar_url, email')
+              .select('display_name, avatar_url, email, position')
               .eq('id', _videoAuthorId!)
               .maybeSingle();
           if (ud != null) {
@@ -98,6 +218,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                   ud['email']?.toString().split('@').first ??
                   tr('il_b512d97e7c');
               _videoAuthorAvatar = (ud['avatar_url'] ?? '').toString();
+              _authorPosition = ud['position']?.toString();
             });
           }
         }
@@ -106,7 +227,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         // Load likes/author from videos collection
         final data = await _sb
             .from('videos')
-            .select('user_id')
+            .select('user_id, category')
             .eq('id', widget.videoId)
             .maybeSingle();
         if (data != null) {
@@ -117,11 +238,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           setState(() {
             _likesCount = (likes as List<dynamic>).length;
             _videoAuthorId = data['user_id']?.toString();
+            _videoCategory = (data['category'] ?? '').toString();
           });
           if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty) {
             final ud = await _sb
                 .from('profiles')
-                .select('display_name, avatar_url, email')
+                .select('display_name, avatar_url, email, position')
                 .eq('id', _videoAuthorId!)
                 .maybeSingle();
             if (ud != null) {
@@ -130,6 +252,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     ud['email']?.toString().split('@').first ??
                     tr('il_b512d97e7c');
                 _videoAuthorAvatar = (ud['avatar_url'] ?? '').toString();
+                _authorPosition = ud['position']?.toString();
               });
             }
           }
@@ -296,15 +419,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
       if (success) {
         await _computeVideoAverage();
-        double? refreshedAuthor;
-        if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty) {
-          refreshedAuthor =
-              await sl<RatingsRepository>().getUserRating(_videoAuthorId!);
-        }
         if (!mounted) return;
         setState(() {
           _hasVoted = true;
-          _authorRatingOverride = refreshedAuthor;
         });
 
         // Show vote success feedback
@@ -398,15 +515,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       });
 
       await _computeChallengeSubmissionAverage();
-      double? refreshedAuthor;
-      if (_videoAuthorId != null && _videoAuthorId!.isNotEmpty) {
-        refreshedAuthor =
-            await sl<RatingsRepository>().getUserRating(_videoAuthorId!);
-      }
       if (!mounted) return;
       setState(() {
         _hasVoted = true;
-        _authorRatingOverride = refreshedAuthor;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -490,7 +601,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       );
       
       await _videoPlayerController.initialize();
-      
+      await _videoPlayerController.setLooping(true);
+      // Belt-and-suspenders: some platforms don't honour setLooping reliably,
+      // so also restart manually when playback reaches the end.
+      _videoPlayerController.addListener(_loopWatcher);
+
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController,
         autoPlay: _autoplayVideos,
@@ -543,6 +658,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       setState(() {
         _isLoading = false;
       });
+      // The raw player is rendered directly (not Chewie's widget), so kick off
+      // autoplay manually — but only for the page currently in view.
+      if (widget.isActive && _autoplayVideos) {
+        _videoPlayerController.play();
+      }
     } catch (e) {
       print('Error initializing video player: $e');
       setState(() {
@@ -657,68 +777,120 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
   }
 
+  void _loopWatcher() {
+    final v = _videoPlayerController.value;
+    if (!v.isInitialized || v.duration <= Duration.zero) return;
+    // Reached the end and stopped — rewind and keep playing.
+    if (!v.isPlaying && v.position >= v.duration) {
+      _videoPlayerController.seekTo(Duration.zero);
+      if (widget.isActive) {
+        _videoPlayerController.play();
+      }
+    }
+  }
+
   @override
   void dispose() {
+    _videoPlayerController.removeListener(_loopWatcher);
     _videoPlayerController.dispose();
     _chewieController?.dispose();
     _commentController.dispose();
     super.dispose();
   }
 
-  Widget _buildSliderRow(String label, double value, ValueChanged<double> onChanged, {bool enabled = true}) {
-    final slider = Slider(
-      value: value.clamp(0.0, 5.0),
-      min: 0.0,
-      max: 5.0,
-      divisions: 500, // step ~0.01
-      label: value.toStringAsFixed(2),
-      onChanged: enabled ? onChanged : null,
-      activeColor: const Color(0xFF4caf50),
-      inactiveColor: Colors.white24,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+  Widget _smallStars(double value, ValueChanged<int> onTap) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (i) {
+        final filled = i < value.round();
+        return GestureDetector(
+          onTap: () => onTap(i + 1),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Icon(
+              filled ? Icons.star_rounded : Icons.star_outline_rounded,
+              size: 18,
+              color: filled ? FlapColors.gold : const Color(0x29FFFFFF),
             ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _voteCriterionRow(
+      IconData icon, String label, double value, ValueChanged<int> onPick) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 11),
+      child: Row(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Icon(icon, size: 14, color: FlapColors.greenBright),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        FlapText.sora(fontSize: 12.5, color: FlapColors.muted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 52,
+            child: Container(
+              height: 5,
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white24),
+                color: const Color(0x14FFFFFF),
+                borderRadius: BorderRadius.circular(99),
               ),
-              child: Text(
-                value.toStringAsFixed(2),
-                style: const TextStyle(color: Colors.white, fontFeatures: []),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: (value / 5).clamp(0.0, 1.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [FlapColors.green, FlapColors.greenBright],
+                    ),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
               ),
-            )
-          ],
-        ),
-        SliderTheme(
-          data: const SliderThemeData(thumbShape: RoundSliderThumbShape(enabledThumbRadius: 8)),
-          child: slider,
-        ),
-      ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _smallStars(value, onPick),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leadingWidth: 70,
+          leading: Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: _glassIconButton(Icons.chevron_left, _popBack),
+            ),
           ),
         ),
+        body: _buildPlayerSkeleton(),
       );
     }
 
@@ -749,379 +921,714 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context, {
-            'ratingUpdated': _hasVoted,
-            'videoId': widget.videoId,
-          }),
+        scrolledUnderElevation: 0,
+        leadingWidth: 70,
+        leading: Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: _glassIconButton(Icons.chevron_left, _popBack),
+          ),
         ),
         title: Text(
           widget.title,
-          style: const TextStyle(color: Colors.white),
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: FlapText.sora(
+              fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
         ),
-        actions: [
-          if (_videoAverageRating != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: Row(
-                children: [
-                  const Icon(Icons.star, color: Color(0xFFFFD700)),
-                  const SizedBox(width: 4),
-                  Text(
-                    _videoAverageRating!.toStringAsFixed(2),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-            ),
-        ],
+        titleSpacing: 4,
       ),
       body: _chewieController != null
-          ? SingleChildScrollView(
-              child: Column(
-                children: [
-                  // Video player with fixed aspect ratio
-                  AspectRatio(
-                    aspectRatio: 9 / 16, // Fixed aspect for all videos
-                    child: Chewie(controller: _chewieController!),
-                  ),
-                  
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.75),
-                      border: Border(
-                        top: BorderSide(color: Colors.white.withOpacity(0.08)),
-                        bottom: BorderSide(color: Colors.white.withOpacity(0.08)),
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                // Full-bleed video; tap toggles play/pause.
+                GestureDetector(
+                  onTap: _togglePlayPause,
+                  child: ColoredBox(
+                    color: Colors.black,
+                    child: FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: _videoPlayerController.value.size.width <= 0
+                            ? 9
+                            : _videoPlayerController.value.size.width,
+                        height: _videoPlayerController.value.size.height <= 0
+                            ? 16
+                            : _videoPlayerController.value.size.height,
+                        child: VideoPlayer(_videoPlayerController),
                       ),
                     ),
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
-                      children: [
-                        _buildActionChip(
-                          icon: _isLiked ? Icons.favorite : Icons.favorite_border,
-                          label: '$_likesCount',
-                          color: _isLiked ? Colors.red : Colors.white70,
-                          onTap: _toggleLike,
-                        ),
-                        _buildActionChip(
-                          icon: Icons.comment_outlined,
-                          label: '${_comments.length}',
-                          color: Colors.white70,
-                          onTap: () => _showCommentsBottomSheet(),
-                        ),
-                        if (!_isChallengeSubmission)
-                          _buildActionChip(
-                            icon: Icons.how_to_vote,
-                            label: _hasVoted ? tr('voted') : tr('vote'),
-                            color: _hasVoted ? Colors.green : Colors.white70,
-                            onTap: () => _showVotingBottomSheet(),
-                          ),
-                        _buildActionChip(
-                          icon: Icons.share_outlined,
-                          label: tr('share'),
-                          color: Colors.white70,
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(tr('il_28a4a65f94'))),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
                   ),
+                ),
 
-                  // Content below video
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Title and author
-                        Text(
-                          widget.title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (_videoAuthorId != null)
-                          Row(
-                            children: [
-                              Expanded(
-                                child: UserChip(
-                                  userId: _videoAuthorId!,
-                                  name: _videoAuthorName ?? widget.authorName,
-                                  avatarUrl: _videoAuthorAvatar,
-                                  showName: true,
-                                  onTap: () {
-                                    context.router.push(
-                                      PlayerProfileRoute(
-                                        playerId: _videoAuthorId!,
-                                        playerName: _videoAuthorName ?? widget.authorName,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              CompactRatingDisplay(
-                                userId: _videoAuthorId!,
-                                rating: _authorRatingOverride,
-                                size: 16,
-                              ),
-                            ],
-                          ),
-                      ],
+                // Top + bottom legibility scrims.
+                IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.45),
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.55),
+                        ],
+                        stops: const [0.0, 0.22, 0.62, 1.0],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                ),
+
+                // Center play affordance when paused.
+                ValueListenableBuilder<VideoPlayerValue>(
+                  valueListenable: _videoPlayerController,
+                  builder: (context, value, _) {
+                    if (value.isPlaying) return const SizedBox.shrink();
+                    return Center(
+                      child: GestureDetector(
+                        onTap: _togglePlayPause,
+                        child: Container(
+                          width: 74,
+                          height: 74,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: 0.14),
+                            border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.28)),
+                          ),
+                          child: const Icon(Icons.play_arrow_rounded,
+                              color: Colors.white, size: 38),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                // Right action rail.
+                Positioned(
+                  right: 12,
+                  bottom: 128,
+                  child: _buildRail(),
+                ),
+
+                // Bottom creator caption.
+                Positioned(
+                  left: 16,
+                  right: 84,
+                  bottom: 28,
+                  child: SafeArea(
+                    top: false,
+                    child: _buildPlayerCaption(),
+                  ),
+                ),
+              ],
             )
-          : const Center(
-              child: CircularProgressIndicator(color: Colors.white),
-            ),
+          : _buildPlayerSkeleton(),
     );
   }
 
-  Widget _buildActionChip({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildPlayerSkeleton() {
+    return FlapShimmer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const ColoredBox(color: Color(0xFF0E1310)),
+          // Right action rail placeholders.
+          Positioned(
+            right: 14,
+            bottom: 128,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(4, (i) {
+                return Padding(
+                  padding: EdgeInsets.only(bottom: i == 3 ? 0 : 18),
+                  child: Column(
+                    children: const [
+                      FlapSkeletonBox(width: 48, height: 48, radius: 24),
+                      SizedBox(height: 6),
+                      FlapSkeletonBox(width: 22, height: 8, radius: 4),
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ),
+          // Bottom caption placeholders.
+          Positioned(
+            left: 16,
+            right: 84,
+            bottom: 28,
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Row(
+                    children: [
+                      FlapSkeletonBox(width: 40, height: 40, radius: 20),
+                      SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          FlapSkeletonBox(width: 120, height: 12, radius: 5),
+                          SizedBox(height: 6),
+                          FlapSkeletonBox(width: 80, height: 10, radius: 5),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  FlapSkeletonBox(width: double.infinity, height: 13, radius: 5),
+                  SizedBox(height: 6),
+                  FlapSkeletonBox(width: 160, height: 13, radius: 5),
+                  SizedBox(height: 12),
+                  Row(
+                    children: [
+                      FlapSkeletonBox(width: 70, height: 24, radius: 8),
+                      SizedBox(width: 7),
+                      FlapSkeletonBox(width: 58, height: 24, radius: 8),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _togglePlayPause() {
+    setState(() {
+      if (_videoPlayerController.value.isPlaying) {
+        _videoPlayerController.pause();
+      } else {
+        _videoPlayerController.play();
+      }
+    });
+  }
+
+  void _popBack() {
+    Navigator.pop(context, {
+      'ratingUpdated': _hasVoted,
+      'videoId': widget.videoId,
+    });
+  }
+
+  Widget _glassIconButton(IconData icon, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(9),
+          color: Colors.white.withValues(alpha: 0.12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
+        child: Icon(icon, color: Colors.white, size: 25),
       ),
     );
   }
+
+  Widget _buildRail() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _railButton(
+          icon: _isLiked ? Icons.favorite : Icons.favorite_border,
+          label: '$_likesCount',
+          onTap: _toggleLike,
+          active: _isLiked,
+          activeColor: const Color(0xFFFF6B7D),
+        ),
+        const SizedBox(height: 18),
+        _railButton(
+          icon: Icons.mode_comment_outlined,
+          label: '${_comments.length}',
+          onTap: _showCommentsBottomSheet,
+        ),
+        if (!_isChallengeSubmission) ...[
+          const SizedBox(height: 18),
+          _railButton(
+            icon: Icons.star_rounded,
+            label: _hasVoted ? tr('voted') : tr('vote'),
+            onTap: _showVotingBottomSheet,
+            active: _hasVoted,
+            activeColor: FlapColors.gold,
+          ),
+        ],
+        const SizedBox(height: 18),
+        _railButton(
+          icon: Icons.reply_outlined,
+          label: tr('share'),
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(tr('il_28a4a65f94'))),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _railButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool active = false,
+    Color activeColor = FlapColors.greenBright,
+  }) {
+    final Color tint = active ? activeColor : Colors.white;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: active
+                  ? activeColor.withValues(alpha: 0.18)
+                  : Colors.white.withValues(alpha: 0.1),
+              border: Border.all(
+                color: active
+                    ? activeColor.withValues(alpha: 0.5)
+                    : Colors.white.withValues(alpha: 0.18),
+              ),
+            ),
+            child: Icon(icon, color: tint, size: 22),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: FlapText.sora(
+                fontSize: 11, fontWeight: FontWeight.w600, color: tint),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlayerCaption() {
+    final name = _videoAuthorName ?? widget.authorName;
+    final ratingText = (_videoAverageRating != null && _videoAverageRating! > 0)
+        ? _videoAverageRating!.toStringAsFixed(1)
+        : null;
+
+    // Subtitle: position · N ratings (real data only).
+    final pos = positionLabelForDisplay(_authorPosition).trim();
+    final voteCount = _videoVoteCount ?? 0;
+    final subParts = <String>[
+      if (pos.isNotEmpty) pos,
+      if (voteCount > 0)
+        tr('video_ratings_count', namedArgs: {'count': '$voteCount'}),
+    ];
+    final subtitle = subParts.join(' · ');
+
+    // Category + rating chips.
+    final catLabel = (_videoCategory.isNotEmpty && _videoCategory != 'other')
+        ? videoCategoryLabel(_videoCategory)
+        : null;
+    final chips = <Widget>[
+      if (catLabel != null) _captionChip('#$catLabel'),
+      if (ratingText != null) _captionChip('★ $ratingText ${tr('video_avg')}'),
+    ];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            if (_videoAuthorId != null) {
+              context.router.push(
+                PlayerProfileRoute(
+                  playerId: _videoAuthorId!,
+                  playerName: name,
+                ),
+              );
+            }
+          },
+          child: Row(
+            children: [
+              _creatorAvatar(_videoAuthorAvatar, name),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: FlapText.sora(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white),
+                    ),
+                    if (subtitle.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: FlapText.sora(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFFBCC4BE)),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          widget.title,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: FlapText.sora(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFFE2E8E3))
+              .copyWith(height: 1.4),
+        ),
+        if (chips.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(spacing: 7, runSpacing: 7, children: chips),
+        ],
+      ],
+    );
+  }
+
+  Widget _captionChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+      ),
+      child: Text(
+        text,
+        style: FlapText.sora(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFFCDD4CE)),
+      ),
+    );
+  }
+
+  Widget _creatorAvatar(String? avatarUrl, String name) {
+    final hasImg = avatarUrl != null && avatarUrl.isNotEmpty;
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: FlapColors.green,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.5),
+        image: hasImg
+            ? DecorationImage(
+                image: NetworkImage(avatarUrl), fit: BoxFit.cover)
+            : null,
+      ),
+      alignment: Alignment.center,
+      child: hasImg
+          ? null
+          : Text(
+              name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?',
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white),
+            ),
+    );
+  }
+
+  // ----------------------------------------------------------- sheet chrome
+
+  Widget _sheetGrip() {
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 2),
+      width: 38,
+      height: 4,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(99),
+      ),
+    );
+  }
+
+  Widget _sheetCloseButton(VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: FlapColors.surface2,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: FlapColors.border),
+        ),
+        child: const Icon(Icons.close, size: 17, color: FlapColors.muted),
+      ),
+    );
+  }
+
+  Widget _commentAvatar(String? url, String name) {
+    final hasImg = url != null && url.isNotEmpty;
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: FlapColors.green,
+        image: hasImg
+            ? DecorationImage(image: NetworkImage(url), fit: BoxFit.cover)
+            : null,
+      ),
+      alignment: Alignment.center,
+      child: hasImg
+          ? null
+          : Text(
+              name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?',
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+            ),
+    );
+  }
+
+  Widget _commentRow(Map<String, dynamic> c) {
+    final name = (c['authorName'] ?? tr('il_b764cdc0ea')).toString();
+    final url = (c['authorAvatarUrl'] ?? '').toString();
+    final text = (c['text'] ?? '').toString();
+    final time = _formatCommentDate(c['createdAt']);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _commentAvatar(url.isEmpty ? null : url, name),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: FlapText.sora(
+                          fontSize: 12.5, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    time,
+                    style: FlapText.sora(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: FlapColors.muted),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Text(
+                text,
+                style: FlapText.sora(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFFC8CFC9))
+                    .copyWith(height: 1.45),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _rateBigStars(double current, ValueChanged<int> onPick) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(5, (i) {
+        final idx = i + 1;
+        final filled = idx <= current + 0.001;
+        return GestureDetector(
+          onTap: () => onPick(idx),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 5),
+            child: Icon(
+              Icons.star_rounded,
+              size: 38,
+              color: filled ? FlapColors.gold : Colors.white.withValues(alpha: 0.16),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  // -------------------------------------------------------- comments sheet
 
   void _showCommentsBottomSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1a1a2e),
+      backgroundColor: FlapColors.card,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
-      builder: (context) => AnimatedPadding(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.3,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) => Column(
-            children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 8, bottom: 16),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white54,
-                borderRadius: BorderRadius.circular(2),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheet) => AnimatedPadding(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.74,
+            minChildSize: 0.4,
+            maxChildSize: 0.92,
+            expand: false,
+            builder: (context, scrollController) => DecoratedBox(
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: FlapColors.borderStrong)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
               ),
-            ),
-            
-            // Title
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
+              child: Column(
                 children: [
-                  const Icon(Icons.comment_outlined, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    tr('il_355f79f29d'),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                  Center(child: _sheetGrip()),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 8, 14, 12),
+                    child: Row(
+                      children: [
+                        Text(
+                          '${tr('comments')} · ${_comments.length}',
+                          style: FlapText.sora(
+                              fontSize: 15, fontWeight: FontWeight.w700),
+                        ),
+                        const Spacer(),
+                        _sheetCloseButton(() => Navigator.pop(sheetContext)),
+                      ],
+                    ),
+                  ),
+                  // List
+                  Expanded(
+                    child: _comments.isEmpty
+                        ? Center(
+                            child: Text(
+                              tr('il_6b25808365'),
+                              style: FlapText.sora(
+                                  fontSize: 13.5, color: FlapColors.muted),
+                            ),
+                          )
+                        : ListView.separated(
+                            controller: scrollController,
+                            padding: const EdgeInsets.fromLTRB(18, 4, 18, 14),
+                            itemCount: _comments.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 17),
+                            itemBuilder: (context, index) =>
+                                _commentRow(_comments[index]),
+                          ),
+                  ),
+                  // Compose
+                  SafeArea(
+                    top: false,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      decoration: const BoxDecoration(
+                        border:
+                            Border(top: BorderSide(color: FlapColors.border)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _commentController,
+                              style: FlapText.sora(fontSize: 14),
+                              textInputAction: TextInputAction.send,
+                              onSubmitted: (_) async {
+                                await _addComment();
+                                setSheet(() {});
+                              },
+                              decoration: InputDecoration(
+                                isDense: true,
+                                hintText: tr('il_23c5f33170'),
+                                hintStyle: FlapText.sora(
+                                    fontSize: 14, color: FlapColors.muted),
+                                filled: true,
+                                fillColor: FlapColors.surface2,
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 13),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(13),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          GestureDetector(
+                            onTap: () async {
+                              await _addComment();
+                              setSheet(() {});
+                            },
+                            child: Container(
+                              width: 46,
+                              height: 46,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                gradient: FlapColors.primaryButton,
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: const Icon(Icons.arrow_upward_rounded,
+                                  color: FlapColors.onGreen, size: 20),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            
-            // Comment input
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _commentController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: tr('il_23c5f33170'),
-                          hintStyle: const TextStyle(color: Colors.white54),
-                          filled: true,
-                          fillColor: Colors.white.withOpacity(0.1),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(25),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: () {
-                        _addComment();
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFF4caf50),
-                        shape: const CircleBorder(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Comments list
-            Expanded(
-              child: _comments.isEmpty
-                  ? Center(
-                      child: Text(
-                        tr('il_6b25808365'),
-                        style: const TextStyle(color: Colors.white54, fontSize: 16),
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _comments.length,
-                      itemBuilder: (context, index) {
-                        final comment = _comments[index];
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Row(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 12,
-                                        backgroundColor: const Color(0xFF4caf50),
-                                        backgroundImage: (comment['authorAvatarUrl'] ?? '')
-                                                .toString()
-                                                .isNotEmpty
-                                            ? NetworkImage(
-                                                (comment['authorAvatarUrl'] ?? '').toString(),
-                                              )
-                                            : null,
-                                        child: (comment['authorAvatarUrl'] ?? '')
-                                                .toString()
-                                                .isEmpty
-                                            ? Text(
-                                                () {
-                                                  final name = (comment['authorName'] ?? '')
-                                                      .toString()
-                                                      .trim();
-                                                  if (name.isEmpty) return 'U';
-                                                  return name[0].toUpperCase();
-                                                }(),
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              )
-                                            : null,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          (comment['authorName'] ?? tr('il_b764cdc0ea'))
-                                              .toString(),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    _formatCommentDate(comment['createdAt']),
-                                    style: const TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                comment['text'],
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            ],
           ),
         ),
       ),
     );
   }
+
+  // ---------------------------------------------------------- rate sheet
 
   void _showVotingBottomSheet() {
     if (_hasVoted) {
@@ -1133,155 +1640,168 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1a1a2e),
+      backgroundColor: FlapColors.card,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setModalState) => Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
           ),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Handle bar
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white54,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                
-                // Title with yellow stripe
-                Column(
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: FlapColors.borderStrong)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Center(child: _sheetGrip()),
+                    const SizedBox(height: 6),
+                    // Header
                     Row(
                       children: [
-                        const Icon(Icons.how_to_vote, color: Colors.white, size: 24),
-                        const SizedBox(width: 12),
                         Text(
-                          _isChallengeSubmission ? tr('il_8f17154dba') : tr('il_f059de72eb'),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          _isChallengeSubmission
+                              ? tr('il_8f17154dba')
+                              : tr('il_f059de72eb'),
+                          style: FlapText.sora(
+                              fontSize: 16, fontWeight: FontWeight.w700),
                         ),
+                        const Spacer(),
+                        _sheetCloseButton(() => Navigator.pop(sheetContext)),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+                    Text(
+                      tr('video_rate_hint'),
+                      textAlign: TextAlign.center,
+                      style: FlapText.sora(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: FlapColors.muted),
+                    ),
+                    const SizedBox(height: 16),
+                    // Mode segment
                     Container(
-                      height: 4,
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFC107),
-                        borderRadius: BorderRadius.circular(2),
+                        color: const Color(0x0AFFFFFF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: FlapColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          _voteModeTab(
+                            label: tr('il_3fee95da5a'),
+                            selected: !_isAdvancedVoting,
+                            onTap: () =>
+                                setModalState(() => _isAdvancedVoting = false),
+                          ),
+                          const SizedBox(width: 4),
+                          _voteModeTab(
+                            label: tr('il_9f088dbebd'),
+                            selected: _isAdvancedVoting,
+                            onTap: () =>
+                                setModalState(() => _isAdvancedVoting = true),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Body
+                    if (_isAdvancedVoting) ...[
+                      _voteCriterionRow(
+                          Icons.sports_soccer, tr('il_e851504f43'), _technical,
+                          (v) => setModalState(() => _technical = v.toDouble())),
+                      _voteCriterionRow(Icons.auto_awesome,
+                          tr('il_1c9fe98ba9'), _creativity,
+                          (v) => setModalState(() => _creativity = v.toDouble())),
+                      _voteCriterionRow(Icons.local_fire_department,
+                          tr('il_be44133ed5'), _difficulty,
+                          (v) => setModalState(() => _difficulty = v.toDouble())),
+                      _voteCriterionRow(Icons.workspace_premium,
+                          tr('il_b8c237eb0d'), _quality,
+                          (v) => setModalState(() => _quality = v.toDouble())),
+                    ] else ...[
+                      _rateBigStars(_technical, (stars) {
+                        setModalState(() {
+                          final v = stars.toDouble();
+                          _technical = v;
+                          _creativity = v;
+                          _difficulty = v;
+                          _quality = v;
+                        });
+                      }),
+                    ],
+                    const SizedBox(height: 22),
+                    // Submit
+                    GestureDetector(
+                      onTap: _isSubmittingVote
+                          ? null
+                          : () {
+                              _submitVote();
+                              Navigator.pop(sheetContext);
+                            },
+                      child: Opacity(
+                        opacity: _isSubmittingVote ? 0.5 : 1,
+                        child: Container(
+                          height: 52,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            gradient: FlapColors.primaryButton,
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Text(
+                            _isSubmittingVote
+                                ? tr('il_64115d5b9c')
+                                : tr('il_cd5588db6f'),
+                            style: FlapText.sora(
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w700,
+                                color: FlapColors.onGreen),
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                
-                // Voting mode selector
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setModalState(() => _isAdvancedVoting = false),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: !_isAdvancedVoting ? const Color(0xFF4caf50) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              tr('il_3fee95da5a'),
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: !_isAdvancedVoting ? Colors.white : Colors.white54,
-                                fontWeight: !_isAdvancedVoting ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setModalState(() => _isAdvancedVoting = true),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: _isAdvancedVoting ? const Color(0xFF4caf50) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              tr('il_9f088dbebd'),
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: _isAdvancedVoting ? Colors.white : Colors.white54,
-                                fontWeight: _isAdvancedVoting ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                
-                // Rating sliders
-                if (_isAdvancedVoting) ...[
-                  _buildSliderRow(tr('il_e851504f43'), _technical, (v) => setModalState(() => _technical = v)),
-                  const SizedBox(height: 16),
-                  _buildSliderRow(tr('il_1c9fe98ba9'), _creativity, (v) => setModalState(() => _creativity = v)),
-                  const SizedBox(height: 16),
-                  _buildSliderRow(tr('il_be44133ed5'), _difficulty, (v) => setModalState(() => _difficulty = v)),
-                  const SizedBox(height: 16),
-                  _buildSliderRow(tr('il_b8c237eb0d'), _quality, (v) => setModalState(() => _quality = v)),
-                ] else ...[
-                  _buildSliderRow(tr('il_ee62b83057'), _technical, (v) => setModalState(() {
-                    _technical = v;
-                    _creativity = v;
-                    _difficulty = v;
-                    _quality = v;
-                  })),
-                ],
-                const SizedBox(height: 24),
-                
-                // Submit button
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _isSubmittingVote ? null : () {
-                      _submitVote();
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4caf50),
-                      disabledBackgroundColor: Colors.white24,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text(
-                      _isSubmittingVote ? tr('il_64115d5b9c') : tr('il_cd5588db6f'),
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _voteModeTab({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? FlapColors.surface2 : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Text(
+            label,
+            style: FlapText.sora(
+              fontSize: 13.5,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: selected ? FlapColors.text : FlapColors.muted,
             ),
           ),
         ),

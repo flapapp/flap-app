@@ -2084,5 +2084,13 @@
   "settings_version": "Flap v1.0.0 · Відчуй себе профі",
   "logout_confirm_body": "Ви завжди зможете увійти знову за своєю поштою.",
   "settings_delete_failed": "Не вдалося видалити акаунт. Спробуйте ще раз.",
-  "auth_error_with_detail": "Помилка входу: {detail}"
+  "auth_error_with_detail": "Помилка входу: {detail}",
+  "video_avg": "сер.",
+  "video_rate_hint": "Ваша оцінка впливає на загальний рейтинг автора.",
+  "video_ratings_count": "{count} оцінок",
+  "video_filters_title": "Фільтри",
+  "video_filters_reset": "Скинути",
+  "video_filter_city": "Місто",
+  "video_filter_rating": "Мінімальний рейтинг",
+  "video_filter_sort": "Сортувати за"
 }
