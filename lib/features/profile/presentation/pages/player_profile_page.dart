@@ -814,40 +814,99 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 
   Widget _buildProfileSkeleton() {
     return IgnorePointer(
-      child: FlapShimmer(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const FlapSkeletonBox(width: 100, height: 100, radius: 50),
-              const SizedBox(height: 16),
-              const FlapSkeletonBox(width: 180, height: 24, radius: 8),
-              const SizedBox(height: 10),
-              const FlapSkeletonBox(width: 120, height: 16, radius: 8),
-              const SizedBox(height: 20),
-              const FlapSkeletonBox(
-                  width: double.infinity, height: 90, radius: 20),
-              const SizedBox(height: 16),
-              Row(
-                children: const [
-                  Expanded(child: FlapSkeletonBox(height: 72, radius: 16)),
-                  SizedBox(width: 12),
-                  Expanded(child: FlapSkeletonBox(height: 72, radius: 16)),
-                  SizedBox(width: 12),
-                  Expanded(child: FlapSkeletonBox(height: 72, radius: 16)),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const FlapSkeletonBox(
-                  width: double.infinity, height: 120, radius: 18),
-              const SizedBox(height: 16),
-              const FlapSkeletonBox(
-                  width: double.infinity, height: 120, radius: 18),
-            ],
+      child: Container(
+        decoration: const BoxDecoration(gradient: FlapColors.screenGlow),
+        child: FlapShimmer(
+          child: SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Avatar
+                const FlapSkeletonBox(width: 100, height: 100, radius: 50),
+                const SizedBox(height: 14),
+                // Name
+                const FlapSkeletonBox(width: 170, height: 26, radius: 8),
+                const SizedBox(height: 10),
+                // Position pill
+                const FlapSkeletonBox(width: 116, height: 30, radius: 99),
+                const SizedBox(height: 12),
+                // City
+                const FlapSkeletonBox(width: 132, height: 14, radius: 7),
+                const SizedBox(height: 20),
+                // Rating card
+                const FlapSkeletonBox(
+                    width: double.infinity, height: 86, radius: 18),
+                const SizedBox(height: 12),
+                // Stat row (4 boxes — matches the real layout)
+                Row(
+                  children: const [
+                    Expanded(child: FlapSkeletonBox(height: 64, radius: 16)),
+                    SizedBox(width: 10),
+                    Expanded(child: FlapSkeletonBox(height: 64, radius: 16)),
+                    SizedBox(width: 10),
+                    Expanded(child: FlapSkeletonBox(height: 64, radius: 16)),
+                    SizedBox(width: 10),
+                    Expanded(child: FlapSkeletonBox(height: 64, radius: 16)),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                // W / L / D chips
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    FlapSkeletonBox(width: 58, height: 30, radius: 10),
+                    SizedBox(width: 8),
+                    FlapSkeletonBox(width: 58, height: 30, radius: 10),
+                    SizedBox(width: 8),
+                    FlapSkeletonBox(width: 58, height: 30, radius: 10),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                // Section label + badges strip
+                _skeletonSectionLabel(),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 120,
+                  child: Row(
+                    children: const [
+                      FlapSkeletonBox(width: 96, height: 120, radius: 18),
+                      SizedBox(width: 12),
+                      FlapSkeletonBox(width: 96, height: 120, radius: 18),
+                      SizedBox(width: 12),
+                      FlapSkeletonBox(width: 96, height: 120, radius: 18),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Section label + videos strip
+                _skeletonSectionLabel(),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 150,
+                  child: Row(
+                    children: const [
+                      FlapSkeletonBox(width: 110, height: 150, radius: 16),
+                      SizedBox(width: 12),
+                      FlapSkeletonBox(width: 110, height: 150, radius: 16),
+                      SizedBox(width: 12),
+                      FlapSkeletonBox(width: 110, height: 150, radius: 16),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _skeletonSectionLabel() {
+    return const Align(
+      alignment: Alignment.centerLeft,
+      child: FlapSkeletonBox(width: 120, height: 16, radius: 7),
     );
   }
 

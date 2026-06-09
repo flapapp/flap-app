@@ -555,13 +555,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   Widget _buildProfileBody(ProfileState state) {
     if (state.streamProgress == ProgressStatus.loading &&
         state.profile == null) {
-      return const FlapLoadingList(
-        itemCount: 5,
-        itemHeight: 96,
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
-        gap: 14,
-        radius: 18,
-      );
+      return _buildProfileSkeleton();
     }
     if (state.streamFailure != null && state.profile == null) {
       return Center(
@@ -584,6 +578,134 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
       );
     }
     return _buildProfileContent(state.profile!.legacyUserData);
+  }
+
+  Widget _buildProfileSkeleton() {
+    Widget label() => const FlapSkeletonBox(width: 116, height: 16, radius: 7);
+    return IgnorePointer(
+      child: FlapShimmer(
+        child: SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // App bar (menu + title) over the header gradient.
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFF13241B), FlapColors.bg],
+                  ),
+                ),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Row(
+                      children: const [
+                        FlapSkeletonBox(width: 28, height: 28, radius: 9),
+                        SizedBox(width: 12),
+                        FlapSkeletonBox(width: 96, height: 22, radius: 7),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Profile top: avatar + name + sub.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: const [
+                    FlapSkeletonBox(width: 96, height: 96, radius: 48),
+                    SizedBox(height: 14),
+                    FlapSkeletonBox(width: 150, height: 22, radius: 8),
+                    SizedBox(height: 10),
+                    FlapSkeletonBox(width: 180, height: 14, radius: 7),
+                  ],
+                ),
+              ),
+              // Rating card.
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 4, 20, 0),
+                child: FlapSkeletonBox(
+                    width: double.infinity, height: 92, radius: 18),
+              ),
+              // Wallet + stat grid.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                child: Column(
+                  children: const [
+                    FlapSkeletonBox(
+                        width: double.infinity, height: 64, radius: 16),
+                    SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(child: FlapSkeletonBox(height: 72, radius: 16)),
+                        SizedBox(width: 12),
+                        Expanded(child: FlapSkeletonBox(height: 72, radius: 16)),
+                      ],
+                    ),
+                    SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: FlapSkeletonBox(height: 72, radius: 16)),
+                        SizedBox(width: 12),
+                        Expanded(child: FlapSkeletonBox(height: 72, radius: 16)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Badges strip.
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: label(),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 86,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  children: const [
+                    FlapSkeletonBox(width: 86, height: 86, radius: 16),
+                    SizedBox(width: 12),
+                    FlapSkeletonBox(width: 86, height: 86, radius: 16),
+                    SizedBox(width: 12),
+                    FlapSkeletonBox(width: 86, height: 86, radius: 16),
+                    SizedBox(width: 12),
+                    FlapSkeletonBox(width: 86, height: 86, radius: 16),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Teams / members section.
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: label(),
+              ),
+              const SizedBox(height: 12),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    FlapSkeletonBox(
+                        width: double.infinity, height: 64, radius: 16),
+                    SizedBox(height: 12),
+                    FlapSkeletonBox(
+                        width: double.infinity, height: 64, radius: 16),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _ensureMatchStatsFuture(String userId) {
