@@ -27,6 +27,7 @@ import '../../domain/usecases/load_player_profile_dashboard_usecase.dart';
 import '../../../teams/presentation/pages/team_details_screen.dart';
 import '../../../video/presentation/pages/video_player_screen.dart';
 import '../../../../widgets/video_preview_box.dart';
+import '../../../../theme/flap_tokens.dart';
 
 @RoutePage()
 class PlayerProfileScreen extends StatefulWidget {
@@ -254,7 +255,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           }
 
           return AlertDialog(
-            backgroundColor: const Color(0xFF1a1a2e),
+            backgroundColor: const Color(0xFF10160F),
             title: Text(tr('player_rate_me_pick_videos_title'), style: const TextStyle(color: Colors.white)),
             content: SizedBox(
               width: double.maxFinite,
@@ -421,80 +422,378 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 
   /// Challenge invite + rate-me actions; adapts to width (stacked vs row).
   Widget _buildVisitorSecondaryActions({required bool useCompactLayout}) {
-    final challengeStyle = ElevatedButton.styleFrom(
-      backgroundColor: Colors.white.withValues(alpha: 0.12),
-      foregroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      padding: EdgeInsets.symmetric(
-        horizontal: useCompactLayout ? 14 : 12,
-        vertical: 12,
-      ),
-    );
-    final rateStyle = ElevatedButton.styleFrom(
-      backgroundColor: const Color(0xFF4caf50),
-      foregroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    final challengeBtn = _flapButton(
+      label: useCompactLayout ? tr('player_invite_to_challenge_title') : null,
+      icon: Icons.emoji_events_rounded,
+      onTap: _showInviteToChallengeDialog,
+      tone: _FlapBtnTone.neutral,
     );
 
-    final challengeBtn = Tooltip(
-      message: tr('player_invite_to_challenge_title'),
-      child: ElevatedButton(
-        onPressed: () => _showInviteToChallengeDialog(),
-        style: challengeStyle,
-        child: useCompactLayout
-            ? Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.emoji_events, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      tr('player_invite_to_challenge_title'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              )
-            : const Icon(Icons.emoji_events, size: 18),
-      ),
-    );
-
-    final rateBtn = ElevatedButton(
-      onPressed: () => _showRateMeDialog(),
-      style: rateStyle,
-      child: Text(
-        tr('player_rate_me_button'),
-        maxLines: useCompactLayout ? 3 : 2,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-      ),
+    final rateBtn = _flapButton(
+      label: tr('player_rate_me_button'),
+      onTap: _showRateMeDialog,
+      tone: _FlapBtnTone.primary,
     );
 
     if (useCompactLayout) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(width: double.infinity, child: challengeBtn),
+          challengeBtn,
           const SizedBox(height: 8),
-          SizedBox(width: double.infinity, child: rateBtn),
+          rateBtn,
         ],
       );
     }
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        SizedBox(
-          height: 44,
-          width: 48,
-          child: challengeBtn,
-        ),
+        SizedBox(width: 54, child: challengeBtn),
         const SizedBox(width: 8),
         Expanded(child: rateBtn),
       ],
+    );
+  }
+
+  /// Left-aligned small-caps section header (Flap `.setlabel`).
+  Widget _sectionLabel(String text) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text.toUpperCase(),
+        style: FlapText.sora(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: FlapColors.muted2,
+          letterSpacing: 0.6,
+        ),
+      ),
+    );
+  }
+
+  /// Vertical badge card: category-tinted medallion + floating endorsement
+  /// pill + name + rarity; tap to endorse, endorsed state shows a green ring.
+  Widget _buildBadgeTile(dynamic badge) {
+    final c = Color(badge.categoryColor);
+    return FutureBuilder<BadgeEndorsementInfo>(
+      key: ValueKey('endorse-${badge.id}-$_badgeEndorseVersion'),
+      future: sl<PlayerBadgeEndorsementRepository>().getEndorsementInfo(
+        ownerUserId: widget.playerId,
+        badgeId: badge.id,
+        currentUserId: sl<AuthSessionRepository>().peekCurrentUser?.uid,
+      ),
+      builder: (context, snap) {
+        final count = snap.data?.count ?? 0;
+        final endorsed = snap.data?.endorsedByCurrentUser ?? false;
+        return GestureDetector(
+          onTap: () => _endorseBadge(widget.playerId, badge),
+          child: Container(
+            width: 120,
+            padding: const EdgeInsets.fromLTRB(10, 16, 10, 12),
+            decoration: BoxDecoration(
+              color: FlapColors.card,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: endorsed
+                    ? FlapColors.greenBright.withValues(alpha: 0.55)
+                    : FlapColors.border,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: c.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(17),
+                        border: Border.all(color: c.withValues(alpha: 0.4)),
+                      ),
+                      child: Text(badge.emoji, style: const TextStyle(fontSize: 26)),
+                    ),
+                    if (count > 0)
+                      Positioned(
+                        top: -7,
+                        right: -9,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: endorsed ? FlapColors.greenBright : FlapColors.blue,
+                            borderRadius: BorderRadius.circular(9),
+                            border: Border.all(color: FlapColors.bg, width: 1.5),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.thumb_up,
+                                  size: 9,
+                                  color: endorsed ? FlapColors.onGreen : Colors.white),
+                              const SizedBox(width: 2),
+                              Text('$count',
+                                  style: FlapText.sora(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: endorsed ? FlapColors.onGreen : Colors.white)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (endorsed)
+                      Positioned(
+                        bottom: -4,
+                        right: -4,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: FlapColors.bg,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.check_circle,
+                              color: FlapColors.greenBright, size: 17),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  badge.localizedName,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: FlapText.sora(
+                      fontSize: 11, fontWeight: FontWeight.w600, height: 1.2),
+                ),
+                const SizedBox(height: 7),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: c.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: c.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    badge.rarityText.toString().toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: FlapText.sora(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w700,
+                        color: c,
+                        letterSpacing: 0.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 9:16 video card (design `.vcard`): cover thumbnail + legibility scrim +
+  /// play glyph + title caption.
+  Widget _buildVideoTile(Map<String, dynamic> v, String authorName) {
+    final thumb = (v['thumbnailUrl'] ?? '').toString();
+    final vUrl = (v['videoUrl'] ?? '').toString();
+    final title = (v['title'] ?? tr('il_d534be829e')).toString();
+    return GestureDetector(
+      onTap: () {
+        if (vUrl.isEmpty) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VideoPlayerScreen(
+              videoUrl: vUrl,
+              title: title,
+              authorName: authorName,
+              videoId: (v['id'] ?? '').toString(),
+            ),
+          ),
+        );
+      },
+      child: SizedBox(
+        width: 110,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              VideoPreviewBox(
+                videoUrl: vUrl,
+                thumbnailUrl: thumb.isNotEmpty ? thumb : null,
+                aspectRatio: 9 / 16,
+                borderRadius: 14,
+                showPlayIcon: false,
+                placeholderColor: const Color(0xFF0D1A15),
+              ),
+              IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        const Color(0xFF070A08).withValues(alpha: 0.85),
+                      ],
+                      stops: const [0.5, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+              Center(
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.32),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+                  ),
+                  child: const Icon(Icons.play_arrow_rounded,
+                      color: Colors.white, size: 20),
+                ),
+              ),
+              Positioned(
+                left: 8,
+                right: 8,
+                bottom: 8,
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: FlapText.sora(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1.2),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Design action button (Flap `.btn`). [label] null → icon-only.
+  Widget _flapButton({
+    String? label,
+    IconData? icon,
+    VoidCallback? onTap,
+    _FlapBtnTone tone = _FlapBtnTone.primary,
+    bool disabled = false,
+  }) {
+    final bool isPrimary = tone == _FlapBtnTone.primary;
+    final Color fg = isPrimary ? FlapColors.onGreen : FlapColors.text;
+    final children = <Widget>[
+      if (icon != null)
+        Icon(icon, size: 18, color: fg),
+      if (icon != null && label != null) const SizedBox(width: 8),
+      if (label != null)
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: FlapText.sora(
+                fontSize: 14, fontWeight: FontWeight.w700, color: fg),
+          ),
+        ),
+    ];
+    return Opacity(
+      opacity: disabled ? 0.5 : 1,
+      child: GestureDetector(
+        onTap: disabled ? null : onTap,
+        child: Container(
+          height: 48,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            gradient: isPrimary ? FlapColors.primaryButton : null,
+            color: isPrimary ? null : FlapColors.surface2,
+            borderRadius: BorderRadius.circular(14),
+            border: isPrimary
+                ? null
+                : Border.all(color: FlapColors.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: children,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Outlined danger/neutral button.
+  Widget _flapOutlineButton({
+    required String label,
+    required Color color,
+    VoidCallback? onTap,
+    bool disabled = false,
+  }) {
+    return Opacity(
+      opacity: disabled ? 0.5 : 1,
+      child: GestureDetector(
+        onTap: disabled ? null : onTap,
+        child: Container(
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withValues(alpha: 0.45)),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: FlapText.sora(
+                fontSize: 14, fontWeight: FontWeight.w700, color: color),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Disabled state pill (friends / pending), surface tone with an icon.
+  Widget _flapStatePill({required IconData icon, required String label, Color? accent}) {
+    final c = accent ?? FlapColors.greenBright;
+    return Container(
+      height: 48,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: c.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 17, color: c),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: FlapText.sora(
+                  fontSize: 14, fontWeight: FontWeight.w700, color: c),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -515,44 +814,22 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0f0f23),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            widget.playerName ?? tr('player_profile_title'),
-            style: const TextStyle(color: Colors.white),
-          ),
-        ),
+        backgroundColor: FlapColors.bg,
+        appBar: _flapAppBar(widget.playerName ?? tr('player_profile_title')),
         body: const Center(
-          child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+          child: CircularProgressIndicator(color: FlapColors.green),
         ),
       );
     }
 
     if (playerData == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0f0f23),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            tr('profile_not_found'),
-            style: const TextStyle(color: Colors.white),
-          ),
-        ),
+        backgroundColor: FlapColors.bg,
+        appBar: _flapAppBar(tr('profile_not_found')),
         body: Center(
           child: Text(
             tr('player_profile_not_found_body'),
-            style: const TextStyle(color: Colors.white70, fontSize: 16),
+            style: FlapText.sora(fontSize: 14, color: FlapColors.muted),
           ),
         ),
       );
@@ -587,65 +864,99 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         _matchesPlayed > 0 ? _totalGoals : goalsFallback;
 
       return Scaffold(
-      backgroundColor: const Color(0xFF0f0f23),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(widget.playerName ?? tr('player_profile_title'), style: const TextStyle(color: Colors.white)),
-      ),
-      body: SingleChildScrollView(
+      backgroundColor: FlapColors.bg,
+      appBar: _flapAppBar(widget.playerName ?? tr('player_profile_title')),
+      body: Container(
+        decoration: const BoxDecoration(gradient: FlapColors.screenGlow),
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Avatar
+            // Avatar with green glow ring
             Container(
-              width: 96,
-              height: 96,
+              width: 100,
+              height: 100,
+              padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(48),
-                border: Border.all(color: Colors.white24, width: 2),
+                shape: BoxShape.circle,
+                gradient: const SweepGradient(
+                  colors: [
+                    FlapColors.green,
+                    FlapColors.greenBright,
+                    FlapColors.green,
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: FlapColors.green.withValues(alpha: 0.30),
+                    blurRadius: 22,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(48),
-                child: avatarUrl.isNotEmpty
-                    ? Image.network(avatarUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildDefaultAvatar(displayName))
-                    : _buildDefaultAvatar(displayName),
+              child: Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: FlapColors.bg,
+                ),
+                padding: const EdgeInsets.all(2),
+                child: ClipOval(
+                  child: avatarUrl.isNotEmpty
+                      ? Image.network(avatarUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildDefaultAvatar(displayName))
+                      : _buildDefaultAvatar(displayName),
+                ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Text(displayName,
-                style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
+                textAlign: TextAlign.center,
+                style: FlapText.cond(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
+            const SizedBox(height: 8),
             if (position.isNotEmpty)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-                child: Text('⚽ $position', style: const TextStyle(color: Colors.white)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: FlapColors.green.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: FlapColors.green.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.sports_soccer_rounded, color: FlapColors.greenBright, size: 13),
+                    const SizedBox(width: 5),
+                    Text(position, style: FlapText.sora(fontSize: 12.5, fontWeight: FontWeight.w600, color: FlapColors.greenBright)),
+                  ],
+                ),
               ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             if (cityLabel.isNotEmpty)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.location_on, color: Colors.white70, size: 16),
+                  const Icon(Icons.place_outlined, color: FlapColors.muted, size: 15),
                   const SizedBox(width: 4),
-                  Text(cityLabel, style: const TextStyle(color: Colors.white70)),
+                  Text(cityLabel, style: FlapText.sora(fontSize: 13, color: FlapColors.muted)),
                 ],
               ),
             const SizedBox(height: 20),
 
             // Rating
             Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: FlapColors.card,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: FlapColors.borderStrong),
+              ),
               child: Column(children: [
-                Text(rating.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
-                Text(tr('overall_rating'), style: const TextStyle(color: Colors.white70)),
+                Text(rating.toStringAsFixed(2),
+                    style: FlapText.cond(fontSize: 40, fontWeight: FontWeight.w800, color: FlapColors.greenBright)),
+                const SizedBox(height: 2),
+                Text(tr('overall_rating').toUpperCase(),
+                    style: FlapText.sora(fontSize: 11.5, fontWeight: FontWeight.w600, color: FlapColors.muted, letterSpacing: 0.6)),
               ]),
             ),
             const SizedBox(height: 12),
@@ -666,20 +977,23 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _resultChip('W', wins, Colors.greenAccent),
+                _resultChip('W', wins, FlapColors.greenBright),
                 const SizedBox(width: 8),
-                _resultChip('L', losses, Colors.redAccent),
+                _resultChip('L', losses, FlapColors.red),
                 const SizedBox(width: 8),
-                _resultChip('D', draws, Colors.orangeAccent),
+                _resultChip('D', draws, FlapColors.amber),
               ],
             ),
+            const SizedBox(height: 12),
 
             // Win rate + last 5
 Container(
-  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+  width: double.infinity,
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
   decoration: BoxDecoration(
-    color: Colors.white.withOpacity(0.06),
-    borderRadius: BorderRadius.circular(12),
+    color: FlapColors.surface,
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(color: FlapColors.border),
   ),
   child: Column(
     children: [
@@ -687,10 +1001,10 @@ Container(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.percent, color: Colors.white70, size: 16),
+          const Icon(Icons.percent, color: FlapColors.muted, size: 15),
           const SizedBox(width: 6),
           Text(tr('win_rate_percent', args: [_winRate.toStringAsFixed(0)]),
-              style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+              style: FlapText.sora(fontSize: 13, fontWeight: FontWeight.w600, color: FlapColors.muted)),
         ],
       ),
       const SizedBox(height: 8),
@@ -698,19 +1012,19 @@ Container(
         mainAxisAlignment: MainAxisAlignment.center,
         children: _recentResults.map((r) {
           Color c;
-          if (r == 'W') c = const Color(0xFF4CAF50);
-          else if (r == 'D') c = Colors.grey;
-          else if (r == 'L') c = Colors.red;
-          else c = Colors.grey;
+          if (r == 'W') c = FlapColors.greenBright;
+          else if (r == 'D') c = FlapColors.amber;
+          else if (r == 'L') c = FlapColors.red;
+          else c = FlapColors.muted;
           return Container(
             margin: const EdgeInsets.symmetric(horizontal: 4),
             width: 28, height: 28,
             decoration: BoxDecoration(
-              color: c.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: c, width: 1.5),
+              color: c.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: c.withValues(alpha: 0.5), width: 1.2),
             ),
-            child: Center(child: Text(r, style: TextStyle(color: c, fontWeight: FontWeight.bold))),
+            child: Center(child: Text(r, style: FlapText.sora(fontSize: 12, fontWeight: FontWeight.w800, color: c))),
           );
         }).toList(),
       ),
@@ -720,17 +1034,8 @@ Container(
 const SizedBox(height: 12),
 
             if (_playerTeams.isNotEmpty) ...[
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  tr('il_1e1a1c078a'),
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
+              _sectionLabel(tr('il_1e1a1c078a')),
+              const SizedBox(height: 10),
               SizedBox(
                 height: 130,
                 child: ListView.builder(
@@ -800,255 +1105,84 @@ const SizedBox(height: 12),
 
                         Widget primaryFriendAction;
                         if (isFriend) {
-                          primaryFriendAction = SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: null,
-                              icon: const Icon(Icons.people),
-                              label: Text(
-                                tr('friends'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4caf50),
-                                foregroundColor: Colors.white,
-                                disabledBackgroundColor:
-                                    Colors.grey.withValues(alpha: 0.4),
-                                disabledForegroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                side: BorderSide(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                ),
-                              ),
-                            ),
+                          primaryFriendAction = _flapStatePill(
+                            icon: Icons.people_alt_rounded,
+                            label: tr('friends'),
                           );
                         } else if (hasIncoming) {
                           final rid = state.incomingPendingRequestId!;
+                          final reject = _flapOutlineButton(
+                            label: tr('reject'),
+                            color: FlapColors.red,
+                            disabled: busy,
+                            onTap: () => _respondToFriendRequestFromProfile(
+                                rid, false),
+                          );
+                          final accept = _flapButton(
+                            label: tr('accept'),
+                            tone: _FlapBtnTone.primary,
+                            disabled: busy,
+                            onTap: () => _respondToFriendRequestFromProfile(
+                                rid, true),
+                          );
                           if (stackIncomingActions) {
                             primaryFriendAction = Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton(
-                                    onPressed: busy
-                                        ? null
-                                        : () =>
-                                            _respondToFriendRequestFromProfile(
-                                              rid,
-                                              false,
-                                            ),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.red,
-                                      side: const BorderSide(color: Colors.red),
-                                    ),
-                                    child: Text(
-                                      tr('reject'),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
+                                reject,
                                 const SizedBox(height: 8),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    onPressed: busy
-                                        ? null
-                                        : () =>
-                                            _respondToFriendRequestFromProfile(
-                                              rid,
-                                              true,
-                                            ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF4caf50),
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: Text(
-                                      tr('accept'),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
+                                accept,
                               ],
                             );
                           } else {
                             primaryFriendAction = Row(
                               children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: busy
-                                        ? null
-                                        : () =>
-                                            _respondToFriendRequestFromProfile(
-                                              rid,
-                                              false,
-                                            ),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.red,
-                                      side: const BorderSide(color: Colors.red),
-                                    ),
-                                    child: Text(
-                                      tr('reject'),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
+                                Expanded(child: reject),
                                 const SizedBox(width: 8),
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: busy
-                                        ? null
-                                        : () =>
-                                            _respondToFriendRequestFromProfile(
-                                              rid,
-                                              true,
-                                            ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF4caf50),
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: Text(
-                                      tr('accept'),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
+                                Expanded(child: accept),
                               ],
                             );
                           }
                         } else if (hasOutgoing) {
                           final rid = state.outgoingPendingRequestId!;
+                          final pending = _flapStatePill(
+                            icon: Icons.schedule_rounded,
+                            label: tr('player_invitation_pending_label'),
+                            accent: FlapColors.amber,
+                          );
+                          final cancel = _flapOutlineButton(
+                            label: tr('cancel'),
+                            color: FlapColors.muted,
+                            disabled: busy,
+                            onTap: () => _cancelOutgoingFromProfile(rid),
+                          );
                           if (compact) {
                             primaryFriendAction = Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: null,
-                                    icon: const Icon(Icons.schedule),
-                                    label: Text(
-                                      tr('player_invitation_pending_label'),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF4caf50),
-                                      foregroundColor: Colors.white,
-                                      disabledBackgroundColor:
-                                          Colors.orange.withValues(alpha: 0.4),
-                                      disabledForegroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(18),
-                                      ),
-                                      side: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.2),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: busy
-                                        ? null
-                                        : () =>
-                                            _cancelOutgoingFromProfile(rid),
-                                    child: Text(
-                                      tr('cancel'),
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                pending,
+                                const SizedBox(height: 8),
+                                cancel,
                               ],
                             );
                           } else {
                             primaryFriendAction = Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: null,
-                                    icon: const Icon(Icons.schedule),
-                                    label: Text(
-                                      tr('player_invitation_pending_label'),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF4caf50),
-                                      foregroundColor: Colors.white,
-                                      disabledBackgroundColor:
-                                          Colors.orange.withValues(alpha: 0.4),
-                                      disabledForegroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(18),
-                                      ),
-                                      side: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.2),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                TextButton(
-                                  onPressed: busy
-                                      ? null
-                                      : () => _cancelOutgoingFromProfile(rid),
-                                  child: Text(
-                                    tr('cancel'),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                ),
+                                Expanded(child: pending),
+                                const SizedBox(width: 8),
+                                SizedBox(width: 120, child: cancel),
                               ],
                             );
                           }
                         } else {
-                          primaryFriendAction = SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed:
-                                  busy ? null : () => _sendFriendRequest(),
-                              icon: const Icon(Icons.person_add),
-                              label: Text(
-                                _isSendingRequest
-                                    ? tr('player_add_friend_sending')
-                                    : tr('add_friend'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4caf50),
-                                foregroundColor: Colors.white,
-                                disabledBackgroundColor:
-                                    Colors.grey.withValues(alpha: 0.4),
-                                disabledForegroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                side: BorderSide(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                ),
-                              ),
-                            ),
+                          primaryFriendAction = _flapButton(
+                            label: _isSendingRequest
+                                ? tr('player_add_friend_sending')
+                                : tr('add_friend'),
+                            icon: Icons.person_add_alt_1_rounded,
+                            tone: _FlapBtnTone.primary,
+                            disabled: busy,
+                            onTap: () => _sendFriendRequest(),
                           );
                         }
 
@@ -1072,127 +1206,28 @@ const SizedBox(height: 12),
             // Badges
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(12),
+                color: FlapColors.card,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: FlapColors.borderStrong),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(tr('badges'), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
+                  _sectionLabel(tr('badges')),
+                  const SizedBox(height: 10),
                   if (_userBadges.isEmpty)
-                    Text(tr('player_no_badges_yet'), style: const TextStyle(color: Colors.white54))
+                    Text(tr('player_no_badges_yet'), style: FlapText.sora(fontSize: 13, color: FlapColors.muted))
                   else
                     SizedBox(
-                      height: 82,
+                      height: 152,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
+                        clipBehavior: Clip.none,
                         itemCount: _userBadges.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 10),
-                        itemBuilder: (ctx, i) {
-                          final badge = _userBadges[i];
-                          final catColor = Color(badge.categoryColor);
-                          return GestureDetector(
-                            onTap: () => _endorseBadge(widget.playerId, badge),
-                            child: Container(
-                              width: 160,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.white24),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: catColor.withOpacity(0.2),
-                                      border: Border.all(color: catColor.withOpacity(0.5), width: 1.5),
-                                    ),
-                                    child: Center(child: Text(badge.emoji, style: const TextStyle(fontSize: 24))),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          badge.localizedName,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
-                                        ),
-                                        const SizedBox(height: 3),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: catColor.withOpacity(0.18),
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: catColor.withOpacity(0.45)),
-                                          ),
-                                          child: Text(
-                                            badge.rarityText,
-                                            style: TextStyle(color: catColor, fontSize: 9, fontWeight: FontWeight.w600),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        FutureBuilder<BadgeEndorsementInfo>(
-                                          key: ValueKey('endorse-${badge.id}-$_badgeEndorseVersion'),
-                                          future: sl<PlayerBadgeEndorsementRepository>().getEndorsementInfo(
-                                            ownerUserId: widget.playerId,
-                                            badgeId: badge.id,
-                                            currentUserId: sl<AuthSessionRepository>().peekCurrentUser?.uid,
-                                          ),
-                                          builder: (context, snapshot) {
-                                            final count = snapshot.data?.count ?? 0;
-                                            final endorsed = snapshot.data?.endorsedByCurrentUser ?? false;
-                                            return Row(
-                                              children: [
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                                                  decoration: BoxDecoration(
-                                                    color: endorsed ? catColor.withOpacity(0.25) : Colors.white.withOpacity(0.12),
-                                                    borderRadius: BorderRadius.circular(8),
-                                                    border: Border.all(color: endorsed ? catColor : Colors.white24),
-                                                  ),
-                                                  child: Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      Icon(Icons.thumb_up, size: 11, color: endorsed ? catColor : Colors.white70),
-                                                      const SizedBox(width: 3),
-                                                      Text(
-                                                        count.toString(),
-                                                        style: TextStyle(
-                                                          color: endorsed ? catColor : Colors.white,
-                                                          fontWeight: FontWeight.w600,
-                                                          fontSize: 10,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                if (endorsed) ...[
-                                                  const SizedBox(width: 3),
-                                                  const Icon(Icons.check_circle, color: Colors.greenAccent, size: 13),
-                                                ],
-                                              ],
-                                            );
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
+                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        itemBuilder: (ctx, i) => _buildBadgeTile(_userBadges[i]),
                       ),
                     ),
                 ],
@@ -1203,75 +1238,89 @@ const SizedBox(height: 12),
 
             // Player videos
             if (playerVideos.isNotEmpty) ...[
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(tr('videos'), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-              ),
-              const SizedBox(height: 8),
+              _sectionLabel(tr('videos')),
+              const SizedBox(height: 10),
               SizedBox(
-                height: 110,
-                child: ListView.builder(
+                height: 196,
+                child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: playerVideos.length,
-                  itemBuilder: (context, index) {
-                    final v = playerVideos[index];
-                    final thumb = (v['thumbnailUrl'] ?? '').toString();
-                    final vUrl = (v['videoUrl'] ?? '').toString();
-                    final title = (v['title'] ?? tr('il_d534be829e')).toString();
-                    return SizedBox(
-                      width: 170,
-                      child: VideoPreviewBox(
-                        videoUrl: vUrl,
-                        thumbnailUrl: thumb.isNotEmpty ? thumb : null,
-                        borderRadius: 12,
-                        onTap: () {
-                          if (vUrl.isEmpty) return;
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => VideoPlayerScreen(
-                                videoUrl: vUrl,
-                                title: title,
-                                authorName: displayName,
-                                videoId: (v['id'] ?? '').toString(),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) =>
+                      _buildVideoTile(playerVideos[index], displayName),
                 ),
               ),
             ] else ...[
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(12),
+                  color: FlapColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: FlapColors.border),
                 ),
-                child: Text(tr('no_videos_yet'), style: const TextStyle(color: Colors.white54)),
+                child: Text(tr('no_videos_yet'), style: FlapText.sora(fontSize: 13, color: FlapColors.muted)),
               ),
             ],
           ],
         ),
+      ),
+      ),
+    );
+  }
+
+  /// Shared Flap app bar: glass chevron-back + Sora title.
+  PreferredSizeWidget _flapAppBar(String title) {
+    return AppBar(
+      backgroundColor: FlapColors.bg,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      toolbarHeight: 66,
+      leadingWidth: 60,
+      titleSpacing: 0,
+      leading: Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: FlapColors.surface2,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: FlapColors.border),
+              ),
+              child: const Icon(Icons.chevron_left, color: FlapColors.text, size: 19),
+            ),
+          ),
+        ),
+      ),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: FlapText.sora(fontSize: 19, fontWeight: FontWeight.w800),
       ),
     );
   }
 
   Widget _resultChip(String label, int value, Color color) {
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.15),
-      borderRadius: BorderRadius.circular(8),
+      color: color.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: color.withValues(alpha: 0.35)),
     ),
     child: Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-        const SizedBox(width: 4),
-        Text(value.toString(), style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+        Text(label, style: FlapText.sora(fontSize: 13, fontWeight: FontWeight.w800, color: color)),
+        const SizedBox(width: 5),
+        Text(value.toString(), style: FlapText.sora(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
       ],
     ),
   );
@@ -1281,16 +1330,16 @@ const SizedBox(height: 12),
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
+          colors: [FlapColors.green, FlapColors.greenBright],
         ),
       ),
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: const TextStyle(
-            color: Colors.white,
+          style: FlapText.cond(
             fontSize: 36,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
+            color: FlapColors.onGreen,
           ),
         ),
       ),
@@ -1299,13 +1348,17 @@ const SizedBox(height: 12),
 
   Widget _statBox({required String value, required String label, IconData? icon, Color? color}) {
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+      decoration: BoxDecoration(
+        color: FlapColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: FlapColors.border),
+      ),
       child: Column(
         children: [
           if (icon != null) ...[
-            Icon(icon, color: color ?? Colors.white70, size: 18),
-            const SizedBox(height: 4),
+            Icon(icon, color: color ?? FlapColors.muted, size: 18),
+            const SizedBox(height: 7),
           ],
           FittedBox(
             fit: BoxFit.scaleDown,
@@ -1313,14 +1366,15 @@ const SizedBox(height: 12),
               value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+              style: FlapText.cond(fontSize: 24, fontWeight: FontWeight.w700),
             ),
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
+            style: FlapText.sora(fontSize: 11, color: FlapColors.muted),
             textAlign: TextAlign.center,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
         ],
@@ -1405,7 +1459,7 @@ const SizedBox(height: 12),
             }
 
             return AlertDialog(
-              backgroundColor: const Color(0xFF1a1a2e),
+              backgroundColor: const Color(0xFF10160F),
               title: Text(tr('player_invite_to_challenge_title'), style: const TextStyle(color: Colors.white)),
               content: SizedBox(
                 width: double.maxFinite,
@@ -1571,6 +1625,8 @@ const SizedBox(height: 12),
   }
 }
 
+enum _FlapBtnTone { primary, neutral }
+
 class _MiniTeamCard extends StatelessWidget {
   final AppTeam team;
   final Stream<Map<String, dynamic>?> teamStatsStream;
@@ -1603,9 +1659,9 @@ Widget build(BuildContext context) {
           margin: const EdgeInsets.only(right: 12),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: FlapColors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white12),
+            border: Border.all(color: FlapColors.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1614,14 +1670,14 @@ Widget build(BuildContext context) {
                 children: [
                   CircleAvatar(
                     radius: 22,
-                    backgroundColor: const Color(0xFF4caf50),
+                    backgroundColor: FlapColors.card2,
                     backgroundImage: team.logoUrl != null && team.logoUrl!.isNotEmpty
                         ? NetworkImage(team.logoUrl!)
                         : null,
                     child: (team.logoUrl == null || team.logoUrl!.isEmpty)
                         ? Text(
                             team.name.isNotEmpty ? team.name[0].toUpperCase() : '?',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            style: FlapText.cond(fontSize: 18, fontWeight: FontWeight.w700, color: FlapColors.greenBright),
                           )
                         : null,
                   ),
@@ -1632,13 +1688,13 @@ Widget build(BuildContext context) {
                       children: [
                         Text(
                           team.name,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                          style: FlapText.sora(fontSize: 13.5, fontWeight: FontWeight.w700),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           tr('il_3ac75e6772', args: ['${team.memberIds.length}']),
-                          style: const TextStyle(color: Colors.white60, fontSize: 11),
+                          style: FlapText.sora(fontSize: 11, color: FlapColors.muted),
                         ),
                       ],
                     ),
@@ -1649,15 +1705,15 @@ Widget build(BuildContext context) {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _teamChip('W', wins, Colors.greenAccent),
-                  _teamChip('L', losses, Colors.redAccent),
-                  _teamChip('D', draws, Colors.orangeAccent),
+                  _teamChip('W', wins, FlapColors.greenBright),
+                  _teamChip('L', losses, FlapColors.red),
+                  _teamChip('D', draws, FlapColors.amber),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 tr('il_6eba3c021d', namedArgs: {'winRate': winRate}),
-                style: const TextStyle(color: Colors.white60, fontSize: 11),
+                style: FlapText.sora(fontSize: 11, color: FlapColors.muted),
               ),
             ],
           ),
@@ -1669,16 +1725,17 @@ Widget build(BuildContext context) {
 
   Widget _teamChip(String label, int value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(8),
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+          Text(label, style: FlapText.sora(fontSize: 12, fontWeight: FontWeight.w800, color: color)),
           const SizedBox(width: 4),
-          Text(value.toString(), style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+          Text(value.toString(), style: FlapText.sora(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
         ],
       ),
     );
