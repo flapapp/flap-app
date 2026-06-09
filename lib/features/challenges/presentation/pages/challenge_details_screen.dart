@@ -899,41 +899,97 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   Widget? _buildActionDock() {
     if (widget.challenge.status == ChallengeStatus.completed) return null;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-      decoration: const BoxDecoration(
-        color: FlapColors.bg,
-        border: Border(top: BorderSide(color: FlapColors.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: GestureDetector(
-          onTap: _uploadVideo,
-          child: Container(
-            height: 54,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              gradient: FlapColors.primaryButton,
-              borderRadius: BorderRadius.circular(16),
+    // Reactive to the cubit so the dock disappears the moment the current
+    // user's submission lands (and stays hidden when they've already entered).
+    return BlocBuilder<ChallengeDetailsCubit, ChallengeDetailsState>(
+      builder: (context, state) {
+        final myId = AppAuth.currentUserId ?? '';
+        final alreadySubmitted = myId.isNotEmpty &&
+            state.submissions.any(
+              (s) => (s['userId'] ?? '').toString() == myId,
+            );
+        // Once entered, replace the upload CTA with a confirmation message.
+        if (alreadySubmitted) {
+          return Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            decoration: const BoxDecoration(
+              color: FlapColors.bg,
+              border: Border(top: BorderSide(color: FlapColors.border)),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  tr('il_b0237f6faf'),
-                  style: FlapText.sora(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: FlapColors.onGreen),
+            child: SafeArea(
+              top: false,
+              child: Container(
+                height: 54,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: FlapColors.green.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                      color: FlapColors.green.withValues(alpha: 0.45)),
                 ),
-                const SizedBox(width: 8),
-                const Icon(Icons.arrow_forward_rounded,
-                    color: FlapColors.onGreen, size: 19),
-              ],
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.check_circle_rounded,
+                        color: FlapColors.greenBright, size: 19),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        tr('challenge_error_already_submitted_video'),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: FlapText.sora(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: FlapColors.greenBright),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          decoration: const BoxDecoration(
+            color: FlapColors.bg,
+            border: Border(top: BorderSide(color: FlapColors.border)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: GestureDetector(
+              onTap: _uploadVideo,
+              child: Container(
+                height: 54,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  gradient: FlapColors.primaryButton,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      tr('il_b0237f6faf'),
+                      style: FlapText.sora(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: FlapColors.onGreen),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded,
+                        color: FlapColors.onGreen, size: 19),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

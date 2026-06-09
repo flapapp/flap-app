@@ -115,8 +115,27 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
   void _onSubmissionsRows(List<Map<String, dynamic>> rows) {
     if (isClosed) return;
     final count = rows.length;
-    if (count == state.submissionCount) return;
-    emit(state.copyWith(submissionCount: count));
+    if (count != state.submissionCount) {
+      emit(state.copyWith(submissionCount: count));
+    }
+
+    // Reload the full submission list (with ratings + submitter profiles) when
+    // the *set* of submissions changes — e.g. the current user just uploaded an
+    // entry — so the submissions grid and the upload dock update instantly
+    // instead of only the header count.
+    final liveIds = rows
+        .map((r) => r['id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false)
+      ..sort();
+    final loadedIds = state.submissions
+        .map((s) => s['id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false)
+      ..sort();
+    if (!state.isLoading && !_listEquals(liveIds, loadedIds)) {
+      unawaited(load(force: true));
+    }
   }
 
   static bool _listEquals(List<String> a, List<String> b) {

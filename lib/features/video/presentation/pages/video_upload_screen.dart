@@ -704,6 +704,9 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
             widget.challengeId!,
           );
         }
+        // Tell listeners (challenges list / details) a submission landed so
+        // their data refreshes instantly without a manual reload.
+        sl<VideoFeedSync>().notifyFeedMayHaveChanged();
       } else {
         final desc = _descriptionController.text.trim();
         final videoData = <String, dynamic>{
