@@ -86,53 +86,6 @@ class BadgesStoreRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
-/// [ChallengeCompletionScreen]
-class ChallengeCompletionRoute
-    extends PageRouteInfo<ChallengeCompletionRouteArgs> {
-  ChallengeCompletionRoute({
-    Key? key,
-    required String challengeId,
-    List<PageRouteInfo>? children,
-  }) : super(
-          ChallengeCompletionRoute.name,
-          args: ChallengeCompletionRouteArgs(
-            key: key,
-            challengeId: challengeId,
-          ),
-          initialChildren: children,
-        );
-
-  static const String name = 'ChallengeCompletionRoute';
-
-  static PageInfo page = PageInfo(
-    name,
-    builder: (data) {
-      final args = data.argsAs<ChallengeCompletionRouteArgs>();
-      return ChallengeCompletionScreen(
-        key: args.key,
-        challengeId: args.challengeId,
-      );
-    },
-  );
-}
-
-class ChallengeCompletionRouteArgs {
-  const ChallengeCompletionRouteArgs({
-    this.key,
-    required this.challengeId,
-  });
-
-  final Key? key;
-
-  final String challengeId;
-
-  @override
-  String toString() {
-    return 'ChallengeCompletionRouteArgs{key: $key, challengeId: $challengeId}';
-  }
-}
-
-/// generated route for
 /// [ChallengeCreateScreen]
 class ChallengeCreateRoute extends PageRouteInfo<void> {
   const ChallengeCreateRoute({List<PageRouteInfo>? children})

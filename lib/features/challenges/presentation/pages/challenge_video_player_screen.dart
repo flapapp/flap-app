@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/di/injection.dart';
 import '../../../profile/data/services/user_settings_service.dart';
-import '../../../../widgets/user_chip.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import '../../../../core/supabase/coin_ledger.dart';
+import '../../../../theme/flap_tokens.dart';
+import '../../../../widgets/flap/flap_kit.dart';
+import '../../../../router/app_router.dart';
 
 @RoutePage()
 class ChallengeVideoPlayerScreen extends StatefulWidget {
@@ -37,141 +38,76 @@ class ChallengeVideoPlayerScreen extends StatefulWidget {
 class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen> {
   final SupabaseClient _sb = Supabase.instance.client;
   late VideoPlayerController _videoPlayerController;
-  ChewieController? _chewieController;
   bool _isLoading = true;
   String? _error;
   
   // Challenge video vote (0.00–5.00, step 0.01) — single slider
   double _rating = 2.50;
-  double _tempRating = 2.50; // Temporary value for smooth slider updates
   bool _hasVoted = false;
   bool _isVoting = false;
-  final ValueNotifier<double> _tempRatingNotifier = ValueNotifier<double>(2.50);
   double? _submissionAverageRating;
   String? _submissionAuthorId;
   String? _submissionAuthorName;
   String? _submissionAuthorAvatar;
   bool _autoplayVideos = true;
+  // Voting is only permitted while the parent challenge is in its voting phase.
+  bool _isVotingOpen = false;
 
   @override
   void initState() {
     super.initState();
     _initializeVideo();
     _checkIfVoted();
-    _tempRatingNotifier.value = _tempRating;
     _loadSubmissionAggregate();
+    _loadChallengeStatus();
+  }
+
+  Future<void> _loadChallengeStatus() async {
+    try {
+      final row = await _sb
+          .from('challenges')
+          .select('status')
+          .eq('id', widget.challengeId)
+          .maybeSingle();
+      final status = row?['status']?.toString() ?? '';
+      if (mounted) setState(() => _isVotingOpen = status == 'voting');
+    } catch (_) {}
   }
 
   Future<void> _initializeVideo() async {
     try {
-      _autoplayVideos = (await sl<UserSettingsService>().getSettings()).autoplayVideos;
-      _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      _autoplayVideos =
+          (await sl<UserSettingsService>().getSettings()).autoplayVideos;
+      _videoPlayerController =
+          VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
       await _videoPlayerController.initialize();
-      
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController,
-        aspectRatio: _videoPlayerController.value.aspectRatio == 0
-            ? 16 / 9
-            : _videoPlayerController.value.aspectRatio,
-        autoPlay: _autoplayVideos,
-        looping: false,
-        showControls: true,
-        allowFullScreen: true,
-        allowMuting: true,
-        showOptions: false,
-        autoInitialize: true,
-        placeholder: _buildVideoPlaceholder(),
-        materialProgressColors: ChewieProgressColors(
-          playedColor: const Color(0xFF4caf50),
-          handleColor: Colors.white,
-          bufferedColor: Colors.white24,
-          backgroundColor: Colors.white10,
-        ),
-        errorBuilder: (context, errorMessage) {
-          return Container(
-            color: Colors.black,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    color: Colors.white,
-                    size: 48,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    tr('il_6529e83499'),
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    errorMessage,
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-
-      setState(() {
-        _isLoading = false;
-      });
+      await _videoPlayerController.setLooping(true);
+      _videoPlayerController.addListener(_loopWatcher);
+      if (_autoplayVideos) {
+        _videoPlayerController.play();
+      }
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  Widget _buildVideoPlaceholder() {
-    final thumb = widget.thumbnailUrl ?? '';
-    if (thumb.isNotEmpty) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.network(
-            thumb,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _placeholderBackdrop(),
-          ),
-          Container(
-            color: Colors.black.withOpacity(0.35),
-          ),
-          const Center(
-            child: Icon(
-              Icons.play_circle_fill,
-              color: Colors.white,
-              size: 72,
-            ),
-          ),
-        ],
-      );
+  // Belt-and-suspenders auto-restart in addition to setLooping(true).
+  void _loopWatcher() {
+    if (!mounted) return;
+    final v = _videoPlayerController.value;
+    if (v.isInitialized &&
+        !v.isPlaying &&
+        v.duration > Duration.zero &&
+        v.position >= v.duration) {
+      _videoPlayerController.seekTo(Duration.zero);
+      _videoPlayerController.play();
     }
-    return _placeholderBackdrop();
-  }
-
-  Widget _placeholderBackdrop() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0f0f23), Color(0xFF1b5e20)],
-        ),
-      ),
-      child: const Center(
-        child: Icon(
-          Icons.sports_soccer,
-          color: Colors.white24,
-          size: 64,
-        ),
-      ),
-    );
   }
 
   Future<void> _loadSubmissionAggregate() async {
@@ -244,9 +180,8 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
 
   @override
   void dispose() {
-    _chewieController?.dispose();
+    _videoPlayerController.removeListener(_loopWatcher);
     _videoPlayerController.dispose();
-    _tempRatingNotifier.dispose();
     super.dispose();
   }
 
@@ -254,358 +189,371 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.black.withOpacity(0.5),
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+        scrolledUnderElevation: 0,
+        leadingWidth: 70,
+        leading: Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: _glassIconButton(
+                Icons.chevron_left, () => Navigator.pop(context)),
+          ),
         ),
         title: Text(
           widget.title,
-          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: FlapText.sora(
+              fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
         ),
-        actions: [
-          if (_submissionAverageRating != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: Row(
-                children: [
-                  const Icon(Icons.star, color: Color(0xFFFFD700)),
-                  const SizedBox(width: 4),
-                  Text(
-                    _submissionAverageRating!.toStringAsFixed(2),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        titleSpacing: 4,
+      ),
+      body: _isLoading
+          ? _buildPlayerSkeleton()
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: Colors.white, size: 64),
+                      const SizedBox(height: 16),
+                      Text(tr('il_8073f27473'),
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 18)),
+                      const SizedBox(height: 8),
+                      Text(_error!,
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 14),
+                          textAlign: TextAlign.center),
+                    ],
                   ),
-                ],
+                )
+              : Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Full-bleed video; tap toggles play/pause.
+                    GestureDetector(
+                      onTap: _togglePlayPause,
+                      child: ColoredBox(
+                        color: Colors.black,
+                        child: FittedBox(
+                          fit: BoxFit.cover,
+                          child: SizedBox(
+                            width: _videoPlayerController.value.size.width <= 0
+                                ? 9
+                                : _videoPlayerController.value.size.width,
+                            height:
+                                _videoPlayerController.value.size.height <= 0
+                                    ? 16
+                                    : _videoPlayerController.value.size.height,
+                            child: VideoPlayer(_videoPlayerController),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Legibility scrims.
+                    IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.45),
+                              Colors.transparent,
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.55),
+                            ],
+                            stops: const [0.0, 0.22, 0.62, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Center play affordance when paused.
+                    ValueListenableBuilder<VideoPlayerValue>(
+                      valueListenable: _videoPlayerController,
+                      builder: (context, value, _) {
+                        if (value.isPlaying) return const SizedBox.shrink();
+                        return Center(
+                          child: GestureDetector(
+                            onTap: _togglePlayPause,
+                            child: Container(
+                              width: 74,
+                              height: 74,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: 0.14),
+                                border: Border.all(
+                                    color:
+                                        Colors.white.withValues(alpha: 0.28)),
+                              ),
+                              child: const Icon(Icons.play_arrow_rounded,
+                                  color: Colors.white, size: 38),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    // Right action rail.
+                    Positioned(right: 12, bottom: 128, child: _buildRail()),
+                    // Bottom creator caption.
+                    Positioned(
+                      left: 16,
+                      right: 84,
+                      bottom: 28,
+                      child: SafeArea(top: false, child: _buildPlayerCaption()),
+                    ),
+                  ],
+                ),
+    );
+  }
+
+  void _togglePlayPause() {
+    setState(() {
+      if (_videoPlayerController.value.isPlaying) {
+        _videoPlayerController.pause();
+      } else {
+        _videoPlayerController.play();
+      }
+    });
+  }
+
+  Widget _glassIconButton(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(9),
+          color: Colors.white.withValues(alpha: 0.12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: Icon(icon, color: Colors.white, size: 25),
+      ),
+    );
+  }
+
+  Widget _buildRail() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Voting is only available while the challenge is in its voting phase.
+        // Outside that, keep the "voted" badge for users who already rated.
+        if (_isVotingOpen || _hasVoted) ...[
+          _railButton(
+            icon: Icons.star_rounded,
+            label: _hasVoted ? tr('voted') : tr('vote'),
+            onTap: _hasVoted ? () {} : _showVoteSheet,
+            active: _hasVoted,
+            activeColor: FlapColors.gold,
+          ),
+          const SizedBox(height: 18),
+        ],
+        _railButton(
+          icon: Icons.reply_outlined,
+          label: tr('share'),
+          onTap: _shareVideo,
+        ),
+      ],
+    );
+  }
+
+  Widget _railButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool active = false,
+    Color activeColor = FlapColors.greenBright,
+  }) {
+    final Color tint = active ? activeColor : Colors.white;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: active
+                  ? activeColor.withValues(alpha: 0.18)
+                  : Colors.white.withValues(alpha: 0.1),
+              border: Border.all(
+                color: active
+                    ? activeColor.withValues(alpha: 0.5)
+                    : Colors.white.withValues(alpha: 0.18),
               ),
             ),
-          IconButton(
-            icon: const Icon(Icons.share, color: Colors.white),
-            onPressed: _shareVideo,
+            child: Icon(icon, color: tint, size: 22),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: FlapText.sora(
+                fontSize: 11, fontWeight: FontWeight.w600, color: tint),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Video Player
-          Expanded(
-            flex: 3,
-            child: Container(
-              width: double.infinity,
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: Color(0xFF4caf50)),
-                    )
-                  : _error != null
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.error_outline,
-                                color: Colors.white,
-                                size: 64,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                tr('il_8073f27473'),
-                                style: const TextStyle(color: Colors.white, fontSize: 18),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _error!,
-                                style: const TextStyle(color: Colors.white70, fontSize: 14),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        )
-                      : _chewieController != null
-                          ? Chewie(controller: _chewieController!)
-                          : const SizedBox(),
-            ),
-          ),
+    );
+  }
 
-          // Author info under the video
-          if (_submissionAuthorId != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              color: Colors.black,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: UserChip(
-                      userId: _submissionAuthorId!,
-                      name: _submissionAuthorName,
-                      avatarUrl: _submissionAuthorAvatar,
-                      showName: true,
-                    ),
-                  ),
-                  if (_submissionAverageRating != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.6)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.star, color: Color(0xFFFFD700), size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            _submissionAverageRating!.toStringAsFixed(2),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-          // Voting section — single slider for challenges
-          Expanded(
-            flex: 2,
-            child: SingleChildScrollView(
-              child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0f0f23),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
+  Widget _buildPlayerCaption() {
+    final name = (_submissionAuthorName != null &&
+            _submissionAuthorName!.isNotEmpty)
+        ? _submissionAuthorName!
+        : widget.authorName;
+    final ratingText =
+        (_submissionAverageRating != null && _submissionAverageRating! > 0)
+            ? _submissionAverageRating!.toStringAsFixed(1)
+            : null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            if (_submissionAuthorId != null &&
+                _submissionAuthorId!.isNotEmpty) {
+              context.router.push(
+                PlayerProfileRoute(
+                  playerId: _submissionAuthorId!,
+                  playerName: name,
+                ),
+              );
+            }
+          },
+          child: Row(
+            children: [
+              _creatorAvatar(_submissionAuthorAvatar, name),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: FlapText.sora(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title
-                  Row(
-                    children: [
-                      const Icon(Icons.how_to_vote, color: Color(0xFF4caf50), size: 24),
-                      const SizedBox(width: 8),
-                      Text(
-                        tr('il_68548b47e7'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      if (_hasVoted)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF4caf50).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            tr('il_9cf238dedb'),
-                            style: const TextStyle(
-                              color: Color(0xFF4caf50),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Single Rating Slider
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              tr('il_c1be3e30f1'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF4caf50).withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: const Color(0xFF4caf50)),
-                              ),
-                              child: ValueListenableBuilder<double>(
-                                valueListenable: _tempRatingNotifier,
-                                builder: (context, value, _) => Text(
-                                  value.toStringAsFixed(2),
-                                  style: const TextStyle(
-                                    color: Color(0xFF4caf50),
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        // Full-width slider with enlarged thumb + overlay
-                        // for precise dragging across all device sizes.
-                        // padding: EdgeInsets.zero removes the Material 3
-                        // default outer slider padding so the track spans
-                        // the full inner width of the container.
-                        RepaintBoundary(
-                          child: ValueListenableBuilder<double>(
-                            valueListenable: _tempRatingNotifier,
-                            builder: (context, tempValue, _) => SliderTheme(
-                              data: SliderTheme.of(context).copyWith(
-                                activeTrackColor: const Color(0xFF4caf50),
-                                inactiveTrackColor:
-                                    const Color(0xFF4caf50).withOpacity(0.3),
-                                thumbColor: const Color(0xFF4caf50),
-                                overlayColor:
-                                    const Color(0xFF4caf50).withOpacity(0.2),
-                                trackHeight: 6,
-                                thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: 14,
-                                  elevation: 4,
-                                ),
-                                overlayShape: const RoundSliderOverlayShape(
-                                  overlayRadius: 28,
-                                ),
-                                valueIndicatorColor:
-                                    const Color(0xFF4caf50),
-                                valueIndicatorTextStyle: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                padding: EdgeInsets.zero,
-                              ),
-                              child: Slider(
-                                value: tempValue,
-                                min: 0.0,
-                                max: 5.0,
-                                label: tempValue.toStringAsFixed(2),
-                                onChanged: _hasVoted ? null : (value) {
-                                  _tempRatingNotifier.value = value;
-                                },
-                                onChangeEnd: _hasVoted ? null : (value) {
-                                  final roundedValue =
-                                      (value * 100).round() / 100;
-                                  _tempRating = roundedValue;
-                                  _tempRatingNotifier.value = roundedValue;
-                                  _rating = roundedValue;
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Rating scale
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '0.00',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
-                                fontSize: 12,
-                              ),
-                            ),
-                            Text(
-                              '2.50',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
-                                fontSize: 12,
-                              ),
-                            ),
-                            Text(
-                              '5.00',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        // Vote Button
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _hasVoted || _isVoting ? null : _submitVote,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _hasVoted 
-                                  ? Colors.grey 
-                                  : const Color(0xFF4caf50),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: _isVoting
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : Text(
-                                    _hasVoted 
-                                        ? tr('il_4737e31c44') 
-                                        : tr('il_c829c4660c'),
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Help text
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.info_outline, color: Colors.white54, size: 16),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            tr('il_f434505723'),
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          widget.title,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: FlapText.sora(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFFE2E8E3))
+              .copyWith(height: 1.4),
+        ),
+        if (ratingText != null) ...[
+          const SizedBox(height: 10),
+          _captionChip('$ratingText ${tr('video_avg')}'),
+        ],
+      ],
+    );
+  }
+
+  Widget _captionChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.star, size: 13, color: FlapColors.gold),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: FlapText.sora(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFFCDD4CE)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _creatorAvatar(String? avatarUrl, String name) {
+    final hasImg = avatarUrl != null && avatarUrl.isNotEmpty;
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: FlapColors.green,
+        border:
+            Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.5),
+        image: hasImg
+            ? DecorationImage(image: NetworkImage(avatarUrl), fit: BoxFit.cover)
+            : null,
+      ),
+      alignment: Alignment.center,
+      child: hasImg
+          ? null
+          : Text(
+              name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?',
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white),
+            ),
+    );
+  }
+
+  Widget _buildPlayerSkeleton() {
+    return FlapShimmer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const ColoredBox(color: Color(0xFF0E1310)),
+          Positioned(
+            right: 12,
+            bottom: 128,
+            child: Column(
+              children: const [
+                FlapSkeletonBox(width: 48, height: 48, radius: 24),
+                SizedBox(height: 18),
+                FlapSkeletonBox(width: 48, height: 48, radius: 24),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 84,
+            bottom: 28,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                FlapSkeletonBox(width: 40, height: 40, radius: 20),
+                SizedBox(height: 12),
+                FlapSkeletonBox(width: double.infinity, height: 13, radius: 5),
+                SizedBox(height: 8),
+                FlapSkeletonBox(width: 160, height: 13, radius: 5),
+              ],
             ),
           ),
         ],
@@ -613,7 +561,200 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
     );
   }
 
-  Future<void> _submitVote() async {
+  Widget _sheetGrip() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.only(top: 8, bottom: 4),
+        width: 38,
+        height: 4,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(99),
+        ),
+      ),
+    );
+  }
+
+  Widget _sheetCloseButton(BuildContext ctx) {
+    return GestureDetector(
+      onTap: () => Navigator.pop(ctx),
+      child: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: FlapColors.surface2,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: FlapColors.border),
+        ),
+        child: const Icon(Icons.close, size: 18, color: FlapColors.text),
+      ),
+    );
+  }
+
+  /// Criterion rows — label on the left, stars on the right (space between).
+  Widget _voteCriteriaTable(
+      Map<String, int> scores, void Function(String, int) setS) {
+    Widget critRow(String key, String label, int weight) {
+      final value = scores[key]!;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        child: Row(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  const Icon(Icons.star,
+                      size: 14, color: FlapColors.greenBright),
+                  const SizedBox(width: 7),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          FlapText.sora(fontSize: 12.5, color: FlapColors.muted),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text('$weight%',
+                      style: FlapText.sora(
+                          fontSize: 12.5, color: FlapColors.muted2)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(5, (i) {
+                final on = i < value;
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => setS(key, i + 1),
+                  child: Padding(
+                    padding: EdgeInsets.only(left: i == 0 ? 0 : 5),
+                    child: Icon(
+                      on ? Icons.star : Icons.star_border,
+                      size: 20,
+                      color: on
+                          ? FlapColors.gold
+                          : Colors.white.withValues(alpha: 0.16),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        critRow('t', tr('il_e851504f43'), 40),
+        critRow('c', tr('il_1c9fe98ba9'), 30),
+        critRow('d', tr('il_be44133ed5'), 20),
+        critRow('q', tr('il_b8c237eb0d'), 10),
+      ],
+    );
+  }
+
+  void _showVoteSheet() {
+    if (_hasVoted || !_isVotingOpen) return;
+    final firstName = widget.authorName.split(' ').first;
+    final scores = {'t': 0, 'c': 0, 'd': 0, 'q': 0};
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheet) {
+            final weighted = scores['t']! * 0.4 +
+                scores['c']! * 0.3 +
+                scores['d']! * 0.2 +
+                scores['q']! * 0.1;
+            return Container(
+              decoration: const BoxDecoration(
+                color: FlapColors.card,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+                border:
+                    Border(top: BorderSide(color: FlapColors.borderStrong)),
+              ),
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _sheetGrip(),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 12, 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              tr('challenge_vote_title',
+                                  namedArgs: {'name': firstName}),
+                              style: FlapText.sora(
+                                  fontSize: 15, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          _sheetCloseButton(sheetCtx),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 6, 20, 22),
+                      child: Column(
+                        children: [
+                          _voteCriteriaTable(
+                              scores, (k, v) => setSheet(() => scores[k] = v)),
+                          const SizedBox(height: 18),
+                          GestureDetector(
+                            onTap: weighted <= 0
+                                ? null
+                                : () {
+                                    Navigator.pop(sheetCtx);
+                                    _rating = double.parse(
+                                        weighted.toStringAsFixed(2));
+                                    _submitVote();
+                                  },
+                            child: Opacity(
+                              opacity: weighted <= 0 ? 0.5 : 1,
+                              child: Container(
+                                height: 54,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  gradient: FlapColors.primaryButton,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  weighted > 0
+                                      ? '${tr('challenge_vote_submit')} (${weighted.toStringAsFixed(1)})'
+                                      : tr('challenge_vote_submit'),
+                                  style: FlapText.sora(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: FlapColors.onGreen),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+    Future<void> _submitVote() async {
     if (_hasVoted || _isVoting) return;
 
     setState(() {

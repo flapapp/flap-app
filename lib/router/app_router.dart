@@ -10,7 +10,6 @@ import 'guards/guest_guard.dart';
 import '../features/admin/presentation/pages/admin_screen.dart';
 import '../features/auth/presentation/pages/auth_bootstrap_page.dart';
 import '../features/badges/presentation/pages/badges_store_screen.dart';
-import '../features/challenges/presentation/pages/challenge_completion_screen.dart';
 import '../features/challenges/presentation/pages/challenge_create_screen.dart';
 import '../features/challenges/presentation/pages/challenge_details_screen.dart';
 import '../features/challenges/presentation/pages/challenge_list_screen.dart';
@@ -240,11 +239,6 @@ class AppRouter extends RootStackRouter {
     AutoRoute(
       path: '/team-create',
       page: TeamCreateRoute.page,
-      guards: [appAuthGuard, appAvatarGuard],
-    ),
-    AutoRoute(
-      path: '/challenge-completion',
-      page: ChallengeCompletionRoute.page,
       guards: [appAuthGuard, appAvatarGuard],
     ),
   ];

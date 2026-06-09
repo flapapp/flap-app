@@ -458,37 +458,6 @@ Widget build(BuildContext context) {
     );
   }
 
-  Widget _buildCategoryLabel(String label, Color color, {VoidCallback? onTap}) {
-    final pill = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.local_fire_department, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-    if (onTap == null) return pill;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: pill,
-    );
-  }
-
   Color _videoCategoryColor(String category) => videoCategoryColor(category);
 
   bool _isUnknownLabel(String value) {
@@ -533,37 +502,6 @@ Widget build(BuildContext context) {
     }
   }
 
-  String _challengeTypeLabel(String type) {
-    switch (parseChallengeType(type)) {
-      case ChallengeType.goal:
-        return tr('il_cdbf6975e8');
-      case ChallengeType.shotPower:
-        return tr('il_a387ab1835');
-      case ChallengeType.pass:
-        return tr('il_ebdf8cc00b');
-      case ChallengeType.longPass:
-        return tr('il_a30ef79268');
-      case ChallengeType.dribbling:
-        return tr('il_0b337d1bc7');
-      case ChallengeType.tackle:
-        return tr('il_9c0dd00951');
-      case ChallengeType.defending:
-        return tr('challenge_type_defending');
-      case ChallengeType.penalty:
-        return tr('il_241c754092');
-      case ChallengeType.save:
-        return tr('il_1509f561f2');
-      case ChallengeType.wall:
-        return tr('il_93819c7151');
-      case ChallengeType.strategy:
-        return tr('il_6b27710dfa');
-      case ChallengeType.trick:
-        return tr('il_209e3aa0b5');
-      case ChallengeType.other:
-        return tr('il_f97e9da0e3');
-    }
-  }
-
   Widget _buildRatingBadge(String? ratingText) {
     final hasRating = ratingText != null;
     return Container(
@@ -587,24 +525,6 @@ Widget build(BuildContext context) {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMetaPill(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.75),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
       ),
     );
   }
@@ -2187,24 +2107,18 @@ Widget build(BuildContext context) {
     );
   }
 
-  // Challenge card
+  // Challenge card — design `.ccard`
   Widget _buildChallengeCard(Map<String, dynamic> challenge, String challengeId) {
     final status = (challenge['status'] ?? 'recruiting').toString();
     final type = (challenge['type'] ?? 'goal').toString();
     final accent = _challengeTypeColor(type);
     final currentParticipants = challenge['currentParticipants'] ?? 0;
-    final maxParticipants = challenge['maxParticipants'] ?? 50;
     final prizePool = (challenge['prizePool'] ?? 0.0).toDouble();
     final entryFee = challenge['entryFee'] ?? 10;
     final durationLabel = challengeDurationDisplayFromRow(
       Map<String, dynamic>.from(challenge),
     );
     final creatorId = (challenge['creatorId'] ?? '').toString();
-    final creatorName = (challenge['creatorName'] ??
-            tr('il_b764cdc0ea'))
-        .toString();
-    final creatorVideoUrl =
-        (challenge['creatorVideoUrl'] ?? '').toString();
     String creatorThumbnailUrl =
         (challenge['creatorThumbnailUrl'] ?? challenge['thumbnailUrl'] ?? '')
             .toString();
@@ -2216,422 +2130,199 @@ Widget build(BuildContext context) {
         _prefetchChallengeCreatorThumbnail(challengeId, creatorId);
       }
     }
-    final participants =
-        List<String>.from(challenge['participants'] ?? const []);
-    final now = DateTime.now();
-    final createdAtTs = asDateTimeOrNull(challenge['createdAt']);
-    final votingDeadlineTs = asDateTimeOrNull(challenge['votingDeadline']);
-    final endDateTs = asDateTimeOrNull(challenge['endDate']);
-    final votingDeadline = votingDeadlineTs ?? endDateTs;
-    final createdAt = createdAtTs ?? now;
-    final isCompletedByDate =
-        votingDeadline != null && now.isAfter(votingDeadline);
-    final isCompleted = status == 'completed' || isCompletedByDate;
+    final votingDeadline = asDateTimeOrNull(challenge['votingDeadline']) ??
+        asDateTimeOrNull(challenge['endDate']);
+    final isCompleted = status == 'completed' ||
+        (votingDeadline != null && DateTime.now().isAfter(votingDeadline));
     final displayStatus = isCompleted ? 'completed' : status;
-    final remaining = votingDeadline?.difference(now) ?? Duration.zero;
-    final remainingSecs = remaining.inSeconds;
-    // Whole hours left (ceil). Do not map <24h to "1 day" via hours/24.ceil().
-    final remainingCeilHours = remainingSecs <= 0
-        ? 0
-        : (remainingSecs + 3599) ~/ 3600;
-    final useHoursForVotingCountdown =
-        remainingCeilHours > 0 && remainingCeilHours < 24;
-    final remainingDays = remainingCeilHours <= 0
-        ? 0
-        : useHoursForVotingCountdown
-            ? 0
-            : (remainingCeilHours / 24).ceil();
-    final totalSeconds = votingDeadline != null
-        ? votingDeadline.difference(createdAt).inSeconds
-        : 0;
-    final elapsedSeconds = votingDeadline != null
-        ? now.difference(createdAt).inSeconds.clamp(0, totalSeconds)
-        : 0;
-    final timelineProgress = totalSeconds > 0
-        ? (elapsedSeconds / totalSeconds).clamp(0.0, 1.0)
-        : 0.0;
-    
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accent.withValues(alpha: 0.22),
-            Colors.white.withValues(alpha: 0.02),
-          ],
+    final stage = _challengeStageStyle(displayStatus);
+    final timeLeft =
+        isCompleted ? tr('challenge_status_completed') : durationLabel;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _viewChallengeDetails(challengeId, challenge),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color: FlapColors.card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: FlapColors.border),
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: accent.withValues(alpha: 0.4),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Challenge title
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [accent, accent.withValues(alpha: 0.8)],
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.35),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title with status badge
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                  challenge['title'] ?? tr('il_f59ab8d133'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Text(
-                        _getStatusText(displayStatus),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                _buildCategoryLabel(_challengeTypeLabel(type), accent),
-                const SizedBox(height: 8),
-                Text(
-                  challenge['description'] ??
-                      tr('il_bcd8cc53f4'),
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 13,
-                    height: 1.3,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12),
-                // Author and duration info
-                Row(
-                  children: [
-                    _buildUserAvatarChip(
-                      userId: creatorId,
-                      name: creatorName,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            creatorName,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.95),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          Text(
-                            tr('il_bb42908a8a'),
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.7),
-                              fontSize: 11,
-                            ),
-                          ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Cover
+            SizedBox(
+              height: 112,
+              width: double.infinity,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (creatorThumbnailUrl.isNotEmpty)
+                    Image.network(
+                      creatorThumbnailUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          CustomPaint(painter: _CoverStripePainter(accent)),
+                    )
+                  else
+                    CustomPaint(painter: _CoverStripePainter(accent)),
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.35),
+                          Colors.transparent,
                         ],
                       ),
                     ),
-                    const Icon(Icons.access_time, color: Colors.white70, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      durationLabel,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                  ),
+                  // Completed challenges already show "Completed" in the
+                  // top-right time pill, so skip the duplicate stage chip.
+                  if (!isCompleted)
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: _challengeStageChip(stage),
+                    ),
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        timeLeft,
+                        style: FlapText.sora(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFE2E8E3),
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          if (creatorVideoUrl.isNotEmpty || creatorThumbnailUrl.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: VideoPreviewBox(
-                videoUrl: creatorVideoUrl.isNotEmpty ? creatorVideoUrl : null,
-                thumbnailUrl: creatorThumbnailUrl.isNotEmpty
-                    ? creatorThumbnailUrl
-                    : null,
-                borderRadius: 18,
-                onTap: creatorVideoUrl.isEmpty
-                    ? null
-                    : () {
-                        context.router.push(
-                          VideoPlayerRoute(
-                            videoUrl: creatorVideoUrl,
-                            title: challenge['title'] ??
-                                tr('il_4c92b02f91'),
-                            authorName: creatorName,
-                            videoId: challengeId,
-                          ),
-                        );
-                      },
-                topLeft: _buildMetaPill(
-                  tr('il_bfccfa4baf'),
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
-
-          // Challenge info
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Progress bar
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
+            // Content
+            Padding(
+              padding: const EdgeInsets.fromLTRB(15, 14, 15, 15),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    challenge['title'] ?? tr('il_f59ab8d133'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: FlapText.sora(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: FlapColors.text,
                     ),
                   ),
-            child: Column(
-              children: [
-                Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                          Text(
-                            isCompleted
-                                ? tr('il_5042fbee3b')
-                                : useHoursForVotingCountdown
-                                    ? tr(
-                                        'video_voting_ends_in_hours',
-                                        namedArgs: {
-                                          'hours': '$remainingCeilHours',
-                                        },
-                                      )
-                                    : tr(
-                                        'video_voting_ends_in_days',
-                                        namedArgs: {'days': '$remainingDays'},
-                                      ),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            isCompleted
-                                ? tr('il_22a970d2e5')
-                                : useHoursForVotingCountdown
-                                    ? tr(
-                                        'il_fc64c33206',
-                                        namedArgs: {
-                                          'hours': '$remainingCeilHours',
-                                        },
-                                      )
-                                    : '$remainingDays ${tr('il_18ac3e7343')}',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 12,
-                            ),
+                  const SizedBox(height: 5),
+                  Text(
+                    challenge['description'] ?? tr('il_bcd8cc53f4'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: FlapText.sora(
+                      fontSize: 12.5,
+                      color: FlapColors.muted,
                     ),
-                  ],
-                ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: isCompleted ? 1.0 : timelineProgress,
-                        backgroundColor: Colors.white.withValues(alpha: 0.2),
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFF66bb6a),
-                        ),
-                        minHeight: 6,
-                        borderRadius: BorderRadius.circular(3),
+                  ),
+                  const SizedBox(height: 13),
+                  Row(
+                    children: [
+                      _challengeFootStat(
+                        value: prizePool > 0
+                            ? '${prizePool.toInt()}'
+                            : tr('challenge_prize_tbd'),
+                        label: tr('challenge_prize_pool'),
+                        valueColor: FlapColors.gold,
+                        icon: Icons.monetization_on,
+                      ),
+                      const SizedBox(width: 16),
+                      _challengeFootStat(
+                        value: '$entryFee',
+                        label: tr('challenge_entry_fee'),
+                      ),
+                      const SizedBox(width: 16),
+                      _challengeFootStat(
+                        value: '$currentParticipants',
+                        label: tr('challenge_players'),
                       ),
                     ],
                   ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Stats grid
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatCard(
-                        icon: Icons.people,
-                        value: '$currentParticipants/$maxParticipants',
-                        label: tr('il_0e27279b33'),
-                        color: const Color(0xFF2196F3),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildStatCard(
-                        icon: Icons.toll,
-                        value: tr('il_eae716cab3', namedArgs: {'fee': '$entryFee'}),
-                        label: tr('il_2649e082d9'),
-                        color: const Color(0xFFFF9800),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildStatCard(
-                        icon: Icons.emoji_events,
-                        value: '${prizePool.toInt()}',
-                        label: tr('il_0a489d848c'),
-                        color: const Color(0xFFFFD700),
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-
-                // Action Buttons Row
-                Row(
-                  children: [
-                    // View challenge
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF2196F3), Color(0xFF64B5F6)],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF2196F3).withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                      child: ElevatedButton.icon(
-                          onPressed: () => _viewChallengeDetails(challengeId, challenge),
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: const Icon(
-                            Icons.visibility,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          label: Text(
-                            tr('il_dcc839a401'),
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Join
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF4caf50).withValues(alpha: 0.4),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: ElevatedButton.icon(
-                          onPressed: isCompleted
-                              ? null
-                              : () => _joinChallenge(challengeId, challenge),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: const Icon(
-                            Icons.video_library,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          label: Text(
-                            isCompleted
-                                ? tr('il_22a970d2e5')
-                                : tr('il_fd30fe681b'),
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (participants.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  _buildParticipantsRow(participants),
                 ],
-              ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  ({Color bg, Color fg, IconData icon, String label}) _challengeStageStyle(
+      String status) {
+    switch (status) {
+      case 'recruiting':
+        return (
+          bg: FlapColors.blue.withValues(alpha: 0.2),
+          fg: const Color(0xFF9CC1F0),
+          icon: Icons.group_rounded,
+          label: _getStatusText('recruiting'),
+        );
+      case 'voting':
+        return (
+          bg: FlapColors.green.withValues(alpha: 0.2),
+          fg: FlapColors.greenBright,
+          icon: Icons.star_rounded,
+          label: _getStatusText('voting'),
+        );
+      case 'completed':
+        return (
+          bg: Colors.white.withValues(alpha: 0.1),
+          fg: const Color(0xFFCDD4CE),
+          icon: Icons.emoji_events_rounded,
+          label: _getStatusText('completed'),
+        );
+      default:
+        return (
+          bg: FlapColors.amber.withValues(alpha: 0.2),
+          fg: const Color(0xFFEACA85),
+          icon: Icons.bolt_rounded,
+          label: _getStatusText(status == 'submission' ? 'submission' : 'active'),
+        );
+    }
+  }
+
+  Widget _challengeStageChip(
+      ({Color bg, Color fg, IconData icon, String label}) s) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: s.bg,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(s.icon, size: 12, color: s.fg),
+          const SizedBox(width: 6),
+          Text(
+            s.label,
+            style: FlapText.sora(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: s.fg,
             ),
           ),
         ],
@@ -2639,124 +2330,40 @@ Widget build(BuildContext context) {
     );
   }
 
-  Widget _buildInfoItem(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.white70, size: 16),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(
-            color: Colors.white70,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
+  Widget _challengeFootStat({
     required String value,
     required String label,
-    required Color color,
+    Color? valueColor,
+    IconData? icon,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
-        ),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 18,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildParticipantsRow(List<String> ids) {
-    final preview = ids.take(5).toList();
-    final remaining = ids.length - preview.length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.groups_2, color: Colors.white70, size: 16),
-            const SizedBox(width: 6),
+            if (icon != null) ...[
+              Icon(icon, size: 15, color: valueColor ?? FlapColors.text),
+              const SizedBox(width: 4),
+            ],
             Text(
-              tr('il_0e27279b33'),
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+              value,
+              style: FlapText.cond(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: valueColor ?? FlapColors.text,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            ...preview.map(
-              (id) => Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: _buildUserAvatarChip(
-                  userId: id,
-                  size: 34,
-                ),
-              ),
-            ),
-            if (remaining > 0)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                ),
-                child: Text(
-                  '+$remaining',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-          ],
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: FlapText.sora(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: FlapColors.muted,
+          ),
         ),
       ],
     );
@@ -3088,91 +2695,6 @@ Widget build(BuildContext context) {
   }
 
   // Challenge helpers
-  void _joinChallenge(String challengeId, Map<String, dynamic> challenge) {
-    // Check if user is already a participant
-    final currentUser = AppAuth.currentUser;
-    if (currentUser == null) return;
-    final votingDeadline = asDateTimeOrNull(challenge['votingDeadline']);
-    final endDate = asDateTimeOrNull(challenge['endDate']);
-    final isCompletedByDate = (votingDeadline != null &&
-            DateTime.now().isAfter(votingDeadline)) ||
-        (endDate != null && DateTime.now().isAfter(endDate));
-    if ((challenge['status'] ?? '') == 'completed' || isCompletedByDate) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            tr('il_e957ce6dda'),
-          ),
-        ),
-      );
-      return;
-    }
-    
-    // Show join confirmation
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1e7d32),
-        title: Text(
-          tr('il_e56c7271db'),
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              tr(
-                'video_challenge_join_intro',
-                namedArgs: {
-                  'title': (challenge['title'] ?? '').toString(),
-                },
-              ),
-              style: const TextStyle(color: Colors.white),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              tr(
-                'video_challenge_join_entry_fee',
-                namedArgs: {
-                  'fee': '${challenge['entryFee'] ?? 0}',
-                },
-              ),
-              style: const TextStyle(color: Colors.white70),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              tr('cancel'),
-              style: const TextStyle(color: Colors.white70),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await context.router.push(
-                VideoUploadRoute(
-                  challengeId: challengeId,
-                  challengeTitle: challenge['title']?.toString(),
-                ),
-              );
-              if (!mounted) return;
-              _invalidateVideoFeedCaches();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4caf50)),
-            child: Text(
-              tr('il_ea79e83338'),
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _viewChallengeDetails(String challengeId, Map<String, dynamic> challengeData) {
     // Build Challenge from row data
     final challenge = Challenge(
@@ -3186,6 +2708,7 @@ Widget build(BuildContext context) {
       ),
       creatorId: challengeData['creatorId'] ?? '',
       creatorName: challengeData['creatorName'] ?? '',
+      creatorVideoUrl: challengeData['creatorVideoUrl']?.toString(),
       city: challengeData['city'] ?? '',
       entryFee: challengeData['entryFee'] ?? 10,
       duration: challengeDurationDaysFromRow(
@@ -3212,7 +2735,10 @@ Widget build(BuildContext context) {
       winners: List<String>.from(challengeData['winners'] ?? []),
       finalScores: Map<String, double>.from(challengeData['finalScores'] ?? {}),
       isActive: challengeData['isActive'] ?? true,
-      imageUrl: challengeData['imageUrl'],
+      imageUrl: (challengeData['imageUrl'] ??
+              challengeData['creatorThumbnailUrl'] ??
+              challengeData['thumbnailUrl'])
+          ?.toString(),
       tags: List<String>.from(challengeData['tags'] ?? []),
     );
     
@@ -4073,4 +3599,43 @@ class _CachedUserProfile {
     required this.avatarUrl,
     required this.city,
   });
+}
+
+/// Decorative diagonal-stripe cover for challenge cards (design `.ccard .cov`),
+/// shown when no creator thumbnail is available. Tinted by the challenge accent.
+class _CoverStripePainter extends CustomPainter {
+  final Color accent;
+  const _CoverStripePainter(this.accent);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(rect, Paint()..color = const Color(0xFF0E1C16));
+
+    final stripe = Paint()..color = const Color(0xFF13241C);
+    const w = 16.0;
+    for (double x = -size.height; x < size.width; x += w * 2) {
+      final path = Path()
+        ..moveTo(x, size.height)
+        ..lineTo(x + size.height, 0)
+        ..lineTo(x + size.height + w, 0)
+        ..lineTo(x + w, size.height)
+        ..close();
+      canvas.drawPath(path, stripe);
+    }
+
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [accent.withValues(alpha: 0.22), Colors.transparent],
+        ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CoverStripePainter oldDelegate) =>
+      oldDelegate.accent != accent;
 }
