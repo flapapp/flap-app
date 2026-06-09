@@ -7,7 +7,9 @@ import '../../../../core/error/failure.dart';
 import '../../../../core/progress/progress_status.dart';
 import '../../../../router/app_router.dart';
 import '../../../../router/post_auth_navigation.dart';
+import '../../../../theme/flap_tokens.dart';
 import '../bloc/auth_bloc.dart';
+import '../widgets/auth_widgets.dart';
 
 String _loginErrorMessage(Failure failure) {
   return failure.when(
@@ -41,6 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _remember = true;
 
   @override
   void initState() {
@@ -56,6 +59,17 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _submit() {
+    if (_formKey.currentState!.validate()) {
+      context.read<AuthBloc>().add(
+            AuthEvent.loginRequested(
+              email: _emailController.text.trim(),
+              password: _passwordController.text.trim(),
+            ),
+          );
+    }
   }
 
   @override
@@ -94,256 +108,162 @@ class _LoginScreenState extends State<LoginScreen> {
       },
       builder: (context, state) {
         final loading = state.loginProgress == ProgressStatus.loading;
-        return WillPopScope(
-          onWillPop: () async {
+        return PopScope(
+          canPop: true,
+          onPopInvokedWithResult: (didPop, _) {
             final focused = FocusScope.of(context);
-            if (!focused.hasPrimaryFocus) {
-              focused.unfocus();
-              return false;
-            }
-            return true;
+            if (!focused.hasPrimaryFocus) focused.unfocus();
           },
           child: Scaffold(
-            backgroundColor: const Color(0xFF1e7d32),
+            backgroundColor: FlapColors.bg,
             resizeToAvoidBottomInset: true,
-            appBar: AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => context.router.maybePop(),
-              ),
-            ),
-            body: SafeArea(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => FocusScope.of(context).unfocus(),
-                child: ListView(
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.fromLTRB(30, 30, 30, 30),
-                  children: [
-                    Form(
-                      key: _formKey,
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 90,
-                            height: 90,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(22),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.3),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
+            body: DecoratedBox(
+              decoration: const BoxDecoration(gradient: FlapColors.screenGlow),
+              child: SafeArea(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: Column(
+                    children: [
+                      // Head — back + language toggle.
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 6, 22, 0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            AuthBackButton(
+                              onTap: () => context.router.maybePop(),
                             ),
-                            clipBehavior: Clip.antiAlias,
-                            child: Image.asset(
-                              'assets/logo/flap_logo.jpg',
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Flap',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            tr('login_subtitle'),
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 14,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 30),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(15),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.3),
-                                width: 2,
-                              ),
-                            ),
-                            child: TextFormField(
-                              controller: _emailController,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: tr('email_or_phone'),
-                                hintStyle: TextStyle(
-                                  color: Colors.white.withOpacity(0.7),
-                                  fontWeight: FontWeight.w400,
-                                ),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.all(15),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return tr('enter_email');
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(15),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.3),
-                                width: 2,
-                              ),
-                            ),
-                            child: TextFormField(
-                              controller: _passwordController,
-                              obscureText: true,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: tr('password'),
-                                hintStyle: TextStyle(
-                                  color: Colors.white.withOpacity(0.7),
-                                  fontWeight: FontWeight.w400,
-                                ),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.all(15),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return tr('enter_password');
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      tr('password_recovery_later'),
+                            const AuthLangToggle(),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
+                          children: [
+                            Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 18),
+                                  AuthEyebrow(tr('auth_login_eyebrow')),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    tr('auth_login_title').toUpperCase(),
+                                    style: FlapText.cond(
+                                      fontSize: 40,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      height: 0.95,
+                                      letterSpacing: 0.3,
                                     ),
                                   ),
-                                );
-                              },
-                              child: Text(
-                                tr('forgot_password'),
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-                          Container(
-                            width: double.infinity,
-                            height: 55,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF4caf50),
-                                  Color(0xFF66bb6a),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    tr('auth_login_sub'),
+                                    style: FlapText.sora(
+                                      color: FlapColors.muted,
+                                      fontSize: 14.5,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 26),
+                                  AuthField(
+                                    label: tr('email'),
+                                    controller: _emailController,
+                                    hint: tr('auth_email_ph'),
+                                    keyboardType: TextInputType.emailAddress,
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return tr('enter_email');
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 16),
+                                  AuthField(
+                                    label: tr('password'),
+                                    controller: _passwordController,
+                                    hint: '••••••••',
+                                    obscure: true,
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return tr('enter_password');
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 18),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.end,
+                                    children: [
+                                      AuthLink(
+                                        tr('forgot_password'),
+                                        onTap: () {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                              content: Text(tr(
+                                                  'password_recovery_later')),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
                                 ],
                               ),
-                              borderRadius: BorderRadius.circular(25),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF4caf50)
-                                      .withOpacity(0.3),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
                             ),
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                              ),
-                              onPressed: loading
-                                  ? null
-                                  : () {
-                                      if (_formKey.currentState!.validate()) {
-                                        context.read<AuthBloc>().add(
-                                              AuthEvent.loginRequested(
-                                                email: _emailController.text
-                                                    .trim(),
-                                                password: _passwordController
-                                                    .text
-                                                    .trim(),
-                                              ),
-                                            );
-                                      }
-                                    },
-                              child: loading
-                                  ? const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                          Colors.white,
-                                        ),
-                                      ),
-                                    )
-                                  : Text(
-                                      tr('login'),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 1.2,
-                                        fontSize: 16,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(height: 15),
-                          TextButton(
-                            onPressed: loading
-                                ? null
-                                : () =>
-                                    context.router.push(const RegisterRoute()),
-                            child: Text(
-                              tr('no_account_register'),
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      // Foot — CTA + swap.
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(28, 18, 28, 16),
+                        child: Column(
+                          children: [
+                            AuthPrimaryButton(
+                              label: tr('login'),
+                              loading: loading,
+                              onTap: _submit,
+                            ),
+                            const SizedBox(height: 18),
+                            _swap(context, loading),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _swap(BuildContext context, bool loading) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          tr('auth_new_to_flap'),
+          style: FlapText.sora(color: FlapColors.muted, fontSize: 14),
+        ),
+        const SizedBox(width: 5),
+        AuthLink(
+          tr('auth_sign_up'),
+          onTap: loading
+              ? () {}
+              : () => context.router.push(const RegisterRoute()),
+        ),
+      ],
     );
   }
 }

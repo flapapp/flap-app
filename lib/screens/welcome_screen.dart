@@ -3,231 +3,150 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../router/app_router.dart';
+import '../theme/flap_tokens.dart';
+import '../features/auth/presentation/widgets/auth_widgets.dart';
 
 @RoutePage()
 class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({Key? key}) : super(key: key);
+  const WelcomeScreen({super.key});
 
-  Widget _buildLanguageButton({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      decoration: BoxDecoration(
-        gradient: selected
-            ? const LinearGradient(
-                colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-              )
-            : null,
-        color: selected ? null : Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: selected ? Colors.white70 : Colors.white24,
-          width: 1.4,
-        ),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF4caf50).withValues(alpha: 0.35),
-                  blurRadius: 14,
-                  offset: const Offset(0, 5),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: FlapColors.bg,
+      body: Stack(
+        children: [
+          // Background ambience: green radial glow at top fading into the bg.
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(0, -1.0),
+                  radius: 1.0,
+                  colors: [Color(0x2E4CAF50), Color(0x00070A08)],
+                  stops: [0.0, 0.5],
                 ),
-              ]
-            : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
               ),
             ),
           ),
-        ),
+          SafeArea(
+            child: Column(
+              children: [
+                // Top bar — language toggle (right).
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 6, 22, 0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: const [AuthLangToggle()],
+                  ),
+                ),
+                // Logo, vertically centered in the free space.
+                Expanded(child: Center(child: _logo())),
+                // Hero copy.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(30, 0, 30, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AuthEyebrow(tr('auth_eyebrow_welcome')),
+                      const SizedBox(height: 13),
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(text: '${tr('auth_hero_a')}\n'),
+                            TextSpan(
+                              text: tr('auth_hero_b'),
+                              style: const TextStyle(
+                                  color: FlapColors.greenBright),
+                            ),
+                          ],
+                        ),
+                        style: FlapText.cond(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          height: 1.0,
+                          letterSpacing: 0.3,
+                        ).copyWith(),
+                      ),
+                      const SizedBox(height: 13),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 282),
+                        child: Text(
+                          tr('auth_welcome_sub'),
+                          style: FlapText.sora(
+                            color: FlapColors.muted,
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Actions.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 22, 24, 34),
+                  child: Column(
+                    children: [
+                      AuthPrimaryButton(
+                        label: tr('login'),
+                        onTap: () => context.router.push(const LoginRoute()),
+                      ),
+                      const SizedBox(height: 12),
+                      AuthGhostButton(
+                        label: tr('register'),
+                        onTap: () =>
+                            context.router.push(const RegisterRoute()),
+                      ),
+                      const SizedBox(height: 12),
+                      _legal(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final lang = context.locale.languageCode;
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1e7d32), Color(0xFF2e7d32)],
+  Widget _logo() {
+    return Container(
+      width: 104,
+      height: 104,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: FlapColors.green.withValues(alpha: 0.35),
+            blurRadius: 40,
+            offset: const Offset(0, 18),
           ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(40),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 140,
-                    height: 140,
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
-                          blurRadius: 18,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: FittedBox(
-                      fit: BoxFit.contain,
-                      child: Image.asset(
-                        'assets/logo/flap_logo.jpg',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  const Text(
-                    'Flap',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: 2,
-                      shadows: [
-                        Shadow(
-                          offset: Offset(2, 2),
-                          blurRadius: 8,
-                          color: Colors.black26,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildLanguageButton(
-                        label: tr('welcome_language_ukrainian'),
-                        selected: lang == 'uk',
-                        onTap: () async =>
-                            context.setLocale(const Locale('uk')),
-                      ),
-                      const SizedBox(width: 12),
-                      _buildLanguageButton(
-                        label: tr('welcome_language_english'),
-                        selected: lang == 'en',
-                        onTap: () async =>
-                            context.setLocale(const Locale('en')),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    '${tr('welcome_brand_line')}\n${tr('feel_like_a_pro')}',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.white.withOpacity(0.9),
-                      height: 1.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 40),
-                  SizedBox(
-                    width: 300,
-                    child: Column(
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF4caf50), Color(0xFF66bb6a)],
-                            ),
-                            borderRadius: BorderRadius.circular(25),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF4caf50).withOpacity(0.4),
-                                blurRadius: 25,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                            ),
-                            onPressed: () {
-                              context.router.push(const LoginRoute());
-                            },
-                            child: Text(
-                              tr('login'),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1,
-                                fontSize: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                        Container(
-                          width: double.infinity,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(25),
-                            border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
-                          ),
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                            ),
-                            onPressed: () {
-                              context.router.push(const RegisterRoute());
-                            },
-                            child: Text(
-                              tr('register'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.asset('assets/logo/flap_logo.jpg', fit: BoxFit.cover),
+    );
+  }
+
+  Widget _legal() {
+    return LegalAgreementText(
+      prefix: tr('auth_legal_a'),
+      connector: tr('auth_legal_and'),
+      suffix: '.',
+      textAlign: TextAlign.center,
+      baseStyle: FlapText.sora(
+        color: FlapColors.muted2,
+        fontSize: 11.5,
+        height: 1.5,
+      ),
+      linkStyle: FlapText.sora(
+        color: FlapColors.muted,
+        fontSize: 11.5,
+        height: 1.5,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
