@@ -449,3 +449,82 @@ class FlapSkeletonBox extends StatelessWidget {
     );
   }
 }
+
+/// A full-area shimmer placeholder used in place of a content-loading spinner:
+/// a column of rounded card blocks that fills the available space.
+class FlapLoadingList extends StatelessWidget {
+  const FlapLoadingList({
+    super.key,
+    this.itemCount = 6,
+    this.itemHeight = 92,
+    this.padding = const EdgeInsets.all(16),
+    this.gap = 12,
+    this.radius = 16,
+  });
+
+  final int itemCount;
+  final double itemHeight;
+  final EdgeInsets padding;
+  final double gap;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: FlapShimmer(
+        child: ListView.separated(
+          padding: padding,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: itemCount,
+          separatorBuilder: (_, __) => SizedBox(height: gap),
+          itemBuilder: (_, __) =>
+              FlapSkeletonBox(height: itemHeight, radius: radius),
+        ),
+      ),
+    );
+  }
+}
+
+/// A full-area shimmer placeholder grid used in place of a content-loading
+/// spinner for card/tile grids.
+class FlapLoadingGrid extends StatelessWidget {
+  const FlapLoadingGrid({
+    super.key,
+    this.itemCount = 6,
+    this.crossAxisCount = 2,
+    this.childAspectRatio = 0.7,
+    this.padding = const EdgeInsets.all(16),
+    this.spacing = 12,
+    this.radius = 16,
+  });
+
+  final int itemCount;
+  final int crossAxisCount;
+  final double childAspectRatio;
+  final EdgeInsets padding;
+  final double spacing;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: FlapShimmer(
+        child: GridView.builder(
+          padding: padding,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            childAspectRatio: childAspectRatio,
+          ),
+          itemCount: itemCount,
+          itemBuilder: (_, __) =>
+              FlapSkeletonBox(height: double.infinity, radius: radius),
+        ),
+      ),
+    );
+  }
+}

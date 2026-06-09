@@ -28,6 +28,7 @@ import '../../../teams/presentation/pages/team_details_screen.dart';
 import '../../../video/presentation/pages/video_player_screen.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../../theme/flap_tokens.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 
 @RoutePage()
 class PlayerProfileScreen extends StatefulWidget {
@@ -810,15 +811,52 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     );
   }
 
+  Widget _buildProfileSkeleton() {
+    return IgnorePointer(
+      child: FlapShimmer(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const FlapSkeletonBox(width: 100, height: 100, radius: 50),
+              const SizedBox(height: 16),
+              const FlapSkeletonBox(width: 180, height: 24, radius: 8),
+              const SizedBox(height: 10),
+              const FlapSkeletonBox(width: 120, height: 16, radius: 8),
+              const SizedBox(height: 20),
+              const FlapSkeletonBox(
+                  width: double.infinity, height: 90, radius: 20),
+              const SizedBox(height: 16),
+              Row(
+                children: const [
+                  Expanded(child: FlapSkeletonBox(height: 72, radius: 16)),
+                  SizedBox(width: 12),
+                  Expanded(child: FlapSkeletonBox(height: 72, radius: 16)),
+                  SizedBox(width: 12),
+                  Expanded(child: FlapSkeletonBox(height: 72, radius: 16)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const FlapSkeletonBox(
+                  width: double.infinity, height: 120, radius: 18),
+              const SizedBox(height: 16),
+              const FlapSkeletonBox(
+                  width: double.infinity, height: 120, radius: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return Scaffold(
         backgroundColor: FlapColors.bg,
         appBar: _flapAppBar(widget.playerName ?? tr('player_profile_title')),
-        body: const Center(
-          child: CircularProgressIndicator(color: FlapColors.green),
-        ),
+        body: _buildProfileSkeleton(),
       );
     }
 

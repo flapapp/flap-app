@@ -544,8 +544,12 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
   Widget _buildProfileBody(ProfileState state) {
     if (state.streamProgress == ProgressStatus.loading &&
         state.profile == null) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+      return const FlapLoadingList(
+        itemCount: 5,
+        itemHeight: 96,
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
+        gap: 14,
+        radius: 18,
       );
     }
     if (state.streamFailure != null && state.profile == null) {

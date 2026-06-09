@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/di/injection.dart';
+import '../widgets/flap/flap_kit.dart';
 import '../features/video/presentation/video_feed_sync.dart';
 import '../router/app_router.dart';
 import '../features/notifications/data/services/notification_service.dart';
@@ -446,10 +447,10 @@ class _MainScreenState extends State<MainScreen>
                       .eq('user_id', AppAuth.currentUserId ?? ''),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFFffc107),
-                        ),
+                      return const FlapLoadingList(
+                        itemCount: 6,
+                        itemHeight: 64,
+                        radius: 14,
                       );
                     }
 
@@ -674,10 +675,10 @@ class _MainScreenState extends State<MainScreen>
                       .eq('user_id', AppAuth.currentUserId ?? ''),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF4caf50),
-                        ),
+                      return const FlapLoadingList(
+                        itemCount: 6,
+                        itemHeight: 64,
+                        radius: 14,
                       );
                     }
 

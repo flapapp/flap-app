@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../router/app_router.dart';
 import '../../domain/repositories/ratings_repository.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -262,8 +263,10 @@ class _RatingsScreenState extends State<RatingsScreen>
   // Overall rating
   Widget _buildOverallRatingsTab() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
+      return const FlapLoadingList(
+        itemCount: 6,
+        itemHeight: 76,
+        radius: 16,
       );
     }
 
@@ -636,8 +639,10 @@ class _RatingsScreenState extends State<RatingsScreen>
   // My statistics
   Widget _buildMyStatsTab() {
     if (_myStats.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
+      return const FlapLoadingList(
+        itemCount: 5,
+        itemHeight: 90,
+        radius: 16,
       );
     }
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../widgets/player_avatar_button.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../data/models/match.dart';
 
@@ -583,7 +584,11 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
         future: _finishFlowFuture,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const FlapLoadingList(
+              itemCount: 5,
+              itemHeight: 88,
+              radius: 16,
+            );
           }
           if (snap.hasError) {
             return Center(

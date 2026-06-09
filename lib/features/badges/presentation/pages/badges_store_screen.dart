@@ -8,6 +8,7 @@ import '../../data/models/badge.dart' as app_badge;
 import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/core/supabase/coin_ledger.dart';
 import 'package:flap_app/theme/flap_tokens.dart';
+import 'package:flap_app/widgets/flap/flap_kit.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 @RoutePage()
@@ -88,11 +89,12 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
               const SizedBox(height: 4),
               Expanded(
                 child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: FlapColors.green,
-                          strokeWidth: 2.4,
-                        ),
+                    ? const FlapLoadingGrid(
+                        itemCount: 6,
+                        crossAxisCount: 2,
+                        childAspectRatio: 0.66,
+                        padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        radius: 20,
                       )
                     : TabBarView(
                         controller: _tabController,

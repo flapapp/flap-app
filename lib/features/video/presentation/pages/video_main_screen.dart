@@ -2039,7 +2039,7 @@ Widget build(BuildContext context) {
         }
 
         if (listState.isLoading && listState.items.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
+          return _buildVideoGridSkeleton();
         }
 
         final challenges = listState.items;
@@ -2470,7 +2470,7 @@ Widget build(BuildContext context) {
       future: _memoizedMyListFuture(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return _buildVideoGridSkeleton();
         }
 
         if (snapshot.hasError) {
@@ -2641,7 +2641,7 @@ Widget build(BuildContext context) {
       future: _memoizedTrendingListFuture(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return _buildVideoGridSkeleton();
         }
 
         if (snapshot.hasError) {
@@ -3334,8 +3334,14 @@ Widget build(BuildContext context) {
                       );
                     }
                     if (!snapshot.hasData) {
-                      return const Center(
-                          child: CircularProgressIndicator(color: Color(0xFFFFD700)));
+                      return const FlapLoadingList(
+                        itemCount: 7,
+                        itemHeight: 58,
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        gap: 10,
+                        radius: 12,
+                      );
                     }
                     final docs = (snapshot.data ?? const <Map<String, dynamic>>[])
                       ..sort((a, b) {
@@ -3502,8 +3508,13 @@ Widget build(BuildContext context) {
                       );
                     }
                     if (!snapshot.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+                      return const FlapLoadingList(
+                        itemCount: 7,
+                        itemHeight: 58,
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        gap: 10,
+                        radius: 12,
                       );
                     }
 

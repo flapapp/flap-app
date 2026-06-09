@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../router/app_router.dart';
 import '../../../friends/domain/repositories/friends_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -257,8 +258,12 @@ class _VideosScreenState extends State<VideosScreen> {
               future: _memoizedVideoList(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+                  return const FlapLoadingGrid(
+                    itemCount: 6,
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.5625,
+                    padding: EdgeInsets.all(12),
+                    radius: 14,
                   );
                 }
 

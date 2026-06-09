@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import '../../data/models/challenge.dart';
 import '../../../video/data/services/thumbnail_service.dart';
 import '../../../../widgets/video_preview_box.dart';
@@ -586,11 +587,12 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     return BlocBuilder<ChallengeDetailsCubit, ChallengeDetailsState>(
       builder: (context, state) {
         if (state.isLoading && state.submissions.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
-            child: Center(
-              child: CircularProgressIndicator(color: FlapColors.green),
-            ),
+          return const FlapLoadingGrid(
+            itemCount: 4,
+            crossAxisCount: 2,
+            childAspectRatio: 0.72,
+            padding: EdgeInsets.all(16),
+            radius: 16,
           );
         }
 
@@ -1102,9 +1104,12 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                                                     as num?) ??
                                                 0));
                               if (state.isLoading && ranked.isEmpty) {
-                                return const Center(
-                                  child: CircularProgressIndicator(
-                                      color: FlapColors.greenBright),
+                                return const FlapLoadingGrid(
+                                  itemCount: 4,
+                                  crossAxisCount: 2,
+                                  childAspectRatio: 0.72,
+                                  padding: EdgeInsets.all(16),
+                                  radius: 16,
                                 );
                               }
                               if (ranked.isEmpty) {

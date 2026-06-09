@@ -1098,10 +1098,13 @@ class _MatchesScreenState extends State<MatchesScreen>
                       .eq('user_id', AppAuth.currentUserId ?? ''),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFFFFD700),
-                        ),
+                      return const FlapLoadingList(
+                        itemCount: 6,
+                        itemHeight: 64,
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        gap: 10,
+                        radius: 14,
                       );
                     }
                     final txDocs = List<Map<String, dynamic>>.from(
@@ -1921,8 +1924,12 @@ class _MatchesScreenState extends State<MatchesScreen>
               future: topFuture,
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+                  return const FlapLoadingList(
+                    itemCount: 6,
+                    itemHeight: 64,
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    gap: 10,
+                    radius: 14,
                   );
                 }
                 final all = (snap.data ?? const <Map<String, dynamic>>[])

@@ -6,6 +6,7 @@ import 'package:flap_app/core/supabase/supabase_date.dart';
 
 import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../core/di/injection.dart';
 import '../../application/match_management_actions_use_case.dart';
 import '../../domain/repositories/matches_repository.dart';
@@ -498,8 +499,10 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
       stream: _invitationHistoryStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+          return const FlapLoadingList(
+            itemCount: 5,
+            itemHeight: 72,
+            radius: 16,
           );
         }
         if (snapshot.hasError) {
@@ -649,8 +652,10 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
       stream: _liveMatchStream(),
       builder: (context, snap) {
         if (!snap.hasData || snap.data == null) {
-          return Center(
-            child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+          return const FlapLoadingList(
+            itemCount: 5,
+            itemHeight: 80,
+            radius: 16,
           );
         }
         final updated = snap.data!;
@@ -683,8 +688,10 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
           builder: (context, snap) {
             final match = _mergeStreamAndLatest(snap);
             if (match == null) {
-              return const Center(
-                child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+              return const FlapLoadingList(
+                itemCount: 5,
+                itemHeight: 80,
+                radius: 16,
               );
             }
             final isOrganizer = AppAuth.currentUserId == match.organizerId;
@@ -2346,8 +2353,13 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                     const SizedBox(height: 12),
                                     if (teamLoading)
                                       const Expanded(
-                                        child: Center(
-                                          child: CircularProgressIndicator(),
+                                        child: FlapLoadingList(
+                                          itemCount: 4,
+                                          itemHeight: 56,
+                                          padding: EdgeInsets.symmetric(
+                                              vertical: 4),
+                                          gap: 8,
+                                          radius: 12,
                                         ),
                                       )
                                     else
@@ -2436,8 +2448,13 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                     const SizedBox(height: 8),
                                     if (captainLoading || teamsForCaptainLoading)
                                       const Expanded(
-                                        child: Center(
-                                          child: CircularProgressIndicator(),
+                                        child: FlapLoadingList(
+                                          itemCount: 4,
+                                          itemHeight: 56,
+                                          padding: EdgeInsets.symmetric(
+                                              vertical: 4),
+                                          gap: 8,
+                                          radius: 12,
                                         ),
                                       )
                                     else if (pickedCaptainId != null)
@@ -2683,8 +2700,10 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
       stream: _liveMatchStream(),
       builder: (context, snap) {
         if (!snap.hasData || snap.data == null) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+          return const FlapLoadingList(
+            itemCount: 5,
+            itemHeight: 80,
+            radius: 16,
           );
         }
         final m = snap.data!;

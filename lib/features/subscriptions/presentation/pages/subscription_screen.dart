@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../theme/flap_tokens.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import '../../data/models/subscription.dart';
 import '../../domain/repositories/subscriptions_repository.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -84,8 +85,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       body: Container(
         decoration: const BoxDecoration(gradient: FlapColors.screenGlow),
         child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: FlapColors.green),
+            ? const FlapLoadingList(
+                itemCount: 4,
+                itemHeight: 132,
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 28),
+                gap: 14,
+                radius: 20,
               )
             : SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),

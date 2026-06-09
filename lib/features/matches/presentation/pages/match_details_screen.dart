@@ -7,6 +7,7 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
@@ -1381,15 +1382,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       future: _getTeam(teamId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.02),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: const Center(
-              child: CircularProgressIndicator(strokeWidth: 2),
+          return const FlapShimmer(
+            child: FlapSkeletonBox(
+              width: double.infinity,
+              height: 92,
+              radius: 16,
             ),
           );
         }

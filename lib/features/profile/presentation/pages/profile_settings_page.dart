@@ -12,6 +12,7 @@ import '../../../../features/auth/domain/repositories/auth_session_repository.da
 import '../../../../features/auth/domain/usecases/delete_account_usecase.dart';
 import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 
 @RoutePage()
 class ProfileSettingsScreen extends StatefulWidget {
@@ -101,8 +102,12 @@ class _ProfileSettingsBody extends StatelessWidget {
             ],
           ),
           body: loading
-              ? const Center(
-                  child: CircularProgressIndicator(color: FlapColors.green),
+              ? const FlapLoadingList(
+                  itemCount: 6,
+                  itemHeight: 60,
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  gap: 12,
+                  radius: 14,
                 )
               : state.loadProgress == ProgressStatus.failure
                   ? _buildError(context, state, cubit)

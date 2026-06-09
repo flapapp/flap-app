@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import '../../../profile/presentation/widgets/sparkline_painter.dart';
 import '../../domain/repositories/stats_repository.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -69,7 +70,13 @@ class _StatsScreenState extends State<StatsScreen> {
         title: Text(tr('stats'), style: const TextStyle(color: Colors.white)),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF4caf50)))
+          ? const FlapLoadingList(
+              itemCount: 5,
+              itemHeight: 100,
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
+              gap: 14,
+              radius: 18,
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(

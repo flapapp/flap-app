@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../theme/flap_tokens.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import '../../domain/repositories/friends_repository.dart';
 import '../../../../router/app_router.dart';
 import '../../data/models/friend_request.dart';
@@ -200,8 +201,12 @@ class _FriendsScreenState extends State<FriendsScreen>
 
   Widget _buildFriendsTab(FriendsPageState pageState) {
     if (pageState.friendsLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: FlapColors.green),
+      return const FlapLoadingList(
+        itemCount: 7,
+        itemHeight: 84,
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+        gap: 12,
+        radius: 18,
       );
     }
 

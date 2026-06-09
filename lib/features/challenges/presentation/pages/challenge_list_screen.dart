@@ -7,6 +7,7 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../router/app_router.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
 import '../cubit/challenge_catalog_cubit.dart';
@@ -263,10 +264,10 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     return BlocBuilder<ChallengeCatalogCubit, ChallengeCatalogState>(
       builder: (context, catalogState) {
         if (catalogState.isLoading && catalogState.challenges.isEmpty) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
+          return const FlapLoadingList(
+            itemCount: 5,
+            itemHeight: 200,
+            radius: 18,
           );
         }
 

@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../router/app_router.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../core/supabase/supabase_date.dart';
 import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
@@ -158,8 +159,10 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
             child: BlocBuilder<ChallengesListCubit, ChallengesListState>(
               builder: (context, listState) {
                 if (listState.isLoading && listState.items.isEmpty) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF4caf50)),
+                  return const FlapLoadingList(
+                    itemCount: 5,
+                    itemHeight: 200,
+                    radius: 18,
                   );
                 }
 
