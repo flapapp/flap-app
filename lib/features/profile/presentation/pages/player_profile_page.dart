@@ -28,6 +28,7 @@ import '../../../teams/presentation/pages/team_details_screen.dart';
 import '../../../video/presentation/pages/video_player_screen.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../../theme/flap_tokens.dart';
+import 'package:flap_app/features/badges/presentation/badge_icon.dart';
 import '../../../../widgets/flap/flap_kit.dart';
 
 @RoutePage()
@@ -516,7 +517,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                         borderRadius: BorderRadius.circular(17),
                         border: Border.all(color: c.withValues(alpha: 0.4)),
                       ),
-                      child: Text(badge.emoji, style: const TextStyle(fontSize: 26)),
+                      child: Icon(flapBadgeIcon(badge.emoji), size: 24, color: c),
                     ),
                     if (count > 0)
                       Positioned(

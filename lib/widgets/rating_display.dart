@@ -62,7 +62,7 @@ class RatingDisplay extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (showNumber) ...[
-                  const Text('⭐', style: TextStyle(fontSize: 14)),
+                  const Icon(Icons.star_rounded, size: 16, color: Color(0xFFE7C25A)),
                   const SizedBox(width: 4),
                   Text(
                     currentRating.toStringAsFixed(2),
@@ -105,7 +105,7 @@ class RatingDisplay extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('⭐', style: TextStyle(fontSize: 14)),
+          const Icon(Icons.star_rounded, size: 16, color: Color(0xFFE7C25A)),
           const SizedBox(width: 4),
           SizedBox(
             width: 20,
@@ -136,7 +136,7 @@ class RatingDisplay extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('⭐', style: TextStyle(fontSize: 14)),
+          const Icon(Icons.star_rounded, size: 16, color: Color(0xFFE7C25A)),
           const SizedBox(width: 4),
           Text(
             '3.0',
@@ -209,7 +209,7 @@ class CompactRatingDisplay extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('⭐', style: TextStyle(fontSize: 12)),
+                const Icon(Icons.star_rounded, size: 14, color: Color(0xFFE7C25A)),
                 const SizedBox(width: 2),
                 Text(
                   currentRating.toStringAsFixed(2),
@@ -257,7 +257,7 @@ class CompactRatingDisplay extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('⭐', style: TextStyle(fontSize: 12)),
+          const Icon(Icons.star_rounded, size: 14, color: Color(0xFFE7C25A)),
           const SizedBox(width: 2),
           Text(
             '3.0',

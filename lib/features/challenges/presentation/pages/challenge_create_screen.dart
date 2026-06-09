@@ -1779,7 +1779,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     Future.delayed(const Duration(seconds: 3), () async {
       try {
         print(
-          '🎬 Starting creator thumbnail generation for challenge: $challengeId',
+          'Starting creator thumbnail generation for challenge: $challengeId',
         );
 
         final sub = await _sb

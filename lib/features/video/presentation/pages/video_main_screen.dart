@@ -1086,7 +1086,7 @@ Widget build(BuildContext context) {
     List<String> items,
     String selectedValue,
     Function(String) onChanged,
-    String icon,
+    IconData icon,
   ) {
     return Container(
       decoration: BoxDecoration(
@@ -1108,7 +1108,7 @@ Widget build(BuildContext context) {
               value: item,
               child: Row(
                 children: [
-                  Text(icon),
+                  Icon(icon, size: 16, color: FlapColors.muted),
                   const SizedBox(width: 8),
                   Expanded(child: Text(item)),
                 ],
@@ -1147,7 +1147,8 @@ Widget build(BuildContext context) {
                   value: mode,
                   child: Row(
                     children: [
-                      const Text('↕️'),
+                      const Icon(Icons.swap_vert_rounded,
+                          size: 16, color: FlapColors.muted),
                       const SizedBox(width: 8),
                       Expanded(child: Text(_sortLabel(mode))),
                     ],
@@ -1302,7 +1303,7 @@ Widget build(BuildContext context) {
                         });
                         setSheet(() {});
                       },
-                      '⭐',
+                      Icons.star_rounded,
                     ),
                     const SizedBox(height: 16),
                     _filterFieldLabel(tr('video_filter_sort')),

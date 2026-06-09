@@ -170,7 +170,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                     setState(() => _selectedStatus = value);
                     _reloadCatalog();
                   },
-                  '📊',
+                  Icons.bar_chart_rounded,
                 ),
               ),
               const SizedBox(width: 10),
@@ -183,7 +183,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                     setState(() => _selectedType = value);
                     _reloadCatalog();
                   },
-                  '🎯',
+                  Icons.gps_fixed_rounded,
                 ),
               ),
             ],
@@ -200,7 +200,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
               setState(() => _selectedCity = value);
               _reloadCatalog();
             },
-            '🏙️',
+            Icons.location_city_rounded,
           ),
         ],
       ),
@@ -212,7 +212,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     List<String> values,
     String selectedValue,
     Function(String) onChanged,
-    String icon,
+    IconData icon,
   ) {
     return Container(
       decoration: BoxDecoration(
@@ -229,7 +229,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
           style: const TextStyle(color: Colors.black87, fontSize: 14),
           hint: Row(
             children: [
-              Text(icon),
+              Icon(icon, size: 16, color: Colors.black54),
               const SizedBox(width: 8),
               Expanded(child: Text(tr('all'))),
             ],
@@ -243,7 +243,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
               value: value,
               child: Row(
                 children: [
-                  Text(icon),
+                  Icon(icon, size: 16, color: Colors.black54),
                   const SizedBox(width: 8),
                   Expanded(child: Text(displayItem)),
                 ],
@@ -370,9 +370,10 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                 // Title and type
                 Row(
                   children: [
-                    Text(
+                    Icon(
                       challenge.typeIcon,
-                      style: const TextStyle(fontSize: 24),
+                      size: 26,
+                      color: Colors.black87,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -442,14 +443,15 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                 Row(
                   children: [
                     _buildStatItem(
-                      '👥',
+                      Icons.group_rounded,
                       '${challenge.currentParticipants}/${challenge.maxParticipants}',
                     ),
                     const SizedBox(width: 20),
-                    _buildStatItem('🎬', '${challenge.submissions.length}'),
+                    _buildStatItem(
+                        Icons.movie_rounded, '${challenge.submissions.length}'),
                     const SizedBox(width: 20),
                     _buildStatItem(
-                      '💰',
+                      Icons.monetization_on_rounded,
                       '${challenge.prizePool.toInt()} ${tr('il_62f014cb31')}',
                     ),
                   ],
@@ -466,12 +468,12 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
                     ),
                     const SizedBox(width: 20),
                     _buildStatItem(
-                      '💸',
+                      Icons.payments_rounded,
                       '${tr('il_861e39505d')} ${challenge.entryFee} ${tr('il_62f014cb31')}',
                     ),
                     const SizedBox(width: 20),
                     _buildStatItem(
-                      '⏰',
+                      Icons.schedule_rounded,
                       challenge.durationDisplayLabel,
                     ),
                   ],
@@ -527,11 +529,11 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
     );
   }
 
-  Widget _buildStatItem(String icon, String text) {
+  Widget _buildStatItem(IconData icon, String text) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(icon, style: const TextStyle(fontSize: 16)),
+        Icon(icon, size: 16, color: Colors.black54),
         const SizedBox(width: 4),
         Text(
           text,

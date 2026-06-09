@@ -11,6 +11,7 @@ import '../../../../core/progress/progress_status.dart';
 import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/flap/flap_kit.dart';
+import 'package:flap_app/features/badges/presentation/badge_icon.dart';
 import '../../../../widgets/team_crest.dart';
 import '../../../auth/domain/repositories/auth_session_repository.dart';
 import '../../../badges/data/models/badge.dart' as app_badge;
@@ -420,12 +421,22 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                         ),
                         if (city.isNotEmpty) ...[
                           const SizedBox(height: 2),
-                          Text(
-                            '📍 ${localizeCity(city)}',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.place_rounded,
+                                  size: 13, color: Colors.white70),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  localizeCity(city),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                         const SizedBox(height: 6),
@@ -1131,8 +1142,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                     borderRadius: BorderRadius.circular(15),
                     border: Border.all(color: c.withValues(alpha: 0.34)),
                   ),
-                  child:
-                      Text(badge.emoji, style: const TextStyle(fontSize: 22)),
+                  child: Icon(flapBadgeIcon(badge.emoji), size: 22, color: c),
                 ),
                 Positioned(
                   top: -5,

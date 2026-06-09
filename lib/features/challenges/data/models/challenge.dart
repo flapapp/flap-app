@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:easy_localization/easy_localization.dart';
 
@@ -535,48 +536,48 @@ class Challenge extends ChallengeEntity {
     }
   }
 
-  String get audienceIcon {
+  IconData get audienceIcon {
     switch (audience) {
       case ChallengeAudience.friends:
-        return '👥';
+        return Icons.group_rounded;
       case ChallengeAudience.city:
-        return '🏙️';
+        return Icons.location_city_rounded;
       case ChallengeAudience.country:
-        return '🇺🇦';
+        return Icons.flag_rounded;
       case ChallengeAudience.world:
-        return '🌍';
+        return Icons.public_rounded;
     }
   }
 
   // Icon getters
-  String get typeIcon {
+  IconData get typeIcon {
     switch (type) {
       case ChallengeType.goal:
-        return '⚽';
+        return Icons.sports_soccer_rounded;
       case ChallengeType.shotPower:
-        return '💥';
+        return Icons.bolt_rounded;
       case ChallengeType.save:
-        return '🧤';
+        return Icons.back_hand_rounded;
       case ChallengeType.pass:
-        return '🎯';
+        return Icons.gps_fixed_rounded;
       case ChallengeType.longPass:
-        return '📡';
+        return Icons.podcasts_rounded;
       case ChallengeType.tackle:
-        return '🛡️';
+        return Icons.shield_rounded;
       case ChallengeType.defending:
-        return '🧱';
+        return Icons.security_rounded;
       case ChallengeType.dribbling:
-        return '🌀';
+        return Icons.cyclone_rounded;
       case ChallengeType.penalty:
-        return '🎯';
+        return Icons.gps_fixed_rounded;
       case ChallengeType.wall:
-        return '🧱';
+        return Icons.fence_rounded;
       case ChallengeType.strategy:
-        return '🧠';
+        return Icons.psychology_rounded;
       case ChallengeType.trick:
-        return '✨';
+        return Icons.auto_awesome_rounded;
       case ChallengeType.other:
-        return '🎲';
+        return Icons.casino_rounded;
     }
   }
 

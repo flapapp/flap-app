@@ -1388,7 +1388,11 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
             ud['email']?.toString().split('@')[0] ??
             tr('il_b512d97e7c');
         final avatar = ud['avatar_url'] ?? '';
-        final medal = place == 1 ? '🥇' : place == 2 ? '🥈' : '🥉';
+        final medalColor = place == 1
+            ? const Color(0xFFE7C25A)
+            : place == 2
+                ? const Color(0xFFC7CDD2)
+                : const Color(0xFFCD7F32);
         return ListTile(
           onTap: () => context.router.push(
             PlayerProfileRoute(
@@ -1402,7 +1406,16 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
             avatarUrl: avatar,
             size: 36,
           ),
-          title: Text('$medal $name', style: const TextStyle(color: Colors.white)),
+          title: Row(
+            children: [
+              Icon(Icons.emoji_events_rounded, size: 18, color: medalColor),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text('$name',
+                    style: const TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
           subtitle: Text(tr('place_rank', args: ['$place']), style: TextStyle(color: Colors.white.withOpacity(0.7))),
         );
       },

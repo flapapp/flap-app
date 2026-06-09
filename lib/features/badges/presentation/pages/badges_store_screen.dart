@@ -9,6 +9,7 @@ import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/core/supabase/coin_ledger.dart';
 import 'package:flap_app/theme/flap_tokens.dart';
 import 'package:flap_app/widgets/flap/flap_kit.dart';
+import 'package:flap_app/features/badges/presentation/badge_icon.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 @RoutePage()
@@ -365,9 +366,10 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                       ),
                     ),
                     child: Center(
-                      child: Text(
-                        badge.emoji,
-                        style: const TextStyle(fontSize: 30),
+                      child: Icon(
+                        flapBadgeIcon(badge.emoji),
+                        size: 28,
+                        color: categoryColor,
                       ),
                     ),
                   ),
@@ -557,8 +559,8 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                         ),
                       ),
                       child: Center(
-                        child: Text(badge.emoji,
-                            style: const TextStyle(fontSize: 28)),
+                        child: Icon(flapBadgeIcon(badge.emoji),
+                            size: 26, color: categoryColor),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -766,7 +768,8 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
         SnackBar(
           content: Row(
             children: [
-              Text(badge.emoji, style: const TextStyle(fontSize: 20)),
+              Icon(flapBadgeIcon(badge.emoji),
+                  size: 20, color: FlapColors.onGreen),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(

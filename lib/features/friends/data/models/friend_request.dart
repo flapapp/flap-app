@@ -209,17 +209,6 @@ class Friend extends FriendEntity {
   // Rating display
   String get ratingDisplay => rating.toStringAsFixed(1);
 
-  // Rating stars
-  String get ratingStars {
-    final fullStars = rating.floor();
-    final hasHalfStar = (rating - fullStars) >= 0.5;
-    
-    String stars = '⭐' * fullStars;
-    if (hasHalfStar) stars += '⭐';
-    
-    return stars;
-  }
-
   // Position display
   String get positionDisplay {
     return _getLocalizedPosition(position);

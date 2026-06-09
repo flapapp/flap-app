@@ -158,50 +158,6 @@ class AppNotification extends AppNotificationEntity {
     );
   }
 
-  // Getters for display
-  String get typeIcon {
-    switch (type) {
-      case NotificationType.friendRequest:
-        return '👥';
-      case NotificationType.friendAccepted:
-        return '✅';
-      case NotificationType.challengeInvitation:
-        return '⚔️';
-      case NotificationType.challengeUpdate:
-        return '📹';
-      case NotificationType.challengeResult:
-        return '🏆';
-      case NotificationType.challengeCompleted:
-        return '🎉';
-      case NotificationType.videoVote:
-        return '⭐';
-      case NotificationType.matchInvite:
-        return '⚽';
-      case NotificationType.matchFinished:
-        return '🏁';
-      case NotificationType.badgeEarned:
-        return '🏅';
-      case NotificationType.badgeEndorsed:
-        return '👍';
-      case NotificationType.coinsEarned:
-        return '💰';
-      case NotificationType.ratingRequest:
-        return '⭐';
-      case NotificationType.ratingChanged:
-        return '📈';
-      case NotificationType.teamInvite:
-        return '🏟️';
-      case NotificationType.teamMatchRequest:
-        return '⚽';
-      case NotificationType.teamRosterInvite:
-        return '📝';
-      case NotificationType.teamMatchReady:
-        return '🏁';
-      case NotificationType.teamJoinRequest:
-        return '📥';
-    }
-  }
-
   int get typeColor {
     switch (type) {
       case NotificationType.friendRequest:

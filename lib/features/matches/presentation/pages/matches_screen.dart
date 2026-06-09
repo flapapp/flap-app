@@ -4454,16 +4454,17 @@ class _MatchesScreenState extends State<MatchesScreen>
 
   Widget _rankBadge(int rank) {
     if (rank == 1 || rank == 2 || rank == 3) {
-      final String medal = rank == 1
-          ? '🥇'
+      final Color medalColor = rank == 1
+          ? const Color(0xFFE7C25A) // gold
           : rank == 2
-          ? '🥈'
-          : '🥉';
+              ? const Color(0xFFC7CDD2) // silver
+              : const Color(0xFFCD7F32); // bronze
       return SizedBox(
         width: 36,
         child: Align(
           alignment: Alignment.centerLeft,
-          child: Text(medal, style: const TextStyle(fontSize: 18)),
+          child: Icon(Icons.emoji_events_rounded,
+              size: 20, color: medalColor),
         ),
       );
     }

@@ -21,7 +21,7 @@ class RatingTrackingService {
     final change = newRating - oldRating;
     if (Supabase.instance.client.auth.currentUser != null) {
       print(
-        '✅ Rating change ($userId): ${change > 0 ? '+' : ''}'
+        'Rating change ($userId): ${change > 0 ? '+' : ''}'
         '${change.toStringAsFixed(2)} ($reason)',
       );
     }

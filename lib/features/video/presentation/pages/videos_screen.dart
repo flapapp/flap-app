@@ -177,7 +177,6 @@ class _VideosScreenState extends State<VideosScreen> {
                     Expanded(
                       flex: 1,
                       child: _buildDropdown(
-                        '🏙️',
                         _selectedCity,
                         _cities,
                         (value) => _applyVideoFilterChange(() {
@@ -190,7 +189,6 @@ class _VideosScreenState extends State<VideosScreen> {
                     Expanded(
                       flex: 1,
                       child: _buildDropdown(
-                        '⭐',
                         _selectedRating,
                         _ratings,
                         (value) => _applyVideoFilterChange(() {
@@ -409,7 +407,6 @@ class _VideosScreenState extends State<VideosScreen> {
   }
 
   Widget _buildDropdown(
-    String label,
     String value,
     List<String> items,
     ValueChanged<String> onChanged,

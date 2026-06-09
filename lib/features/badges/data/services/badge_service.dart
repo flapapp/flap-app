@@ -283,7 +283,7 @@ class BadgeService {
     return Badge(
       id: (row['code'] ?? row['id'] ?? '').toString(),
       name: (row['name'] ?? '').toString(),
-      emoji: (row['emoji'] ?? '🏆').toString(),
+      emoji: (row['emoji'] ?? '').toString(),
       description: (row['description'] ?? '').toString(),
       price: ((row['price'] as num?) ?? 0).toInt(),
       category: (row['category'] ?? 'general').toString(),

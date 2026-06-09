@@ -412,7 +412,7 @@ class _RatingsScreenState extends State<RatingsScreen>
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('⭐', style: TextStyle(fontSize: 14)),
+                const Icon(Icons.star_rounded, size: 16, color: Color(0xFFE7C25A)),
                 const SizedBox(width: 4),
                 Text(
                   rating.toStringAsFixed(2),
@@ -689,7 +689,7 @@ class _RatingsScreenState extends State<RatingsScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('⭐', style: TextStyle(fontSize: 48)),
+                    const Icon(Icons.star_rounded, size: 48, color: Color(0xFFE7C25A)),
                     const SizedBox(width: 16),
                     Text(
                       currentRating.toStringAsFixed(2),
@@ -733,7 +733,7 @@ class _RatingsScreenState extends State<RatingsScreen>
               Expanded(
                 child: _buildStatCard(
                   tr('matches'),
-                  '${matchRating.toStringAsFixed(2)} ⭐',
+                  '${matchRating.toStringAsFixed(2)}',
                   tr('rating_weight_match_percent'),
                   Icons.sports_soccer,
                   const Color(0xFF4CAF50),
@@ -743,7 +743,7 @@ class _RatingsScreenState extends State<RatingsScreen>
               Expanded(
                 child: _buildStatCard(
                   tr('videos'),
-                  '${videoRating.toStringAsFixed(2)} ⭐',
+                  '${videoRating.toStringAsFixed(2)}',
                   tr('rating_weight_video_percent'),
                   Icons.videocam,
                   const Color(0xFFFF9800),
@@ -1015,7 +1015,7 @@ class _RatingsScreenState extends State<RatingsScreen>
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('⭐', style: TextStyle(fontSize: 14)),
+                const Icon(Icons.star_rounded, size: 16, color: Color(0xFFE7C25A)),
                 const SizedBox(width: 4),
                 Text(
                   rating.toStringAsFixed(2),

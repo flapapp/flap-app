@@ -42,7 +42,7 @@ class Badge extends BadgeEntity {
     return Badge(
       id: (doc.id ?? '').toString(),
       name: data['name'] ?? '',
-      emoji: data['emoji'] ?? '🏆',
+      emoji: data['emoji'] ?? '',
       description: data['description'] ?? '',
       price: data['price'] ?? 0,
       category: data['category'] ?? 'general',

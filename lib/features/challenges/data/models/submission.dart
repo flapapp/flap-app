@@ -153,9 +153,9 @@ class Submission extends SubmissionEntity {
     return votes[userId];
   }
 
-  // Rating display with stars
+  // Rating display value (star icon is rendered by the UI)
   String get ratingDisplay {
-    return '⭐ ${averageRating.toStringAsFixed(1)}';
+    return averageRating.toStringAsFixed(1);
   }
 
   // Rating color based on score

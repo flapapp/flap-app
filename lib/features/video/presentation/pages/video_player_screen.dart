@@ -1248,7 +1248,9 @@ class _VideoPageState extends State<_VideoPage> {
         : null;
     final chips = <Widget>[
       if (catLabel != null) _captionChip('#$catLabel'),
-      if (ratingText != null) _captionChip('★ $ratingText ${tr('video_avg')}'),
+      if (ratingText != null)
+        _captionChip('$ratingText ${tr('video_avg')}',
+            icon: Icons.star_rounded, iconColor: const Color(0xFFE7C25A)),
     ];
 
     return Column(
@@ -1323,7 +1325,7 @@ class _VideoPageState extends State<_VideoPage> {
     );
   }
 
-  Widget _captionChip(String text) {
+  Widget _captionChip(String text, {IconData? icon, Color? iconColor}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -1331,12 +1333,21 @@ class _VideoPageState extends State<_VideoPage> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
       ),
-      child: Text(
-        text,
-        style: FlapText.sora(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFFCDD4CE)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: iconColor ?? const Color(0xFFCDD4CE)),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            text,
+            style: FlapText.sora(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFFCDD4CE)),
+          ),
+        ],
       ),
     );
   }
