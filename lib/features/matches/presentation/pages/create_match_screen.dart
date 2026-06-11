@@ -14,6 +14,7 @@ import '../../../../features/teams/domain/repositories/teams_repository.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/team_logo_button.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
+import '../../../../theme/flap_tokens.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/city_localization.dart';
 
@@ -32,7 +33,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
   final _cityController = TextEditingController();
-  
+
   DateTime _selectedDate = DateTime.now().add(Duration(days: 1));
   TimeOfDay _selectedTime = TimeOfDay.now();
   String _selectedCity = tr('kyiv');
@@ -45,9 +46,17 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   final Set<String> _selectedInviteFriendIds = <String>{};
   final Map<String, Map<String, dynamic>> _selectedInviteUsers =
       <String, Map<String, dynamic>>{};
-  
+
   List<String> get _levels =>
       [tr('beginner'), tr('intermediate'), tr('advanced'), tr('professional')];
+
+  static const List<IconData> _levelIcons = <IconData>[
+    Icons.eco_rounded,
+    Icons.trending_up_rounded,
+    Icons.local_fire_department_rounded,
+    Icons.military_tech_rounded,
+  ];
+
   final List<int> _playerOptions = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
   final ScrollController _friendsScrollController = ScrollController();
 
@@ -74,699 +83,674 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF070A08),
-      appBar: AppBar(
-        title: Text(tr('create_match'), style: const TextStyle(color: Colors.white)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Colors.white,
-        iconTheme: IconThemeData(color: Colors.white),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: EdgeInsets.all(20),
-          children: [
-            // Match title
-            TextFormField(
-              controller: _titleController,
-              decoration: InputDecoration(
-                labelText: tr('il_40e6c88126'),
-                labelStyle: TextStyle(color: Colors.white70),
-                border: OutlineInputBorder(),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white30),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF4caf50)),
-                ),
-              ),
-              style: TextStyle(color: Colors.white),
-              validator: (value) {
-                if (value?.isEmpty ?? true) return tr('il_23245bd9a6');
-                return null;
-              },
-            ),
-            SizedBox(height: 20),
-            
-            // Description
-            TextFormField(
-              controller: _descriptionController,
-              decoration: InputDecoration(
-                labelText: tr('il_61c1c67c7f'),
-                labelStyle: TextStyle(color: Colors.white70),
-                border: OutlineInputBorder(),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white30),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF4caf50)),
-                ),
-              ),
-              style: TextStyle(color: Colors.white),
-              maxLines: 3,
-            ),
-            SizedBox(height: 20),
-            
-            // Date and time
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedDate,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(Duration(days: 365)),
-                        builder: (context, child) {
-                          return Theme(
-                            data: Theme.of(context).copyWith(
-                              colorScheme: ColorScheme.dark(
-                                primary: Color(0xFF4caf50),
-                                surface: Color(0xFF070A08),
-                              ),
-                            ),
-                            child: child!,
-                          );
-                        },
-                      );
-                      if (date != null) {
-                        setState(() => _selectedDate = date);
-                      }
-                    },
-                    child: Container(
-                      padding: EdgeInsets.all(15),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white30),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(tr('il_c218c8b08e'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                          Text(
-                            '${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}',
-                            style: TextStyle(color: Colors.white, fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 15),
-                Expanded(
-                  child: InkWell(
-                    onTap: () async {
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: _selectedTime,
-                        builder: (context, child) {
-                          return Theme(
-                            data: Theme.of(context).copyWith(
-                              colorScheme: ColorScheme.dark(
-                                primary: Color(0xFF4caf50),
-                                surface: Color(0xFF070A08),
-                              ),
-                            ),
-                            child: child!,
-                          );
-                        },
-                      );
-                      if (time != null) {
-                        setState(() => _selectedTime = time);
-                      }
-                    },
-                    child: Container(
-                      padding: EdgeInsets.all(15),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white30),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(tr('il_f255eef12c'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                          Text(
-                            '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
-                            style: TextStyle(color: Colors.white, fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            
-            // Location
-            TextFormField(
-              controller: _locationController,
-              decoration: InputDecoration(
-                labelText: tr('il_692d4cc700'),
-                labelStyle: TextStyle(color: Colors.white70),
-                border: OutlineInputBorder(),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white30),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF4caf50)),
-                ),
-              ),
-              style: TextStyle(color: Colors.white),
-              validator: (value) {
-                if (value?.isEmpty ?? true) return tr('il_de5898b9bb');
-                return null;
-              },
-            ),
-            SizedBox(height: 20),
-            
-            // City and level
-            Row(
-              children: [
-                Expanded(
-                  child: CityAutocompleteField(
-                    controller: _cityController,
-                    label: tr('il_4b59236336'),
-                    requiredField: true,
-                    style: const TextStyle(color: Colors.white),
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    border: const OutlineInputBorder(),
-                    enabledBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white30),
-                    ),
-                    focusedBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF4caf50)),
-                    ),
-                    prefixIcon: const Icon(Icons.location_city, color: Colors.white70),
-                    onSelected: (value) => setState(() => _selectedCity = value.trim()),
-                  ),
-                ),
-                SizedBox(width: 15),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selectedLevel,
-                    decoration: InputDecoration(
-                      labelText: tr('il_1213d3201a'),
-                      labelStyle: TextStyle(color: Colors.white70),
-                      border: OutlineInputBorder(),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white30),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Color(0xFF4caf50)),
-                      ),
-                    ),
-                    style: TextStyle(color: Colors.white),
-                    dropdownColor: Color(0xFF070A08),
-                    items: _levels.map((level) => 
-                      DropdownMenuItem(value: level, child: Text(level))
-                    ).toList(),
-                    onChanged: (value) {
-                      setState(() => _selectedLevel = value!);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            
-            // Player count and price
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    initialValue: _selectedPlayers,
-                    decoration: InputDecoration(
-                      labelText: tr('il_62a929fea8'),
-                      labelStyle: TextStyle(color: Colors.white70),
-                      border: OutlineInputBorder(),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white30),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Color(0xFF4caf50)),
-                      ),
-                    ),
-                    style: TextStyle(color: Colors.white),
-                    dropdownColor: Color(0xFF070A08),
-                    items: _playerOptions.map((players) => 
-                      DropdownMenuItem(
-                        value: players, 
-                        child: Text(
-                          tr('il_460cbf0720', namedArgs: {'players': '$players'}),
-                        ),
-                      )
-                    ).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedPlayers = value!;
-                        if (_teamMode) {
-                          _ensureRosterLimit();
-                        }
-                      });
-                    },
-                  ),
-                ),
-                SizedBox(width: 15),
-                Expanded(
-                  child: TextFormField(
-                    decoration: InputDecoration(
-                      labelText: tr('il_6d595710b8'),
-                      labelStyle: TextStyle(color: Colors.white70),
-                      border: OutlineInputBorder(),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white30),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Color(0xFF4caf50)),
-                      ),
-                    ),
-                    style: TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) {
-                      setState(() => _cost = double.tryParse(value) ?? 0.0);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            
-            // Settings
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isNarrow = constraints.maxWidth < 640;
-                final toggles = [
-                  _buildSettingToggle(
-                    title: tr('il_ace59f5c4f'),
-                    subtitle: tr('il_2989176c3a'),
-                    value: _autoBalance,
-                    onChanged: (value) {
-                      setState(() => _autoBalance = value);
-                    },
-                  ),
-                  _buildSettingToggle(
-                    title: tr('il_aaffbee0e1'),
-                    subtitle: tr('il_b7dc15d102'),
-                    value: _isPrivate,
-                    onChanged: (value) {
-                      setState(() => _isPrivate = value);
-                    },
-                  ),
-                ];
-                if (isNarrow) {
-                  return Column(
+      backgroundColor: FlapColors.bg,
+      body: Container(
+        decoration: const BoxDecoration(gradient: FlapColors.screenGlow),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _appBar(),
+              Expanded(
+                child: Form(
+                  key: _formKey,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
                     children: [
-                      toggles[0],
-                      const SizedBox(height: 12),
-                      toggles[1],
-                    ],
-                  );
-                }
-                return Row(
-                  children: [
-                    Expanded(child: toggles[0]),
-                    const SizedBox(width: 12),
-                    Expanded(child: toggles[1]),
-                  ],
-                );
-              },
-            ),
-            
-            // Number of teams
-            if (_autoBalance) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(tr('il_9be39530da'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                    SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [2, 3, 4].map((teamOption) {
-                        final isSelected = _numberOfTeams == teamOption;
-                        return GestureDetector(
-                          onTap: () => setState(() => _numberOfTeams = teamOption),
-                          child: Container(
-                            width: 70,
-                            height: 70,
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? const Color(0xFF4caf50)
-                                  : Colors.white.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFF4caf50)
-                                    : Colors.white.withValues(alpha: 0.3),
-                                width: 2,
-                              ),
+                      // Match title
+                      _label(tr('il_40e6c88126')),
+                      _inputField(
+                        controller: _titleController,
+                        hint: tr('il_40e6c88126'),
+                        validator: (value) {
+                          if (value?.isEmpty ?? true) return tr('il_23245bd9a6');
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Description
+                      _label(tr('il_61c1c67c7f')),
+                      _inputField(
+                        controller: _descriptionController,
+                        hint: tr('il_61c1c67c7f'),
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Date and time
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _pickerTile(
+                              icon: Icons.calendar_today_rounded,
+                              caption: tr('il_c218c8b08e'),
+                              value:
+                                  '${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}',
+                              onTap: _pickDate,
                             ),
-                            child: Center(
-                              child: Text(
-                                teamOption.toString(),
-                                style: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.white70,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _pickerTile(
+                              icon: Icons.access_time_rounded,
+                              caption: tr('il_f255eef12c'),
+                              value:
+                                  '${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}',
+                              onTap: _pickTime,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Location
+                      _label(tr('il_692d4cc700')),
+                      _inputField(
+                        controller: _locationController,
+                        hint: tr('il_692d4cc700'),
+                        icon: Icons.place_rounded,
+                        validator: (value) {
+                          if (value?.isEmpty ?? true) return tr('il_de5898b9bb');
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+
+                      // City
+                      _label(tr('il_4b59236336')),
+                      _cityField(),
+                      const SizedBox(height: 18),
+
+                      // Skill level
+                      _label(tr('il_1213d3201a')),
+                      _levelChips(),
+                      const SizedBox(height: 18),
+
+                      // Player count and price
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _label(tr('il_62a929fea8')),
+                                _playersDropdown(),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _label(tr('il_6d595710b8')),
+                                _inputField(
+                                  hint: '0',
+                                  icon: Icons.payments_rounded,
+                                  keyboardType: TextInputType.number,
+                                  onChanged: (value) {
+                                    setState(() =>
+                                        _cost = double.tryParse(value) ?? 0.0);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+
+                      // Settings
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isNarrow = constraints.maxWidth < 640;
+                          final toggles = [
+                            _buildSettingToggle(
+                              icon: Icons.balance_rounded,
+                              title: tr('il_ace59f5c4f'),
+                              subtitle: tr('il_2989176c3a'),
+                              value: _autoBalance,
+                              onChanged: (value) {
+                                setState(() => _autoBalance = value);
+                              },
+                            ),
+                            _buildSettingToggle(
+                              icon: Icons.lock_rounded,
+                              title: tr('il_aaffbee0e1'),
+                              subtitle: tr('il_b7dc15d102'),
+                              value: _isPrivate,
+                              onChanged: (value) {
+                                setState(() => _isPrivate = value);
+                              },
+                            ),
+                          ];
+                          if (isNarrow) {
+                            return Column(
+                              children: [
+                                toggles[0],
+                                const SizedBox(height: 12),
+                                toggles[1],
+                              ],
+                            );
+                          }
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: toggles[0]),
+                              const SizedBox(width: 12),
+                              Expanded(child: toggles[1]),
+                            ],
+                          );
+                        },
+                      ),
+
+                      // Number of teams
+                      if (_autoBalance) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: FlapColors.surface,
+                            borderRadius:
+                                BorderRadius.circular(FlapRadii.tile),
+                            border: Border.all(color: FlapColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tr('il_9be39530da'),
+                                style: FlapText.sora(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: FlapColors.text,
                                 ),
                               ),
+                              const SizedBox(height: 14),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [2, 3, 4].map((teamOption) {
+                                  final isSelected =
+                                      _numberOfTeams == teamOption;
+                                  return GestureDetector(
+                                    onTap: () => setState(
+                                        () => _numberOfTeams = teamOption),
+                                    child: AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 160),
+                                      width: 70,
+                                      height: 70,
+                                      decoration: BoxDecoration(
+                                        gradient: isSelected
+                                            ? FlapColors.primaryButton
+                                            : null,
+                                        color: isSelected
+                                            ? null
+                                            : FlapColors.surface2,
+                                        borderRadius:
+                                            BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? Colors.transparent
+                                              : FlapColors.border,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          teamOption.toString(),
+                                          style: FlapText.cond(
+                                            fontSize: 30,
+                                            fontWeight: FontWeight.w800,
+                                            color: isSelected
+                                                ? FlapColors.onGreen
+                                                : FlapColors.text,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 12),
+                      _teamModeSwitch(),
+                      if (_teamMode) _buildTeamModeSection(),
+
+                      const SizedBox(height: 20),
+                      if (!_teamMode) ...[
+                        Row(
+                          children: [
+                            const Icon(Icons.person_add_alt_1_rounded,
+                                color: FlapColors.greenBright, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              tr('il_2614b42d84'),
+                              style: FlapText.sora(
+                                color: FlapColors.text,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const Spacer(),
+                            _ghostButton(
+                              icon: Icons.search_rounded,
+                              label: tr('il_146ee72e30'),
+                              onTap: _openInviteSearchPage,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (_selectedInviteFriendIds.isNotEmpty) ...[
+                          Container(
+                            decoration: BoxDecoration(
+                              color: FlapColors.surface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: FlapColors.border),
+                            ),
+                            padding: const EdgeInsets.all(8),
+                            child: Column(
+                              children: _selectedInviteFriendIds.map((id) {
+                                final user = _selectedInviteUsers[id] ??
+                                    const <String, dynamic>{};
+                                final name = (user['displayName'] ??
+                                        user['display_name'] ??
+                                        user['email']
+                                            ?.toString()
+                                            .split('@')
+                                            .first ??
+                                        tr('player'))
+                                    .toString();
+                                final avatar = (user['avatarUrl'] ??
+                                        user['avatar_url'] ??
+                                        '')
+                                    .toString();
+                                final city =
+                                    (user['city'] ?? '').toString();
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8),
+                                  leading: PlayerAvatarButton(
+                                    userId: id,
+                                    displayName: name,
+                                    avatarUrl: avatar,
+                                    size: 34,
+                                  ),
+                                  title: Text(
+                                    name,
+                                    style: FlapText.sora(
+                                      color: FlapColors.text,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: city.isEmpty
+                                      ? null
+                                      : Text(
+                                          localizeCity(city),
+                                          style: FlapText.sora(
+                                              color: FlapColors.muted,
+                                              fontSize: 12),
+                                        ),
+                                  trailing: IconButton(
+                                    tooltip: tr('remove'),
+                                    icon: const Icon(Icons.close_rounded,
+                                        color: FlapColors.red, size: 20),
+                                    onPressed: () {
+                                      setState(() {
+                                        _selectedInviteFriendIds.remove(id);
+                                        _selectedInviteUsers.remove(id);
+                                      });
+                                    },
+                                  ),
+                                );
+                              }).toList(),
                             ),
                           ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
+                          const SizedBox(height: 12),
+                        ],
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: _loadMyFriends(),
+                          builder: (context, snapshot) {
+                            final friends =
+                                snapshot.data ?? const <Map<String, dynamic>>[];
+                            if (friends.isEmpty) {
+                              return Text(
+                                tr('il_3f6a83aa65'),
+                                style: FlapText.sora(
+                                    color: FlapColors.muted, fontSize: 13),
+                              );
+                            }
+
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: FlapColors.surface,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: FlapColors.border),
+                              ),
+                              padding: const EdgeInsets.all(8),
+                              child: SizedBox(
+                                height: 240,
+                                child: Scrollbar(
+                                  thumbVisibility: true,
+                                  controller: _friendsScrollController,
+                                  child: ListView.separated(
+                                    controller: _friendsScrollController,
+                                    primary: false,
+                                    shrinkWrap: true,
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    itemCount: friends.length,
+                                    separatorBuilder: (_, __) => const Divider(
+                                      height: 1,
+                                      color: FlapColors.border,
+                                    ),
+                                    itemBuilder: (context, i) {
+                                      final f = friends[i];
+                                      final id = f['id'] as String;
+                                      final name = (f['displayName'] ??
+                                              f['name'] ??
+                                              tr('il_b512d97e7c'))
+                                          .toString();
+                                      final photoUrl = (f['avatarUrl'] ??
+                                              f['photoUrl'] ??
+                                              '')
+                                          .toString();
+                                      final position = (f['position'] ??
+                                              f['role'] ??
+                                              '')
+                                          .toString();
+                                      final rating = ((f['rating'] ??
+                                                  f['averageRating'] ??
+                                                  0) as num)
+                                              .toDouble();
+                                      final selected = _selectedInviteFriendIds
+                                          .contains(id);
+
+                                      return ListTile(
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 8),
+                                        leading: PlayerAvatarButton(
+                                          userId: id,
+                                          displayName: name,
+                                          avatarUrl: photoUrl,
+                                          size: 36,
+                                        ),
+                                        title: Text(
+                                          name,
+                                          style: FlapText.sora(
+                                              color: FlapColors.text,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        subtitle: Row(
+                                          children: [
+                                            if (position.isNotEmpty)
+                                              Container(
+                                                padding: const EdgeInsets
+                                                    .symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: FlapColors.surface2,
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          999),
+                                                ),
+                                                child: Text(
+                                                  position,
+                                                  style: FlapText.sora(
+                                                      color: FlapColors.muted,
+                                                      fontSize: 12),
+                                                ),
+                                              ),
+                                            if (position.isNotEmpty)
+                                              const SizedBox(width: 8),
+                                            const Icon(Icons.star_rounded,
+                                                size: 14,
+                                                color: FlapColors.gold),
+                                            const SizedBox(width: 2),
+                                            Text(
+                                              rating > 0
+                                                  ? rating.toStringAsFixed(1)
+                                                  : '-',
+                                              style: FlapText.sora(
+                                                  color: FlapColors.muted,
+                                                  fontSize: 12),
+                                            ),
+                                          ],
+                                        ),
+                                        trailing: Checkbox(
+                                          value: selected,
+                                          onChanged: (val) {
+                                            setState(() {
+                                              if (val == true) {
+                                                _selectedInviteFriendIds
+                                                    .add(id);
+                                                _selectedInviteUsers[id] = {
+                                                  'id': id,
+                                                  'displayName': name,
+                                                  'avatarUrl': photoUrl,
+                                                  'city': '',
+                                                };
+                                              } else {
+                                                _selectedInviteFriendIds
+                                                    .remove(id);
+                                                _selectedInviteUsers
+                                                    .remove(id);
+                                              }
+                                            });
+                                          },
+                                          activeColor: FlapColors.green,
+                                          checkColor: FlapColors.onGreen,
+                                          side: const BorderSide(
+                                              color: FlapColors.borderStrong),
+                                        ),
+                                        onTap: () {
+                                          setState(() {
+                                            if (selected) {
+                                              _selectedInviteFriendIds
+                                                  .remove(id);
+                                              _selectedInviteUsers.remove(id);
+                                            } else {
+                                              _selectedInviteFriendIds.add(id);
+                                              _selectedInviteUsers[id] = {
+                                                'id': id,
+                                                'displayName': name,
+                                                'avatarUrl': photoUrl,
+                                                'city': '',
+                                              };
+                                            }
+                                          });
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ] else ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: FlapColors.surface,
+                            borderRadius: BorderRadius.circular(FlapRadii.tile),
+                            border: Border.all(color: FlapColors.border),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.groups_rounded,
+                                  color: FlapColors.muted, size: 18),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  tr('il_361b9541bf'),
+                                  style: FlapText.sora(
+                                      color: FlapColors.muted, fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+
+                      // Create button
+                      _primaryButton(),
+                    ],
+                  ),
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(height: 12),
-            SwitchListTile(
-              title: Text(
-                tr('il_5084b91728'),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+  // ---- Chrome / styled builders ------------------------------------------
+
+  Widget _appBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.of(context).maybePop(),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: FlapColors.surface2,
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: FlapColors.border),
               ),
-              subtitle: Text(
-                tr('il_a94d1ecc4e'),
-                style: const TextStyle(color: Colors.white70),
-              ),
-              value: _teamMode,
-              activeThumbColor: const Color(0xFF4caf50),
-              onChanged: (value) {
-                setState(() {
-                  _teamMode = value;
-                  if (value) {
-                    _autoBalance = false;
-                    _selectedInviteFriendIds.clear();
-                    _selectedInviteUsers.clear();
-                    if (_selectedTeam == null && _myTeams.isNotEmpty) {
-                      _selectedTeam = _myTeams.first;
-                      _selectedRoster = _selectedTeam!.memberIds
-                          .take((_selectedPlayers / 2).ceil())
-                          .toList();
-                    }
-                    _ensureRosterLimit();
-                  } else {
-                    _opponentTeam = null;
-                  }
-                });
-              },
+              child: const Icon(Icons.chevron_left,
+                  color: FlapColors.text, size: 19),
             ),
-            if (_teamMode) _buildTeamModeSection(),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              tr('create_match'),
+              style: FlapText.sora(
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                color: FlapColors.text,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            const SizedBox(height: 20),
-            if (!_teamMode) ...[
-              Row(
+  Widget _label(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, left: 2),
+      child: Text(
+        text,
+        style: FlapText.sora(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+          color: FlapColors.muted,
+        ),
+      ),
+    );
+  }
+
+  Widget _inputField({
+    TextEditingController? controller,
+    required String hint,
+    IconData? icon,
+    int maxLines = 1,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+    ValueChanged<String>? onChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: FlapColors.surface2,
+        borderRadius: BorderRadius.circular(FlapRadii.field),
+        border: Border.all(color: FlapColors.border),
+      ),
+      child: TextFormField(
+        controller: controller,
+        style: FlapText.sora(color: FlapColors.text, fontSize: 15),
+        cursorColor: FlapColors.greenBright,
+        maxLines: maxLines,
+        keyboardType: keyboardType,
+        validator: validator,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: FlapText.sora(color: FlapColors.muted, fontSize: 15),
+          prefixIcon: icon == null
+              ? null
+              : Icon(icon, color: FlapColors.muted, size: 19),
+          border: InputBorder.none,
+          errorStyle: FlapText.sora(color: FlapColors.red, fontSize: 11.5),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        ),
+      ),
+    );
+  }
+
+  Widget _pickerTile({
+    required IconData icon,
+    required String caption,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: FlapColors.surface2,
+          borderRadius: BorderRadius.circular(FlapRadii.field),
+          border: Border.all(color: FlapColors.border),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: FlapColors.muted, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
                   Text(
-                    tr('il_2614b42d84'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold),
+                    caption,
+                    style: FlapText.sora(
+                        color: FlapColors.muted, fontSize: 11),
                   ),
-                  const Spacer(),
-                  OutlinedButton.icon(
-                    onPressed: _openInviteSearchPage,
-                    icon: const Icon(Icons.search, color: Colors.white),
-                    label: Text(
-                      tr('il_146ee72e30'),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFF4caf50)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: FlapText.sora(
+                      color: FlapColors.text,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              if (_selectedInviteFriendIds.isNotEmpty) ...[
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.12)),
-                  ),
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    children: _selectedInviteFriendIds.map((id) {
-                      final user = _selectedInviteUsers[id] ?? const <String, dynamic>{};
-                      final name = (user['displayName'] ??
-                              user['display_name'] ??
-                              user['email']?.toString().split('@').first ??
-                              tr('player'))
-                          .toString();
-                      final avatar = (user['avatarUrl'] ?? user['avatar_url'] ?? '').toString();
-                      final city = (user['city'] ?? '').toString();
-                      return ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                        leading: PlayerAvatarButton(
-                          userId: id,
-                          displayName: name,
-                          avatarUrl: avatar,
-                          size: 34,
-                        ),
-                        title: Text(
-                          name,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: city.isEmpty
-                            ? null
-                            : Text(
-                                localizeCity(city),
-                                style: const TextStyle(color: Colors.white54, fontSize: 12),
-                              ),
-                        trailing: IconButton(
-                          tooltip: tr('remove'),
-                          icon: const Icon(Icons.close, color: Colors.redAccent),
-                          onPressed: () {
-                            setState(() {
-                              _selectedInviteFriendIds.remove(id);
-                              _selectedInviteUsers.remove(id);
-                            });
-                          },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: _loadMyFriends(),
-                builder: (context, snapshot) {
-                  final friends = snapshot.data ?? const <Map<String, dynamic>>[];
-                  if (friends.isEmpty) {
-                    return Text(
-                      tr('il_3f6a83aa65'),
-                      style:
-                          TextStyle(color: Colors.white.withValues(alpha: 0.75)),
-                    );
-                  }
-
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12)),
-                    ),
-                    padding: const EdgeInsets.all(8),
-                    child: SizedBox(
-                      height: 240,
-                      child: Scrollbar(
-                        thumbVisibility: true,
-                        controller: _friendsScrollController,
-                        child: ListView.separated(
-                          controller: _friendsScrollController,
-                          primary: false,
-                          shrinkWrap: true,
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          itemCount: friends.length,
-                          separatorBuilder: (_, __) => Divider(
-                            height: 1,
-                            color: Colors.white.withValues(alpha: 0.08),
-                          ),
-                          itemBuilder: (context, i) {
-                            final f = friends[i];
-                            final id = f['id'] as String;
-                            final name = (f['displayName'] ??
-                                    f['name'] ??
-                                    tr('il_b512d97e7c'))
-                                .toString();
-                            final photoUrl =
-                                (f['avatarUrl'] ?? f['photoUrl'] ?? '').toString();
-                            final position =
-                                (f['position'] ?? f['role'] ?? '').toString();
-                            final rating = ((f['rating'] ??
-                                        f['averageRating'] ??
-                                        0) as num)
-                                    .toDouble();
-                            final selected =
-                                _selectedInviteFriendIds.contains(id);
-
-                            return ListTile(
-                              contentPadding:
-                                  const EdgeInsets.symmetric(horizontal: 8),
-                              leading: PlayerAvatarButton(
-                                userId: id,
-                                displayName: name,
-                                avatarUrl: photoUrl,
-                                size: 36,
-                              ),
-                              title: Text(
-                                name,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: Row(
-                                children: [
-                                  if (position.isNotEmpty)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white
-                                            .withValues(alpha: 0.08),
-                                        borderRadius:
-                                            BorderRadius.circular(999),
-                                      ),
-                                      child: Text(
-                                        position,
-                                        style: const TextStyle(
-                                            color: Colors.white70, fontSize: 12),
-                                      ),
-                                    ),
-                                  if (position.isNotEmpty)
-                                    const SizedBox(width: 8),
-                                  const Icon(Icons.star,
-                                      size: 14, color: Color(0xFFFFD700)),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    rating > 0 ? rating.toStringAsFixed(1) : '-',
-                                    style: const TextStyle(
-                                        color: Colors.white70, fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                              trailing: Checkbox(
-                                value: selected,
-                                onChanged: (val) {
-                                  setState(() {
-                                    if (val == true) {
-                                      _selectedInviteFriendIds.add(id);
-                                      _selectedInviteUsers[id] = {
-                                        'id': id,
-                                        'displayName': name,
-                                        'avatarUrl': photoUrl,
-                                        'city': '',
-                                      };
-                                    } else {
-                                      _selectedInviteFriendIds.remove(id);
-                                      _selectedInviteUsers.remove(id);
-                                    }
-                                  });
-                                },
-                                activeColor: const Color(0xFF4caf50),
-                                checkColor: Colors.white,
-                              ),
-                              onTap: () {
-                                setState(() {
-                                  if (selected) {
-                                    _selectedInviteFriendIds.remove(id);
-                                    _selectedInviteUsers.remove(id);
-                                  } else {
-                                    _selectedInviteFriendIds.add(id);
-                                    _selectedInviteUsers[id] = {
-                                      'id': id,
-                                      'displayName': name,
-                                      'avatarUrl': photoUrl,
-                                      'city': '',
-                                    };
-                                  }
-                                });
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ] else ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.groups, color: Colors.white70, size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        tr('il_361b9541bf'),
-                        style:
-                            const TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            SizedBox(height: 20),
-            
-            // Create button
-            ElevatedButton(
-              onPressed: _isCreating ? null : _createMatch,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF4caf50),
-                padding: EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: _isCreating
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : Text(
-                      tr('create_match'),
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
             ),
           ],
         ),
@@ -774,11 +758,301 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     );
   }
 
+  Widget _cityField() {
+    final outline = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(FlapRadii.field),
+      borderSide: const BorderSide(color: FlapColors.border),
+    );
+    return CityAutocompleteField(
+      controller: _cityController,
+      label: tr('il_4b59236336'),
+      requiredField: true,
+      filled: true,
+      fillColor: FlapColors.surface2,
+      style: FlapText.sora(color: FlapColors.text, fontSize: 15),
+      labelStyle: FlapText.sora(color: FlapColors.muted, fontSize: 15),
+      border: outline,
+      enabledBorder: outline,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(FlapRadii.field),
+        borderSide: const BorderSide(color: FlapColors.greenBright, width: 1.4),
+      ),
+      prefixIcon: const Icon(Icons.location_city_rounded,
+          color: FlapColors.muted, size: 20),
+      onSelected: (value) => setState(() => _selectedCity = value.trim()),
+    );
+  }
+
+  Widget _levelChips() {
+    final levels = _levels;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: List.generate(levels.length, (i) {
+        final level = levels[i];
+        final active = _selectedLevel == level;
+        return GestureDetector(
+          onTap: () => setState(() => _selectedLevel = level),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: active
+                  ? FlapColors.green.withOpacity(0.16)
+                  : FlapColors.surface,
+              borderRadius: BorderRadius.circular(FlapRadii.chip),
+              border: Border.all(
+                color: active
+                    ? FlapColors.green.withOpacity(0.55)
+                    : FlapColors.border,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _levelIcons[i],
+                  size: 16,
+                  color: active ? FlapColors.greenBright : FlapColors.muted,
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  level,
+                  style: FlapText.sora(
+                    fontSize: 13.5,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                    color: active ? FlapColors.greenBright : FlapColors.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _playersDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: FlapColors.surface2,
+        borderRadius: BorderRadius.circular(FlapRadii.field),
+        border: Border.all(color: FlapColors.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: _selectedPlayers,
+          isExpanded: true,
+          icon: const Icon(Icons.expand_more_rounded, color: FlapColors.muted),
+          style: FlapText.sora(color: FlapColors.text, fontSize: 15),
+          dropdownColor: FlapColors.card,
+          borderRadius: BorderRadius.circular(FlapRadii.tile),
+          items: _playerOptions
+              .map((players) => DropdownMenuItem(
+                    value: players,
+                    child: Text(
+                      tr('il_460cbf0720', namedArgs: {'players': '$players'}),
+                    ),
+                  ))
+              .toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedPlayers = value!;
+              if (_teamMode) {
+                _ensureRosterLimit();
+              }
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _teamModeSwitch() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: FlapColors.surface,
+        borderRadius: BorderRadius.circular(FlapRadii.tile),
+        border: Border.all(color: FlapColors.border),
+      ),
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(
+          tr('il_5084b91728'),
+          style: FlapText.sora(
+            color: FlapColors.text,
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
+        ),
+        subtitle: Text(
+          tr('il_a94d1ecc4e'),
+          style: FlapText.sora(color: FlapColors.muted, fontSize: 12),
+        ),
+        value: _teamMode,
+        activeThumbColor: FlapColors.green,
+        activeTrackColor: FlapColors.green.withOpacity(0.4),
+        onChanged: (value) {
+          setState(() {
+            _teamMode = value;
+            if (value) {
+              _autoBalance = false;
+              _selectedInviteFriendIds.clear();
+              _selectedInviteUsers.clear();
+              if (_selectedTeam == null && _myTeams.isNotEmpty) {
+                _selectedTeam = _myTeams.first;
+                _selectedRoster = _selectedTeam!.memberIds
+                    .take((_selectedPlayers / 2).ceil())
+                    .toList();
+              }
+              _ensureRosterLimit();
+            } else {
+              _opponentTeam = null;
+            }
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _ghostButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: FlapColors.surface2,
+          borderRadius: BorderRadius.circular(FlapRadii.chip),
+          border: Border.all(color: FlapColors.green.withOpacity(0.55)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: FlapColors.greenBright, size: 16),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: FlapText.sora(
+                color: FlapColors.greenBright,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _primaryButton() {
+    return GestureDetector(
+      onTap: _isCreating ? null : _createMatch,
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          gradient: FlapColors.primaryButton,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: FlapColors.green.withOpacity(0.28),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: _isCreating
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  color: FlapColors.onGreen,
+                ),
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    tr('create_match'),
+                    style: FlapText.sora(
+                      color: FlapColors.onGreen,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_rounded,
+                      color: FlapColors.onGreen, size: 19),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Future<void> _pickDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: FlapColors.green,
+              onPrimary: FlapColors.onGreen,
+              surface: FlapColors.card,
+              onSurface: FlapColors.text,
+            ),
+            dialogTheme: const DialogThemeData(backgroundColor: FlapColors.card),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (date != null) {
+      setState(() => _selectedDate = date);
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: FlapColors.green,
+              onPrimary: FlapColors.onGreen,
+              surface: FlapColors.card,
+              onSurface: FlapColors.text,
+            ),
+            timePickerTheme: const TimePickerThemeData(
+              backgroundColor: FlapColors.card,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (time != null) {
+      setState(() => _selectedTime = time);
+    }
+  }
+
   Future<void> _createMatch() async {
     if (_isCreating) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isCreating = true);
-    
+
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;
@@ -826,19 +1100,20 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-  SnackBar(
-    content: Text(
-      tr('il_a25ff440b8', namedArgs: {'e': e.toString()}),
-    ),
-    backgroundColor: Colors.red,
-  ),
-);
+        SnackBar(
+          content: Text(
+            tr('il_a25ff440b8', namedArgs: {'e': e.toString()}),
+          ),
+          backgroundColor: FlapColors.red,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isCreating = false);
     }
   }
 
   Widget _buildSettingToggle({
+    required IconData icon,
     required String title,
     required String subtitle,
     required bool value,
@@ -850,11 +1125,13 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(16),
+          color: value
+              ? FlapColors.green.withOpacity(0.1)
+              : FlapColors.surface,
+          borderRadius: BorderRadius.circular(FlapRadii.tile),
           border: Border.all(
-            color: value ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.12),
-            width: value ? 2 : 1,
+            color: value ? FlapColors.green.withOpacity(0.55) : FlapColors.border,
+            width: value ? 1.5 : 1,
           ),
         ),
         child: Row(
@@ -864,11 +1141,11 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
               height: 34,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: value ? const Color(0xFF4caf50) : Colors.white.withOpacity(0.15),
+                color: value ? FlapColors.green : FlapColors.surface2,
               ),
               child: Icon(
-                value ? Icons.check : Icons.circle_outlined,
-                color: Colors.white,
+                value ? Icons.check_rounded : icon,
+                color: value ? FlapColors.onGreen : FlapColors.muted,
                 size: 18,
               ),
             ),
@@ -879,26 +1156,22 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: FlapText.sora(
+                      color: FlapColors.text,
                       fontWeight: FontWeight.w700,
+                      fontSize: 14,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: FlapText.sora(
+                      color: FlapColors.muted,
                       fontSize: 12,
                     ),
                   ),
                 ],
               ),
-            ),
-            Switch(
-              value: value,
-              onChanged: onChanged,
-              activeColor: const Color(0xFF4caf50),
             ),
           ],
         ),
@@ -910,7 +1183,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F1A2B),
+      backgroundColor: FlapColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -948,29 +1221,30 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                     height: 4,
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white24,
+                      color: FlapColors.borderStrong,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
                   TextField(
                     controller: controller,
-                    style: const TextStyle(color: Colors.white),
+                    style: FlapText.sora(color: FlapColors.text),
+                    cursorColor: FlapColors.greenBright,
                     decoration: InputDecoration(
                       labelText: tr('il_c81e115cc3'),
-                      labelStyle: const TextStyle(color: Colors.white70),
+                      labelStyle: FlapText.sora(color: FlapColors.muted),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.06),
+                      fillColor: FlapColors.surface2,
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            BorderSide(color: Colors.white.withOpacity(0.12)),
+                        borderSide: const BorderSide(color: FlapColors.border),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF4caf50)),
+                        borderSide: const BorderSide(color: FlapColors.greenBright),
                       ),
                       suffixIcon: IconButton(
-                        icon: const Icon(Icons.search, color: Colors.white70),
+                        icon: const Icon(Icons.search_rounded,
+                            color: FlapColors.muted),
                         onPressed: () => runSearch(setSheetState),
                       ),
                     ),
@@ -980,14 +1254,14 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                   if (loading)
                     const Padding(
                       padding: EdgeInsets.all(12.0),
-                      child: CircularProgressIndicator(),
+                      child: CircularProgressIndicator(color: FlapColors.green),
                     )
                   else if (results.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20),
                       child: Text(
                         tr('il_9598782e39'),
-                        style: const TextStyle(color: Colors.white54),
+                        style: FlapText.sora(color: FlapColors.muted),
                       ),
                     )
                   else
@@ -997,7 +1271,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                         shrinkWrap: true,
                         itemCount: results.length,
                         separatorBuilder: (_, __) =>
-                            const Divider(color: Colors.white12),
+                            const Divider(color: FlapColors.border),
                         itemBuilder: (_, index) {
                           final team = results[index];
                           return ListTile(
@@ -1008,10 +1282,10 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                               size: 36,
                             ),
                             title: Text(team.name,
-                                style: const TextStyle(color: Colors.white)),
+                                style: FlapText.sora(color: FlapColors.text)),
                             subtitle: Text(
                               '${team.memberIds.length} ${tr('il_afc0d772a2')}',
-                              style: const TextStyle(color: Colors.white54),
+                              style: FlapText.sora(color: FlapColors.muted),
                             ),
                             onTap: () {
                               Navigator.pop(ctx);
@@ -1038,49 +1312,64 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     if (_loadingTeams) {
       return const Padding(
         padding: EdgeInsets.all(12),
-        child: LinearProgressIndicator(),
+        child: LinearProgressIndicator(
+          color: FlapColors.green,
+          backgroundColor: FlapColors.surface2,
+        ),
       );
     }
     if (_selectedTeam == null) {
       return Container(
+        margin: const EdgeInsets.only(top: 12),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white12),
+          color: FlapColors.surface,
+          borderRadius: BorderRadius.circular(FlapRadii.tile),
+          border: Border.all(color: FlapColors.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               tr('il_6aaa94a1ae'),
-              style: const TextStyle(
-                color: Colors.white,
+              style: FlapText.sora(
+                color: FlapColors.text,
                 fontWeight: FontWeight.w700,
-                fontSize: 16,
+                fontSize: 15,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               tr('il_de51695051'),
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style: FlapText.sora(color: FlapColors.muted, fontSize: 13),
             ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _openTeamSearchSheet(forHost: true),
-                icon: const Icon(Icons.search, color: Colors.white),
-                label: Text(
-                  tr('il_95c42e9726'),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF4caf50)),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+              child: GestureDetector(
+                onTap: () => _openTeamSearchSheet(forHost: true),
+                child: Container(
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: FlapColors.surface2,
+                    borderRadius: BorderRadius.circular(FlapRadii.field),
+                    border: Border.all(color: FlapColors.green.withOpacity(0.55)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.search_rounded,
+                          color: FlapColors.greenBright, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        tr('il_95c42e9726'),
+                        style: FlapText.sora(
+                          color: FlapColors.greenBright,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1094,11 +1383,12 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     final hostIsMine =
         myId != null && _selectedTeam!.memberIds.contains(myId);
     return Container(
+      margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white12),
+        color: FlapColors.surface,
+        borderRadius: BorderRadius.circular(FlapRadii.tile),
+        border: Border.all(color: FlapColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1119,23 +1409,23 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                   children: [
                     Text(
                       _selectedTeam!.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
+                      style: FlapText.sora(
+                        color: FlapColors.text,
+                        fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${_selectedTeam!.memberIds.length} ${tr('il_afc0d772a2')}',
-                      style: const TextStyle(color: Colors.white70),
+                      style: FlapText.sora(color: FlapColors.muted),
                     ),
                     if (!hostIsMine) ...[
                       const SizedBox(height: 4),
                       Text(
                         tr('il_5d5f05a24c'),
-                        style: const TextStyle(
-                          color: Colors.white54,
+                        style: FlapText.sora(
+                          color: FlapColors.muted2,
                           fontSize: 12,
                         ),
                       ),
@@ -1152,27 +1442,10 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                     _teamMemberNames.clear();
                   });
                 },
-                icon: const Icon(Icons.close, color: Colors.white54),
+                icon: const Icon(Icons.close_rounded, color: FlapColors.muted),
               ),
             ],
           ),
-          // const SizedBox(height: 10),
-          // Align(
-          //   alignment: Alignment.centerRight,
-          //   child: Wrap(
-          //     spacing: 8,
-          //     children: [
-          //       TextButton.icon(
-          //         onPressed: () => _openTeamSearchSheet(forHost: true),
-          //         icon: const Icon(Icons.swap_horiz, color: Colors.white70),
-          //         label: Text(
-          //           tr('il_c0bf75bd78'),
-          //           style: const TextStyle(color: Colors.white70),
-          //         ),
-          //       ),
-          //     ],
-          //   ),
-          // ),
           const SizedBox(height: 12),
           if (hostIsMine) ...[
             Text(
@@ -1183,8 +1456,8 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                   '$rosterLimit',
                 ],
               ),
-              style: const TextStyle(
-                color: Colors.white,
+              style: FlapText.sora(
+                color: FlapColors.text,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1197,11 +1470,47 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                 final selected = _selectedRoster.contains(id);
                 final disabled =
                     !selected && _selectedRoster.length >= rosterLimit;
-                return ChoiceChip(
-                  selected: selected,
-                  label: Text(name),
-                  onSelected:
-                      disabled ? null : (value) => _toggleRosterMember(id),
+                return GestureDetector(
+                  onTap: disabled ? null : () => _toggleRosterMember(id),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? FlapColors.green.withOpacity(0.16)
+                          : FlapColors.surface2,
+                      borderRadius: BorderRadius.circular(FlapRadii.chip),
+                      border: Border.all(
+                        color: selected
+                            ? FlapColors.green.withOpacity(0.55)
+                            : FlapColors.border,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (selected) ...[
+                          const Icon(Icons.check_rounded,
+                              size: 14, color: FlapColors.greenBright),
+                          const SizedBox(width: 5),
+                        ],
+                        Text(
+                          name,
+                          style: FlapText.sora(
+                            fontSize: 13,
+                            color: disabled
+                                ? FlapColors.muted2
+                                : selected
+                                    ? FlapColors.greenBright
+                                    : FlapColors.text,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               }).toList(),
             ),
@@ -1210,13 +1519,13 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.03),
+                color: FlapColors.surface2,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white24),
+                border: Border.all(color: FlapColors.border),
               ),
               child: Text(
                 tr('il_42a057437b'),
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                style: FlapText.sora(color: FlapColors.muted, fontSize: 13),
               ),
             ),
           ],
@@ -1225,27 +1534,18 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
             children: [
               Text(
                 tr('il_ecbd71fddb'),
-                style: const TextStyle(
-                  color: Colors.white,
+                style: FlapText.sora(
+                  color: FlapColors.text,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const Spacer(),
-              OutlinedButton.icon(
-                onPressed: _openOpponentTeamSearchPage,
-                icon: const Icon(Icons.search, color: Colors.white),
-                label: Text(
-                  _opponentTeam == null
-                      ? tr('il_7ec0bce7a1')
-                      : tr('il_1f6c4a2d9e'),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF4caf50)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+              _ghostButton(
+                icon: Icons.search_rounded,
+                label: _opponentTeam == null
+                    ? tr('il_7ec0bce7a1')
+                    : tr('il_1f6c4a2d9e'),
+                onTap: _openOpponentTeamSearchPage,
               ),
             ],
           ),
@@ -1254,14 +1554,14 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
               contentPadding: EdgeInsets.zero,
               title: Text(
                 tr('il_4d80ab83ac', args: [_opponentTeam!.name]),
-                style: const TextStyle(color: Colors.white),
+                style: FlapText.sora(color: FlapColors.text),
               ),
               subtitle: Text(
                 '${_opponentTeam!.memberIds.length} ${tr('il_afc0d772a2')}',
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                style: FlapText.sora(color: FlapColors.muted, fontSize: 12),
               ),
               trailing: IconButton(
-                icon: const Icon(Icons.clear, color: Colors.white70),
+                icon: const Icon(Icons.clear_rounded, color: FlapColors.muted),
                 onPressed: () => setState(() => _opponentTeam = null),
               ),
             ),
@@ -1400,22 +1700,33 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     final action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF070A08),
+        backgroundColor: FlapColors.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(FlapRadii.card),
+        ),
         title: Text(
           tr('il_283da721cc'),
-          style: const TextStyle(color: Colors.white),
+          style: FlapText.sora(
+              color: FlapColors.text, fontWeight: FontWeight.w700),
         ),
         content: Text(
           tr('il_e985e12c90'),
-          style: const TextStyle(color: Colors.white70),
+          style: FlapText.sora(color: FlapColors.muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, 'done'),
-            child: Text(tr('il_11a6767d56')),
+            child: Text(
+              tr('il_11a6767d56'),
+              style: FlapText.sora(color: FlapColors.muted),
+            ),
           ),
           if (allowIndividualInvites)
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: FlapColors.green,
+                foregroundColor: FlapColors.onGreen,
+              ),
               onPressed: () => Navigator.pop(context, 'invite'),
               child: Text(tr('il_146ee72e30')),
             ),
@@ -1503,13 +1814,13 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
     }
   }
 
-@override
-void dispose() {
-  _titleController.dispose();
-  _descriptionController.dispose();
-  _locationController.dispose();
-  _cityController.dispose();
-  _friendsScrollController.dispose();
-  super.dispose();
-}
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    _cityController.dispose();
+    _friendsScrollController.dispose();
+    super.dispose();
+  }
 }
