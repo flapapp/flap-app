@@ -8,8 +8,10 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../router/app_router.dart';
+import '../../../../theme/flap_tokens.dart';
 import '../../../profile/domain/repositories/current_user_profile_avatar_repository.dart';
 import '../../../profile/domain/usecases/commit_profile_avatar_urls_usecase.dart';
+import '../widgets/auth_widgets.dart';
 
 /// Shown after sign-in when [profiles.avatar_url] is missing — user must upload before the rest of the app.
 @RoutePage()
@@ -171,167 +173,189 @@ class _AvatarRequiredScreenState extends State<AvatarRequiredScreen> {
   @override
   Widget build(BuildContext context) {
     final ringSize = _avatarDiameter + _ringStroke * 2 + 8;
+    final hasPhoto = _previewBytes != null;
 
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: const Color(0xFF1e7d32),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  tr('avatar_required_title'),
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+        backgroundColor: FlapColors.bg,
+        body: Container(
+          decoration: const BoxDecoration(gradient: FlapColors.screenGlow),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  Center(child: AuthEyebrow(tr('auth_eyebrow_welcome'))),
+                  const SizedBox(height: 14),
+                  Text(
+                    tr('avatar_required_title'),
+                    style: FlapText.cond(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      color: FlapColors.text,
+                      height: 1.05,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  tr('avatar_required_subtitle'),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white.withValues(alpha: 0.85),
+                  const SizedBox(height: 12),
+                  Text(
+                    tr('avatar_required_subtitle'),
+                    style: FlapText.sora(
+                      fontSize: 14,
+                      color: FlapColors.muted,
+                      height: 1.45,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                Expanded(
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: _uploading ? null : _pick,
-                      child: SizedBox(
-                        width: ringSize,
-                        height: ringSize,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          clipBehavior: Clip.none,
-                          children: [
-                            if (_uploading)
-                              SizedBox(
-                                width: ringSize,
-                                height: ringSize,
-                                child: CircularProgressIndicator(
-                                  value: (_uploadPercent / 100.0).clamp(0.0, 1.0),
-                                  strokeWidth: _ringStroke,
-                                  strokeCap: StrokeCap.round,
-                                  backgroundColor:
-                                      Colors.white.withValues(alpha: 0.2),
-                                  valueColor: const AlwaysStoppedAnimation<Color>(
-                                    Color(0xFFa5d6a7),
+                  Expanded(
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: _uploading ? null : _pick,
+                        child: SizedBox(
+                          width: ringSize,
+                          height: ringSize,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            clipBehavior: Clip.none,
+                            children: [
+                              if (_uploading)
+                                SizedBox(
+                                  width: ringSize,
+                                  height: ringSize,
+                                  child: CircularProgressIndicator(
+                                    value:
+                                        (_uploadPercent / 100.0).clamp(0.0, 1.0),
+                                    strokeWidth: _ringStroke,
+                                    strokeCap: StrokeCap.round,
+                                    backgroundColor: FlapColors.surface2,
+                                    valueColor:
+                                        const AlwaysStoppedAnimation<Color>(
+                                      FlapColors.greenBright,
+                                    ),
+                                  ),
+                                )
+                              else
+                                Container(
+                                  width: ringSize,
+                                  height: ringSize,
+                                  padding: const EdgeInsets.all(_ringStroke),
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: SweepGradient(
+                                      colors: [
+                                        FlapColors.green,
+                                        FlapColors.greenBright,
+                                        FlapColors.greenDeep,
+                                        FlapColors.green,
+                                      ],
+                                    ),
+                                  ),
+                                  child: const DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: FlapColors.bg,
+                                    ),
                                   ),
                                 ),
-                              )
-                            else
-                              Container(
-                                width: ringSize,
-                                height: ringSize,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.38),
-                                    width: _ringStroke,
-                                  ),
-                                ),
-                              ),
-                            ClipOval(
-                              child: Container(
-                                width: _avatarDiameter,
-                                height: _avatarDiameter,
-                                color: Colors.white.withValues(alpha: 0.1),
-                                child: _previewBytes != null
-                                    ? Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          Image.memory(
-                                            _previewBytes!,
-                                            fit: BoxFit.cover,
-                                          ),
-                                          if (_uploading)
-                                            ColoredBox(
-                                              color: Colors.black
-                                                  .withValues(alpha: 0.45),
-                                              child: Center(
-                                                child: Text(
-                                                  '${_uploadPercent.clamp(0, 100).round()}%',
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 44,
-                                                    fontWeight: FontWeight.w800,
-                                                    letterSpacing: -1,
+                              ClipOval(
+                                child: Container(
+                                  width: _avatarDiameter,
+                                  height: _avatarDiameter,
+                                  color: FlapColors.card2,
+                                  child: hasPhoto
+                                      ? Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            Image.memory(
+                                              _previewBytes!,
+                                              fit: BoxFit.cover,
+                                            ),
+                                            if (_uploading)
+                                              ColoredBox(
+                                                color: FlapColors.bg
+                                                    .withValues(alpha: 0.6),
+                                                child: Center(
+                                                  child: Text(
+                                                    '${_uploadPercent.clamp(0, 100).round()}%',
+                                                    style: FlapText.cond(
+                                                      color: FlapColors.text,
+                                                      fontSize: 48,
+                                                      fontWeight: FontWeight.w800,
+                                                      letterSpacing: -1,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
+                                          ],
+                                        )
+                                      : Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(
+                                              Icons.add_a_photo_rounded,
+                                              size: 60,
+                                              color: FlapColors.greenBright,
                                             ),
-                                        ],
-                                      )
-                                    : Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.add_a_photo,
-                                            size: 64,
-                                            color: Colors.white
-                                                .withValues(alpha: 0.75),
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                            ),
-                                            child: Text(
-                                              tr('il_c0660be883'),
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                color: Colors.white
-                                                    .withValues(alpha: 0.75),
-                                                fontSize: 14,
+                                            const SizedBox(height: 12),
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                              ),
+                                              child: Text(
+                                                tr('il_c0660be883'),
+                                                textAlign: TextAlign.center,
+                                                style: FlapText.sora(
+                                                  color: FlapColors.muted,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
+                                          ],
+                                        ),
+                                ),
                               ),
-                            ),
-                          ],
+                              if (hasPhoto && !_uploading)
+                                Positioned(
+                                  right: 18,
+                                  bottom: 18,
+                                  child: Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      gradient: FlapColors.primaryButton,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: FlapColors.bg, width: 4),
+                                    ),
+                                    child: const Icon(
+                                      Icons.camera_alt_rounded,
+                                      color: FlapColors.onGreen,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4caf50),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
+                  const SizedBox(height: 8),
+                  AuthPrimaryButton(
+                    label: _uploading ? tr('uploading') : tr('il_31fbef1625'),
+                    loading: _uploading,
+                    showArrow: !_uploading,
+                    onTap: (!hasPhoto || _uploading) ? null : _upload,
                   ),
-                  onPressed: (_previewBytes == null || _uploading)
-                      ? null
-                      : _upload,
-                  child: _uploading
-                      ? Text(
-                          tr('uploading'),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      : Text(
-                          tr('il_31fbef1625'),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
           ),
         ),
