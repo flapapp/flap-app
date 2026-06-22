@@ -42,6 +42,11 @@ class _ProfileSettingsBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Subscribe to the active locale so the whole screen re-localizes the
+    // instant the language is switched. `tr()` does not register a dependency
+    // on the locale, so without this read the static text would stay in the old
+    // language until the screen is rebuilt for some other reason.
+    context.locale;
     return BlocConsumer<AppSettingsCubit, AppSettingsState>(
       listenWhen: (p, c) =>
           p.saveProgress != c.saveProgress || p.loadProgress != c.loadProgress,

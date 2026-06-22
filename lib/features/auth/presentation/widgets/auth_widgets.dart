@@ -43,7 +43,7 @@ class AuthLangToggle extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _segment(context, label: 'UA', code: 'uk', active: lang == 'uk'),
+          _segment(context, label: 'УКР', code: 'uk', active: lang == 'uk'),
           _segment(context, label: 'EN', code: 'en', active: lang == 'en'),
         ],
       ),

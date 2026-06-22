@@ -12,6 +12,11 @@ class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Subscribe to the active locale so this whole screen re-localizes the
+    // instant the language is switched. `tr()` does not register a dependency
+    // on the locale, and auto_route caches this page, so without this read the
+    // static text would stay in the old language until the route is rebuilt.
+    context.locale;
     return Scaffold(
       backgroundColor: FlapColors.bg,
       body: Stack(

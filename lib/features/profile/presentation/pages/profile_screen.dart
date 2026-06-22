@@ -540,6 +540,12 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
 
   @override
   Widget build(BuildContext context) {
+    // Subscribe to the active locale so this screen re-localizes the instant the
+    // language is switched (e.g. from the Settings page). `tr()` does not
+    // register a dependency on the locale, and this screen lives in the
+    // always-alive tab-shell IndexedStack — so without this read it would only
+    // reflect a new language after an app restart.
+    context.locale;
     return BlocBuilder<ProfileBloc, ProfileState>(
       builder: (context, state) {
         return Scaffold(

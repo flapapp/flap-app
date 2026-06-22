@@ -127,10 +127,45 @@ class AppSettingsCubit extends Cubit<AppSettingsState> {
   void setAllowFriendRequests(bool value) =>
       _patchDraft(allowFriendRequests: value);
 
-  void setLocale(String locale) {
+  /// Switches the app language. Unlike the other preference setters (which only
+  /// stage a draft until [save] is pressed), language applies *live* the moment
+  /// it is selected — so it is also persisted immediately. Otherwise the next
+  /// [load] (e.g. re-opening Settings) would clear the unsaved draft and revert
+  /// to the stored value.
+  Future<void> setLocale(String locale) async {
     final code = locale == 'uk' ? 'uk' : 'en';
-    _patchDraft(locale: code);
-    unawaited(applyLocale(code));
+    if (state.effective.locale == code) return;
+
+    // Commit onto the saved settings (and mirror into any active draft so the
+    // selector highlights correctly and a later Save won't re-revert locale).
+    emit(
+      state.copyWith(
+        settings: state.settings.copyWith(locale: code),
+        draft: state.draft?.copyWith(locale: code),
+      ),
+    );
+
+    await applyLocale(code);
+
+    // Persist just the locale change. Other pending draft toggles are NOT
+    // flushed here: we write the committed values for them plus the new locale.
+    final base = state.settings;
+    final result = await _saveAppSettings(
+      SaveAppSettingsParams(
+        notificationsEnabled: base.notificationsEnabled,
+        autoplayVideos: base.autoplayVideos,
+        showOnlineStatus: base.showOnlineStatus,
+        allowFriendRequests: base.allowFriendRequests,
+        locale: code,
+      ),
+    );
+    result.when(
+      success: (_) => _userSettings.invalidateCache(),
+      failure: (f) => developer.log(
+        'Locale persist failed: $f',
+        name: 'AppSettingsCubit',
+      ),
+    );
   }
 
   void _patchDraft({

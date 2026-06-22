@@ -74,6 +74,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Subscribe to the active locale so this screen re-localizes instantly when
+    // the language toggle is tapped. `tr()` does not register a dependency on
+    // the locale, and auto_route caches this page, so without this read the
+    // static text would stay in the old language until the route is rebuilt.
+    context.locale;
     return BlocConsumer<AuthBloc, AuthState>(
       listenWhen: (p, c) =>
           (p.registrationProgress != c.registrationProgress &&

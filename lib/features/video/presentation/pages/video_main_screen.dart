@@ -292,6 +292,10 @@ class _VideoMainScreenState extends State<VideoMainScreen> {
 
   @override
 Widget build(BuildContext context) {
+  // Subscribe to the active locale so this screen re-localizes instantly when
+  // the language is switched. `tr()` does not register a dependency on the
+  // locale, and this screen lives in the always-alive tab-shell IndexedStack.
+  context.locale;
   return BlocProvider.value(
     value: _challengesListCubit,
     child: Scaffold(

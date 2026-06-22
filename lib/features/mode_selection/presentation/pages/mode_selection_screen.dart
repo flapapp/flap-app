@@ -111,6 +111,11 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
 
   @override
   Widget build(BuildContext context) {
+    // Subscribe to the active locale so the bottom-nav labels and the inline
+    // Home tab re-localize instantly when the language is switched. `tr()` does
+    // not register a dependency on the locale; the other tab screens (Matches /
+    // Videos / Teams / Profile) each do the same read in their own build.
+    context.locale;
     return Scaffold(
       backgroundColor: FlapColors.bg,
       body: IndexedStack(

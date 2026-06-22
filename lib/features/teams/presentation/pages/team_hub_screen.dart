@@ -47,6 +47,10 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Subscribe to the active locale so this screen re-localizes instantly when
+    // the language is switched. `tr()` does not register a dependency on the
+    // locale, and this screen lives in the always-alive tab-shell IndexedStack.
+    context.locale;
     return Scaffold(
       backgroundColor: FlapColors.bg,
       floatingActionButton: FlapCreateFab(
