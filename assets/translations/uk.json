@@ -400,6 +400,7 @@
   "professional": "Професійний",
   "anytime": "Будь-коли",
   "city_label": "Місто",
+  "city_not_found": "Місто не знайдено",
   "level_label": "Рівень",
   "time_label": "Час",
   "search_label": "Пошук",

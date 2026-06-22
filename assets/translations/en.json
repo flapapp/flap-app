@@ -400,6 +400,7 @@
   "professional": "Professional",
   "anytime": "Anytime",
   "city_label": "City",
+  "city_not_found": "City not found",
   "level_label": "Level",
   "time_label": "Time",
   "search_label": "Search",
