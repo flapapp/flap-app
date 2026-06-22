@@ -7,12 +7,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/auth/app_auth.dart';
 import '../../../../core/di/injection.dart';
-import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../matches/presentation/pages/matches_screen.dart';
 import '../../../teams/presentation/pages/team_hub_screen.dart';
+import '../../../video/presentation/pages/video_main_screen.dart';
 import '../../../profile/presentation/pages/profile_screen.dart';
 import '../../../profile/presentation/profile_user_data_sync.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
@@ -52,7 +52,13 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
 
   // Bottom-nav tab shell. Tabs are built lazily on first visit and kept alive
   // by the IndexedStack so switching is instant and preserves state.
-  static const List<String> _navIds = ['home', 'matches', 'teams', 'profile'];
+  static const List<String> _navIds = [
+    'home',
+    'matches',
+    'videos',
+    'teams',
+    'profile',
+  ];
   int _tab = 0;
   final Set<int> _visited = <int>{0};
 
@@ -112,14 +118,13 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
         children: [
           _visited.contains(0) ? _buildHomeTab(context) : const SizedBox.shrink(),
           _visited.contains(1) ? const MatchesScreen() : const SizedBox.shrink(),
-          _visited.contains(2) ? const TeamHubScreen() : const SizedBox.shrink(),
-          _visited.contains(3) ? const ProfileScreen() : const SizedBox.shrink(),
+          _visited.contains(2) ? const VideoMainScreen() : const SizedBox.shrink(),
+          _visited.contains(3) ? const TeamHubScreen() : const SizedBox.shrink(),
+          _visited.contains(4) ? const ProfileScreen() : const SizedBox.shrink(),
         ],
       ),
       bottomNavigationBar: FlapBottomNav(
         activeId: _navIds[_tab],
-        createTooltip: tr('il_5a0f12a92f'),
-        onCreate: () => context.router.push(const CreateMatchRoute()),
         onSelect: (id) => _selectTab(_navIds.indexOf(id)),
         items: [
           FlapNavItem(
@@ -130,6 +135,10 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
               icon: Icons.sports_soccer,
               label: tr('matches'),
               id: 'matches'),
+          FlapNavItem(
+              icon: Icons.play_arrow_rounded,
+              label: tr('videos'),
+              id: 'videos'),
           FlapNavItem(
               icon: Icons.shield_outlined,
               label: tr('il_1e1a1c078a'),
@@ -232,8 +241,7 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
                                     subtitle: tr('il_2862424bdc'),
                                     icon: Icons.play_arrow_rounded,
                                     accent: FlapColors.amber,
-                                    onTap: () => context.pushModeTarget(
-                                        ModeNavigationTarget.videoMain),
+                                    onTap: () => _selectTab(2),
                                   ),
                                   const SizedBox(height: 12),
                                   ModeCard(
@@ -241,7 +249,7 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
                                     subtitle: tr('il_8d98f0bec9'),
                                     icon: Icons.shield_outlined,
                                     accent: FlapColors.blue,
-                                    onTap: () => _selectTab(2),
+                                    onTap: () => _selectTab(3),
                                   ),
                                 ],
                               ),
@@ -330,7 +338,7 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
                 borderColor: FlapColors.green,
                 borderWidth: 2,
                 // Switch to the Profile tab rather than pushing a new screen.
-                onTap: () => _selectTab(3),
+                onTap: () => _selectTab(4),
               ),
             ],
           ),

@@ -49,11 +49,16 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: FlapColors.bg,
+      floatingActionButton: FlapCreateFab(
+        tooltip: tr('il_284ff194f8'),
+        onTap: _onCreateTeamPressed,
+      ),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         titleSpacing: 20,
+        centerTitle: false,
         title: Text(
           tr('il_98348a9036'),
           style: FlapText.sora(fontSize: 22, fontWeight: FontWeight.w800),
@@ -67,15 +72,15 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             ),
           ),
         ),
-        actions: [
-          FlapIconButton(
-            icon: Icons.add_rounded,
-            iconSize: 22,
-            tooltip: tr('il_284ff194f8'),
-            onTap: _onCreateTeamPressed,
-          ),
-          const SizedBox(width: 16),
-        ],
+        // actions: [
+        //   FlapIconButton(
+        //     icon: Icons.add_rounded,
+        //     iconSize: 22,
+        //     tooltip: tr('il_284ff194f8'),
+        //     onTap: _onCreateTeamPressed,
+        //   ),
+        //   const SizedBox(width: 16),
+        // ],
       ),
       body: StreamBuilder<List<AppTeam>>(
         stream: _teamsLeaderboardStream,

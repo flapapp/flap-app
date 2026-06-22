@@ -14,7 +14,6 @@ export 'domain/usecases/save_app_settings_usecase.dart';
 export 'domain/usecases/submit_editable_profile_usecase.dart';
 export 'presentation/bloc/profile_bloc.dart';
 export 'presentation/cubit/profile_creation_cubit.dart';
-export 'presentation/cubit/profile_settings_cubit.dart';
 export 'presentation/pages/player_profile_page.dart';
 export 'presentation/pages/profile_creation_page.dart';
 export 'presentation/pages/profile_screen.dart';

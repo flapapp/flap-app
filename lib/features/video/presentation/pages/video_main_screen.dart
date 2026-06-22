@@ -26,7 +26,6 @@ import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/flap/flap_kit.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
 import '../../../../widgets/player_avatar_button.dart';
-import '../../../../widgets/mode_speed_dial.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:flap_app/city_localization.dart';
@@ -301,21 +300,22 @@ Widget build(BuildContext context) {
       backgroundColor: const Color(0xFF0E1310).withValues(alpha: 0.95),
       elevation: 0,
       titleSpacing: 4,
+      centerTitle: false,
       title: Text(
         tr('videos'),
         style: FlapText.sora(fontSize: 20, fontWeight: FontWeight.w800),
       ),
       actions: [
         // Upload
-        _appBarGlassButton(
-          tooltip: tr('upload_video'),
-          onTap: () async {
-            await context.router.push(VideoUploadRoute());
-            if (!mounted) return;
-            _invalidateVideoFeedCaches();
-          },
-          child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
-        ),
+        // _appBarGlassButton(
+        //   tooltip: tr('upload_video'),
+        //   onTap: () async {
+        //     await context.router.push(VideoUploadRoute());
+        //     if (!mounted) return;
+        //     _invalidateVideoFeedCaches();
+        //   },
+        //   child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+        // ),
 
         // Filters
         Padding(
@@ -370,22 +370,9 @@ Widget build(BuildContext context) {
         ],
       ),
     ),
-    floatingActionButton: ModeSpeedDial(
-      shortcuts: [
-        ModeDialAction(
-          icon: Icons.sports_soccer,
-          tooltip: tr('matches'),
-          onTap: () => context.router.push(MatchesRoute()),
-        ),
-        ModeDialAction(
-          icon: Icons.groups_outlined,
-          tooltip: tr('teams'),
-          onTap: () => context.router.push(const TeamHubRoute()),
-        ),
-      ],
-      onCreate: _showVideoCreateSheet,
-      createTooltip: tr('il_4759498ac2'),
-      createGradient: const [Color(0xFFFF6B35), Color(0xFFFF8A65)],
+    floatingActionButton: FlapCreateFab(
+      tooltip: tr('il_4759498ac2'),
+      onTap: _showVideoCreateSheet,
     ),
     floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     ),

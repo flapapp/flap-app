@@ -589,6 +589,14 @@ class _MatchesScreenState extends State<MatchesScreen>
           const SizedBox(width: 8),
         ],
       ),
+      floatingActionButton: FlapCreateFab(
+        tooltip: tr('create_match'),
+        onTap: () async {
+          await context.router.push(const CreateMatchRoute());
+          if (!mounted) return;
+          _refreshMatchLists();
+        },
+      ),
       body: Column(
         children: [
           if (_searchVisible)

@@ -248,23 +248,28 @@ class FlapBottomNav extends StatelessWidget {
     required this.activeId,
     required this.items,
     required this.onSelect,
-    required this.onCreate,
+    this.onCreate,
     this.createTooltip,
+    this.createIcon = Icons.add_rounded,
   });
 
   final String activeId;
   final List<FlapNavItem> items;
   final ValueChanged<String> onSelect;
-  final VoidCallback onCreate;
+
+  /// Optional raised center FAB. When null, the bar is a plain row of
+  /// destinations (no FAB).
+  final VoidCallback? onCreate;
   final String? createTooltip;
+  final IconData createIcon;
 
   @override
   Widget build(BuildContext context) {
-    // FAB sits in the middle of the destination list.
+    // Optional FAB sits in the middle of the destination list.
     final mid = (items.length / 2).floor();
     final children = <Widget>[];
     for (var i = 0; i < items.length; i++) {
-      if (i == mid) children.add(_fab(context));
+      if (onCreate != null && i == mid) children.add(_fab(context));
       children.add(Expanded(child: _navItem(items[i])));
     }
 
@@ -356,7 +361,7 @@ class FlapBottomNav extends StatelessWidget {
             ),
           ],
         ),
-        child: const Icon(Icons.add_rounded, size: 26, color: FlapColors.onGreen),
+        child: Icon(createIcon, size: 26, color: FlapColors.onGreen),
       ),
     );
     // Raise the FAB so it pops above the bar (design: margin-top:-18px).
@@ -369,6 +374,47 @@ class FlapBottomNav extends StatelessWidget {
             : fab,
       ),
     );
+  }
+}
+
+/// Standalone Flap floating action button (the design's `.fab`): a green
+/// gradient rounded-square with a green glow. Use as a screen's
+/// [Scaffold.floatingActionButton] to create related content.
+class FlapCreateFab extends StatelessWidget {
+  const FlapCreateFab({
+    super.key,
+    required this.onTap,
+    this.icon = Icons.add_rounded,
+    this.tooltip,
+  });
+
+  final VoidCallback onTap;
+  final IconData icon;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final fab = GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          gradient: FlapColors.primaryButton,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: FlapColors.green.withValues(alpha: 0.5),
+              blurRadius: 24,
+              spreadRadius: -4,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Icon(icon, size: 28, color: FlapColors.onGreen),
+      ),
+    );
+    return tooltip != null ? Tooltip(message: tooltip!, child: fab) : fab;
   }
 }
 
