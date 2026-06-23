@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/interactions/interaction_store.dart';
 import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../router/app_router.dart';
 import '../../../friends/domain/repositories/friends_repository.dart';
@@ -510,6 +511,10 @@ class _VideosScreenState extends State<VideosScreen> {
   Future<void> _toggleLike(String videoId, bool isCurrentlyLiked) async {
     final uid = AppAuth.currentUserId;
     if (uid == null) return;
+    final store = sl<InteractionStore>();
+    final prevCi = store.peek(videoId);
+    // Optimistic store update so other screens reflect the like instantly.
+    store.applyLikeOptimistic(videoId, likedByMe: !isCurrentlyLiked);
     try {
       if (isCurrentlyLiked) {
         await _sb
@@ -523,7 +528,15 @@ class _VideosScreenState extends State<VideosScreen> {
           'user_id': uid,
         });
       }
+      final likes = await _sb
+          .from('video_likes')
+          .select('user_id')
+          .eq('video_id', videoId);
+      store.reconcileLike(videoId,
+          likeCount: (likes as List<dynamic>).length,
+          likedByMe: !isCurrentlyLiked);
     } catch (e) {
+      store.restore(videoId, prevCi); // rollback
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(tr('il_e11b346cb1', namedArgs: {'e': e.toString()})),

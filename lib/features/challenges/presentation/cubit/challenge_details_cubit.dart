@@ -4,6 +4,8 @@ import 'package:bloc/bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/auth/app_auth.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../core/interactions/interaction_store.dart';
 import '../../../../core/supabase/guard_supabase_realtime_stream.dart';
 import '../../data/models/challenge.dart' show computeChallengePrizePoolCoins;
 
@@ -233,6 +235,20 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
             submitterProfiles[id] = row;
           }
         }
+      }
+
+      // Seed the centralized store so submission cards (and the challenge
+      // video player) share one reactive source for vote avg/count/voted.
+      final store = sl<InteractionStore>();
+      for (final submission in list) {
+        final sid = submission['id']?.toString() ?? '';
+        if (sid.isEmpty) continue;
+        store.seedRating(
+          sid,
+          ratingAvg: ((submission['averageRating'] as num?) ?? 0).toDouble(),
+          voteCount: (submission['voteCount'] as int?) ?? 0,
+          votedByMe: myRatings.containsKey(sid),
+        );
       }
 
       emit(

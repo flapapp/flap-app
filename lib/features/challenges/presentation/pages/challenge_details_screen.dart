@@ -4,6 +4,8 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/di/injection.dart';
+import '../../../../core/interactions/interaction_store.dart';
 import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/flap/flap_kit.dart';
@@ -803,30 +805,45 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                         fontSize: 12.5, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, size: 12, color: FlapColors.gold),
-                      const SizedBox(width: 4),
-                      Text(
-                        rating > 0 ? rating.toStringAsFixed(2) : '—',
-                        style: FlapText.sora(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: FlapColors.gold),
-                      ),
-                      if (hasVoted) ...[
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            '· ${tr('challenge_voted')}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                  // Reactive: avg rating + voted state come from the shared
+                  // store so a vote anywhere updates this card instantly.
+                  ValueListenableBuilder<ContentInteraction>(
+                    valueListenable:
+                        sl<InteractionStore>().watchSubmission(videoId),
+                    builder: (context, ci, _) {
+                      final displayRating =
+                          ci.loaded ? ci.ratingAvg : rating;
+                      final displayVoted = ci.loaded ? ci.votedByMe : hasVoted;
+                      return Row(
+                        children: [
+                          const Icon(Icons.star,
+                              size: 12, color: FlapColors.gold),
+                          const SizedBox(width: 4),
+                          Text(
+                            displayRating > 0
+                                ? displayRating.toStringAsFixed(2)
+                                : '—',
                             style: FlapText.sora(
-                                fontSize: 11, color: FlapColors.greenBright),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: FlapColors.gold),
                           ),
-                        ),
-                      ],
-                    ],
+                          if (displayVoted) ...[
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                '· ${tr('challenge_voted')}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: FlapText.sora(
+                                    fontSize: 11,
+                                    color: FlapColors.greenBright),
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),

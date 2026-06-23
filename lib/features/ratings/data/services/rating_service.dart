@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/interactions/user_rating_store.dart';
 import '../../../notifications/data/services/notification_service.dart';
 import 'rating_tracking_service.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -368,6 +369,10 @@ class RatingService {
         params: <String, dynamic>{'p_user_id': userId},
       );
       final roundedOverall = await getUserRating(userId);
+
+      // Push the recomputed value to the centralized store so every mounted
+      // RatingDisplay for this user refreshes instantly.
+      sl<UserRatingStore>().set(userId, roundedOverall);
 
       try {
         if (reason != null) {

@@ -98,6 +98,8 @@ import '../../core/settings/app_settings_cubit.dart';
 import '../../features/profile/data/services/user_settings_service.dart';
 import '../../features/profile/presentation/profile_user_data_sync.dart';
 import '../../features/video/presentation/video_feed_sync.dart';
+import '../interactions/interaction_store.dart';
+import '../interactions/user_rating_store.dart';
 import '../../features/mode_selection/data/datasources/mode_dashboard_remote_datasource.dart';
 import '../../features/mode_selection/data/datasources/mode_dashboard_remote_datasource_impl.dart';
 import '../../features/mode_selection/data/repositories/mode_news_repository_impl.dart';
@@ -187,6 +189,8 @@ Future<void> configureDependencies() async {
     )
     ..registerLazySingleton(ProfileUserDataSync.new)
     ..registerLazySingleton(VideoFeedSync.new)
+    ..registerLazySingleton(InteractionStore.new)
+    ..registerLazySingleton(UserRatingStore.new)
     ..registerLazySingleton<ProfileBloc>(
       () => ProfileBloc(sl(), sl(), sl(), sl(), sl<ProfileUserDataSync>()),
     )

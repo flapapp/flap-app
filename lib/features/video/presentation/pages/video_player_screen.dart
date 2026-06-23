@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/interactions/interaction_store.dart';
 import '../../../ratings/domain/repositories/ratings_repository.dart';
 import '../../../../router/app_router.dart';
 import 'package:video_player/video_player.dart';
@@ -319,6 +320,15 @@ class _VideoPageState extends State<_VideoPage>
               });
             }
           }
+          // Seed the centralized store so this video's like/vote state stays
+          // consistent with the feed/grid and updates propagate both ways.
+          final store = sl<InteractionStore>();
+          store.seedLike(widget.videoId,
+              likeCount: _likesCount, likedByMe: _isLiked);
+          store.seedRating(widget.videoId,
+              ratingAvg: _videoAverageRating ?? 0.0,
+              voteCount: _videoVoteCount ?? 0,
+              votedByMe: _hasVoted);
         }
         // Comments only for general (non-challenge) videos
         _loadComments();
@@ -354,6 +364,8 @@ class _VideoPageState extends State<_VideoPage>
           _videoAverageRating = 0.0;
           _videoVoteCount = 0;
         });
+        sl<InteractionStore>()
+            .mergeContent(widget.videoId, ratingAvg: 0.0, voteCount: 0);
         return;
       }
       double sum = 0.0;
@@ -362,10 +374,14 @@ class _VideoPageState extends State<_VideoPage>
         final r = (m['overall_rating'] ?? 0.0) as num;
         sum += r.toDouble();
       }
+      final avg = double.parse((sum / rows.length).toStringAsFixed(2));
       setState(() {
         _videoVoteCount = rows.length;
-        _videoAverageRating = double.parse((sum / _videoVoteCount!).toStringAsFixed(2));
+        _videoAverageRating = avg;
       });
+      // Authoritative rating aggregate → store, so feed/grid badges update.
+      sl<InteractionStore>()
+          .mergeContent(widget.videoId, ratingAvg: avg, voteCount: rows.length);
     } catch (_) {}
   }
 
@@ -452,6 +468,10 @@ class _VideoPageState extends State<_VideoPage>
 
       if (success) {
         await _computeVideoAverage();
+        // Mark this user as having voted in the shared store (rail + other
+        // screens reflect it instantly; the author's overall RatingDisplay
+        // refreshes via RatingService → UserRatingStore).
+        sl<InteractionStore>().mergeContent(widget.videoId, votedByMe: true);
         if (!mounted) return;
         setState(() {
           _hasVoted = true;
@@ -548,6 +568,14 @@ class _VideoPageState extends State<_VideoPage>
       });
 
       await _computeChallengeSubmissionAverage();
+      // Reconcile shared store (keyed by submission id) so the challenge
+      // details card reflects this vote instantly.
+      sl<InteractionStore>().reconcileVote(
+        submissionId,
+        ratingAvg: _videoAverageRating ?? 0.0,
+        voteCount: _videoVoteCount ?? 0,
+        votedByMe: true,
+      );
       if (!mounted) return;
       setState(() {
         _hasVoted = true;
@@ -621,6 +649,9 @@ class _VideoPageState extends State<_VideoPage>
       setState(() {
         _comments = comments;
       });
+      // Authoritative comment count → store, so the feed/grid chips stay in sync.
+      sl<InteractionStore>()
+          .reconcileComment(widget.videoId, comments.length);
     } catch (e) {
       print('Error loading comments: $e');
     }
@@ -709,40 +740,34 @@ class _VideoPageState extends State<_VideoPage>
   }
 
   Future<void> _toggleLike() async {
+    final currentUser = AppAuth.currentUser;
+    if (currentUser == null) return;
+    final store = sl<InteractionStore>();
+    final previous = store.peek(widget.videoId);
+    final willLike = !previous.likedByMe;
+    // Optimistic: every screen watching this video updates instantly.
+    store.applyLikeOptimistic(widget.videoId, likedByMe: willLike);
     try {
-      final currentUser = AppAuth.currentUser;
-      if (currentUser == null) return;
-
-      if (_isLiked) {
-        // Remove like
+      if (willLike) {
+        await _sb.from('video_likes').upsert({
+          'video_id': widget.videoId,
+          'user_id': currentUser.id,
+        });
+      } else {
         await _sb
             .from('video_likes')
             .delete()
             .eq('video_id', widget.videoId)
             .eq('user_id', currentUser.id);
-        setState(() {
-          _isLiked = false;
-          _likesCount = (_likesCount - 1).clamp(0, 1 << 30);
-        });
-      } else {
-        // Add like
-        await _sb.from('video_likes').upsert({
-          'video_id': widget.videoId,
-          'user_id': currentUser.id,
-        });
-        setState(() {
-          _isLiked = true;
-          _likesCount++;
-        });
       }
       final likes = await _sb
           .from('video_likes')
           .select('user_id')
           .eq('video_id', widget.videoId);
-      if (mounted) {
-        setState(() => _likesCount = (likes as List<dynamic>).length);
-      }
+      store.reconcileLike(widget.videoId,
+          likeCount: (likes as List<dynamic>).length, likedByMe: willLike);
     } catch (e) {
+      store.restore(widget.videoId, previous); // rollback
       print('Error toggling like: $e');
     }
   }
@@ -1178,43 +1203,46 @@ class _VideoPageState extends State<_VideoPage>
   }
 
   Widget _buildRail() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _railButton(
-          icon: _isLiked ? Icons.favorite : Icons.favorite_border,
-          label: '$_likesCount',
-          onTap: _toggleLike,
-          active: _isLiked,
-          activeColor: const Color(0xFFFF6B7D),
-        ),
-        const SizedBox(height: 18),
-        _railButton(
-          icon: Icons.mode_comment_outlined,
-          label: '${_comments.length}',
-          onTap: _showCommentsBottomSheet,
-        ),
-        if (!_isChallengeSubmission) ...[
+    return ValueListenableBuilder<ContentInteraction>(
+      valueListenable: sl<InteractionStore>().watchVideo(widget.videoId),
+      builder: (context, ci, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _railButton(
+            icon: ci.likedByMe ? Icons.favorite : Icons.favorite_border,
+            label: '${ci.likeCount}',
+            onTap: _toggleLike,
+            active: ci.likedByMe,
+            activeColor: const Color(0xFFFF6B7D),
+          ),
           const SizedBox(height: 18),
           _railButton(
-            icon: Icons.star_rounded,
-            label: _hasVoted ? tr('voted') : tr('vote'),
-            onTap: _showVotingBottomSheet,
-            active: _hasVoted,
-            activeColor: FlapColors.gold,
+            icon: Icons.mode_comment_outlined,
+            label: '${ci.commentCount}',
+            onTap: _showCommentsBottomSheet,
+          ),
+          if (!_isChallengeSubmission) ...[
+            const SizedBox(height: 18),
+            _railButton(
+              icon: Icons.star_rounded,
+              label: ci.votedByMe ? tr('voted') : tr('vote'),
+              onTap: _showVotingBottomSheet,
+              active: ci.votedByMe,
+              activeColor: FlapColors.gold,
+            ),
+          ],
+          const SizedBox(height: 18),
+          _railButton(
+            icon: Icons.reply_outlined,
+            label: tr('share'),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(tr('il_28a4a65f94'))),
+              );
+            },
           ),
         ],
-        const SizedBox(height: 18),
-        _railButton(
-          icon: Icons.reply_outlined,
-          label: tr('share'),
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(tr('il_28a4a65f94'))),
-            );
-          },
-        ),
-      ],
+      ),
     );
   }
 

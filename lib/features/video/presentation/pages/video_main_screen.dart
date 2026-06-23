@@ -25,6 +25,7 @@ import '../../../../widgets/video_preview_box.dart';
 import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../widgets/scroll_aware_fab.dart';
+import '../../../../core/interactions/interaction_store.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
@@ -547,6 +548,8 @@ Widget build(BuildContext context) {
           _videoRatingCache[videoId] = avg;
         });
       }
+      sl<InteractionStore>()
+          .mergeContent(videoId, ratingAvg: avg, voteCount: rows.length);
     } catch (_) {
       // ignore
     } finally {
@@ -571,6 +574,7 @@ Widget build(BuildContext context) {
           _commentCountCache[videoId] = count;
         });
       }
+      sl<InteractionStore>().mergeContent(videoId, commentCount: count);
     } catch (_) {
       // ignore
     } finally {
@@ -588,17 +592,23 @@ Widget build(BuildContext context) {
     }
     _likeStateLoading.add(videoId);
     try {
-      final likeDoc = await _sb
+      // Fetch all likers so we can seed both the count and the per-user state.
+      final rows = await _sb
           .from('video_likes')
-          .select('video_id')
-          .eq('video_id', videoId)
-          .eq('user_id', uid)
-          .maybeSingle();
+          .select('user_id')
+          .eq('video_id', videoId);
+      final likers = rows as List<dynamic>;
+      final likeCount = likers.length;
+      final likedByMe =
+          likers.any((r) => (r as Map<String, dynamic>)['user_id'] == uid);
       if (mounted) {
         setState(() {
-          _likedByMeCache[videoId] = likeDoc != null;
+          _likedByMeCache[videoId] = likedByMe;
+          _likeCountCache[videoId] = likeCount;
         });
       }
+      sl<InteractionStore>()
+          .mergeContent(videoId, likeCount: likeCount, likedByMe: likedByMe);
     } catch (_) {
       // ignore transient errors; keep feed usable
     } finally {
@@ -1613,7 +1623,6 @@ Widget build(BuildContext context) {
         ? ratingRaw.toDouble()
         : double.tryParse(ratingRaw.toString()) ?? 0.0;
     final cachedRating = _videoRatingCache[videoId];
-    final double displayRating = cachedRating ?? rating;
     if (cachedRating == null &&
         rating <= 0 &&
         !_videoRatingLoading.contains(videoId)) {
@@ -1621,9 +1630,11 @@ Widget build(BuildContext context) {
     }
 
     final likes = (data['likes'] ?? 0) as num;
-    int displayLikes = likes.toInt();
     final cachedLikes = _likeCountCache[videoId];
-    if (cachedLikes != null) displayLikes = cachedLikes;
+    // Display values prefer the centralized store (reactive across screens),
+    // falling back to the per-screen cache / feed payload until it loads.
+    final fallbackRating = cachedRating ?? rating;
+    final fallbackLikes = cachedLikes ?? likes.toInt();
 
     String authorDisplayName = (data['authorName'] ??
             data['displayName'] ??
@@ -1653,7 +1664,13 @@ Widget build(BuildContext context) {
         ? authorDisplayName
         : trimmedName.split(RegExp(r'\s+')).first;
 
-    return GestureDetector(
+    return ValueListenableBuilder<ContentInteraction>(
+      valueListenable: sl<InteractionStore>().watchVideo(videoId),
+      builder: (context, ci, _) {
+        final double displayRating =
+            (ci.loaded && ci.ratingAvg > 0) ? ci.ratingAvg : fallbackRating;
+        final int displayLikes = ci.loaded ? ci.likeCount : fallbackLikes;
+        return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _openVideo(
         videoId: videoId,
@@ -1712,6 +1729,8 @@ Widget build(BuildContext context) {
           ),
         ),
       ),
+        );
+      },
     );
   }
 
@@ -2749,6 +2768,8 @@ Widget build(BuildContext context) {
     final uid = AppAuth.currentUserId;
     if (uid == null) return;
     if (_likeToggleLoading.contains(videoId)) return;
+    final store = sl<InteractionStore>();
+    final prevCi = store.peek(videoId);
     final previousLiked = _likedByMeCache[videoId] ?? isCurrentlyLiked;
     final previousCount = _likeCountCache[videoId];
     final currentCount = previousCount ?? currentDisplayedLikes;
@@ -2756,6 +2777,9 @@ Widget build(BuildContext context) {
         ? (currentCount - 1).clamp(0, 1 << 30)
         : currentCount + 1;
     _likeToggleLoading.add(videoId);
+    // Optimistic: drives both this screen's cache and the shared store (so the
+    // feed card and any other screen showing this video update instantly).
+    store.applyLikeOptimistic(videoId, likedByMe: !previousLiked);
     if (mounted) {
       setState(() {
         _likedByMeCache[videoId] = !previousLiked;
@@ -2779,13 +2803,17 @@ Widget build(BuildContext context) {
           .from('video_likes')
           .select('user_id')
           .eq('video_id', videoId);
+      final likeCount = (likes as List<dynamic>).length;
+      store.reconcileLike(videoId,
+          likeCount: likeCount, likedByMe: !previousLiked);
       if (mounted) {
         setState(() {
-          _likeCountCache[videoId] = (likes as List<dynamic>).length;
+          _likeCountCache[videoId] = likeCount;
           _likedByMeCache[videoId] = !previousLiked;
         });
       }
     } catch (e) {
+      store.restore(videoId, prevCi); // rollback shared store
       if (mounted) {
         setState(() {
           _likedByMeCache[videoId] = previousLiked;
@@ -3146,6 +3174,8 @@ Widget build(BuildContext context) {
         'body': comment,
       });
 
+      // Optimistic bump for every screen, then re-fetch the authoritative count.
+      sl<InteractionStore>().applyCommentDelta(videoId, 1);
       _commentCountCache.remove(videoId);
       _prefetchCommentCount(videoId);
 

@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:video_player/video_player.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/interactions/interaction_store.dart';
 import '../../../profile/data/services/user_settings_service.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import '../../../../core/supabase/coin_ledger.dart';
@@ -896,6 +897,15 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         'voting_reward',
         1,
         tr('il_97e061af07'),
+      );
+
+      // Reconcile the shared store so the submission card in challenge details
+      // updates avg/count/voted instantly.
+      sl<InteractionStore>().reconcileVote(
+        widget.submissionId,
+        ratingAvg: double.parse(newRating.toStringAsFixed(2)),
+        voteCount: newVotes,
+        votedByMe: true,
       );
 
       setState(() {
