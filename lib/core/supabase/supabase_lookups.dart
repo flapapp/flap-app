@@ -7,6 +7,8 @@ class SupabaseLookups {
   static Future<String> transactionTypeId(
     SupabaseClient client,
     String code,
+    // Retained for call-site readability; transaction types are an admin-seeded
+    // reference set and are never created from the client.
     String label,
   ) async {
     final existing = await client
@@ -17,12 +19,14 @@ class SupabaseLookups {
     if (existing != null) {
       return existing['id'] as String;
     }
-    final inserted = await client
-        .from('transaction_types')
-        .insert(<String, dynamic>{'code': code, 'label': label})
-        .select('id')
-        .single();
-    return inserted['id'] as String;
+    // transaction_types is admin-only (RLS transaction_types_write_admin); a
+    // client INSERT here always fails with 42501. A missing code means the seed
+    // migration for it hasn't been applied — surface that instead of a cryptic
+    // row-level-security error.
+    throw StateError(
+      'Unknown transaction type "$code". It must be seeded in '
+      'transaction_types via a migration before it can be used.',
+    );
   }
 
   static Future<String> notificationTypeId(
