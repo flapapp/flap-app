@@ -115,7 +115,7 @@ class _TeamRosterTotalRatingBadgeState extends State<TeamRosterTotalRatingBadge>
         }
 
         final valueText = Text(
-          total.toStringAsFixed(1),
+          total.toStringAsFixed(2),
           style: TextStyle(
             color: widget.accent,
             fontWeight: FontWeight.w800,

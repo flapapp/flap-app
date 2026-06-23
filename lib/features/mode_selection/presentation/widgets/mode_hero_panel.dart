@@ -138,7 +138,7 @@ class ModeHeroPanel extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        rating.toStringAsFixed(1),
+                        rating.toStringAsFixed(2),
                         style: FlapText.cond(
                           fontSize: 34,
                           height: 0.9,

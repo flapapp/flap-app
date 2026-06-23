@@ -729,8 +729,8 @@ Widget build(BuildContext context) {
                   value: value,
                   min: 0,
                   max: 5,
-                  divisions: 50,
-                  label: value.toStringAsFixed(1),
+                  divisions: 500,
+                  label: value.toStringAsFixed(2),
                   activeColor: const Color(0xFFFFC107),
                   onChanged: onChanged,
                 ),
@@ -1726,7 +1726,7 @@ Widget build(BuildContext context) {
           const Icon(Icons.star, size: 11, color: FlapColors.onGreen),
           const SizedBox(width: 4),
           Text(
-            rating.toStringAsFixed(1),
+            rating.toStringAsFixed(2),
             style: FlapText.sora(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,

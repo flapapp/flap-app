@@ -207,7 +207,7 @@ class Friend extends FriendEntity {
   }
 
   // Rating display
-  String get ratingDisplay => rating.toStringAsFixed(1);
+  String get ratingDisplay => rating.toStringAsFixed(2);
 
   // Position display
   String get positionDisplay {

@@ -2434,7 +2434,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                           size: 13, color: FlapColors.gold),
                       const SizedBox(width: 2),
                       Text(
-                        rating.toStringAsFixed(1),
+                        rating.toStringAsFixed(2),
                         style: FlapText.cond(
                             fontSize: 15, color: FlapColors.gold),
                       ),
@@ -2856,7 +2856,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                         value > 0
                             ? tr(
                                 'il_f45eec2ce1',
-                                args: [value.toStringAsFixed(1)],
+                                args: [value.toStringAsFixed(2)],
                               )
                             : tr('il_41d1f1a079'),
                         style: const TextStyle(

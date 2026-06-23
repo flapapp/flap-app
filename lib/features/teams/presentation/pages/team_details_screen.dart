@@ -1298,7 +1298,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                       const Icon(Icons.star_rounded,
                           size: 14, color: FlapColors.gold),
                       const SizedBox(width: 3),
-                      Text(rating.toStringAsFixed(1),
+                      Text(rating.toStringAsFixed(2),
                           style: FlapText.sora(
                               fontSize: 12, fontWeight: FontWeight.w700)),
                     ],

@@ -907,7 +907,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(rating.toStringAsFixed(1),
+              Text(rating.toStringAsFixed(2),
                   style: FlapText.cond(fontSize: 46, height: 1)),
               Padding(
                 padding: const EdgeInsets.only(bottom: 8, left: 2),
@@ -964,8 +964,8 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
         ),
         const SizedBox(width: 10),
         SizedBox(
-          width: 26,
-          child: Text(value.toStringAsFixed(1),
+          width: 34,
+          child: Text(value.toStringAsFixed(2),
               textAlign: TextAlign.right,
               style:
                   FlapText.sora(fontSize: 12.5, fontWeight: FontWeight.w700)),

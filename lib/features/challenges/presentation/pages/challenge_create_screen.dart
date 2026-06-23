@@ -735,7 +735,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
                                         color: FlapColors.gold, size: 12),
                                     const SizedBox(width: 2),
                                     Text(
-                                      rating.toStringAsFixed(1),
+                                      rating.toStringAsFixed(2),
                                       style: FlapText.sora(
                                           fontSize: 11.5,
                                           color: FlapColors.muted),

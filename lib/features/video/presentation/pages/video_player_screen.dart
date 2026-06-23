@@ -522,7 +522,7 @@ class _VideoPageState extends State<_VideoPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            tr('il_c9bfcd4ac3', args: [weighted.toStringAsFixed(1)]),
+            tr('il_c9bfcd4ac3', args: [weighted.toStringAsFixed(2)]),
           ),
         ),
       );
@@ -798,74 +798,69 @@ class _VideoPageState extends State<_VideoPage> {
     super.dispose();
   }
 
-  Widget _smallStars(double value, ValueChanged<int> onTap) {
+  /// Drag-to-rate 0.00–5.00 slider (step 0.01) with a live numeric readout.
+  Widget _ratingSlider(double value, ValueChanged<double> onChanged) {
+    final clamped = value.clamp(0.0, 5.0);
     return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (i) {
-        final filled = i < value.round();
-        return GestureDetector(
-          onTap: () => onTap(i + 1),
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Icon(
-              filled ? Icons.star_rounded : Icons.star_outline_rounded,
-              size: 18,
-              color: filled ? FlapColors.gold : const Color(0x29FFFFFF),
+      children: [
+        Expanded(
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 5,
+              activeTrackColor: FlapColors.greenBright,
+              inactiveTrackColor: const Color(0x14FFFFFF),
+              thumbColor: FlapColors.gold,
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            ),
+            child: Slider(
+              value: clamped,
+              min: 0,
+              max: 5,
+              divisions: 500,
+              label: clamped.toStringAsFixed(2),
+              onChanged: onChanged,
             ),
           ),
-        );
-      }),
+        ),
+        SizedBox(
+          width: 42,
+          child: Text(
+            clamped.toStringAsFixed(2),
+            textAlign: TextAlign.right,
+            style: FlapText.sora(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: FlapColors.gold,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _voteCriterionRow(
-      IconData icon, String label, double value, ValueChanged<int> onPick) {
+      IconData icon, String label, double value, ValueChanged<double> onPick) {
     return Padding(
-      padding: const EdgeInsets.only(top: 11),
-      child: Row(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Row(
-              children: [
-                Icon(icon, size: 14, color: FlapColors.greenBright),
-                const SizedBox(width: 7),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style:
-                        FlapText.sora(fontSize: 12.5, color: FlapColors.muted),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            width: 52,
-            child: Container(
-              height: 5,
-              decoration: BoxDecoration(
-                color: const Color(0x14FFFFFF),
-                borderRadius: BorderRadius.circular(99),
-              ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: (value / 5).clamp(0.0, 1.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [FlapColors.green, FlapColors.greenBright],
-                    ),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
+          Row(
+            children: [
+              Icon(icon, size: 14, color: FlapColors.greenBright),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: FlapText.sora(fontSize: 12.5, color: FlapColors.muted),
                 ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 10),
-          _smallStars(value, onPick),
+          _ratingSlider(value, onPick),
         ],
       ),
     );
@@ -1229,7 +1224,7 @@ class _VideoPageState extends State<_VideoPage> {
   Widget _buildPlayerCaption() {
     final name = _videoAuthorName ?? widget.authorName;
     final ratingText = (_videoAverageRating != null && _videoAverageRating! > 0)
-        ? _videoAverageRating!.toStringAsFixed(1)
+        ? _videoAverageRating!.toStringAsFixed(2)
         : null;
 
     // Subtitle: position · N ratings (real data only).
@@ -1485,25 +1480,37 @@ class _VideoPageState extends State<_VideoPage> {
     );
   }
 
-  Widget _rateBigStars(double current, ValueChanged<int> onPick) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(5, (i) {
-        final idx = i + 1;
-        final filled = idx <= current + 0.001;
-        return GestureDetector(
-          onTap: () => onPick(idx),
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 5),
-            child: Icon(
-              Icons.star_rounded,
-              size: 38,
-              color: filled ? FlapColors.gold : Colors.white.withValues(alpha: 0.16),
-            ),
+  Widget _rateBigSlider(double current, ValueChanged<double> onChanged) {
+    final clamped = current.clamp(0.0, 5.0);
+    return Column(
+      children: [
+        Text(
+          clamped.toStringAsFixed(2),
+          style: FlapText.sora(
+            fontSize: 34,
+            fontWeight: FontWeight.w800,
+            color: FlapColors.gold,
           ),
-        );
-      }),
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 6,
+            activeTrackColor: FlapColors.greenBright,
+            inactiveTrackColor: const Color(0x14FFFFFF),
+            thumbColor: FlapColors.gold,
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+          ),
+          child: Slider(
+            value: clamped,
+            min: 0,
+            max: 5,
+            divisions: 500,
+            label: clamped.toStringAsFixed(2),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 
@@ -1730,20 +1737,19 @@ class _VideoPageState extends State<_VideoPage> {
                     if (_isAdvancedVoting) ...[
                       _voteCriterionRow(
                           Icons.sports_soccer, tr('il_e851504f43'), _technical,
-                          (v) => setModalState(() => _technical = v.toDouble())),
+                          (v) => setModalState(() => _technical = v)),
                       _voteCriterionRow(Icons.auto_awesome,
                           tr('il_1c9fe98ba9'), _creativity,
-                          (v) => setModalState(() => _creativity = v.toDouble())),
+                          (v) => setModalState(() => _creativity = v)),
                       _voteCriterionRow(Icons.local_fire_department,
                           tr('il_be44133ed5'), _difficulty,
-                          (v) => setModalState(() => _difficulty = v.toDouble())),
+                          (v) => setModalState(() => _difficulty = v)),
                       _voteCriterionRow(Icons.workspace_premium,
                           tr('il_b8c237eb0d'), _quality,
-                          (v) => setModalState(() => _quality = v.toDouble())),
+                          (v) => setModalState(() => _quality = v)),
                     ] else ...[
-                      _rateBigStars(_technical, (stars) {
+                      _rateBigSlider(_technical, (v) {
                         setModalState(() {
-                          final v = stars.toDouble();
                           _technical = v;
                           _creativity = v;
                           _difficulty = v;

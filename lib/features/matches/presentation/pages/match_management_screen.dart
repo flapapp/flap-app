@@ -1040,7 +1040,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${tr('il_9f29530464')}: ${total.toStringAsFixed(1)}',
+                      '${tr('il_9f29530464')}: ${total.toStringAsFixed(2)}',
                       style: const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                     const SizedBox(height: 2),
@@ -3174,7 +3174,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
               const Icon(Icons.bolt, color: Color(0xFFE7C25A), size: 20),
               const SizedBox(width: 6),
               Text(
-                total.toStringAsFixed(1),
+                total.toStringAsFixed(2),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -3328,7 +3328,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                   const Icon(Icons.bolt, color: Color(0xFFE7C25A), size: 16),
                   const SizedBox(width: 4),
                   Text(
-                    total.toStringAsFixed(1),
+                    total.toStringAsFixed(2),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 13,

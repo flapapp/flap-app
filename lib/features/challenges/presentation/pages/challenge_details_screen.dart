@@ -808,7 +808,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                       const Icon(Icons.star, size: 12, color: FlapColors.gold),
                       const SizedBox(width: 4),
                       Text(
-                        rating > 0 ? rating.toStringAsFixed(1) : '—',
+                        rating > 0 ? rating.toStringAsFixed(2) : '—',
                         style: FlapText.sora(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
@@ -1278,7 +1278,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                       const Icon(Icons.star, size: 13, color: FlapColors.gold),
                       const SizedBox(width: 3),
                       Text(
-                        rating > 0 ? rating.toStringAsFixed(1) : '—',
+                        rating > 0 ? rating.toStringAsFixed(2) : '—',
                         style: FlapText.sora(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -1519,7 +1519,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
                               size: 13, color: FlapColors.gold),
                           const SizedBox(width: 3),
                           Text(
-                            rating.toStringAsFixed(1),
+                            rating.toStringAsFixed(2),
                             style: FlapText.sora(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,

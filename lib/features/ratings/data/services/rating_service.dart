@@ -323,7 +323,7 @@ class RatingService {
             authorId,
             reason: tr(
               'rating_reason_video_score',
-              namedArgs: {'rating': weightedRating.toStringAsFixed(1)},
+              namedArgs: {'rating': weightedRating.toStringAsFixed(2)},
             ),
             source: voterName,
             sourceType: 'video',

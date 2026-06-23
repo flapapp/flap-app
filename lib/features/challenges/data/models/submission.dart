@@ -155,7 +155,7 @@ class Submission extends SubmissionEntity {
 
   // Rating display value (star icon is rendered by the UI)
   String get ratingDisplay {
-    return averageRating.toStringAsFixed(1);
+    return averageRating.toStringAsFixed(2);
   }
 
   // Rating color based on score

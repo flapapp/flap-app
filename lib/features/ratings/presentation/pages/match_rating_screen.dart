@@ -65,25 +65,44 @@ class _MatchRatingScreenState extends State<MatchRatingScreen> {
     }
   }
 
-  /// Tap-to-rate 1–5 star row (design `.stars`).
-  Widget _stars(double value, ValueChanged<int> onTap, {double size = 26}) {
+  /// Drag-to-rate 0.00–5.00 slider (step 0.01) with a live numeric readout.
+  Widget _ratingSlider(double value, ValueChanged<double> onChanged) {
+    final clamped = value.clamp(0.0, 5.0);
     return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (i) {
-        final filled = i < value.round();
-        return GestureDetector(
-          onTap: () => onTap(i + 1),
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2.5),
-            child: Icon(
-              filled ? Icons.star_rounded : Icons.star_outline_rounded,
-              size: size,
-              color: filled ? FlapColors.gold : const Color(0x29FFFFFF),
+      children: [
+        Expanded(
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 5,
+              activeTrackColor: FlapColors.greenBright,
+              inactiveTrackColor: const Color(0x14FFFFFF),
+              thumbColor: FlapColors.gold,
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            ),
+            child: Slider(
+              value: clamped,
+              min: 0,
+              max: 5,
+              divisions: 500,
+              label: clamped.toStringAsFixed(2),
+              onChanged: onChanged,
             ),
           ),
-        );
-      }),
+        ),
+        SizedBox(
+          width: 42,
+          child: Text(
+            clamped.toStringAsFixed(2),
+            textAlign: TextAlign.right,
+            style: FlapText.sora(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: FlapColors.gold,
+            ),
+          ),
+        ),
+      ],
     );
   }
   
@@ -449,76 +468,53 @@ final sanitizedPlayers = playersToRate.where((id) =>
                           fontSize: 14, fontWeight: FontWeight.w600),
                     ),
                   ),
-                  if (_mode == RatingMode.simple)
-                    _stars(
-                      _simpleRating[playerId] ?? 0,
-                      (v) => setState(() {
-                        _simpleRating[playerId] = v.toDouble();
-                        _touched.add(playerId);
-                      }),
-                      size: 24,
-                    ),
                 ],
               );
             },
           ),
+          if (_mode == RatingMode.simple)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _ratingSlider(
+                _simpleRating[playerId] ?? 0,
+                (v) => setState(() {
+                  _simpleRating[playerId] = v;
+                  _touched.add(playerId);
+                }),
+              ),
+            ),
           if (_mode == RatingMode.advanced)
             ...List.generate(_criteria.length, (index) {
               final criterion = _criteria[index];
               final label = _criteriaLabels[index];
               final value = ratings[criterion] ?? 0;
               return Padding(
-                padding: const EdgeInsets.only(top: 11),
-                child: Row(
+                padding: const EdgeInsets.only(top: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Icon(_criterionIcon(criterion),
-                              size: 14, color: FlapColors.greenBright),
-                          const SizedBox(width: 7),
-                          Flexible(
-                            child: Text(
-                              label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: FlapText.sora(
-                                  fontSize: 12.5, color: FlapColors.muted),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(
-                      width: 52,
-                      child: Container(
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: const Color(0x14FFFFFF),
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: FractionallySizedBox(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: (value / 5).clamp(0.0, 1.0),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [FlapColors.green, FlapColors.greenBright],
-                              ),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
+                    Row(
+                      children: [
+                        Icon(_criterionIcon(criterion),
+                            size: 14, color: FlapColors.greenBright),
+                        const SizedBox(width: 7),
+                        Flexible(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: FlapText.sora(
+                                fontSize: 12.5, color: FlapColors.muted),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    _stars(
+                    _ratingSlider(
                       value,
                       (v) => setState(() {
-                        _playerRatings[playerId]![criterion] = v.toDouble();
+                        _playerRatings[playerId]![criterion] = v;
                         _touched.add(playerId);
                       }),
-                      size: 18,
                     ),
                   ],
                 ),

@@ -416,7 +416,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
         : widget.authorName;
     final ratingText =
         (_submissionAverageRating != null && _submissionAverageRating! > 0)
-            ? _submissionAverageRating!.toStringAsFixed(1)
+            ? _submissionAverageRating!.toStringAsFixed(2)
             : null;
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -592,57 +592,73 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
     );
   }
 
-  /// Criterion rows — label on the left, stars on the right (space between).
+  /// Criterion rows — label and weight on top, a 0.00–5.00 slider (step 0.01) below.
   Widget _voteCriteriaTable(
-      Map<String, int> scores, void Function(String, int) setS) {
+      Map<String, double> scores, void Function(String, double) setS) {
     Widget critRow(String key, String label, int weight) {
-      final value = scores[key]!;
+      final value = scores[key]!.clamp(0.0, 5.0);
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        child: Row(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Row(
-                children: [
-                  const Icon(Icons.star,
-                      size: 14, color: FlapColors.greenBright),
-                  const SizedBox(width: 7),
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style:
-                          FlapText.sora(fontSize: 12.5, color: FlapColors.muted),
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                  Text('$weight%',
-                      style: FlapText.sora(
-                          fontSize: 12.5, color: FlapColors.muted2)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
             Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(5, (i) {
-                final on = i < value;
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => setS(key, i + 1),
-                  child: Padding(
-                    padding: EdgeInsets.only(left: i == 0 ? 0 : 5),
-                    child: Icon(
-                      on ? Icons.star : Icons.star_border,
-                      size: 20,
-                      color: on
-                          ? FlapColors.gold
-                          : Colors.white.withValues(alpha: 0.16),
+              children: [
+                const Icon(Icons.tune,
+                    size: 14, color: FlapColors.greenBright),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        FlapText.sora(fontSize: 12.5, color: FlapColors.muted),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text('$weight%',
+                    style: FlapText.sora(
+                        fontSize: 12.5, color: FlapColors.muted2)),
+              ],
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 5,
+                      activeTrackColor: FlapColors.greenBright,
+                      inactiveTrackColor: const Color(0x14FFFFFF),
+                      thumbColor: FlapColors.gold,
+                      overlayShape:
+                          const RoundSliderOverlayShape(overlayRadius: 14),
+                      thumbShape:
+                          const RoundSliderThumbShape(enabledThumbRadius: 8),
+                    ),
+                    child: Slider(
+                      value: value,
+                      min: 0,
+                      max: 5,
+                      divisions: 500,
+                      label: value.toStringAsFixed(2),
+                      onChanged: (v) => setS(key, v),
                     ),
                   ),
-                );
-              }),
+                ),
+                SizedBox(
+                  width: 42,
+                  child: Text(
+                    value.toStringAsFixed(2),
+                    textAlign: TextAlign.right,
+                    style: FlapText.sora(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: FlapColors.gold,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -662,7 +678,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
   void _showVoteSheet() {
     if (_hasVoted || !_isVotingOpen) return;
     final firstName = widget.authorName.split(' ').first;
-    final scores = {'t': 0, 'c': 0, 'd': 0, 'q': 0};
+    final scores = <String, double>{'t': 0, 'c': 0, 'd': 0, 'q': 0};
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -731,7 +747,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                                 ),
                                 child: Text(
                                   weighted > 0
-                                      ? '${tr('challenge_vote_submit')} (${weighted.toStringAsFixed(1)})'
+                                      ? '${tr('challenge_vote_submit')} (${weighted.toStringAsFixed(2)})'
                                       : tr('challenge_vote_submit'),
                                   style: FlapText.sora(
                                       fontSize: 15,
@@ -849,7 +865,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(tr('il_acf6612bf4', args: [_rating.toStringAsFixed(1)])),
+            content: Text(tr('il_acf6612bf4', args: [_rating.toStringAsFixed(2)])),
             backgroundColor: const Color(0xFF4caf50),
           ),
         );

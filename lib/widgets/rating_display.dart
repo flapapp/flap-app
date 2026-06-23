@@ -139,7 +139,7 @@ class RatingDisplay extends StatelessWidget {
           const Icon(Icons.star_rounded, size: 16, color: Color(0xFFE7C25A)),
           const SizedBox(width: 4),
           Text(
-            '3.0',
+            '3.00',
             style: TextStyle(
               color: Colors.white.withOpacity(0.7),
               fontSize: size * 0.4,
@@ -260,7 +260,7 @@ class CompactRatingDisplay extends StatelessWidget {
           const Icon(Icons.star_rounded, size: 14, color: Color(0xFFE7C25A)),
           const SizedBox(width: 2),
           Text(
-            '3.0',
+            '3.00',
             style: TextStyle(
               color: Colors.white.withOpacity(0.7),
               fontSize: size * 0.5,

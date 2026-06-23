@@ -365,7 +365,7 @@ class AppNotification extends AppNotificationEntity {
         namedArgs: {
           'voter': voterName,
           'title': videoTitle,
-          'rating': rating.toStringAsFixed(1),
+          'rating': rating.toStringAsFixed(2),
         },
       ),
       data: {

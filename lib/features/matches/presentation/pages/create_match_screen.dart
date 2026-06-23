@@ -522,7 +522,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                                             const SizedBox(width: 2),
                                             Text(
                                               rating > 0
-                                                  ? rating.toStringAsFixed(1)
+                                                  ? rating.toStringAsFixed(2)
                                                   : '-',
                                               style: FlapText.sora(
                                                   color: FlapColors.muted,
