@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -158,7 +159,12 @@ class _MyAppState extends State<MyApp> {
         supportedLocales: context.supportedLocales,
         locale: context.locale,
         theme: flapTheme,
-        routerConfig: appRouter.config(),
+        // AutoRouteObserver drives RouteAware callbacks (didPushNext /
+        // didPopNext) so video screens can pause when covered and resume on
+        // return.
+        routerConfig: appRouter.config(
+          navigatorObservers: () => [AutoRouteObserver()],
+        ),
         ),
       ),
     );

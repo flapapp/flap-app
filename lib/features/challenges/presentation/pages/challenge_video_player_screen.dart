@@ -35,11 +35,22 @@ class ChallengeVideoPlayerScreen extends StatefulWidget {
   _ChallengeVideoPlayerScreenState createState() => _ChallengeVideoPlayerScreenState();
 }
 
-class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen> {
+class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
+    with AutoRouteAwareStateMixin<ChallengeVideoPlayerScreen> {
   final SupabaseClient _sb = Supabase.instance.client;
   late VideoPlayerController _videoPlayerController;
   bool _isLoading = true;
   String? _error;
+  // The controller is `late`; this guards RouteAware callbacks that may fire
+  // before initialization completes (or after it fails).
+  bool _videoReady = false;
+  // Whether playback was active when a new screen was pushed over this one, so
+  // we know to resume on return rather than start a video the user had paused.
+  bool _resumeAfterReturn = false;
+  // Tracks a deliberate user pause. The center play affordance is gated on this
+  // (not the raw isPlaying) so the brief non-playing frame at a loop boundary
+  // never flashes the play icon.
+  bool _userPaused = false;
   
   // Challenge video vote (0.00–5.00, step 0.01) — single slider
   double _rating = 2.50;
@@ -78,6 +89,9 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
     try {
       _autoplayVideos =
           (await sl<UserSettingsService>().getSettings()).autoplayVideos;
+      // When autoplay is off the video starts paused, so the play affordance
+      // should be visible immediately.
+      _userPaused = !_autoplayVideos;
       _videoPlayerController =
           VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
       await _videoPlayerController.initialize();
@@ -86,6 +100,7 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
       if (_autoplayVideos) {
         _videoPlayerController.play();
       }
+      _videoReady = true;
       if (mounted) setState(() => _isLoading = false);
     } catch (e) {
       if (mounted) {
@@ -97,15 +112,38 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
     }
   }
 
-  // Belt-and-suspenders auto-restart in addition to setLooping(true).
+  // Belt-and-suspenders auto-restart in addition to setLooping(true). Skips
+  // restarting when the user deliberately paused so it doesn't fight them.
   void _loopWatcher() {
     if (!mounted) return;
     final v = _videoPlayerController.value;
     if (v.isInitialized &&
         !v.isPlaying &&
+        !_userPaused &&
         v.duration > Duration.zero &&
         v.position >= v.duration) {
       _videoPlayerController.seekTo(Duration.zero);
+      _videoPlayerController.play();
+    }
+  }
+
+  /// A new screen was pushed over this one — pause so the video doesn't keep
+  /// playing in the background. Remember it was playing so we can resume.
+  @override
+  void didPushNext() {
+    if (!_videoReady) return;
+    if (_videoPlayerController.value.isPlaying) {
+      _resumeAfterReturn = true;
+      _videoPlayerController.pause();
+    }
+  }
+
+  /// Returned to this screen — resume from the position where we paused.
+  @override
+  void didPopNext() {
+    if (!_videoReady) return;
+    if (_resumeAfterReturn) {
+      _resumeAfterReturn = false;
       _videoPlayerController.play();
     }
   }
@@ -274,11 +312,13 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
                         ),
                       ),
                     ),
-                    // Center play affordance when paused.
+                    // Center play affordance — shown only when the user paused,
+                    // so the transient non-playing frame at a loop boundary
+                    // never flashes the icon.
                     ValueListenableBuilder<VideoPlayerValue>(
                       valueListenable: _videoPlayerController,
                       builder: (context, value, _) {
-                        if (value.isPlaying) return const SizedBox.shrink();
+                        if (!_userPaused) return const SizedBox.shrink();
                         return Center(
                           child: GestureDetector(
                             onTap: _togglePlayPause,
@@ -317,8 +357,10 @@ class _ChallengeVideoPlayerScreenState extends State<ChallengeVideoPlayerScreen>
     setState(() {
       if (_videoPlayerController.value.isPlaying) {
         _videoPlayerController.pause();
+        _userPaused = true;
       } else {
         _videoPlayerController.play();
+        _userPaused = false;
       }
     });
   }

@@ -145,12 +145,16 @@ class _VideoPage extends StatefulWidget {
   State<_VideoPage> createState() => _VideoPageState();
 }
 
-class _VideoPageState extends State<_VideoPage> {
+class _VideoPageState extends State<_VideoPage>
+    with AutoRouteAwareStateMixin<_VideoPage> {
   final SupabaseClient _sb = Supabase.instance.client;
   late VideoPlayerController _videoPlayerController;
   ChewieController? _chewieController;
   bool _isLoading = true;
   String? _error;
+  // Whether playback was active when a new screen was pushed over the player,
+  // so we resume on return instead of starting a paused/inactive video.
+  bool _resumeAfterReturn = false;
   
   // Likes and comments
   bool _isLiked = false;
@@ -176,6 +180,10 @@ class _VideoPageState extends State<_VideoPage> {
   int? _videoVoteCount;
   bool _pendingRatingPrompt = false;
   bool _autoplayVideos = true;
+  // Tracks whether the user deliberately paused. The center play affordance is
+  // gated on this (not the raw isPlaying) so the brief non-playing frame at a
+  // loop boundary never flashes the play icon.
+  bool _userPaused = false;
 
   @override
   void initState() {
@@ -197,6 +205,31 @@ class _VideoPageState extends State<_VideoPage> {
         _videoPlayerController.seekTo(Duration.zero);
       }
     }
+  }
+
+  /// A new screen was pushed over the player — pause so the video doesn't keep
+  /// playing in the background. Position is preserved for resume on return.
+  @override
+  void didPushNext() {
+    if (_isLoading) return;
+    if (_videoPlayerController.value.isInitialized &&
+        _videoPlayerController.value.isPlaying) {
+      _resumeAfterReturn = true;
+      _videoPlayerController.pause();
+    }
+  }
+
+  /// Returned to the player — resume the visible page from where it paused.
+  @override
+  void didPopNext() {
+    if (_isLoading) return;
+    if (_resumeAfterReturn &&
+        widget.isActive &&
+        _autoplayVideos &&
+        _videoPlayerController.value.isInitialized) {
+      _videoPlayerController.play();
+    }
+    _resumeAfterReturn = false;
   }
 
   Future<void> _loadVideoData() async {
@@ -596,6 +629,9 @@ class _VideoPageState extends State<_VideoPage> {
   Future<void> _initializePlayer() async {
     try {
       _autoplayVideos = (await sl<UserSettingsService>().getSettings()).autoplayVideos;
+      // When autoplay is off the video starts paused, so the play affordance
+      // should be visible immediately.
+      _userPaused = !_autoplayVideos;
       _videoPlayerController = VideoPlayerController.networkUrl(
         Uri.parse(widget.videoUrl),
       );
@@ -780,8 +816,9 @@ class _VideoPageState extends State<_VideoPage> {
   void _loopWatcher() {
     final v = _videoPlayerController.value;
     if (!v.isInitialized || v.duration <= Duration.zero) return;
-    // Reached the end and stopped — rewind and keep playing.
-    if (!v.isPlaying && v.position >= v.duration) {
+    // Reached the end and stopped — rewind and keep playing, unless the user
+    // deliberately paused (then we leave it paused).
+    if (!v.isPlaying && v.position >= v.duration && !_userPaused) {
       _videoPlayerController.seekTo(Duration.zero);
       if (widget.isActive) {
         _videoPlayerController.play();
@@ -981,11 +1018,13 @@ class _VideoPageState extends State<_VideoPage> {
                   ),
                 ),
 
-                // Center play affordance when paused.
+                // Center play affordance — shown only when the user paused, so
+                // the transient non-playing frame at a loop boundary never
+                // flashes the icon.
                 ValueListenableBuilder<VideoPlayerValue>(
                   valueListenable: _videoPlayerController,
                   builder: (context, value, _) {
-                    if (value.isPlaying) return const SizedBox.shrink();
+                    if (!_userPaused) return const SizedBox.shrink();
                     return Center(
                       child: GestureDetector(
                         onTap: _togglePlayPause,
@@ -1106,8 +1145,10 @@ class _VideoPageState extends State<_VideoPage> {
     setState(() {
       if (_videoPlayerController.value.isPlaying) {
         _videoPlayerController.pause();
+        _userPaused = true;
       } else {
         _videoPlayerController.play();
+        _userPaused = false;
       }
     });
   }
