@@ -8,6 +8,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../../../../router/app_router.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../widgets/flap/flap_kit.dart';
+import '../../../../widgets/scroll_aware_fab.dart';
 import '../../domain/repositories/challenges_repository.dart';
 import '../../data/models/challenge.dart';
 import '../cubit/challenge_catalog_cubit.dart';
@@ -22,7 +23,8 @@ class ChallengeListScreen extends StatefulWidget {
   State<ChallengeListScreen> createState() => _ChallengeListScreenState();
 }
 
-class _ChallengeListScreenState extends State<ChallengeListScreen> {
+class _ChallengeListScreenState extends State<ChallengeListScreen>
+    with ScrollAwareFabMixin {
   ChallengesRepository get _challengesRepo => sl<ChallengesRepository>();
   late final ChallengeCatalogCubit _catalogCubit;
 
@@ -107,7 +109,7 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
           ),
         ],
       ),
-      body: SafeArea(
+      body: scrollAwareBody(SafeArea(
         child: Column(
           children: [
             // Filters
@@ -117,13 +119,13 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
             Expanded(child: _buildChallengesList()),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
+      )),
+      floatingActionButton: scrollAwareFab(FloatingActionButton(
         onPressed: () => _showCreateChallenge(),
         backgroundColor: const Color(0xFFFF9800),
         child: const Icon(Icons.add, color: Colors.white),
         tooltip: tr('il_a15fecd2a4'),
-      ),
+      )),
       ),
     );
   }

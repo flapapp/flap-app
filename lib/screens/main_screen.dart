@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/di/injection.dart';
 import '../widgets/flap/flap_kit.dart';
+import '../widgets/scroll_aware_fab.dart';
 import '../features/video/presentation/video_feed_sync.dart';
 import '../router/app_router.dart';
 import '../features/notifications/data/services/notification_service.dart';
@@ -31,7 +32,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, ScrollAwareFabMixin {
   late final NotificationService _notificationService;
   final SupabaseClient _sb = Supabase.instance.client;
   late final MainHeaderCubit _mainHeaderCubit;
@@ -215,18 +216,18 @@ class _MainScreenState extends State<MainScreen>
           ),
         ),
       ),
-      body: TabBarView(
+      body: scrollAwareBody(TabBarView(
         controller: _tabController,
         children: [
           VideosScreen(showOnlyMyVideos: widget.showOnlyMyVideos),
           ChallengesScreen(showOnlyMyChallenges: widget.showOnlyMyChallenges),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
+      )),
+      floatingActionButton: scrollAwareFab(FloatingActionButton(
         onPressed: _showCreateOptions,
         backgroundColor: const Color(0xFF4caf50),
         child: const Icon(Icons.add, color: Colors.white),
-      ),
+      )),
     );
   }
 

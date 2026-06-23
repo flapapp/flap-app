@@ -13,6 +13,7 @@ import '../../data/models/app_team.dart';
 import '../../data/models/team_stats.dart';
 import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/flap/flap_kit.dart';
+import '../../../../widgets/scroll_aware_fab.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/team_crest.dart';
 @RoutePage()
@@ -23,7 +24,8 @@ class TeamHubScreen extends StatefulWidget {
   State<TeamHubScreen> createState() => _TeamHubScreenState();
 }
 
-class _TeamHubScreenState extends State<TeamHubScreen> {
+class _TeamHubScreenState extends State<TeamHubScreen>
+    with ScrollAwareFabMixin {
   late final Stream<List<AppTeam>> _teamsLeaderboardStream;
   late final Stream<Map<String, TeamStats>> _teamStatsIndexStream;
   late Stream<List<AppTeam>> _myTeamsStream;
@@ -53,10 +55,10 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
     context.locale;
     return Scaffold(
       backgroundColor: FlapColors.bg,
-      floatingActionButton: FlapCreateFab(
+      floatingActionButton: scrollAwareFab(FlapCreateFab(
         tooltip: tr('il_284ff194f8'),
         onTap: _onCreateTeamPressed,
-      ),
+      )),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -86,7 +88,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
         //   const SizedBox(width: 16),
         // ],
       ),
-      body: StreamBuilder<List<AppTeam>>(
+      body: scrollAwareBody(StreamBuilder<List<AppTeam>>(
         stream: _teamsLeaderboardStream,
         builder: (context, teamSnapshot) {
           if (teamSnapshot.connectionState == ConnectionState.waiting &&
@@ -133,7 +135,7 @@ class _TeamHubScreenState extends State<TeamHubScreen> {
             },
           );
         },
-      ),
+      )),
     );
   }
 

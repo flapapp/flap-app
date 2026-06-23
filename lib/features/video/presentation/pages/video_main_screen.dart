@@ -24,6 +24,7 @@ import '../../../../widgets/rating_display.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/flap/flap_kit.dart';
+import '../../../../widgets/scroll_aware_fab.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
 import '../../../../widgets/player_avatar_button.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
@@ -56,7 +57,8 @@ class VideoMainScreen extends StatefulWidget {
   _VideoMainScreenState createState() => _VideoMainScreenState();
 }
 
-class _VideoMainScreenState extends State<VideoMainScreen> {
+class _VideoMainScreenState extends State<VideoMainScreen>
+    with ScrollAwareFabMixin {
   StreamSubscription<void>? _videoFeedSyncSub;
 
   final SupabaseClient _sb = Supabase.instance.client;
@@ -333,7 +335,7 @@ Widget build(BuildContext context) {
         ),
       ],
     ),
-    body: SafeArea(
+    body: scrollAwareBody(SafeArea(
       child: Column(
         children: [
           // Tabs
@@ -373,11 +375,11 @@ Widget build(BuildContext context) {
           ),
         ],
       ),
-    ),
-    floatingActionButton: FlapCreateFab(
+    )),
+    floatingActionButton: scrollAwareFab(FlapCreateFab(
       tooltip: tr('il_4759498ac2'),
       onTap: _showVideoCreateSheet,
-    ),
+    )),
     floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     ),
   );

@@ -14,6 +14,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/flap/flap_kit.dart';
+import '../../../../widgets/scroll_aware_fab.dart';
 import '../../../../widgets/city_autocomplete_field.dart';
 import '../../../../widgets/user_chip.dart';
 import '../../../../widgets/team_crest.dart';
@@ -42,7 +43,7 @@ class MatchesScreen extends StatefulWidget {
 }
 
 class _MatchesScreenState extends State<MatchesScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, ScrollAwareFabMixin {
   // Tab titles
   final List<String> _tabKeys = [
     'find_match',
@@ -593,15 +594,15 @@ class _MatchesScreenState extends State<MatchesScreen>
           const SizedBox(width: 8),
         ],
       ),
-      floatingActionButton: FlapCreateFab(
+      floatingActionButton: scrollAwareFab(FlapCreateFab(
         tooltip: tr('create_match'),
         onTap: () async {
           await context.router.push(const CreateMatchRoute());
           if (!mounted) return;
           _refreshMatchLists();
         },
-      ),
-      body: Column(
+      )),
+      body: scrollAwareBody(Column(
         children: [
           if (_searchVisible)
             Padding(
@@ -623,7 +624,7 @@ class _MatchesScreenState extends State<MatchesScreen>
             ),
           ),
         ],
-      ),
+      )),
       ),
     );
   }
