@@ -366,11 +366,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                       ),
                     ),
                     child: Center(
-                      child: Icon(
-                        flapBadgeIcon(badge.emoji),
-                        size: 28,
-                        color: categoryColor,
-                      ),
+                      child: flapBadgeGlyph(badge.emoji, size: 28),
                     ),
                   ),
                   if (isOwned)
@@ -559,8 +555,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
                         ),
                       ),
                       child: Center(
-                        child: Icon(flapBadgeIcon(badge.emoji),
-                            size: 26, color: categoryColor),
+                        child: flapBadgeGlyph(badge.emoji, size: 26),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -768,8 +763,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
         SnackBar(
           content: Row(
             children: [
-              Icon(flapBadgeIcon(badge.emoji),
-                  size: 20, color: FlapColors.onGreen),
+              flapBadgeGlyph(badge.emoji, size: 20),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(

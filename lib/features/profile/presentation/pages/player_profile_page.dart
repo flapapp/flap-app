@@ -517,7 +517,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                         borderRadius: BorderRadius.circular(17),
                         border: Border.all(color: c.withValues(alpha: 0.4)),
                       ),
-                      child: Icon(flapBadgeIcon(badge.emoji), size: 24, color: c),
+                      child: flapBadgeGlyph(badge.emoji, size: 24),
                     ),
                     if (count > 0)
                       Positioned(

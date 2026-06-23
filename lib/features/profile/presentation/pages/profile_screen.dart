@@ -1270,7 +1270,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
                     borderRadius: BorderRadius.circular(15),
                     border: Border.all(color: c.withValues(alpha: 0.34)),
                   ),
-                  child: Icon(flapBadgeIcon(badge.emoji), size: 22, color: c),
+                  child: flapBadgeGlyph(badge.emoji, size: 22),
                 ),
                 Positioned(
                   top: -5,
