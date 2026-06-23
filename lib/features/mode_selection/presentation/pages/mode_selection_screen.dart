@@ -209,6 +209,8 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
                                 rating: rating,
                                 matchesLabel: _matchesLabel(data, stats),
                                 coinsLabel: coins,
+                                greeting: state.greetingText,
+                                onRefreshGreeting: cubit.refreshGreeting,
                               ),
                             ),
                             FlapSectionHeader(

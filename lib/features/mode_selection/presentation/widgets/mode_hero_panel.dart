@@ -20,6 +20,8 @@ class ModeHeroPanel extends StatelessWidget {
     required this.rating,
     required this.matchesLabel,
     required this.coinsLabel,
+    this.greeting = '',
+    this.onRefreshGreeting,
   });
 
   final ModeSelectionCubit cubit;
@@ -32,6 +34,13 @@ class ModeHeroPanel extends StatelessWidget {
   final double rating;
   final String matchesLabel;
   final String coinsLabel;
+
+  /// Personalized, randomly-rolled motivational greeting shown at the top of
+  /// the card. Hidden when empty.
+  final String greeting;
+
+  /// Re-rolls [greeting] (wired to the "Refresh" button).
+  final VoidCallback? onRefreshGreeting;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +61,28 @@ class ModeHeroPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ---- personalized greeting + refresh (stacked vertically so the
+          // phrase gets the full card width) ----
+          if (greeting.isNotEmpty) ...[
+            Text(
+              greeting,
+              softWrap: true,
+              style: FlapText.sora(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: FlapColors.greenBright,
+                height: 1.3,
+              ),
+            ),
+            if (onRefreshGreeting != null) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _RefreshGreetingButton(onTap: onRefreshGreeting!),
+              ),
+            ],
+            const SizedBox(height: 16),
+          ],
           // ---- identity row + rating ----
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -197,6 +228,48 @@ class ModeHeroPanel extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Compact "Refresh" affordance (icon + label) that re-rolls the greeting.
+class _RefreshGreetingButton extends StatelessWidget {
+  const _RefreshGreetingButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0x0DFFFFFF), // rgba(255,255,255,.05)
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: FlapColors.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.refresh_rounded,
+                  size: 15, color: FlapColors.greenBright),
+              const SizedBox(width: 5),
+              Text(
+                tr('mode_greeting_refresh'),
+                style: FlapText.sora(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: FlapColors.greenBright,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

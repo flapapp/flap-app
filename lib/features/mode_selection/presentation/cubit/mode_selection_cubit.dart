@@ -75,13 +75,19 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
     final baseGreeting = '${tr(keys.headKey)} ${tr(keys.tailKey)}';
     String greetingForUser(String name) =>
         baseGreeting.replaceAll('{name}', name);
+
+    // Show the greeting immediately — it's local string data and must not wait
+    // on the profile/stats network calls below. Use the already-cached profile
+    // name if we have one (the phrase itself doesn't depend on the network).
+    final cachedName = (state.profileDocument?['displayName'] ??
+            state.profileDocument?['authorName'] ??
+            state.profileDocument?['name'] ??
+            tr('player'))
+        .toString();
+    emit(state.copyWith(greetingText: greetingForUser(cachedName)));
+
     if (uid == null) {
-      emit(
-        state.copyWith(
-          greetingText: baseGreeting,
-          ratingLineText: tr('il_70cd076bd7'),
-        ),
-      );
+      emit(state.copyWith(ratingLineText: tr('il_70cd076bd7')));
       return;
     }
 
