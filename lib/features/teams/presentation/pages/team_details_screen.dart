@@ -50,6 +50,12 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   bool _isLeavingTeam = false;
   int _detailTab = 0; // 0 = Overview, 1 = Stats
   final Set<String> _processingJoinRequestIds = {};
+  // Match-invite responses in flight (requestId -> true=accept, false=decline)
+  // so the tapped button can show a spinner while the request is processed.
+  final Map<String, bool> _respondingMatchRequest = {};
+  // Optimistic status overrides (requestId -> status) so the card reflects the
+  // accepted/declined state instantly, before the realtime stream catches up.
+  final Map<String, TeamMatchRequestStatus> _optimisticRequestStatus = {};
 
   @override
   void initState() {
@@ -1418,6 +1424,15 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       stream: stream,
       builder: (context, snapshot) {
         final requests = snapshot.data ?? const [];
+        // Drop optimistic overrides once the realtime stream reports the same
+        // (non-pending) status, so the server stays authoritative.
+        if (_optimisticRequestStatus.isNotEmpty) {
+          for (final req in requests) {
+            if (_optimisticRequestStatus[req.id] == req.status) {
+              _optimisticRequestStatus.remove(req.id);
+            }
+          }
+        }
         if (requests.isEmpty) {
           return _emptyState(
             title: emptyTitle,
@@ -1432,8 +1447,10 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
               style: FlapText.sora(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 12),
-            ...requests.map(
-              (req) => Container(
+            ...requests.map((req) {
+              final status =
+                  _optimisticRequestStatus[req.id] ?? req.status;
+              return Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -1475,16 +1492,16 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 9, vertical: 4),
                           decoration: BoxDecoration(
-                            color: _requestStatusColor(req.status)
+                            color: _requestStatusColor(status)
                                 .withValues(alpha: 0.16),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            _requestStatusLabel(req.status),
+                            _requestStatusLabel(status),
                             style: FlapText.sora(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w700,
-                                color: _requestStatusColor(req.status)),
+                                color: _requestStatusColor(status)),
                           ),
                         ),
                       ],
@@ -1507,14 +1524,17 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                       ],
                     ),
                     if (showResponseActions &&
-                        req.status == TeamMatchRequestStatus.pending) ...[
+                        status == TeamMatchRequestStatus.pending) ...[
                       const SizedBox(height: 14),
                       Row(
                         children: [
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: () =>
-                                  _respondToMatchRequest(req, accepted: false),
+                              onPressed: _respondingMatchRequest
+                                      .containsKey(req.id)
+                                  ? null
+                                  : () => _respondToMatchRequest(req,
+                                      accepted: false),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: FlapColors.text,
                                 side: const BorderSide(
@@ -1525,17 +1545,27 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: Text(tr('cancel'),
-                                  style: FlapText.sora(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700)),
+                              child: _respondingMatchRequest[req.id] == false
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    )
+                                  : Text(tr('cancel'),
+                                      style: FlapText.sora(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700)),
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: ElevatedButton(
-                              onPressed: () =>
-                                  _respondToMatchRequest(req, accepted: true),
+                              onPressed: _respondingMatchRequest
+                                      .containsKey(req.id)
+                                  ? null
+                                  : () => _respondToMatchRequest(req,
+                                      accepted: true),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: FlapColors.green,
                                 foregroundColor: FlapColors.onGreen,
@@ -1546,10 +1576,18 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: Text(tr('il_89713b9c9c'),
-                                  style: FlapText.sora(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700)),
+                              child: _respondingMatchRequest[req.id] == true
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: FlapColors.onGreen),
+                                    )
+                                  : Text(tr('il_89713b9c9c'),
+                                      style: FlapText.sora(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700)),
                             ),
                           ),
                         ],
@@ -1557,9 +1595,9 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                     ] else ...[
                       const SizedBox(height: 12),
                       Text(
-                        req.status == TeamMatchRequestStatus.accepted
+                        status == TeamMatchRequestStatus.accepted
                             ? tr('match_invite_status_accepted')
-                            : req.status == TeamMatchRequestStatus.declined
+                            : status == TeamMatchRequestStatus.declined
                                 ? tr('match_invite_status_declined')
                                 : tr('team_match_outgoing_pending'),
                         style:
@@ -1568,8 +1606,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                     ],
                   ],
                 ),
-              ),
-            ),
+              );
+            }),
           ],
         );
       },
@@ -1657,22 +1695,60 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   Future<void> _respondToMatchRequest(TeamMatchRequest request,
       {required bool accepted}) async {
+    if (_respondingMatchRequest.containsKey(request.id)) return;
+    if (!mounted) return;
+    setState(() => _respondingMatchRequest[request.id] = accepted);
     List<String> roster = request.proposedRoster;
     if (accepted) {
       final team =
           await sl<ProfileTeamMembershipRepository>().getTeam(widget.teamId);
-      if (team == null) return;
-      roster = await _pickRoster(team.memberIds, request.matchId);
-      if (roster.isEmpty) return;
+      if (team == null) {
+        if (mounted) {
+          setState(() => _respondingMatchRequest.remove(request.id));
+        }
+        return;
+      }
+      roster = await _defaultRoster(team.memberIds, request.matchId);
     }
-    await _teamsRepo.respondToMatchRequest(
-      request: request,
-      accept: accepted,
-      confirmedRoster: roster,
-    );
+    if (!mounted) return;
+    try {
+      await _teamsRepo.respondToMatchRequest(
+        request: request,
+        accept: accepted,
+        confirmedRoster: roster,
+      );
+      if (mounted) {
+        setState(() {
+          _optimisticRequestStatus[request.id] = accepted
+              ? TeamMatchRequestStatus.accepted
+              : TeamMatchRequestStatus.declined;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(accepted
+                ? tr('team_match_invite_accepted')
+                : tr('team_match_invite_declined')),
+            backgroundColor: const Color(0xFF2E7D32),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _respondingMatchRequest.remove(request.id));
+      }
+    }
   }
 
-  Future<List<String>> _pickRoster(
+  Future<List<String>> _defaultRoster(
       List<String> members, String matchId) async {
     final matchModel =
         await sl<MatchesRepository>().fetchMatchById(matchId);
@@ -1694,85 +1770,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         }
       }
     }
-    final selected = Set<String>.from(current);
-    final namesCache = <String, String>{};
-    final userMaps =
-        await sl<ProfileRepository>().getUserDocumentsByIds(members);
-    for (final id in members) {
-      final data = userMaps[id];
-      namesCache[id] =
-          (data?['displayName'] ?? data?['name'] ?? 'Player').toString();
-    }
-    if (!mounted) return selected.toList();
-    await showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setStateDialog) {
-            return AlertDialog(
-              title: Text(tr('il_d5dd1f9c74')),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: ListView(
-                  shrinkWrap: true,
-                  children: members.map((id) {
-                    final checked = selected.contains(id);
-                    final isSelf = currentUserId != null && id == currentUserId;
-                    final disabled =
-                        (!checked && selected.length >= limit) || isSelf;
-                    final name =
-                        namesCache[id] ?? tr('il_64aee8c6cb');
-                    return CheckboxListTile(
-                      value: checked,
-                      onChanged: disabled
-                          ? null
-                          : (value) {
-                              setStateDialog(() {
-                                if (value == true) {
-                                  selected.add(id);
-                                } else {
-                                  selected.remove(id);
-                                }
-                              });
-                            },
-                      title: Text(name),
-                      subtitle: isSelf
-                          ? Text(
-                              tr('il_96c1688234'),
-                              style: const TextStyle(fontSize: 12),
-                            )
-                          : null,
-                    );
-                  }).toList(),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    selected.clear();
-                    Navigator.pop(ctx);
-                  },
-                  child: Text(tr('cancel')),
-                ),
-                ElevatedButton(
-                  onPressed: selected.isEmpty
-                      ? null
-                      : () => Navigator.pop(ctx),
-                  child: Text(tr('confirm')),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-    if (!mounted) {
-      return selected.toList();
-    }
-    if (currentUserId != null) {
-      selected.add(currentUserId);
-    }
-    return selected.toList();
+    return current.toList();
   }
 
   Future<void> _openInviteSheet(AppTeam team) async {

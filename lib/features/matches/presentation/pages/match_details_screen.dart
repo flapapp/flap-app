@@ -94,6 +94,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   final Map<String, AppTeam> _teamCache = {};
   final Map<String, String> _playerNameCache = {};
   bool _isProcessingRosterAction = false;
+  // Which roster-invite response is in flight, so only the tapped button shows
+  // a spinner (true = accept, false = decline, null = idle).
+  bool? _rosterActionAccept;
 
   List<String> get _effectiveParticipants {
     final ids = List<String>.from(widget.match.participants);
@@ -1698,11 +1701,19 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                             backgroundColor: const Color(0xFF4caf50),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
-                          child: Text(
-                            playerStatus == 'confirmed'
-                                ? tr('il_fe00b67b6d')
-                                : tr('il_eebdd24a77'),
-                          ),
+                          child: (_isProcessingRosterAction &&
+                                  _rosterActionAccept == true)
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
+                                )
+                              : Text(
+                                  playerStatus == 'confirmed'
+                                      ? tr('il_fe00b67b6d')
+                                      : tr('il_eebdd24a77'),
+                                ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1717,11 +1728,19 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                             side: const BorderSide(color: Colors.white24),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
-                          child: Text(
-                            playerStatus == 'declined'
-                                ? tr('il_dce083a2c4')
-                                : tr('il_a2d285b352'),
-                          ),
+                          child: (_isProcessingRosterAction &&
+                                  _rosterActionAccept == false)
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
+                                )
+                              : Text(
+                                  playerStatus == 'declined'
+                                      ? tr('il_dce083a2c4')
+                                      : tr('il_a2d285b352'),
+                                ),
                         ),
                       ),
                     ],
@@ -3058,7 +3077,14 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: Text(tr('reject')),
+                      child: _isRespondingInvite
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : Text(tr('reject')),
                     ),
                   ),
                 ],
@@ -3151,7 +3177,14 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: Text(tr('reject')),
+                      child: _isRespondingTeamInvite
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : Text(tr('reject')),
                     ),
                   ),
                 ],
@@ -3305,7 +3338,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
   Future<void> _handleRosterResponse(String teamKey, bool accept) async {
     if (_isProcessingRosterAction) return;
-    setState(() => _isProcessingRosterAction = true);
+    setState(() {
+      _isProcessingRosterAction = true;
+      _rosterActionAccept = accept;
+    });
     try {
       await _matchRepo.respondToRosterInvite(
         matchId: widget.match.id,
@@ -3331,7 +3367,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       );
     } finally {
       if (mounted) {
-        setState(() => _isProcessingRosterAction = false);
+        setState(() {
+          _isProcessingRosterAction = false;
+          _rosterActionAccept = null;
+        });
       }
     }
   }

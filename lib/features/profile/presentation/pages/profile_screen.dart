@@ -1754,8 +1754,13 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
           ),
           TextButton(
             onPressed: () async {
+              // Capture the router before awaiting: signing out tears down this
+              // screen, leaving `context` deactivated and unsafe for ancestor
+              // lookups (context.router).
+              final router = context.router;
+              Navigator.of(context).pop();
               await sl<AuthSessionRepository>().signOut();
-              context.router.replace(const WelcomeRoute());
+              router.replace(const WelcomeRoute());
             },
             child: Text(
               tr('logout'),
