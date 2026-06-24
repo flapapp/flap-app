@@ -212,7 +212,7 @@ class TeamService {
         'team_id': teamId,
         'user_id': memberId,
         'role': 'vice_captain',
-      });
+      }, onConflict: 'team_id,user_id');
     } else {
       await _sb
           .from('team_members')
@@ -308,7 +308,7 @@ class TeamService {
         'team_id': invite.teamId,
         'user_id': invite.userId,
         'role': 'member',
-      });
+      }, onConflict: 'team_id,user_id');
     }
 
     if (accept) {
@@ -433,7 +433,7 @@ class TeamService {
         'team_id': request.teamId,
         'user_id': request.userId,
         'role': 'member',
-      });
+      }, onConflict: 'team_id,user_id');
     }
 
     if (accept) {
