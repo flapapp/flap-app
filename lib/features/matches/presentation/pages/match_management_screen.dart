@@ -56,6 +56,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
       sl<MatchParticipationStatsRemoteDataSource>();
   final SupabaseClient _sb = Supabase.instance.client;
 
+  /// Team formation is locked once a match has started (and stays locked after
+  /// it finishes or is cancelled). While locked, no team edits, reshuffles,
+  /// team-count changes or re-forms are allowed, preserving match integrity.
+  bool _canManageTeams(Match m) =>
+      !m.isInProgress && !m.isFinished && !m.isCancelled;
+
   List<String> _pendingApplications = [];
   List<String> _participants = [];
   bool _isLoading = false;
@@ -734,6 +740,15 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
       });
     }
 
+    // If the match starts while the organizer is mid-edit, drop out of edit
+    // mode so the locked configuration is shown instead.
+    if (_editMode && !_canManageTeams(m)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _editMode = false);
+      });
+    }
+
     if (_winsControllers.length != m.allTeams.length) {
       _winsControllers.clear();
       _goalsControllers.clear();
@@ -758,7 +773,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                 const SizedBox(height: 12),
                 _buildTeamConfirmationCard(m, isOrganizer),
               ],
-              if (!m.isTeamMatch && m.participants.length >= 2) ...[
+              if (!m.isTeamMatch &&
+                  m.participants.length >= 2 &&
+                  _canManageTeams(m)) ...[
                 const SizedBox(height: 12),
                 _buildTeamCountSelector(m),
               ],
@@ -767,7 +784,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                 _buildConfirmedPlayersList(m),
                 const SizedBox(height: 16),
               ],
-              if (!m.hasTeams && m.participants.length >= 2)
+              if (!m.hasTeams &&
+                  m.participants.length >= 2 &&
+                  _canManageTeams(m))
                 _buildAutoFormButton(),
               if ((m.isTeamMatch || m.hasTeams) && !_editMode) ...[
                 _buildBalanceAndManagement(m),
@@ -815,7 +834,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
             ],
           ),
         ),
-        if (m.hasTeams && isOrganizer)
+        if (m.hasTeams && isOrganizer && _canManageTeams(m))
           TextButton.icon(
             onPressed: () {
               if (_editMode) {
@@ -862,6 +881,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Future<void> _onTeamCountSelected(Match m, int value) async {
+    if (!_canManageTeams(m)) return;
     final currentCount = m.hasTeams
         ? (m.teamCount ?? m.allTeams.length)
         : _teamCount;
@@ -1064,7 +1084,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                 ),
               ),
               const Spacer(),
-              if (!m.isTeamMatch)
+              if (!m.isTeamMatch && _canManageTeams(m))
                 TextButton.icon(
                   onPressed: () async {
                     final ok = await _confirm(
@@ -2738,6 +2758,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   void _enterEditMode(Match m, {bool manual = false}) {
+    if (!_canManageTeams(m)) return;
     _editMode = true;
     _locked.clear();
     _ratingsCache.clear();
@@ -2810,6 +2831,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Future<void> _shuffleTeams(Match match) async {
+    if (!_canManageTeams(match)) return;
     setState(() {
       _isLoading = true;
       _shufflingTeams = true;
@@ -3610,6 +3632,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Future<void> _autoBalanceTeams() async {
+    if (!_canManageTeams(_latestMatch ?? widget.match)) return;
     setState(() => _isLoading = true);
 
     try {
