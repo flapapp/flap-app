@@ -179,13 +179,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           ),
         ),
         actions: [
-          if (AppAuth.currentUserId == widget.match.organizerId)
-            _detailAppBarIcon(
-              Icons.settings_outlined,
-              () => context.router
-                  .push(MatchManagementRoute(match: widget.match)),
-              tooltip: tr('manage'),
-            ),
+          // if (AppAuth.currentUserId == widget.match.organizerId)
+          //   _detailAppBarIcon(
+          //     Icons.settings_outlined,
+          //     () => context.router
+          //         .push(MatchManagementRoute(match: widget.match)),
+          //     tooltip: tr('manage'),
+          //   ),
           if (_canJoin)
             _appBarJoinPill(
               icon: Icons.person_add_outlined,
@@ -3037,6 +3037,71 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
+  // Organizer's primary CTA in the sticky dock. Full-width, brand-green and
+  // clearly labelled so the owner immediately knows where to manage their
+  // match (the app-bar gear is too easy to miss). Shows a live badge with the
+  // number of pending join requests to draw attention when action is needed.
+  Widget _buildManageMatchButton() {
+    return StreamBuilder<Match?>(
+      stream: _liveMatchStream(),
+      builder: (context, snapshot) {
+        final m = snapshot.data ?? widget.match;
+        final pendingCount = m.pendingApplications.length;
+        return SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: ElevatedButton(
+            onPressed: () =>
+                context.router.push(MatchManagementRoute(match: widget.match)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: FlapColors.green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.tune_rounded, size: 20),
+                const SizedBox(width: 10),
+                Text(
+                  tr('il_7e8eb93ff8'),
+                  style: FlapText.sora(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                if (pendingCount > 0) ...[
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '$pendingCount',
+                      style: FlapText.sora(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: FlapColors.green,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildActionButtons() {
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return const SizedBox.shrink();
@@ -3058,8 +3123,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         widget.match.status != MatchStatus.finished &&
         widget.match.status != MatchStatus.cancelled &&
         !widget.match.isUnplayedByTimeout) {
-      // Manage + share now live in the app bar (gear + share); no bottom dock.
-      return const SizedBox.shrink();
+      // The organizer's primary action: a prominent, clearly labelled Match
+      // Management button in the sticky dock. The app-bar gear stays as a
+      // secondary shortcut, but it isn't discoverable on its own.
+      return _buildManageMatchButton();
     }
 
     if (isFull && !isParticipant) {
@@ -3158,6 +3225,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     }
 
     if (isParticipant) {
+      // The owner is also a participant, but their primary job is managing the
+      // match — show the Manage Match button here instead of the passive
+      // "already joined" confirmation.
+      if (isOrganizer) {
+        return _buildManageMatchButton();
+      }
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -3618,26 +3691,6 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
 
   // Manage now lives in the app-bar gear (kept for reference).
   // ignore: unused_element
-  Widget _buildManageMatchButton() {
-    return SizedBox(
-      height: 50,
-      child: ElevatedButton.icon(
-        onPressed: () {
-          context.router.push(MatchManagementRoute(match: widget.match));
-        },
-        icon: const Icon(Icons.tune),
-        label: Text(tr('il_dfe3bd5721')),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF4caf50),
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
-  }
-
   void _joinMatch() async {
     // Prevent double taps while request in flight.
     if (_isJoining) return;

@@ -1547,7 +1547,7 @@ class _MatchesScreenState extends State<MatchesScreen>
     return Column(
       children: [
         // Section header with Create match button
-        _buildMyMatchesHeader(),
+        // _buildMyMatchesHeader(),
 
         // My matches filters
         Padding(
@@ -3732,33 +3732,8 @@ class _MatchesScreenState extends State<MatchesScreen>
     // tapping the card; ownership/state shows in the top-right corner.
     final actions = <Widget>[];
 
-    if (isOrganizer &&
-        match.status != MatchStatus.finished &&
-        match.status != MatchStatus.cancelled &&
-        !match.isUnplayedByTimeout) {
-      actions.add(
-        ElevatedButton(
-          onPressed: () {
-            context.router.push(MatchManagementRoute(match: match));
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF4caf50),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          child: Text(
-            tr('manage'),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      );
-    }
+    // Organizers manage a match from its details screen (prominent dock
+    // button), so the card no longer carries a separate Manage action.
 
     if (!isOrganizer &&
         match.status == MatchStatus.open &&
