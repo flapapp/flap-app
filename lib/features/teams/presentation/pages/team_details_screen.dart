@@ -50,6 +50,9 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   bool _isLeavingTeam = false;
   int _detailTab = 0; // 0 = Overview, 1 = Stats
   final Set<String> _processingJoinRequestIds = {};
+  // Join requests already responded to, hidden from the desk list at once so
+  // the captain sees the update instantly before the realtime stream catches up.
+  final Set<String> _respondedJoinRequestIds = {};
   // Match-invite responses in flight (requestId -> true=accept, false=decline)
   // so the tapped button can show a spinner while the request is processed.
   final Map<String, bool> _respondingMatchRequest = {};
@@ -518,6 +521,9 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         accept: accept,
       );
       if (!mounted) return;
+      // Hide the responded request immediately; the roster/member count
+      // refresh on their own via the merged team_members realtime stream.
+      setState(() => _respondedJoinRequestIds.add(request.id));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -559,7 +565,16 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       child: StreamBuilder<List<TeamJoinRequest>>(
         stream: _teamsRepo.watchJoinRequests(team.id),
         builder: (context, snapshot) {
-          final requests = snapshot.data ?? const <TeamJoinRequest>[];
+          final streamRequests = snapshot.data ?? const <TeamJoinRequest>[];
+          // Drop optimistic hides once the realtime stream no longer returns
+          // the responded request, keeping the server authoritative.
+          if (_respondedJoinRequestIds.isNotEmpty) {
+            final liveIds = streamRequests.map((r) => r.id).toSet();
+            _respondedJoinRequestIds.removeWhere((id) => !liveIds.contains(id));
+          }
+          final requests = streamRequests
+              .where((r) => !_respondedJoinRequestIds.contains(r.id))
+              .toList();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

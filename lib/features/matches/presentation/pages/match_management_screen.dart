@@ -2931,14 +2931,6 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                   fontSize: 14,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'ID: ${userId.substring(0, 6)}…',
-                                style: const TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 12,
-                                ),
-                              ),
                             ],
                           ),
                         ],

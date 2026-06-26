@@ -116,6 +116,18 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         .asyncMap((_) => _matchRepo.fetchMatchById(widget.match.id));
   }
 
+  /// Live rows for this match's participants (accepted + waiting list), ordered
+  /// by application time so the waiting-list queue position is stable. Drives
+  /// the open-spots count and waiting list, updating in real time as players
+  /// join, leave, or are moved.
+  Stream<List<Map<String, dynamic>>> _participantRowsStream() {
+    return _sb
+        .from('match_participants')
+        .stream(primaryKey: ['id'])
+        .eq('match_id', widget.match.id)
+        .order('applied_at');
+  }
+
   Future<Map<String, dynamic>> _fetchUserProfile(String userId) async {
     if (_profileCache.containsKey(userId)) return _profileCache[userId]!;
     try {
@@ -2283,11 +2295,60 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildParticipantsSection() {
-    final filled = _effectiveParticipants.length;
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _participantRowsStream(),
+      builder: (context, snapshot) {
+        final rows = snapshot.data;
+        // Derive accepted players and the waiting-list queue (ordered by
+        // applied_at) from live rows, falling back to the passed-in match
+        // before the first stream event arrives.
+        final accepted = <String>[];
+        final waiting = <String>[];
+        if (rows != null) {
+          final seen = <String>{};
+          for (final r in rows) {
+            final uid = (r['user_id'] ?? '').toString();
+            if (uid.isEmpty || !seen.add(uid)) continue;
+            final st = (r['status'] ?? '').toString();
+            if (st == 'accepted') {
+              accepted.add(uid);
+            } else if (st == 'pending_application') {
+              waiting.add(uid);
+            }
+          }
+        } else {
+          accepted.addAll(widget.match.participants);
+          waiting.addAll(widget.match.pendingApplications);
+        }
+        // Local optimism: a just-accepted invite shows as confirmed at once.
+        final me = AppAuth.currentUserId;
+        if (_acceptedInviteLocally && me != null && !accepted.contains(me)) {
+          accepted.add(me);
+          waiting.remove(me);
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildRosterCard(accepted),
+            if (waiting.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _buildWaitingListSection(waiting),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildRosterCard(List<String> accepted) {
+    final filled = accepted.length;
     final cap = widget.match.maxPlayers;
     final pct = cap > 0 ? (filled / cap).clamp(0.0, 1.0) : 0.0;
-    final remaining = cap - filled;
-    final openSlots = remaining < 0 ? 0 : (remaining > 4 ? 4 : remaining);
+    final openCount = (cap - filled) < 0 ? 0 : cap - filled;
+    // Render one placeholder tile per actual open spot so the count of tiles
+    // equals the match's remaining capacity.
+    final openTiles = openCount;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -2328,6 +2389,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          _buildOpenSpotsBadge(openCount),
           const SizedBox(height: 12),
           // fill progress bar
           Container(
@@ -2358,9 +2421,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 spacing: gap,
                 runSpacing: gap,
                 children: [
-                  for (final id in _effectiveParticipants)
+                  for (final id in accepted)
                     SizedBox(width: tileW, child: _buildRosterTile(id)),
-                  for (int i = 0; i < openSlots; i++)
+                  for (int i = 0; i < openTiles; i++)
                     SizedBox(
                       width: tileW,
                       // Only the first open spot acts as the join button.
@@ -2376,6 +2439,184 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildOpenSpotsBadge(int openCount) {
+    final isFull = openCount <= 0;
+    final color = isFull ? FlapColors.muted : FlapColors.greenBright;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: isFull ? const Color(0x10FFFFFF) : const Color(0x1F4CAF50),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isFull ? Icons.people_alt_outlined : Icons.event_seat_outlined,
+            size: 14,
+            color: color,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            isFull
+                ? tr('match_tag_full')
+                : tr('match_spots_open_badge',
+                    namedArgs: {'count': '$openCount'}),
+            style: FlapText.sora(
+                fontSize: 12, fontWeight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaitingListSection(List<String> waiting) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: FlapColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x2EE7C25A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.hourglass_top_rounded,
+                  size: 18, color: FlapColors.gold),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  tr('match_waiting_list_title'),
+                  style:
+                      FlapText.sora(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ),
+              Text(
+                tr('match_waiting_list_total_badge',
+                    namedArgs: {'count': '${waiting.length}'}),
+                style: FlapText.sora(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: FlapColors.gold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            tr('match_waiting_list_subtitle'),
+            style: FlapText.sora(
+                fontSize: 11.5, color: FlapColors.muted, height: 1.25),
+          ),
+          const SizedBox(height: 14),
+          for (int i = 0; i < waiting.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _buildWaitingTile(waiting[i], i + 1),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaitingTile(String userId, int position) {
+    final isMe = userId == AppAuth.currentUserId;
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _sb.from('profiles').select().eq('id', userId).maybeSingle(),
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        final displayName = (data?['display_name'] ??
+                data?['first_name'] ??
+                data?['author_name'] ??
+                tr('player'))
+            .toString()
+            .trim();
+        final firstName = displayName.split(RegExp(r'\s+')).first;
+        final positionLabel =
+            positionLabelForDisplay(data?['position'] as String?);
+        return GestureDetector(
+          onTap: () => _openPlayerProfile(userId, displayName),
+          child: Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: const Color(0x0BFFFFFF),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: FlapColors.border),
+            ),
+            child: Row(
+              children: [
+                // Queue position.
+                Container(
+                  width: 26,
+                  height: 26,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0x1FE7C25A),
+                  ),
+                  child: Text(
+                    '$position',
+                    style: FlapText.sora(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: FlapColors.gold),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                UserChip(
+                  userId: userId,
+                  name: displayName.isNotEmpty ? displayName : null,
+                  size: 34,
+                  showName: false,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isMe ? tr('match_waiting_you') : firstName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: FlapText.sora(
+                            fontSize: 13.5, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        positionLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: FlapText.sora(
+                            fontSize: 11, color: FlapColors.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0x12E7C25A),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    tr('match_waiting'),
+                    style: FlapText.sora(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: FlapColors.gold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
