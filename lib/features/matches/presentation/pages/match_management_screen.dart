@@ -12,6 +12,7 @@ import '../../application/match_management_actions_use_case.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../../data/models/match.dart';
 import '../../../teams/domain/repositories/teams_repository.dart';
+import '../../../profile/data/datasources/match_participation_stats_remote_datasource.dart';
 import '../../../teams/data/models/app_team.dart';
 import 'match_invite_search_screen.dart';
 import 'finish_match_flow_page.dart';
@@ -51,6 +52,8 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   TeamsRepository get _teamsRepo => sl<TeamsRepository>();
   MatchManagementActionsUseCase get _managementActions =>
       sl<MatchManagementActionsUseCase>();
+  MatchParticipationStatsRemoteDataSource get _matchStats =>
+      sl<MatchParticipationStatsRemoteDataSource>();
   final SupabaseClient _sb = Supabase.instance.client;
 
   List<String> _pendingApplications = [];
@@ -107,9 +110,15 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
       return _userCache[userId]!;
     }
     try {
-      final data =
-          await _sb.from('profiles').select().eq('id', userId).maybeSingle() ??
-          const <String, dynamic>{};
+      // Profile row holds identity + overall rating. W/D/L are NOT maintained
+      // on the profiles row (they're always 0), so derive real win/draw/loss
+      // counts from finished match history — the same source the profile page
+      // uses — and merge them in. Cached per user, so this runs once each.
+      final profileFuture =
+          _sb.from('profiles').select().eq('id', userId).maybeSingle();
+      final statsFuture = _matchStats.loadFinishedMatchStats(userId);
+      final data = (await profileFuture) ?? const <String, dynamic>{};
+      final stats = await statsFuture;
       final profile = <String, dynamic>{
         'displayName':
             (data['display_name'] ?? data['first_name'] ?? tr('player'))
@@ -117,9 +126,11 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         'avatarUrl': ((data['avatar_url'] ?? data['photo_url']) ?? '')
             .toString(),
         'rating': _profileOverallRatingFromRow(data),
-        'wins': (data['wins'] ?? 0),
-        'draws': (data['draws'] ?? 0),
-        'losses': (data['losses'] ?? 0),
+        'wins': (stats['wins'] ?? 0),
+        'draws': (stats['draws'] ?? 0),
+        'losses': (stats['losses'] ?? 0),
+        'matches': (stats['matches'] ?? 0),
+        'winRate': (stats['winRate'] ?? 0.0),
       };
       _userCache[userId] = profile;
       return profile;
@@ -131,6 +142,8 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         'wins': 0,
         'draws': 0,
         'losses': 0,
+        'matches': 0,
+        'winRate': 0.0,
       };
       _userCache[userId] = fallback;
       return fallback;
@@ -750,6 +763,10 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                 _buildTeamCountSelector(m),
               ],
               const SizedBox(height: 20),
+              if (!m.isTeamMatch && !m.hasTeams && m.participants.isNotEmpty) ...[
+                _buildConfirmedPlayersList(m),
+                const SizedBox(height: 16),
+              ],
               if (!m.hasTeams && m.participants.length >= 2)
                 _buildAutoFormButton(),
               if ((m.isTeamMatch || m.hasTeams) && !_editMode) ...[
@@ -821,6 +838,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Widget _buildTeamCountSelector(Match m) {
+    // When teams are already formed, reflect the actual formed count so the
+    // chips stay accurate even after reopening the screen (where _teamCount
+    // would otherwise fall back to its default).
+    final currentCount = m.hasTeams
+        ? (m.teamCount ?? m.allTeams.length)
+        : _teamCount;
     return Wrap(
       spacing: 8,
       runSpacing: 4,
@@ -829,13 +852,36 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         final enabled = m.participants.length >= value;
         return ChoiceChip(
           label: Text(tr('il_7b7e87fdbe', namedArgs: {'value': '$value'})),
-          selected: _teamCount == value,
+          selected: currentCount == value,
           onSelected: enabled
-              ? (selected) => setState(() => _teamCount = value)
+              ? (selected) => _onTeamCountSelected(m, value)
               : null,
         );
       }),
     );
+  }
+
+  Future<void> _onTeamCountSelected(Match m, int value) async {
+    final currentCount = m.hasTeams
+        ? (m.teamCount ?? m.allTeams.length)
+        : _teamCount;
+    if (value == currentCount) return;
+
+    // Teams already exist: changing the count discards them, so confirm and
+    // then regenerate balanced teams for the new count. If cancelled, keep the
+    // existing configuration unchanged.
+    if (m.hasTeams) {
+      final ok = await _confirm(
+        tr('reshuffle_teams_title'),
+        tr('reshuffle_teams_message'),
+      );
+      if (ok != true) return;
+      setState(() => _teamCount = value);
+      await _shuffleTeams(m);
+      return;
+    }
+
+    setState(() => _teamCount = value);
   }
 
   Widget _buildAutoFormButton() {
@@ -863,6 +909,133 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Roster of confirmed participants shown before teams are formed, so the
+  // organizer can review who is in before splitting them into teams.
+  Widget _buildConfirmedPlayersList(Match m) {
+    final players = m.participants;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.verified_user, color: Color(0xFF4caf50), size: 20),
+              const SizedBox(width: 8),
+              Text(
+                tr('confirmed_players'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4caf50),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${players.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...players.map((id) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: _getUserProfile(id),
+                builder: (context, snap) {
+                  final name =
+                      (snap.data?['displayName'] ?? tr('player')) as String;
+                  final avatarUrl =
+                      ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '')
+                          as String;
+                  final realRating =
+                      ((snap.data?['rating'] ?? 0.0) as num).toDouble();
+                  final winRate = _calculateWinRateFromProfile(snap.data);
+                  final isOrganizer = id == m.organizerId;
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      PlayerAvatarButton(
+                        userId: id,
+                        displayName: name,
+                        avatarUrl: avatarUrl,
+                        size: 32,
+                        borderColor: Colors.white.withOpacity(0.15),
+                        borderWidth: 1,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.1,
+                                    ),
+                                  ),
+                                ),
+                                if (isOrganizer) ...[
+                                  const SizedBox(width: 6),
+                                  const Icon(
+                                    Icons.star,
+                                    color: Color(0xFFE7C25A),
+                                    size: 14,
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${realRating.toStringAsFixed(2)} ${tr('il_112895d7af')}'
+                              ' • ${winRate.toStringAsFixed(0)}% ${tr('il_dd54e8f076')}',
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -951,25 +1124,19 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
       );
     });
 
-    if (cards.length == 2) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [cards[0], const SizedBox(height: 16), cards[1]],
-      );
+    // Stack every team full-width. A fixed-width 2-column Wrap overflowed for
+    // 3-4 teams (its card width didn't account for the surrounding padding),
+    // so cards wrapped to one-per-row at half width and looked broken. A
+    // stretched Column is responsive at any team count and gives each card the
+    // full width it needs for clear, aligned content.
+    final children = <Widget>[];
+    for (var i = 0; i < cards.length; i++) {
+      if (i > 0) children.add(const SizedBox(height: 16));
+      children.add(cards[i]);
     }
-
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: List.generate(cards.length, (index) {
-        return SizedBox(
-          width:
-              MediaQuery.of(context).size.width /
-                  (visibleTeams.length >= 2 ? 2 : 1) -
-              24,
-          child: cards[index],
-        );
-      }),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
     );
   }
 
