@@ -1614,6 +1614,7 @@
   "match_invite_status_declined": "Declined",
   "match_invite_status_cancelled": "Cancelled",
   "match_goals_assign_intro": "Assign exactly {teamAScore} goals to {teamAName} and {teamBScore} goals to {teamBName}.",
+  "match_goals_team_mismatch": "{team}: {assigned} assigned, must equal {score}",
   "badge_tab_all": "All",
   "badge_tab_starter": "Starter",
   "badge_tab_skills": "Skills",

@@ -4062,7 +4062,9 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
     if (!ok) return;
 
-    setState(() {});
+    // Reload the lists from the backend so the finished status shows up
+    // immediately, without the user having to pull-to-refresh.
+    _refreshMatchLists();
     final refreshed = await _matchRepo.fetchMatchById(match.id);
     if (!mounted) return;
     await context.router.push(MatchRatingRoute(match: refreshed ?? match));

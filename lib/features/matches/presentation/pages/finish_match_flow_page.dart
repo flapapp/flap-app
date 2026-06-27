@@ -237,10 +237,30 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
     final teamAGoals = sumTeam(teamAIds);
     final teamBGoals = sumTeam(teamBIds);
 
-    if (teamAGoals != _committedScoreA || teamBGoals != _committedScoreB) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(tr('il_1e20d69e73'))));
+    // Validate each team independently: the sum of its players' goals must
+    // exactly equal the team's recorded score, or the match can't be finished.
+    final mismatches = <String>[];
+    if (teamAGoals != _committedScoreA) {
+      mismatches.add(tr('match_goals_team_mismatch', namedArgs: {
+        'team': flow.teamsDisplay.teamA.name,
+        'assigned': '$teamAGoals',
+        'score': '$_committedScoreA',
+      }));
+    }
+    if (teamBGoals != _committedScoreB) {
+      mismatches.add(tr('match_goals_team_mismatch', namedArgs: {
+        'team': flow.teamsDisplay.teamB.name,
+        'assigned': '$teamBGoals',
+        'score': '$_committedScoreB',
+      }));
+    }
+    if (mismatches.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('il_1e20d69e73')}\n${mismatches.join('\n')}'),
+          backgroundColor: const Color(0xFFf44336),
+        ),
+      );
       return;
     }
 
@@ -255,16 +275,6 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
         teamAScore: _committedScoreA,
         teamBScore: _committedScoreB,
         goalsByPlayer: map,
-      ),
-    );
-  }
-
-  void _skipGoals() {
-    Navigator.of(context).pop(
-      FinishMatchResult(
-        teamAScore: _committedScoreA,
-        teamBScore: _committedScoreB,
-        goalsByPlayer: const {},
       ),
     );
   }
@@ -699,10 +709,6 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
                               TextButton(
                                 onPressed: () => Navigator.of(context).pop(),
                                 child: Text(tr('cancel')),
-                              ),
-                              TextButton(
-                                onPressed: _skipGoals,
-                                child: Text(tr('il_28d03596d2')),
                               ),
                               FilledButton(
                                 onPressed: () => _submitGoalsStep(flow),

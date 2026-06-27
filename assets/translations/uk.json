@@ -1614,6 +1614,7 @@
   "match_invite_status_declined": "Відхилено",
   "match_invite_status_cancelled": "Скасовано",
   "match_goals_assign_intro": "Розподіліть рівно {teamAScore} голів для {teamAName} і {teamBScore} голів для {teamBName}.",
+  "match_goals_team_mismatch": "{team}: призначено {assigned}, має дорівнювати {score}",
   "badge_tab_all": "Всі",
   "badge_tab_starter": "Початкові",
   "badge_tab_skills": "Навички",
