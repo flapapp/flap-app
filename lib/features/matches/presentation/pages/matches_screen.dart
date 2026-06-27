@@ -2504,17 +2504,26 @@ class _MatchesScreenState extends State<MatchesScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ---- top: date block + info ----
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
-                child: _matchCardTop(
+              if (match.isTeamMatch)
+                // Team matchups get the premium pre-game poster header.
+                _buildTeamMatchPoster(
                   match,
                   trailing:
                       _cornerTrailing(match, isOrganizer, currentUser.id),
+                )
+              else ...[
+                // ---- top: date block + info ----
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+                  child: _matchCardTop(
+                    match,
+                    trailing:
+                        _cornerTrailing(match, isOrganizer, currentUser.id),
+                  ),
                 ),
-              ),
-              // ---- bottom: avatar stack + spots + eligibility tag ----
-              _matchCardBottom(match),
+                // ---- bottom: avatar stack + spots + eligibility tag ----
+                _matchCardBottom(match),
+              ],
               // ---- functional section (logic preserved) ----
               if (functional.isNotEmpty)
                 Padding(
@@ -2797,6 +2806,217 @@ class _MatchesScreenState extends State<MatchesScreen>
       size: 28,
       circular: false,
       borderRadius: 8,
+    );
+  }
+
+  // ---- premium "pre-game poster" header for team matches ----
+  //
+  // For team matchups we drop the date-block / participant-count layout and
+  // render a bold rivalry poster: large glowing crests flanking a VS badge over
+  // a green→blue gradient stage, with the kickoff eyebrow on top and level /
+  // cost / status pills below. Used by the Find + My upcoming cards.
+  Widget _buildTeamMatchPoster(Match match, {Widget? trailing}) {
+    final dt = match.scheduledDateTime;
+    final locale = context.locale.toString();
+    final dateLabel = DateFormat.MMMEd(locale).format(dt).toUpperCase();
+    final filled = match.participants.length;
+    final cap = match.maxPlayers;
+    final teamAName = match.teamA?.name ?? tr('il_e18d322f14');
+    final teamBName = match.teamB?.name ?? tr('il_aceaf5d9ac');
+
+    return Stack(
+      children: [
+        // Stage: green-tinted home corner → card → blue-tinted away corner.
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF12211A),
+                  Color(0xFF10160F),
+                  Color(0xFF101826),
+                ],
+                stops: [0.0, 0.5, 1.0],
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Kickoff eyebrow + corner trailing (owner badge, etc.).
+              Row(
+                children: [
+                  const Icon(Icons.sports_soccer_rounded,
+                      size: 14, color: FlapColors.greenBright),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '$dateLabel · ${match.scheduledKickoffTimeLabel}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: FlapText.cond(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: FlapColors.greenBright,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ),
+                  if (trailing != null) ...[
+                    const SizedBox(width: 8),
+                    trailing,
+                  ],
+                ],
+              ),
+              const SizedBox(height: 18),
+              // Crest · VS · crest, with a faint tension line connecting them.
+              Stack(
+                children: [
+                  Positioned(
+                    top: 31,
+                    left: 28,
+                    right: 28,
+                    child: Container(
+                      height: 1.5,
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(colors: [
+                          Color(0x00FFFFFF),
+                          Color(0x4D66D16C),
+                          Color(0x4D5C97E0),
+                          Color(0x00FFFFFF),
+                        ]),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _posterTeamColumn(
+                            match.teamAId, teamAName, FlapColors.greenBright),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 11),
+                        child: _posterVs(),
+                      ),
+                      Expanded(
+                        child: _posterTeamColumn(
+                            match.teamBId, teamBName, FlapColors.blue),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _metaItem(
+                      Icons.place_outlined,
+                      match.location.split(',').first,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _eligibilityTag(match, filled, cap),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  _pill(Icons.bar_chart_rounded, _getLevelText(match.level)),
+                  const SizedBox(width: 8),
+                  _pill(
+                    Icons.monetization_on_outlined,
+                    match.cost <= 0
+                        ? tr('match_cost_free')
+                        : '${match.cost.toInt()} ₴',
+                    iconColor: FlapColors.gold,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // One side of the poster: a glowing circular crest + condensed team name.
+  Widget _posterTeamColumn(String? teamId, String name, Color accent) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: FlapColors.bg,
+            border: Border.all(color: accent.withValues(alpha: 0.55), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: 0.32),
+                blurRadius: 20,
+                spreadRadius: -2,
+              ),
+            ],
+          ),
+          child: TeamCrest(
+            teamId: teamId,
+            teamName: name,
+            size: 58,
+            circular: true,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          name.toUpperCase(),
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: FlapText.cond(
+            fontSize: 16.5,
+            fontWeight: FontWeight.w700,
+            height: 1.0,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Center "VS" medallion of the poster.
+  Widget _posterVs() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: FlapColors.bg,
+        border: Border.all(color: FlapColors.borderStrong),
+        boxShadow: [
+          BoxShadow(
+            color: FlapColors.green.withValues(alpha: 0.25),
+            blurRadius: 16,
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: Text(
+        tr('match_vs').toUpperCase(),
+        style: FlapText.cond(
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+          color: FlapColors.greenBright,
+          letterSpacing: 0.5,
+        ),
+      ),
     );
   }
 
@@ -3942,14 +4162,21 @@ class _MatchesScreenState extends State<MatchesScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
-                child: _matchCardTop(
+              if (match.isTeamMatch)
+                _buildTeamMatchPoster(
                   match,
                   trailing: _cornerTrailing(match, isOrganizer, uid),
+                )
+              else ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+                  child: _matchCardTop(
+                    match,
+                    trailing: _cornerTrailing(match, isOrganizer, uid),
+                  ),
                 ),
-              ),
-              _matchCardBottom(match),
+                _matchCardBottom(match),
+              ],
               if (actions.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
