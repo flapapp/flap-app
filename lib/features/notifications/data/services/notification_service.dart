@@ -119,6 +119,11 @@ class NotificationService {
     return null;
   }
 
+  /// Revoke this device's push tokens for the signed-in user. Call this *before*
+  /// `Supabase.auth.signOut()` — once the session is gone `currentUserId` is null
+  /// and the revoke would no-op, leaving the device subscribed to the old account.
+  Future<void> revokePushTokensForCurrentUser() => _clearNotificationTokens();
+
   Future<void> _clearNotificationTokens([String? uid]) async {
     final userId = uid ?? AppAuth.currentUserId;
     if (userId == null || !_hasSb) return;

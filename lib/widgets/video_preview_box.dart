@@ -33,6 +33,10 @@ class VideoPreviewBox extends StatefulWidget {
     this.placeholderColor = const Color(0xFF101020),
   });
 
+  /// Drop all in-memory video thumbnails. Called on sign-out so cached frames
+  /// from the previous user's feed don't persist into the next session.
+  static void clearThumbCache() => _VideoPreviewBoxState._thumbMemoryCache.clear();
+
   @override
   State<VideoPreviewBox> createState() => _VideoPreviewBoxState();
 }

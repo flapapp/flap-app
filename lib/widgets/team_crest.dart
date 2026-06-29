@@ -31,6 +31,10 @@ class TeamCrest extends StatelessWidget {
   static final Map<String, Future<String?>> _logoCache =
       <String, Future<String?>>{};
 
+  /// Drop every cached team-logo future. Called on sign-out so the next user
+  /// never sees logos resolved under the previous session.
+  static void clearCache() => _logoCache.clear();
+
   static Future<String?> _resolveLogo(String teamId) {
     return _logoCache.putIfAbsent(teamId, () async {
       try {
