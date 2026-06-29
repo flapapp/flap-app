@@ -448,17 +448,15 @@ class TeamService {
   }
 
   /// Match invites where [teamId] is the **target** (invited) team.
+  ///
+  /// Filtered server-side (`.eq`) so realtime only ships this team's rows
+  /// instead of the whole table being downloaded and filtered in Dart.
   Stream<List<TeamMatchRequest>> watchIncomingTeamMatchInvites(String teamId) {
     return _sb
         .from('team_match_requests')
         .stream(primaryKey: ['id'])
-        .asyncMap((rows) {
-      final filtered = (rows as List<dynamic>).where((raw) {
-        final row = raw as Map<String, dynamic>;
-        return (row['target_team_id'] ?? '').toString() == teamId;
-      }).toList();
-      return _mapMatchRequestsForViewer(filtered, teamId);
-    });
+        .eq('target_team_id', teamId)
+        .asyncMap((rows) => _mapMatchRequestsForViewer(rows, teamId));
   }
 
   /// Match requests **sent by** [teamId].
@@ -466,13 +464,8 @@ class TeamService {
     return _sb
         .from('team_match_requests')
         .stream(primaryKey: ['id'])
-        .asyncMap((rows) {
-      final filtered = (rows as List<dynamic>).where((raw) {
-        final row = raw as Map<String, dynamic>;
-        return (row['requesting_team_id'] ?? '').toString() == teamId;
-      }).toList();
-      return _mapMatchRequestsForViewer(filtered, teamId);
-    });
+        .eq('requesting_team_id', teamId)
+        .asyncMap((rows) => _mapMatchRequestsForViewer(rows, teamId));
   }
 
   /// Teams where [userId] is captain or vice-captain (visible via RLS).
@@ -805,38 +798,69 @@ class TeamService {
     List<dynamic> rows,
     String viewerTeamId,
   ) async {
-    final out = <TeamMatchRequest>[];
-    for (final raw in rows) {
-      final row = raw as Map<String, dynamic>;
-      final requestId = row['id'].toString();
+    final reqs = rows
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .toList(growable: false);
+    if (reqs.isEmpty) return const [];
+
+    // The "other" team is whichever side the viewer is not.
+    String otherIdFor(Map<String, dynamic> row) {
       final requestingId = (row['requesting_team_id'] ?? '').toString();
       final targetId = (row['target_team_id'] ?? '').toString();
-      final otherTeamId =
-          viewerTeamId == requestingId ? targetId : requestingId;
-      final otherTeam = await _sb
+      return viewerTeamId == requestingId ? targetId : requestingId;
+    }
+
+    final otherTeamIds = reqs
+        .map(otherIdFor)
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    final requestIds = reqs.map((r) => r['id'].toString()).toList();
+
+    // Batch the lookups: one query for opponent names, one for proposed
+    // rosters — previously this was two awaited queries *per row* (N+1), which
+    // added latency to every realtime emission.
+    final namesById = <String, String>{};
+    if (otherTeamIds.isNotEmpty) {
+      final teamRows = await _sb
           .from('teams')
-          .select('name')
-          .eq('id', otherTeamId)
-          .maybeSingle();
+          .select('id,name')
+          .inFilter('id', otherTeamIds);
+      for (final raw in teamRows as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        namesById[row['id'].toString()] = (row['name'] ?? '').toString();
+      }
+    }
+
+    final rosterByRequestId = <String, List<String>>{};
+    if (requestIds.isNotEmpty) {
       final rosterRows = await _sb
           .from('team_match_request_players')
-          .select('player_id')
-          .eq('team_match_request_id', requestId);
-      out.add(TeamMatchRequest.fromJson(<String, dynamic>{
+          .select('team_match_request_id,player_id')
+          .inFilter('team_match_request_id', requestIds);
+      for (final raw in rosterRows as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        final rid = row['team_match_request_id'].toString();
+        (rosterByRequestId[rid] ??= <String>[])
+            .add(row['player_id'].toString());
+      }
+    }
+
+    return reqs.map((row) {
+      final requestId = row['id'].toString();
+      final otherTeamId = otherIdFor(row);
+      return TeamMatchRequest.fromJson(<String, dynamic>{
         'id': requestId,
         'matchId': row['match_id'],
         'teamId': viewerTeamId,
         'opponentTeamId': otherTeamId,
-        'opponentName': (otherTeam?['name'] ?? '').toString(),
+        'opponentName': namesById[otherTeamId] ?? '',
         'createdBy': row['created_by'],
         'status': row['status'],
         'createdAt': row['created_at'],
-        'proposedRoster': (rosterRows as List<dynamic>)
-            .map((r) => (r as Map<String, dynamic>)['player_id'].toString())
-            .toList(),
-      }));
-    }
-    return out;
+        'proposedRoster': rosterByRequestId[requestId] ?? const <String>[],
+      });
+    }).toList();
   }
 }
 

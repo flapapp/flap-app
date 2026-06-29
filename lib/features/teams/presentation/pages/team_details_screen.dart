@@ -44,8 +44,10 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   late final Stream<AppTeam?> _teamWatch;
   late final Stream<Map<String, dynamic>?> _teamStatsWatch;
-  late final Stream<List<TeamMatchRequest>> _incomingMatchInvites;
-  late final Stream<List<TeamMatchRequest>> _outgoingMatchRequests;
+  // Not final: pull-to-refresh re-subscribes these so a missed realtime event
+  // (e.g. socket reconnect) self-corrects via a fresh initial snapshot fetch.
+  late Stream<List<TeamMatchRequest>> _incomingMatchInvites;
+  late Stream<List<TeamMatchRequest>> _outgoingMatchRequests;
   bool _isSendingJoinRequest = false;
   bool _isLeavingTeam = false;
   int _detailTab = 0; // 0 = Overview, 1 = Stats
@@ -65,10 +67,22 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     super.initState();
     _teamWatch = sl<TeamsRepository>().watchTeam(widget.teamId);
     _teamStatsWatch = sl<TeamStatsRepository>().watchTeamStats(widget.teamId);
+    _subscribeMatchRequestStreams();
+  }
+
+  void _subscribeMatchRequestStreams() {
     _incomingMatchInvites =
         _teamsRepo.watchIncomingTeamMatchInvites(widget.teamId);
     _outgoingMatchRequests =
         _teamsRepo.watchOutgoingTeamMatchRequests(widget.teamId);
+  }
+
+  // Re-subscribe the invite/request streams. Each `.stream()` re-emits a fresh
+  // initial snapshot on subscribe, so this recovers any invite that a dropped
+  // realtime event would otherwise have left missing until an app restart.
+  Future<void> _refreshMatchRequests() async {
+    if (!mounted) return;
+    setState(_subscribeMatchRequestStreams);
   }
 
   @override
@@ -138,7 +152,12 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
           statsSnap.data,
           fallbackName: team.name,
         );
-        return SingleChildScrollView(
+        return RefreshIndicator(
+          onRefresh: _refreshMatchRequests,
+          color: FlapColors.greenBright,
+          backgroundColor: FlapColors.card,
+          child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,6 +188,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                 _buildLeaveTeamButton(team, uid),
               ],
             ],
+          ),
           ),
         );
       },
