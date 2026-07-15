@@ -140,26 +140,12 @@ class _NewsCardItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ---- artwork band with category tag ----
-            Container(
+            SizedBox(
               height: 108,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [accent.withValues(alpha: 0.2), Colors.transparent],
-                ),
-                color: const Color(0xFF0F1C16),
-              ),
               child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Align(
-                    alignment: Alignment.center,
-                    child: Icon(
-                      ModeNewsSection.iconFor(entry.iconKind),
-                      color: accent.withValues(alpha: 0.55),
-                      size: 34,
-                    ),
-                  ),
+                  _ArtworkBand(entry: entry, accent: accent),
                   Positioned(
                     left: 12,
                     top: 12,
@@ -221,6 +207,70 @@ class _NewsCardItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Header artwork for a news card: the item's [ModeNewsItem.imageUrl] under a
+/// dark scrim (for tag/legibility), falling back to the accent gradient + glyph
+/// while loading, on error, or when no image is available.
+class _ArtworkBand extends StatelessWidget {
+  const _ArtworkBand({required this.entry, required this.accent});
+
+  final ModeNewsItem entry;
+  final Color accent;
+
+  Widget _fallback() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [accent.withValues(alpha: 0.2), Colors.transparent],
+        ),
+        color: const Color(0xFF0F1C16),
+      ),
+      alignment: Alignment.center,
+      child: Icon(
+        ModeNewsSection.iconFor(entry.iconKind),
+        color: accent.withValues(alpha: 0.55),
+        size: 34,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final url = entry.imageUrl;
+    if (url == null || url.isEmpty) {
+      return _fallback();
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.network(
+          url,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallback(),
+          loadingBuilder: (context, child, progress) =>
+              progress == null ? child : _fallback(),
+        ),
+        // Scrim so the category tag and card edge stay legible over any image.
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                const Color(0x66070A08),
+                Colors.transparent,
+                const Color(0x4D070A08),
+              ],
+              stops: const [0, 0.45, 1],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

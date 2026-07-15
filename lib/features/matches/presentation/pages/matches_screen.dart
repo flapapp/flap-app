@@ -3090,11 +3090,47 @@ class _MatchesScreenState extends State<MatchesScreen>
   // organizers, the compact state action for joinable matches, nothing for
   // team matches (join is team-invite only).
   Widget? _cornerTrailing(Match match, bool isOrganizer, String uid) {
+    // A finished match shows a clear "Finished" status badge in the corner —
+    // regardless of whether you organize it, joined it, or it's a team matchup
+    // (those cases otherwise fall through to the owner badge / no trailing).
+    if (match.status == MatchStatus.finished) {
+      return _finishedStatusChip(match);
+    }
     if (isOrganizer) return _ownerBadge();
     if (match.isTeamMatch) return null;
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 132),
       child: _buildMatchSecondaryAction(match, uid),
+    );
+  }
+
+  // Compact top-right status badge for finished matches. Uses the shared status
+  // UI helper so the label/color match the rest of the app (and degrade to the
+  // "unplayed" label for matches that timed out without being played).
+  Widget _finishedStatusChip(Match match) {
+    final ui = buildMatchListStatusUi(match.status, match: match);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: ui.color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: ui.color.withValues(alpha: 0.34)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.sports_score_rounded, size: 12, color: ui.color),
+          const SizedBox(width: 4),
+          Text(
+            ui.label,
+            style: FlapText.sora(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: ui.color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

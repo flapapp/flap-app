@@ -38,6 +38,12 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
         .maybeSingle();
   }
 
+  /// Trimmed string, or null when blank — keeps empty DB values out of [ModeNewsItem.imageUrl].
+  String? _nonEmpty(dynamic value) {
+    final s = value?.toString().trim();
+    return (s == null || s.isEmpty) ? null : s;
+  }
+
   DateTime _ts(Map<String, dynamic> row, List<String> keys) {
     for (final k in keys) {
       final v = asDateTimeOrNull(row[k]);
@@ -131,7 +137,7 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
     try {
       final row = await _client
           .from('videos')
-          .select('id,title,created_at,updated_at,user_id')
+          .select('id,title,created_at,updated_at,user_id,thumbnail_url')
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
@@ -155,6 +161,7 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
         timestamp: _ts(row, const ['created_at', 'updated_at']),
         navigationTarget: ModeNavigationTarget.videoMain,
         ctaLabelKey: 'il_9fedb611a8',
+        imageUrl: _nonEmpty(row['thumbnail_url']),
       );
     } catch (_) {
       return null;
@@ -166,7 +173,7 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
     try {
       final row = await _client
           .from('teams')
-          .select('id,name,city,created_at,updated_at')
+          .select('id,name,city,created_at,updated_at,logo_url')
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
@@ -186,6 +193,7 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
         timestamp: _ts(row, const ['created_at', 'updated_at']),
         navigationTarget: ModeNavigationTarget.teams,
         ctaLabelKey: 'il_3d8889f3a9',
+        imageUrl: _nonEmpty(row['logo_url']),
       );
     } catch (_) {
       return null;
@@ -212,7 +220,7 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
         }
         final teamRow = await _client
             .from('teams')
-            .select('name')
+            .select('name,logo_url')
             .eq('id', teamId)
             .maybeSingle();
         final userRow = await _profileRow(userId);
@@ -228,6 +236,7 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
             timestamp: _ts(m, const ['joined_at']),
             navigationTarget: ModeNavigationTarget.teams,
             ctaLabelKey: 'il_3d8889f3a9',
+            imageUrl: _nonEmpty(teamRow?['logo_url']),
           ),
         );
       }

@@ -13,6 +13,7 @@ class ModeNewsItem {
     required this.timestamp,
     required this.navigationTarget,
     required this.ctaLabelKey,
+    this.imageUrl,
   });
 
   /// When set, headline uses `tr(titleKey, namedArgs: titleNamedArgs)`.
@@ -37,4 +38,8 @@ class ModeNewsItem {
 
   /// easy_localization key for the CTA label (existing app keys).
   final String ctaLabelKey;
+
+  /// Optional artwork for the card's header band (video thumbnail, team crest).
+  /// When null the card falls back to the accent gradient + [iconKind] glyph.
+  final String? imageUrl;
 }
