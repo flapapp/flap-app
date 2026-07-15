@@ -99,11 +99,21 @@ class TeamsRepositoryImpl implements TeamsRepository {
   }
 
   @override
+  Stream<List<TeamInvite>> watchSentInvites(String teamId) {
+    return _teams.watchSentInvites(teamId);
+  }
+
+  @override
   Future<void> respondToInvite({
     required TeamInvite invite,
     required bool accept,
   }) {
     return _teams.respondToInvite(invite: invite, accept: accept);
+  }
+
+  @override
+  Future<void> cancelInvite({required String inviteId}) {
+    return _teams.cancelInvite(inviteId: inviteId);
   }
 
   @override

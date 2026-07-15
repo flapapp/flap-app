@@ -290,6 +290,42 @@ class TeamService {
     });
   }
 
+  /// Streams the pending invitations a team has sent to players, for team
+  /// officers to review on the team detail page. RLS restricts reads to
+  /// involved users (invitee, inviter, or a team officer).
+  Stream<List<TeamInvite>> watchSentInvites(String teamId) {
+    return _sb
+        .from('team_invites')
+        .stream(primaryKey: ['id'])
+        .asyncMap((rows) {
+      final invites = <TeamInvite>[];
+      for (final raw in rows as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        if ((row['team_id'] ?? '').toString() != teamId) continue;
+        if ((row['status'] ?? '').toString() != 'pending') continue;
+        invites.add(TeamInvite.fromJson(<String, dynamic>{
+          'id': row['id'],
+          'teamId': row['team_id'],
+          'teamName': '',
+          'userId': row['user_id'],
+          'invitedBy': row['invited_by'],
+          'status': row['status'],
+          'createdAt': row['created_at'],
+        }));
+      }
+      invites.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return invites;
+    });
+  }
+
+  /// Retracts a pending invitation. Officer-only via RLS.
+  Future<void> cancelInvite({required String inviteId}) async {
+    await _sb.from('team_invites').update(<String, dynamic>{
+      'status': 'cancelled',
+      'responded_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', inviteId);
+  }
+
   Future<void> respondToInvite({
     required TeamInvite invite,
     required bool accept,

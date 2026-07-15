@@ -24,10 +24,16 @@ abstract class TeamsRepository {
 
   Stream<List<TeamInvite>> watchInvites(String userId);
 
+  /// Pending invitations a team has sent to players, for team officers.
+  Stream<List<TeamInvite>> watchSentInvites(String teamId);
+
   Future<void> respondToInvite({
     required TeamInvite invite,
     required bool accept,
   });
+
+  /// Retract a pending invitation the team sent (officer-only).
+  Future<void> cancelInvite({required String inviteId});
 
   Future<String> createTeam({
     required String name,

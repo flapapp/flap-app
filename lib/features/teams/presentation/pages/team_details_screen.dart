@@ -20,6 +20,7 @@ import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../widgets/team_crest.dart';
 
 import '../../data/models/app_team.dart';
+import '../../data/models/team_invite.dart';
 import '../../data/models/team_match_request.dart';
 import '../../data/models/team_stats.dart';
 import '../../../friends/data/models/friend_request.dart';
@@ -44,6 +45,14 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
 
   late final Stream<AppTeam?> _teamWatch;
   late final Stream<Map<String, dynamic>?> _teamStatsWatch;
+  // Players accepted this session, injected into the roster locally so the
+  // owner sees them immediately (no realtime/DB round-trip). Unioned with the
+  // authoritative team.memberIds on render.
+  final Set<String> _acceptedMemberIds = {};
+  // Optimistic vice-captain overrides (memberId -> isVice) applied on
+  // promote/demote so the role updates instantly. Reconciled against
+  // team.viceCaptainIds once a fresh bundle reports the same state.
+  final Map<String, bool> _viceOverrides = {};
   // Not final: pull-to-refresh re-subscribes these so a missed realtime event
   // (e.g. socket reconnect) self-corrects via a fresh initial snapshot fetch.
   late Stream<List<TeamMatchRequest>> _incomingMatchInvites;
@@ -55,6 +64,9 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   // Join requests already responded to, hidden from the desk list at once so
   // the captain sees the update instantly before the realtime stream catches up.
   final Set<String> _respondedJoinRequestIds = {};
+  // Invitations being retracted, hidden from the desk list instantly so the
+  // captain sees them disappear before the realtime stream catches up.
+  final Set<String> _cancellingInviteIds = {};
   // Match-invite responses in flight (requestId -> true=accept, false=decline)
   // so the tapped button can show a spinner while the request is processed.
   final Map<String, bool> _respondingMatchRequest = {};
@@ -83,6 +95,16 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   Future<void> _refreshMatchRequests() async {
     if (!mounted) return;
     setState(_subscribeMatchRequestStreams);
+  }
+
+  /// Roster ids to render: the authoritative server list unioned with players
+  /// accepted this session, so a just-accepted member shows immediately.
+  List<String> _rosterMemberIds(AppTeam team) {
+    final ids = List<String>.from(team.memberIds);
+    for (final id in _acceptedMemberIds) {
+      if (!ids.contains(id)) ids.add(id);
+    }
+    return ids;
   }
 
   @override
@@ -541,9 +563,13 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         accept: accept,
       );
       if (!mounted) return;
-      // Hide the responded request immediately; the roster/member count
-      // refresh on their own via the merged team_members realtime stream.
-      setState(() => _respondedJoinRequestIds.add(request.id));
+      setState(() {
+        // Hide the responded request immediately.
+        _respondedJoinRequestIds.add(request.id);
+        // On accept, add the player to the roster locally so the owner sees
+        // them at once, without waiting on a realtime/DB update.
+        if (accept) _acceptedMemberIds.add(request.userId);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -633,6 +659,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                 const SizedBox(height: 12),
                 ...requests.map(_deskRequestRow),
               ],
+              _buildSentInvites(team),
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -751,6 +778,156 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     );
   }
 
+  /// Pending invitations the team has sent to players, shown inside the
+  /// captain's desk so officers can track (and retract) who they invited.
+  Widget _buildSentInvites(AppTeam team) {
+    return StreamBuilder<List<TeamInvite>>(
+      stream: _teamsRepo.watchSentInvites(team.id),
+      builder: (context, snapshot) {
+        final streamInvites = snapshot.data ?? const <TeamInvite>[];
+        // Drop optimistic hides once the realtime stream no longer returns the
+        // cancelled invite, keeping the server authoritative.
+        if (_cancellingInviteIds.isNotEmpty) {
+          final liveIds = streamInvites.map((i) => i.id).toSet();
+          _cancellingInviteIds.removeWhere((id) => !liveIds.contains(id));
+        }
+        final invites = streamInvites
+            .where((i) => !_cancellingInviteIds.contains(i.id))
+            .toList();
+        if (invites.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.outgoing_mail,
+                    size: 16, color: FlapColors.muted),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    tr('team_sent_invites_title'),
+                    style: FlapText.sora(
+                        fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: FlapColors.muted.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${invites.length}',
+                    style: FlapText.sora(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: FlapColors.muted),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...invites.map(_sentInviteRow),
+          ],
+        );
+      },
+    );
+  }
+
+  /// A single sent-invitation row (invited player + pending badge + retract).
+  Widget _sentInviteRow(TeamInvite invite) {
+    final busy = _cancellingInviteIds.contains(invite.id);
+    return FutureBuilder<UserProfile?>(
+      future: sl<ProfileRepository>().fetchUserProfile(invite.userId),
+      builder: (context, snapshot) {
+        final userData = snapshot.data?.document ?? const <String, dynamic>{};
+        final avatarUrl =
+            (userData['avatarUrl'] ?? userData['photoUrl'] ?? '').toString();
+        final name =
+            (userData['displayName'] ?? userData['name'] ?? tr('player'))
+                .toString();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              PlayerAvatarButton(
+                userId: invite.userId,
+                displayName: name,
+                avatarUrl: avatarUrl,
+                size: 38,
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: FlapText.sora(
+                          fontSize: 13.5, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      tr('team_invite_sent_at', namedArgs: {
+                        'date':
+                            DateFormat('dd MMM, HH:mm').format(invite.createdAt),
+                      }),
+                      style: FlapText.sora(
+                          fontSize: 11.5, color: FlapColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: FlapColors.gold.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  tr('team_invite_pending_badge'),
+                  style: FlapText.sora(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: FlapColors.gold),
+                ),
+              ),
+              const SizedBox(width: 7),
+              _reqMiniButton(
+                Icons.close,
+                FlapColors.muted,
+                busy ? null : () => _handleCancelInvite(invite),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleCancelInvite(TeamInvite invite) async {
+    setState(() => _cancellingInviteIds.add(invite.id));
+    try {
+      await _teamsRepo.cancelInvite(inviteId: invite.id);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cancellingInviteIds.remove(invite.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   Widget _buildDetailTabs() {
     return Container(
       padding: const EdgeInsets.all(4),
@@ -827,7 +1004,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       ),
       _MetricTileData(
         icon: Icons.groups_3,
-        value: '${team.memberIds.length}',
+        value: '${_rosterMemberIds(team).length}',
         title: tr('il_cd4795809e'),
         caption: tr('il_a36357dfad'),
       ),
@@ -1237,6 +1414,10 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   }
 
   Widget _buildMembers(AppTeam team, bool canManage) {
+    // Drop optimistic vice overrides the server has caught up to.
+    _viceOverrides
+        .removeWhere((id, isVice) => team.viceCaptainIds.contains(id) == isVice);
+    final memberIds = _rosterMemberIds(team);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1249,20 +1430,21 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
               ),
             ),
             Text(
-              tr('il_5d379b3bb6', args: ['${team.memberIds.length}']),
+              tr('il_5d379b3bb6', args: ['${memberIds.length}']),
               style: FlapText.sora(fontSize: 12, color: FlapColors.muted),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        ...team.memberIds.map((id) => _memberRow(team, id, canManage)),
+        ...memberIds.map((id) => _memberRow(team, id, canManage)),
       ],
     );
   }
 
   Widget _memberRow(AppTeam team, String memberId, bool canManage) {
     final isCaptain = memberId == team.captainId;
-    final isVice = team.viceCaptainIds.contains(memberId);
+    final isVice =
+        _viceOverrides[memberId] ?? team.viceCaptainIds.contains(memberId);
     final role = isCaptain
         ? tr('il_2e786c488b')
         : isVice
@@ -1407,18 +1589,28 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   }
 
   void _handleMemberAction(String action, AppTeam team, String memberId) async {
-    if (action == 'promote') {
-      await sl<TeamsRepository>().setViceCaptainMembership(
-        teamId: team.id,
-        memberId: memberId,
-        addAsVice: true,
-      );
-    } else if (action == 'demote') {
-      await sl<TeamsRepository>().setViceCaptainMembership(
-        teamId: team.id,
-        memberId: memberId,
-        addAsVice: false,
-      );
+    if (action == 'promote' || action == 'demote') {
+      final addAsVice = action == 'promote';
+      // Reflect the new role locally at once so the owner sees the change
+      // instantly, without waiting on a realtime/DB update.
+      setState(() => _viceOverrides[memberId] = addAsVice);
+      try {
+        await sl<TeamsRepository>().setViceCaptainMembership(
+          teamId: team.id,
+          memberId: memberId,
+          addAsVice: addAsVice,
+        );
+      } catch (e) {
+        if (!mounted) return;
+        // Roll back to the authoritative server role on failure.
+        setState(() => _viceOverrides.remove(memberId));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     } else if (action == 'remove') {
       await _teamsRepo.leaveTeam(teamId: team.id, userId: memberId);
     }
