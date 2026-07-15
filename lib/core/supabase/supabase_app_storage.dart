@@ -11,6 +11,7 @@ abstract final class SupabaseAppStorage {
   static const String challengeThumbnails = 'challenge-thumbnails';
   static const String submissionThumbnails = 'submission-thumbnails';
   static const String matchCovers = 'match-covers';
+  static const String matchPhotos = 'match-photos';
 
   /// Uploads bytes to a public bucket and returns the public URL.
   static Future<String> uploadPublicBytes(

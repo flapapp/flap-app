@@ -30,6 +30,23 @@ import '../../../../core/locale/football_position.dart';
 import '../widgets/team_roster_total_rating_badge.dart';
 import 'team_invite_search_screen.dart';
 
+/// A single post-match photo enriched with its uploader's display name.
+class _MatchPhoto {
+  const _MatchPhoto({
+    required this.id,
+    required this.uploaderId,
+    required this.imageUrl,
+    required this.uploaderName,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String uploaderId;
+  final String imageUrl;
+  final String uploaderName;
+  final DateTime? createdAt;
+}
+
 double _profileOverallRatingFromRow(Map<String, dynamic> data) {
   final v = data['overall_rating'] ?? data['rating'];
   if (v is num) return v.toDouble();
@@ -61,6 +78,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   String? _inviteStatusOverride;
   bool _acceptedInviteLocally = false;
   bool _isUploadingCover = false;
+  bool _isAddingMatchPhoto = false;
   // The current viewer's direct match-invite status ('pending'/'declined'/'').
   // Loaded once so the join affordances and dock can decide synchronously.
   String _myInviteStatus = '';
@@ -250,6 +268,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 return Column(
                   children: [
                     _buildFinishedTeamsAndScoreSection(resolved),
+                    const SizedBox(height: 20),
+                    _buildMatchPhotosSection(resolved),
                     const SizedBox(height: 20),
                   ],
                 );
@@ -676,6 +696,424 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       if (mounted) {
         setState(() => _isUploadingCover = false);
       }
+    }
+  }
+
+  // ===========================================================================
+  // Post-match photos: shared gallery each participant can contribute to.
+  // ===========================================================================
+
+  /// Whether the current viewer may add photos (organizer, accepted
+  /// participant, or a team-roster member). RLS enforces the real rule; this
+  /// only decides whether to show the add affordance.
+  bool _viewerCanAddPhotos() {
+    final uid = AppAuth.currentUserId;
+    if (uid == null) return false;
+    if (widget.match.organizerId == uid) return true;
+    if (_effectiveParticipants.contains(uid)) return true;
+    if (_acceptedInviteLocally) return true;
+    for (final roster in widget.match.teamRosters.values) {
+      if (roster.contains(uid)) return true;
+    }
+    return false;
+  }
+
+  /// Live photos for this match (newest first), enriched with uploader profile.
+  Stream<List<_MatchPhoto>> _matchPhotosStream() {
+    return _sb
+        .from('match_photos')
+        .stream(primaryKey: ['id'])
+        .eq('match_id', widget.match.id)
+        .order('created_at')
+        .asyncMap((rows) async {
+          final photos = <_MatchPhoto>[];
+          for (final raw in rows) {
+            final row = Map<String, dynamic>.from(raw);
+            final url = (row['image_url'] ?? '').toString();
+            if (url.isEmpty) continue;
+            final uploaderId = (row['uploader_id'] ?? '').toString();
+            final profile = uploaderId.isEmpty
+                ? const <String, dynamic>{}
+                : await _fetchUserProfile(uploaderId);
+            photos.add(
+              _MatchPhoto(
+                id: (row['id'] ?? '').toString(),
+                uploaderId: uploaderId,
+                imageUrl: url,
+                uploaderName: (profile['displayName'] ?? tr('player')).toString(),
+                createdAt:
+                    DateTime.tryParse((row['created_at'] ?? '').toString()),
+              ),
+            );
+          }
+          // Newest first for the strip.
+          photos.sort((a, b) {
+            final ad = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bd = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bd.compareTo(ad);
+          });
+          return photos;
+        });
+  }
+
+  Widget _buildMatchPhotosSection(Match resolved) {
+    final canAdd = _viewerCanAddPhotos();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: FlapColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: FlapColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.photo_library_rounded,
+                color: Color(0xFF4CAF50),
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tr('match_photos_title'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      tr('match_photos_subtitle'),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (canAdd)
+                TextButton.icon(
+                  onPressed: _isAddingMatchPhoto ? null : _handleAddMatchPhoto,
+                  icon: _isAddingMatchPhoto
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF4CAF50),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.add_a_photo_outlined,
+                          size: 18,
+                          color: Color(0xFF4CAF50),
+                        ),
+                  label: Text(
+                    tr('match_photos_add'),
+                    style: const TextStyle(color: Color(0xFF4CAF50)),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          StreamBuilder<List<_MatchPhoto>>(
+            stream: _matchPhotosStream(),
+            builder: (context, snapshot) {
+              final photos = snapshot.data ?? const <_MatchPhoto>[];
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  photos.isEmpty) {
+                return const SizedBox(
+                  height: 120,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF4CAF50),
+                    ),
+                  ),
+                );
+              }
+              if (photos.isEmpty) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  alignment: Alignment.center,
+                  child: Text(
+                    tr('match_photos_empty'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white54, fontSize: 13),
+                  ),
+                );
+              }
+              return SizedBox(
+                height: 132,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: photos.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, i) =>
+                      _buildMatchPhotoThumb(photos[i], photos, i),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMatchPhotoThumb(
+    _MatchPhoto photo,
+    List<_MatchPhoto> all,
+    int index,
+  ) {
+    final canDelete = _canDeletePhoto(photo);
+    return GestureDetector(
+      onTap: () => _openMatchPhotoViewer(all, index),
+      onLongPress: canDelete ? () => _confirmDeleteMatchPhoto(photo) : null,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            Image.network(
+              photo.imageUrl,
+              width: 132,
+              height: 132,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, progress) => progress == null
+                  ? child
+                  : Container(
+                      width: 132,
+                      height: 132,
+                      color: const Color(0xFF0F1C16),
+                      alignment: Alignment.center,
+                      child: const CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF4CAF50),
+                      ),
+                    ),
+              errorBuilder: (_, __, ___) => Container(
+                width: 132,
+                height: 132,
+                color: const Color(0xFF0F1C16),
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.white38,
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [Color(0xCC000000), Colors.transparent],
+                  ),
+                ),
+                child: Text(
+                  photo.uploaderName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openMatchPhotoViewer(List<_MatchPhoto> photos, int initialIndex) {
+    final controller = PageController(initialPage: initialIndex);
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(12),
+          backgroundColor: Colors.transparent,
+          child: StatefulBuilder(
+            builder: (context, _) {
+              return Stack(
+                children: [
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.7,
+                    child: PageView.builder(
+                      controller: controller,
+                      itemCount: photos.length,
+                      itemBuilder: (context, i) {
+                        final photo = photos[i];
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: InteractiveViewer(
+                                child: Image.network(
+                                  photo.imageUrl,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.broken_image_outlined,
+                                    color: Colors.white38,
+                                    size: 64,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              tr('match_photos_by',
+                                  namedArgs: {'name': photo.uploaderName}),
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    ).whenComplete(controller.dispose);
+  }
+
+  /// The uploader or the match organizer may delete a photo (RLS also enforces).
+  bool _canDeletePhoto(_MatchPhoto photo) {
+    final uid = AppAuth.currentUserId;
+    if (uid == null) return false;
+    return photo.uploaderId == uid || widget.match.organizerId == uid;
+  }
+
+  Future<void> _handleAddMatchPhoto() async {
+    try {
+      final pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        imageQuality: 85,
+      );
+      if (pickedFile == null) return;
+
+      setState(() => _isAddingMatchPhoto = true);
+
+      final uid = AppAuth.currentUser?.id;
+      if (uid == null) {
+        throw Exception(tr('team_error_not_signed_in'));
+      }
+      final fileName =
+          'photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final objectPath = '$uid/${widget.match.id}/$fileName';
+      final bytes = await pickedFile.readAsBytes();
+      final url = await SupabaseAppStorage.uploadPublicBytes(
+        _sb,
+        bucket: SupabaseAppStorage.matchPhotos,
+        path: objectPath,
+        bytes: bytes,
+        contentType: 'image/jpeg',
+      );
+
+      await _sb.from('match_photos').insert(<String, dynamic>{
+        'match_id': widget.match.id,
+        'uploader_id': uid,
+        'image_url': url,
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('match_photos_added')),
+          backgroundColor: const Color(0xFF4CAF50),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            tr('match_photos_add_failed', namedArgs: {'detail': e.toString()}),
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isAddingMatchPhoto = false);
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteMatchPhoto(_MatchPhoto photo) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: Text(
+          tr('match_photos_delete_title'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          tr('match_photos_delete_message'),
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(tr('cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: Text(tr('match_photos_delete_confirm')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _sb.from('match_photos').delete().eq('id', photo.id);
+      // Best-effort storage cleanup; the row delete is the source of truth.
+      await SupabaseAppStorage.tryRemovePublicObject(_sb, photo.imageUrl);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('match_photos_deleted'))),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('match_photos_delete_failed')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
   }
 

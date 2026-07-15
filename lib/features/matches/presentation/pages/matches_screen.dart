@@ -148,11 +148,19 @@ class _MatchesScreenState extends State<MatchesScreen>
 
   late final MatchesListCubit _matchesListCubit;
 
+  /// Live trigger: the match cards are cubit-driven (one-shot fetch), so on
+  /// their own they never reflect a status change made on another device. We
+  /// subscribe to the `matches` realtime stream and reload the lists (debounced)
+  /// whenever any match row changes — e.g. a match being finished elsewhere.
+  StreamSubscription<List<Map<String, dynamic>>>? _matchesRealtimeSub;
+  Timer? _matchesRealtimeDebounce;
+
   @override
   void initState() {
     super.initState();
     _matchListController = MatchListController(_matchRepo);
     _matchesListCubit = MatchesListCubit(_matchRepo)..load();
+    _subscribeMatchesRealtime();
     _tabController = TabController(length: _tabKeys.length, vsync: this);
     _tabController.addListener(_onMatchesPrimaryTabChanged);
 
@@ -190,6 +198,23 @@ class _MatchesScreenState extends State<MatchesScreen>
     unawaited(_matchesListCubit.load());
   }
 
+  /// Reload the lists live when any match row changes (created, joined,
+  /// started, finished, cancelled) so status stays in sync across devices
+  /// without reopening the app. Debounced so a burst of row events (e.g. goals
+  /// + status written together) triggers a single reload.
+  void _subscribeMatchesRealtime() {
+    _matchesRealtimeSub = _sb
+        .from('matches')
+        .stream(primaryKey: ['id'])
+        .listen((_) {
+          _matchesRealtimeDebounce?.cancel();
+          _matchesRealtimeDebounce = Timer(
+            const Duration(milliseconds: 400),
+            _refreshMatchLists,
+          );
+        });
+  }
+
   void _ensureRatingsTopPlayersLoaded({bool force = false}) {
     if (_ratingsTopPlayersFuture != null && !force) return;
     _ratingsTopPlayersFuture = _ratingsRepo.getTopPlayers(limit: 300);
@@ -198,6 +223,8 @@ class _MatchesScreenState extends State<MatchesScreen>
 
   @override
   void dispose() {
+    _matchesRealtimeDebounce?.cancel();
+    unawaited(_matchesRealtimeSub?.cancel());
     _matchesListCubit.close();
     _tabController.removeListener(_onMatchesPrimaryTabChanged);
     _searchDebounce?.cancel();
