@@ -30,8 +30,6 @@ abstract class RatingsRepository {
 
   double getDefaultRating();
 
-  Stream<double> getMatchRating(String matchId);
-
   Future<void> recomputeOverallRating(
     String userId, {
     String? reason,

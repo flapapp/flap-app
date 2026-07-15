@@ -44,7 +44,7 @@ class MatchManagementScreen extends StatefulWidget {
 }
 
 class _MatchManagementScreenState extends State<MatchManagementScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   late final bool _isOwner;
 
@@ -91,11 +91,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   final Map<String, Map<String, dynamic>> _userCache = {};
   final Map<String, _ClubInfo> _clubCache = {};
 
+  /// One-shot fetch of the latest match. The StreamBuilders fall back to
+  /// [_latestMatch] via [_mergeStreamAndLatest], which is kept fresh by
+  /// [_loadMatchData] after every mutation and on app resume. Match invites
+  /// remain realtime; the match row itself no longer needs a live subscription.
   Stream<Match?> _liveMatchStream() {
-    return _sb
-        .from('matches')
-        .stream(primaryKey: ['id'])
-        .asyncMap((_) => _matchRepo.fetchMatchById(widget.match.id));
+    return Stream.fromFuture(_matchRepo.fetchMatchById(widget.match.id));
   }
 
   /// Prefer realtime payload vs [_latestMatch] by [Match.updatedAt] so local reload after mutations
@@ -215,11 +216,23 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
       vsync: this,
       initialIndex: safeInitialIndex,
     );
+    WidgetsBinding.instance.addObserver(this);
     _loadMatchData();
+  }
+
+  /// Refresh the match when the app returns to the foreground so other users'
+  /// changes appear without a live subscription on the match row.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _loadMatchData();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
     for (final c in _winsControllers.values) {
       c.dispose();

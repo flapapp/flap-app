@@ -43,7 +43,10 @@ class MatchesScreen extends StatefulWidget {
 }
 
 class _MatchesScreenState extends State<MatchesScreen>
-    with TickerProviderStateMixin, ScrollAwareFabMixin {
+    with
+        TickerProviderStateMixin,
+        ScrollAwareFabMixin,
+        WidgetsBindingObserver {
   // Tab titles
   final List<String> _tabKeys = [
     'find_match',
@@ -152,15 +155,12 @@ class _MatchesScreenState extends State<MatchesScreen>
   /// their own they never reflect a status change made on another device. We
   /// subscribe to the `matches` realtime stream and reload the lists (debounced)
   /// whenever any match row changes — e.g. a match being finished elsewhere.
-  StreamSubscription<List<Map<String, dynamic>>>? _matchesRealtimeSub;
-  Timer? _matchesRealtimeDebounce;
-
   @override
   void initState() {
     super.initState();
     _matchListController = MatchListController(_matchRepo);
     _matchesListCubit = MatchesListCubit(_matchRepo)..load();
-    _subscribeMatchesRealtime();
+    WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: _tabKeys.length, vsync: this);
     _tabController.addListener(_onMatchesPrimaryTabChanged);
 
@@ -198,21 +198,20 @@ class _MatchesScreenState extends State<MatchesScreen>
     unawaited(_matchesListCubit.load());
   }
 
-  /// Reload the lists live when any match row changes (created, joined,
-  /// started, finished, cancelled) so status stays in sync across devices
-  /// without reopening the app. Debounced so a burst of row events (e.g. goals
-  /// + status written together) triggers a single reload.
-  void _subscribeMatchesRealtime() {
-    _matchesRealtimeSub = _sb
-        .from('matches')
-        .stream(primaryKey: ['id'])
-        .listen((_) {
-          _matchesRealtimeDebounce?.cancel();
-          _matchesRealtimeDebounce = Timer(
-            const Duration(milliseconds: 400),
-            _refreshMatchLists,
-          );
-        });
+  /// Pull-to-refresh handler; returns the load future so the spinner shows
+  /// until the lists have refreshed.
+  Future<void> _pullToRefreshMatches() => _matchesListCubit.load();
+
+  /// Refresh the lists when the app returns to the foreground so status
+  /// (created, joined, started, finished, cancelled) picks up other users'
+  /// changes without a live subscription. Pull-to-refresh covers manual
+  /// refreshes, and in-app actions already call [_refreshMatchLists] directly.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _refreshMatchLists();
+    }
   }
 
   void _ensureRatingsTopPlayersLoaded({bool force = false}) {
@@ -223,8 +222,7 @@ class _MatchesScreenState extends State<MatchesScreen>
 
   @override
   void dispose() {
-    _matchesRealtimeDebounce?.cancel();
-    unawaited(_matchesRealtimeSub?.cancel());
+    WidgetsBinding.instance.removeObserver(this);
     _matchesListCubit.close();
     _tabController.removeListener(_onMatchesPrimaryTabChanged);
     _searchDebounce?.cancel();
@@ -1489,8 +1487,11 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   Widget _buildFindMatchTab() {
-    return SingleChildScrollView(
-      child: Column(
+    return RefreshIndicator(
+      onRefresh: _pullToRefreshMatches,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
         children: [
           const SizedBox(height: 2),
           _buildFindFilterChips(),
@@ -1565,6 +1566,7 @@ class _MatchesScreenState extends State<MatchesScreen>
             },
           ),
         ],
+      ),
       ),
     );
   }
@@ -1680,12 +1682,16 @@ class _MatchesScreenState extends State<MatchesScreen>
               });
 
               // Render user match list
-              return ListView.builder(
-                itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  final match = filtered[index];
-                  return _buildMyMatchCard(match);
-                },
+              return RefreshIndicator(
+                onRefresh: _pullToRefreshMatches,
+                child: ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final match = filtered[index];
+                    return _buildMyMatchCard(match);
+                  },
+                ),
               );
             },
           ),
@@ -1741,13 +1747,17 @@ class _MatchesScreenState extends State<MatchesScreen>
             ),
             // Match list
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: matches.length,
-                itemBuilder: (context, index) {
-                  final m = matches[index];
-                  return _buildHistoryMatchCard(m);
-                },
+              child: RefreshIndicator(
+                onRefresh: _pullToRefreshMatches,
+                child: ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: matches.length,
+                  itemBuilder: (context, index) {
+                    final m = matches[index];
+                    return _buildHistoryMatchCard(m);
+                  },
+                ),
               ),
             ),
           ],

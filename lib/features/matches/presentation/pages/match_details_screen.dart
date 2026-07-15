@@ -79,6 +79,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   bool _acceptedInviteLocally = false;
   bool _isUploadingCover = false;
   bool _isAddingMatchPhoto = false;
+  Future<List<_MatchPhoto>>? _matchPhotosFuture;
   // The current viewer's direct match-invite status ('pending'/'declined'/'').
   // Loaded once so the join affordances and dock can decide synchronously.
   String _myInviteStatus = '';
@@ -88,6 +89,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   void initState() {
     super.initState();
     _loadMyInviteStatus();
+    _matchPhotosFuture = _loadMatchPhotos();
   }
 
   Future<void> _loadMyInviteStatus() async {
@@ -718,42 +720,46 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     return false;
   }
 
-  /// Live photos for this match (newest first), enriched with uploader profile.
-  Stream<List<_MatchPhoto>> _matchPhotosStream() {
-    return _sb
+  /// Photos for this match (newest first), enriched with uploader profile.
+  /// Loaded once on open and refreshed after the viewer adds/deletes a photo.
+  Future<List<_MatchPhoto>> _loadMatchPhotos() async {
+    final rows = await _sb
         .from('match_photos')
-        .stream(primaryKey: ['id'])
+        .select()
         .eq('match_id', widget.match.id)
-        .order('created_at')
-        .asyncMap((rows) async {
-          final photos = <_MatchPhoto>[];
-          for (final raw in rows) {
-            final row = Map<String, dynamic>.from(raw);
-            final url = (row['image_url'] ?? '').toString();
-            if (url.isEmpty) continue;
-            final uploaderId = (row['uploader_id'] ?? '').toString();
-            final profile = uploaderId.isEmpty
-                ? const <String, dynamic>{}
-                : await _fetchUserProfile(uploaderId);
-            photos.add(
-              _MatchPhoto(
-                id: (row['id'] ?? '').toString(),
-                uploaderId: uploaderId,
-                imageUrl: url,
-                uploaderName: (profile['displayName'] ?? tr('player')).toString(),
-                createdAt:
-                    DateTime.tryParse((row['created_at'] ?? '').toString()),
-              ),
-            );
-          }
-          // Newest first for the strip.
-          photos.sort((a, b) {
-            final ad = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-            final bd = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-            return bd.compareTo(ad);
-          });
-          return photos;
-        });
+        .order('created_at');
+    final photos = <_MatchPhoto>[];
+    for (final raw in rows as List<dynamic>) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final url = (row['image_url'] ?? '').toString();
+      if (url.isEmpty) continue;
+      final uploaderId = (row['uploader_id'] ?? '').toString();
+      final profile = uploaderId.isEmpty
+          ? const <String, dynamic>{}
+          : await _fetchUserProfile(uploaderId);
+      photos.add(
+        _MatchPhoto(
+          id: (row['id'] ?? '').toString(),
+          uploaderId: uploaderId,
+          imageUrl: url,
+          uploaderName: (profile['displayName'] ?? tr('player')).toString(),
+          createdAt: DateTime.tryParse((row['created_at'] ?? '').toString()),
+        ),
+      );
+    }
+    // Newest first for the strip.
+    photos.sort((a, b) {
+      final ad = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bd = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bd.compareTo(ad);
+    });
+    return photos;
+  }
+
+  /// Reload the match photo strip (after an add/delete by the viewer).
+  void _refreshMatchPhotos() {
+    if (!mounted) return;
+    setState(() => _matchPhotosFuture = _loadMatchPhotos());
   }
 
   Widget _buildMatchPhotosSection(Match resolved) {
@@ -824,8 +830,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          StreamBuilder<List<_MatchPhoto>>(
-            stream: _matchPhotosStream(),
+          FutureBuilder<List<_MatchPhoto>>(
+            future: _matchPhotosFuture,
             builder: (context, snapshot) {
               final photos = snapshot.data ?? const <_MatchPhoto>[];
               if (snapshot.connectionState == ConnectionState.waiting &&
@@ -1047,6 +1053,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       });
 
       if (!mounted) return;
+      _refreshMatchPhotos();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(tr('match_photos_added')),
@@ -1103,6 +1110,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       // Best-effort storage cleanup; the row delete is the source of truth.
       await SupabaseAppStorage.tryRemovePublicObject(_sb, photo.imageUrl);
       if (!mounted) return;
+      _refreshMatchPhotos();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(tr('match_photos_deleted'))),
       );

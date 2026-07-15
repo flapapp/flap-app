@@ -463,21 +463,6 @@ class MatchService {
     }
   }
 
-  Stream<List<String>> getMatchApplications(String matchId) {
-    return _sb.from('match_participants').stream(primaryKey: ['id']).asyncMap((
-      rows,
-    ) async {
-      return (rows as List<dynamic>)
-          .where(
-            (raw) =>
-                (raw as Map<String, dynamic>)['match_id'] == matchId &&
-                raw['status'] == 'pending_application',
-          )
-          .map((raw) => (raw as Map<String, dynamic>)['user_id'].toString())
-          .toList(growable: false);
-    });
-  }
-
   Future<bool> autoBalanceTeams(String matchId) async {
     try {
       final m = await _loadMatch(matchId);
@@ -848,84 +833,6 @@ class MatchService {
     }
   }
 
-  Stream<List<Match>> getMatchesForRating(String userId) {
-    Future<List<Match>> loadFinishedParticipatedMatches() async {
-      final participantRows = await _sb
-          .from('match_participants')
-          .select('match_id')
-          .eq('user_id', userId)
-          .eq('status', 'accepted');
-      final fromParticipants = (participantRows as List<dynamic>)
-          .map(
-            (raw) =>
-                (raw as Map<String, dynamic>)['match_id']?.toString() ?? '',
-          )
-          .where((id) => id.isNotEmpty)
-          .toSet();
-
-      final fromRosters = await _matchIdsFromUserTeamRosters(userId);
-
-      final ids = {...fromParticipants, ...fromRosters}.toList();
-      if (ids.isEmpty) return <Match>[];
-
-      final legacyMaps = await MatchLegacyRemoteMapper.loadLegacyMapsBatch(
-        _sb,
-        ids,
-      );
-      final out = <Match>[];
-      for (final id in ids) {
-        final legacy = legacyMaps[id];
-        if (legacy == null) continue;
-        final m = Match.fromLegacyMap(id, legacy);
-        if (m.status == MatchStatus.finished) out.add(m);
-      }
-      out.sort((a, b) => b.date.compareTo(a.date));
-      return out;
-    }
-
-    late StreamController<List<Match>> outCtrl;
-    StreamSubscription<List<Map<String, dynamic>>>? subParticipants;
-    StreamSubscription<List<Map<String, dynamic>>>? subTeamRosters;
-    StreamSubscription<List<Map<String, dynamic>>>? subMatches;
-
-    outCtrl = StreamController<List<Match>>(
-      onListen: () {
-        scheduleMicrotask(() async {
-          Future<void> emit() async {
-            try {
-              outCtrl.add(await loadFinishedParticipatedMatches());
-            } catch (e, st) {
-              outCtrl.addError(e, st);
-            }
-          }
-
-          await emit();
-          subParticipants = _sb
-              .from('match_participants')
-              .stream(primaryKey: ['id'])
-              .listen((_) => emit());
-          subTeamRosters = _sb
-              .from('match_team_rosters')
-              .stream(primaryKey: ['match_team_id', 'player_id'])
-              .listen((_) => emit());
-          subMatches = _sb
-              .from('matches')
-              .stream(primaryKey: ['id'])
-              .listen((_) => emit());
-        });
-      },
-      onCancel: () async {
-        await subParticipants?.cancel();
-        await subTeamRosters?.cancel();
-        await subMatches?.cancel();
-        subParticipants = null;
-        subTeamRosters = null;
-        subMatches = null;
-      },
-    );
-
-    return outCtrl.stream;
-  }
 
   Future<bool> cancelMatch(String matchId) async {
     try {

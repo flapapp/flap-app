@@ -540,22 +540,6 @@ class RatingService {
 
   double getDefaultRating() => _defaultRating;
 
-  Stream<double> getMatchRating(String matchId) {
-    return _sb.from('match_player_ratings').stream(primaryKey: ['id']).asyncMap(
-      (rows) async {
-        final ratings = <double>[];
-        for (final raw in rows as List<dynamic>) {
-          final row = raw as Map<String, dynamic>;
-          if ((row['match_id'] ?? '').toString() != matchId) continue;
-          ratings.add(((row['overall_rating'] as num?) ?? 0).toDouble());
-        }
-        if (ratings.isEmpty) return 0.0;
-        final avg = ratings.reduce((a, b) => a + b) / ratings.length;
-        return double.parse(avg.toStringAsFixed(2));
-      },
-    );
-  }
-
   Future<void> recomputeOverallRating(
     String userId, {
     String? reason,

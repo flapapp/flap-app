@@ -73,11 +73,6 @@ class RatingsRepositoryImpl implements RatingsRepository {
   }
 
   @override
-  Stream<double> getMatchRating(String matchId) {
-    return _rating.getMatchRating(matchId);
-  }
-
-  @override
   Future<void> recomputeOverallRating(
     String userId, {
     String? reason,
