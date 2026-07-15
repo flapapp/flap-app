@@ -5,9 +5,6 @@ import '../entities/user_profile.dart';
 
 /// Reads and updates the signed-in user's Firestore profile document.
 abstract class ProfileRepository {
-  /// Emits `null` if the document is missing; replays the latest snapshot.
-  Stream<UserProfile?> watchUserProfile(String userId);
-
   Future<UserProfile?> fetchUserProfile(String userId);
 
   /// Deep-merge under `settings` (preserves keys not listed in [settingsPatch]).

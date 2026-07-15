@@ -1,8 +1,6 @@
 /// Firestore `users` collection access (implementation detail).
 abstract class ProfileRemoteDataSource {
   /// `null` when the document does not exist.
-  Stream<Map<String, dynamic>?> watchUserDocument(String userId);
-
   Future<Map<String, dynamic>?> getUserDocument(String userId);
 
   /// Merges [settingsPatch] into existing `settings` without dropping other keys.

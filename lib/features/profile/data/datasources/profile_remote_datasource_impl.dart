@@ -1,6 +1,3 @@
-import 'dart:async';
-
-import 'package:rxdart/rxdart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/locale/football_position.dart';
@@ -13,21 +10,6 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
 
   final SupabaseClient _client;
   late final ProfileDocumentLoader _loader = ProfileDocumentLoader(_client);
-
-  @override
-  Stream<Map<String, dynamic>?> watchUserDocument(String userId) {
-    final profiles = _client
-        .from('profiles')
-        .stream(primaryKey: ['id'])
-        .eq('id', userId);
-    final settings = _client
-        .from('user_settings')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', userId);
-    return Rx.merge<dynamic>([profiles, settings]).asyncMap(
-      (_) => getUserDocument(userId),
-    );
-  }
 
   @override
   Future<Map<String, dynamic>?> getUserDocument(String userId) =>

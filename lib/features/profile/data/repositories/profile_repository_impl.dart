@@ -14,14 +14,6 @@ class ProfileRepositoryImpl implements ProfileRepository {
   final ProfileStorageDataSource _storage;
 
   @override
-  Stream<UserProfile?> watchUserProfile(String userId) {
-    return _remote.watchUserDocument(userId).map((data) {
-      if (data == null) return null;
-      return UserProfile.fromDocument(userId, data);
-    });
-  }
-
-  @override
   Future<UserProfile?> fetchUserProfile(String userId) async {
     final data = await _remote.getUserDocument(userId);
     if (data == null) return null;
