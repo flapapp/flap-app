@@ -99,6 +99,37 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
     return Stream.fromFuture(_matchRepo.fetchMatchById(widget.match.id));
   }
 
+  /// This match's team-vs-team requests. Filtered server-side by `match_id`
+  /// (previously each card streamed the whole table and filtered in Dart), and
+  /// shared by the three cards below so they issue one query between them.
+  /// Refreshed by [_loadMatchData] after every mutation and on app resume.
+  Future<List<Map<String, dynamic>>>? _teamRequestsFuture;
+  List<Map<String, dynamic>> _lastTeamRequests = const [];
+
+  Future<List<Map<String, dynamic>>> _fetchTeamRequests() async {
+    final rows = await _sb
+        .from('team_match_requests')
+        .select()
+        .eq('match_id', widget.match.id);
+    return (rows as List<dynamic>)
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .toList(growable: false);
+  }
+
+  void _refreshTeamRequests() {
+    _teamRequestsFuture = _fetchTeamRequests();
+  }
+
+  /// Seeds the cards across refreshes so re-reading does not blank them.
+  List<Map<String, dynamic>> _teamRequestsOf(
+    AsyncSnapshot<List<Map<String, dynamic>>> snap,
+  ) {
+    if (snap.data != null) {
+      _lastTeamRequests = snap.data!;
+    }
+    return snap.data ?? _lastTeamRequests;
+  }
+
   /// Prefer realtime payload vs [_latestMatch] by [Match.updatedAt] so local reload after mutations
   /// (e.g. form teams) wins until the stream catches up with the same or newer row.
   Match? _mergeStreamAndLatest(AsyncSnapshot<Match?> snap) {
@@ -264,7 +295,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Future<void> _loadMatchData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      // Team requests no longer arrive over realtime, so re-read them
+      // alongside the match itself.
+      _refreshTeamRequests();
+    });
 
     try {
       final updatedMatch = await _matchRepo.fetchMatchById(widget.match.id);
@@ -1174,20 +1210,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Widget _buildClubVsCard(Match m) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _sb
-          .from('team_match_requests')
-          .stream(primaryKey: ['id'])
-          .map(
-            (rows) => (rows as List<dynamic>)
-                .map((raw) => Map<String, dynamic>.from(raw as Map))
-                .where((row) => (row['match_id'] ?? '').toString() == m.id)
-                .toList(growable: false),
-          ),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _teamRequestsFuture,
       builder: (context, inviteSnap) {
         final invite = _resolveManagementTeamInviteRequest(
           m,
-          inviteSnap.data ?? const [],
+          _teamRequestsOf(inviteSnap),
         );
         final effectiveTeamAId = (m.teamAId ?? '').trim().isNotEmpty
             ? (m.teamAId ?? '').trim()
@@ -1348,20 +1376,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Widget _buildManagementButtons(Match m) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _sb
-          .from('team_match_requests')
-          .stream(primaryKey: ['id'])
-          .map(
-            (rows) => (rows as List<dynamic>)
-                .map((raw) => Map<String, dynamic>.from(raw as Map))
-                .where((row) => (row['match_id'] ?? '').toString() == m.id)
-                .toList(growable: false),
-          ),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _teamRequestsFuture,
       builder: (context, snapshot) {
         final invite = _resolveManagementTeamInviteRequest(
           m,
-          snapshot.data ?? const [],
+          _teamRequestsOf(snapshot),
         );
         final effectiveTeamAId = (m.teamAId ?? '').trim().isNotEmpty
             ? (m.teamAId ?? '').trim()
@@ -1696,20 +1716,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Widget _buildTeamConfirmationCard(Match m, bool isOrganizer) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _sb
-          .from('team_match_requests')
-          .stream(primaryKey: ['id'])
-          .map(
-            (rows) => (rows as List<dynamic>)
-                .map((raw) => Map<String, dynamic>.from(raw as Map))
-                .where((row) => (row['match_id'] ?? '').toString() == m.id)
-                .toList(growable: false),
-          ),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _teamRequestsFuture,
       builder: (context, snapshot) {
         final invite = _resolveManagementTeamInviteRequest(
           m,
-          snapshot.data ?? const [],
+          _teamRequestsOf(snapshot),
         );
         final effectiveTeamAId = (m.teamAId ?? '').trim().isNotEmpty
             ? (m.teamAId ?? '').trim()

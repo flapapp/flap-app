@@ -85,11 +85,34 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   String _myInviteStatus = '';
   final ImagePicker _imagePicker = ImagePicker();
 
+  /// This match's team-vs-team requests, filtered server-side by `match_id`.
+  /// Previously this card streamed the whole `team_match_requests` table and
+  /// filtered in Dart; the organizer's own invite actions refresh it now.
+  Future<List<Map<String, dynamic>>>? _teamRequestsFuture;
+  List<Map<String, dynamic>> _lastTeamRequests = const [];
+
   @override
   void initState() {
     super.initState();
     _loadMyInviteStatus();
     _matchPhotosFuture = _loadMatchPhotos();
+    _teamRequestsFuture = _fetchTeamRequests();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchTeamRequests() async {
+    final rows = await _sb
+        .from('team_match_requests')
+        .select()
+        .eq('match_id', widget.match.id);
+    return (rows as List<dynamic>)
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .toList(growable: false);
+  }
+
+  /// Re-read the team invitation card (after the organizer sends/changes one).
+  void _refreshTeamRequests() {
+    if (!mounted) return;
+    setState(() => _teamRequestsFuture = _fetchTeamRequests());
   }
 
   Future<void> _loadMyInviteStatus() async {
@@ -1483,18 +1506,17 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Widget _buildTeamInvitationManagementSection(Match match) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _sb
-          .from('team_match_requests')
-          .stream(primaryKey: ['id'])
-          .map(
-            (rows) => (rows as List<dynamic>)
-                .map((raw) => Map<String, dynamic>.from(raw as Map))
-                .where((row) => (row['match_id'] ?? '').toString() == match.id)
-                .toList(growable: false),
-          ),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _teamRequestsFuture,
       builder: (context, snapshot) {
-        final invite = _resolveTeamInviteRequest(match, snapshot.data ?? const []);
+        if (snapshot.data != null) {
+          _lastTeamRequests = snapshot.data!;
+        }
+        // Seeded so a refresh updates the card in place.
+        final invite = _resolveTeamInviteRequest(
+          match,
+          snapshot.data ?? _lastTeamRequests,
+        );
         final currentUserId = AppAuth.currentUserId;
         final isOrganizer =
             currentUserId != null && currentUserId == match.organizerId;
@@ -1788,6 +1810,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       );
 
       if (!mounted) return;
+      _refreshTeamRequests();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

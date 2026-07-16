@@ -104,6 +104,25 @@ class _MatchesScreenState extends State<MatchesScreen>
   final Map<String, String> _teamNameCache = {};
   final Map<String, String> _teamLogoCache = {};
 
+  /// Team-vs-team requests per match, filtered server-side by `match_id`.
+  /// The banner used to open a whole-table realtime stream *per card*; this
+  /// caches one query per match so rebuilding the list (scrolling, setState)
+  /// never re-queries. Cleared whenever the lists reload.
+  final Map<String, Future<List<Map<String, dynamic>>>> _teamRequestsByMatch =
+      {};
+
+  Future<List<Map<String, dynamic>>> _teamRequestsFor(String matchId) {
+    return _teamRequestsByMatch.putIfAbsent(matchId, () async {
+      final rows = await _sb
+          .from('team_match_requests')
+          .select()
+          .eq('match_id', matchId);
+      return (rows as List<dynamic>)
+          .map((raw) => Map<String, dynamic>.from(raw as Map))
+          .toList(growable: false);
+    });
+  }
+
   Future<bool?> _confirm(String title, String message) {
     return showDialog<bool>(
       context: context,
@@ -195,12 +214,16 @@ class _MatchesScreenState extends State<MatchesScreen>
 
   void _refreshMatchLists() {
     if (!mounted) return;
+    _teamRequestsByMatch.clear();
     unawaited(_matchesListCubit.load());
   }
 
   /// Pull-to-refresh handler; returns the load future so the spinner shows
   /// until the lists have refreshed.
-  Future<void> _pullToRefreshMatches() => _matchesListCubit.load();
+  Future<void> _pullToRefreshMatches() {
+    _teamRequestsByMatch.clear();
+    return _matchesListCubit.load();
+  }
 
   /// Refresh the lists when the app returns to the foreground so status
   /// (created, joined, started, finished, cancelled) picks up other users'
@@ -3610,18 +3633,11 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 
   Widget _buildTeamMatchBanner(Match match) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _sb
-          .from('team_match_requests')
-          .stream(primaryKey: ['id'])
-          .map(
-            (rows) => (rows as List<dynamic>)
-                .map((raw) => Map<String, dynamic>.from(raw as Map))
-                .where((row) => (row['match_id'] ?? '').toString() == match.id)
-                .toList(growable: false),
-          ),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _teamRequestsFor(match.id),
       builder: (context, snapshot) {
-        final invite = _resolveListTeamInviteRequest(match, snapshot.data ?? const []);
+        final invite =
+            _resolveListTeamInviteRequest(match, snapshot.data ?? const []);
         final creatorTeamId = (match.teamAId ?? '').trim().isNotEmpty
             ? (match.teamAId ?? '').trim()
             : (invite?['requesting_team_id'] ?? '').toString();
