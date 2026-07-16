@@ -1,4 +1,3 @@
-import 'package:rxdart/rxdart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/team_stats.dart' show mapTeamStatsRowToLegacyShape;
@@ -88,77 +87,67 @@ class TeamsRemoteDataSourceImpl implements TeamsRemoteDataSource {
     };
   }
 
+  /// Single-emission stream: the team bundle is fetched once per subscription.
+  /// Callers re-subscribe (pull-to-refresh, app resume, after a mutation) to
+  /// pick up other users' roster/profile edits.
   @override
   Stream<Map<String, dynamic>?> watchTeamDocument(String teamId) {
-    final teams = _client
-        .from('teams')
-        .stream(primaryKey: ['id'])
-        .eq('id', teamId);
-    final members = _client
-        .from('team_members')
-        .stream(primaryKey: ['id'])
-        .eq('team_id', teamId);
-    return Rx.merge<dynamic>([teams, members]).asyncMap((_) => _bundleTeam(teamId));
+    return Stream.fromFuture(_bundleTeam(teamId));
   }
 
+  /// Single-emission stream of every team, each with its aggregated stats.
+  /// Sorted by name here; the hub applies its own ranking on top.
   @override
   Stream<List<Map<String, dynamic>>> watchTeamsOrderedByWins() {
-    return _client
-        .from('teams')
-        .stream(primaryKey: ['id'])
-        .asyncMap((allRows) async {
-          final rows = (allRows as List<dynamic>).cast<Map<String, dynamic>>();
-          rows.sort((a, b) {
-            final na = (a['name'] ?? '').toString();
-            final nb = (b['name'] ?? '').toString();
-            return na.compareTo(nb);
-          });
-          final out = <Map<String, dynamic>>[];
-          for (final t in rows) {
-            final id = t['id'] as String;
-            final bundle = await _bundleTeam(id);
-            if (bundle != null) {
-              out.add(bundle);
-            }
-          }
-          return out;
-        });
+    return Stream.fromFuture(_fetchTeamsOrderedByWins());
   }
 
+  Future<List<Map<String, dynamic>>> _fetchTeamsOrderedByWins() async {
+    final allRows = await _client.from('teams').select('id').order('name');
+    final out = <Map<String, dynamic>>[];
+    for (final raw in allRows as List<dynamic>) {
+      final id = (raw as Map<String, dynamic>)['id'] as String;
+      final bundle = await _bundleTeam(id);
+      if (bundle != null) {
+        out.add(bundle);
+      }
+    }
+    return out;
+  }
+
+  /// Single-emission stream joining `teams` with `team_stats` into the legacy
+  /// shape. Two queries instead of two live subscriptions over whole tables.
   @override
   Stream<List<Map<String, dynamic>>> watchTeamStatsCollection() {
-    final teamsStream =
-        _client.from('teams').stream(primaryKey: ['id']);
-    final statsStream =
-        _client.from('team_stats').stream(primaryKey: ['team_id']);
+    return Stream.fromFuture(_fetchTeamStatsCollection());
+  }
 
-    return Rx.combineLatest2<List<Map<String, dynamic>>,
-        List<Map<String, dynamic>>, List<Map<String, dynamic>>>(
-      teamsStream,
-      statsStream.startWith(const <Map<String, dynamic>>[]),
-      (teamRows, statRows) {
-        final byTeamId = <String, Map<String, dynamic>>{
-          for (final s in statRows) (s['team_id']?.toString() ?? ''): s,
-        };
-        final list = <Map<String, dynamic>>[];
-        for (final t in teamRows) {
-          final id = t['id']?.toString() ?? '';
-          if (id.isEmpty) continue;
-          final s = byTeamId[id] ?? const <String, dynamic>{};
-          list.add(
-            mapTeamStatsRowToLegacyShape(
-              <String, dynamic>{
-                'team_name': t['name'],
-                'updated_at': t['updated_at'],
-                ...s,
-              },
-              fallbackName: (t['name'] ?? '').toString(),
-            )..putIfAbsent('id', () => id),
-          );
-        }
-        return list;
-      },
-    );
+  Future<List<Map<String, dynamic>>> _fetchTeamStatsCollection() async {
+    final teamRows = (await _client.from('teams').select('id,name,updated_at'))
+        .cast<Map<String, dynamic>>();
+    final statRows = (await _client.from('team_stats').select())
+        .cast<Map<String, dynamic>>();
+
+    final byTeamId = <String, Map<String, dynamic>>{
+      for (final s in statRows) (s['team_id']?.toString() ?? ''): s,
+    };
+    final list = <Map<String, dynamic>>[];
+    for (final t in teamRows) {
+      final id = t['id']?.toString() ?? '';
+      if (id.isEmpty) continue;
+      final s = byTeamId[id] ?? const <String, dynamic>{};
+      list.add(
+        mapTeamStatsRowToLegacyShape(
+          <String, dynamic>{
+            'team_name': t['name'],
+            'updated_at': t['updated_at'],
+            ...s,
+          },
+          fallbackName: (t['name'] ?? '').toString(),
+        )..putIfAbsent('id', () => id),
+      );
+    }
+    return list;
   }
 }
 

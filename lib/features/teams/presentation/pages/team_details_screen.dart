@@ -40,11 +40,21 @@ class TeamDetailsScreen extends StatefulWidget {
   State<TeamDetailsScreen> createState() => _TeamDetailsScreenState();
 }
 
-class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
+class _TeamDetailsScreenState extends State<TeamDetailsScreen>
+    with WidgetsBindingObserver {
   TeamsRepository get _teamsRepo => sl<TeamsRepository>();
 
-  late final Stream<AppTeam?> _teamWatch;
-  late final Stream<Map<String, dynamic>?> _teamStatsWatch;
+  // Re-bound by [_refreshTeamDetails]: each of these emits once per
+  // subscription, so re-subscribing is what re-reads the data.
+  late Stream<AppTeam?> _teamWatch;
+  late Stream<Map<String, dynamic>?> _teamStatsWatch;
+  late Stream<TeamJoinRequest?> _myJoinRequestWatch;
+  late Stream<List<TeamJoinRequest>> _joinRequestsWatch;
+  late Stream<List<TeamInvite>> _sentInvitesWatch;
+  // Seeds the team StreamBuilder across re-binds so a refresh updates the page
+  // in place instead of flashing the loading state.
+  AppTeam? _lastTeam;
+  Map<String, dynamic>? _lastTeamStats;
   // Players accepted this session, injected into the roster locally so the
   // owner sees them immediately (no realtime/DB round-trip). Unioned with the
   // authoritative team.memberIds on render.
@@ -77,9 +87,36 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _subscribeTeamStreams();
+    _subscribeMatchRequestStreams();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Re-read the page when the app returns to the foreground, so roster and
+  /// request changes made by others show up without a live subscription.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _refreshTeamDetails();
+    }
+  }
+
+  void _subscribeTeamStreams() {
+    final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
     _teamWatch = sl<TeamsRepository>().watchTeam(widget.teamId);
     _teamStatsWatch = sl<TeamStatsRepository>().watchTeamStats(widget.teamId);
-    _subscribeMatchRequestStreams();
+    _joinRequestsWatch = _teamsRepo.watchJoinRequests(widget.teamId);
+    _sentInvitesWatch = _teamsRepo.watchSentInvites(widget.teamId);
+    _myJoinRequestWatch = uid != null
+        ? _teamsRepo.watchMyJoinRequest(widget.teamId, uid)
+        : Stream<TeamJoinRequest?>.value(null);
   }
 
   void _subscribeMatchRequestStreams() {
@@ -89,12 +126,14 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         _teamsRepo.watchOutgoingTeamMatchRequests(widget.teamId);
   }
 
-  // Re-subscribe the invite/request streams. Each `.stream()` re-emits a fresh
-  // initial snapshot on subscribe, so this recovers any invite that a dropped
-  // realtime event would otherwise have left missing until an app restart.
-  Future<void> _refreshMatchRequests() async {
+  /// Re-subscribe every stream on the page, re-running each underlying query.
+  /// Match invites stay realtime; the rest are one-shot reads refreshed here.
+  Future<void> _refreshTeamDetails() async {
     if (!mounted) return;
-    setState(_subscribeMatchRequestStreams);
+    setState(() {
+      _subscribeTeamStreams();
+      _subscribeMatchRequestStreams();
+    });
   }
 
   /// Roster ids to render: the authoritative server list unioned with players
@@ -112,7 +151,11 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     return StreamBuilder<AppTeam?>(
       stream: _teamWatch,
       builder: (context, snapshot) {
-        final team = snapshot.data;
+        if (snapshot.data != null) {
+          _lastTeam = snapshot.data;
+        }
+        // Seeded across re-binds so a refresh keeps the page rendered.
+        final team = snapshot.data ?? _lastTeam;
         final uid = sl<AuthSessionRepository>().peekCurrentUser?.uid;
         final isCaptain = team != null && uid == team.captainId;
         final isVice = team != null && team.viceCaptainIds.contains(uid);
@@ -169,13 +212,16 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     return StreamBuilder<Map<String, dynamic>?>(
       stream: _teamStatsWatch,
       builder: (context, statsSnap) {
+        if (statsSnap.data != null) {
+          _lastTeamStats = statsSnap.data;
+        }
         final stats = TeamStats.fromFirestoreMap(
           team.id,
-          statsSnap.data,
+          statsSnap.data ?? _lastTeamStats,
           fallbackName: team.name,
         );
         return RefreshIndicator(
-          onRefresh: _refreshMatchRequests,
+          onRefresh: _refreshTeamDetails,
           color: FlapColors.greenBright,
           backgroundColor: FlapColors.card,
           child: SingleChildScrollView(
@@ -276,7 +322,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   /// detail page).
   Widget _buildAppBarJoinAction(AppTeam team, String uid) {
     return StreamBuilder<TeamJoinRequest?>(
-      stream: _teamsRepo.watchMyJoinRequest(team.id, uid),
+      stream: _myJoinRequestWatch,
       builder: (context, reqSnap) {
         final pending = reqSnap.data?.status == TeamJoinRequestStatus.pending;
         if (pending) {
@@ -609,7 +655,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         border: Border.all(color: const Color(0x474CAF50)),
       ),
       child: StreamBuilder<List<TeamJoinRequest>>(
-        stream: _teamsRepo.watchJoinRequests(team.id),
+        stream: _joinRequestsWatch,
         builder: (context, snapshot) {
           final streamRequests = snapshot.data ?? const <TeamJoinRequest>[];
           // Drop optimistic hides once the realtime stream no longer returns
@@ -782,7 +828,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
   /// captain's desk so officers can track (and retract) who they invited.
   Widget _buildSentInvites(AppTeam team) {
     return StreamBuilder<List<TeamInvite>>(
-      stream: _teamsRepo.watchSentInvites(team.id),
+      stream: _sentInvitesWatch,
       builder: (context, snapshot) {
         final streamInvites = snapshot.data ?? const <TeamInvite>[];
         // Drop optimistic hides once the realtime stream no longer returns the
@@ -2004,7 +2050,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     final friends =
         await sl<PlayerSocialRepository>().listFriendsOfUser(team.captainId);
     if (!mounted) return;
-    showModalBottomSheet(
+    final sent = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF0E1310),
@@ -2018,6 +2064,10 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         );
       },
     );
+    // Invites no longer arrive over realtime, so re-read the list on return.
+    if (sent == true) {
+      await _refreshTeamDetails();
+    }
   }
 }
 
@@ -2084,7 +2134,8 @@ class _InviteSheetState extends State<_InviteSheet> {
       userIds: _selectedIds.toList(),
     );
     if (!mounted) return;
-    Navigator.pop(context);
+    // `true` tells the team page to re-read its sent-invite list.
+    Navigator.pop(context, true);
   }
 
   @override

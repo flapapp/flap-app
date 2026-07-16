@@ -25,19 +25,47 @@ class TeamHubScreen extends StatefulWidget {
 }
 
 class _TeamHubScreenState extends State<TeamHubScreen>
-    with ScrollAwareFabMixin {
-  late final Stream<List<AppTeam>> _teamsLeaderboardStream;
-  late final Stream<Map<String, TeamStats>> _teamStatsIndexStream;
+    with ScrollAwareFabMixin, WidgetsBindingObserver {
+  late Stream<List<AppTeam>> _teamsLeaderboardStream;
+  late Stream<Map<String, TeamStats>> _teamStatsIndexStream;
   late Stream<List<AppTeam>> _myTeamsStream;
   int _myTeamsStreamEpoch = 0;
+
+  // These streams emit once per subscription, so re-binding them resets the
+  // StreamBuilders to `waiting` with no data. Seed each builder with the last
+  // value so a refresh updates in place instead of flashing back to skeleton.
+  List<AppTeam>? _lastLeaderboard;
+  Map<String, TeamStats>? _lastStatsIndex;
+  List<AppTeam>? _lastMyTeams;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _bindHubStreams();
+    _bindMyTeamsStream();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Re-read the hub when the app returns to the foreground so standings and
+  /// rosters pick up other users' changes without a live subscription.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _refreshHub();
+    }
+  }
+
+  void _bindHubStreams() {
     final teamsRepo = sl<TeamsRepository>();
     _teamsLeaderboardStream = teamsRepo.watchTeamsOrderedByWins();
     _teamStatsIndexStream = teamsRepo.watchAllTeamStatsById();
-    _bindMyTeamsStream();
   }
 
   void _bindMyTeamsStream() {
@@ -45,6 +73,16 @@ class _TeamHubScreenState extends State<TeamHubScreen>
     _myTeamsStream = uid != null
         ? sl<ProfileTeamMembershipRepository>().watchUserTeams(uid)
         : Stream<List<AppTeam>>.value(const []);
+  }
+
+  /// Re-subscribe every hub stream, which re-runs the underlying queries.
+  Future<void> _refreshHub() async {
+    if (!mounted) return;
+    setState(() {
+      _bindHubStreams();
+      _bindMyTeamsStream();
+      _myTeamsStreamEpoch++;
+    });
   }
 
   @override
@@ -91,15 +129,21 @@ class _TeamHubScreenState extends State<TeamHubScreen>
       body: scrollAwareBody(StreamBuilder<List<AppTeam>>(
         stream: _teamsLeaderboardStream,
         builder: (context, teamSnapshot) {
-          if (teamSnapshot.connectionState == ConnectionState.waiting &&
-              teamSnapshot.data == null) {
+          if (teamSnapshot.data != null) {
+            _lastLeaderboard = teamSnapshot.data;
+          }
+          final teams = teamSnapshot.data ?? _lastLeaderboard;
+          if (teams == null) {
             return _buildHubSkeleton();
           }
-          final teams = teamSnapshot.data ?? const [];
           return StreamBuilder<Map<String, TeamStats>>(
             stream: _teamStatsIndexStream,
             builder: (context, statsSnapshot) {
-              final statsMap = statsSnapshot.data ?? const {};
+              if (statsSnapshot.data != null) {
+                _lastStatsIndex = statsSnapshot.data;
+              }
+              final statsMap =
+                  statsSnapshot.data ?? _lastStatsIndex ?? const {};
               final teamNameMap = {
                 for (final team in teams) team.id: team.name,
               };
@@ -114,7 +158,7 @@ class _TeamHubScreenState extends State<TeamHubScreen>
               final leader = enriched.isNotEmpty ? enriched.first : null;
 
               return RefreshIndicator(
-                onRefresh: () async => setState(() {}),
+                onRefresh: _refreshHub,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
@@ -385,7 +429,12 @@ class _TeamHubScreenState extends State<TeamHubScreen>
       key: ValueKey<int>(_myTeamsStreamEpoch),
       stream: _myTeamsStream,
       builder: (context, snapshot) {
-        final myTeams = snapshot.data ?? const [];
+        if (snapshot.data != null) {
+          _lastMyTeams = snapshot.data;
+        }
+        // Seeded with the previous value so a refresh does not flash the
+        // "no teams" empty state while the query is in flight.
+        final myTeams = snapshot.data ?? _lastMyTeams ?? const <AppTeam>[];
         if (myTeams.isEmpty) {
           return _emptyState(
             title: tr('il_3ac1496270'),

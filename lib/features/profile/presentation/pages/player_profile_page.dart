@@ -69,6 +69,17 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   List<app_badge.Badge> _userBadges = [];
   int _badgeEndorseVersion = 0;
   List<AppTeam> _playerTeams = [];
+  // Team stats now resolve through a one-shot query per subscription, so the
+  // result is cached per team id — rebuilding this list (scrolling, setState)
+  // must not re-run the query for every card.
+  final Map<String, Future<Map<String, dynamic>?>> _teamStatsFutures = {};
+
+  Future<Map<String, dynamic>?> _teamStatsFutureFor(String teamId) {
+    return _teamStatsFutures.putIfAbsent(
+      teamId,
+      () => sl<TeamStatsRepository>().watchTeamStats(teamId).first,
+    );
+  }
 
   @override
   void initState() {
@@ -1143,8 +1154,7 @@ const SizedBox(height: 12),
                     final team = _playerTeams[index];
                     return _MiniTeamCard(
                       team: team,
-                      teamStatsStream:
-                          sl<TeamStatsRepository>().watchTeamStats(team.id),
+                      teamStatsFuture: _teamStatsFutureFor(team.id),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -1727,19 +1737,19 @@ enum _FlapBtnTone { primary, neutral }
 
 class _MiniTeamCard extends StatelessWidget {
   final AppTeam team;
-  final Stream<Map<String, dynamic>?> teamStatsStream;
+  final Future<Map<String, dynamic>?> teamStatsFuture;
   final VoidCallback? onTap;
 
   const _MiniTeamCard({
     required this.team,
-    required this.teamStatsStream,
+    required this.teamStatsFuture,
     this.onTap,
   });
 
  @override
 Widget build(BuildContext context) {
-  return StreamBuilder<Map<String, dynamic>?>(
-    stream: teamStatsStream,
+  return FutureBuilder<Map<String, dynamic>?>(
+    future: teamStatsFuture,
     builder: (context, snapshot) {
       final stats = snapshot.data ?? const <String, dynamic>{};
 

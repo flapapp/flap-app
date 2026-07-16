@@ -98,23 +98,11 @@ class TeamService {
     });
   }
 
+  /// Single-emission stream of the user's teams. Membership only changes
+  /// through actions the app already refreshes after (create / join / leave /
+  /// invite response), so this is fetched once per subscription.
   Stream<List<AppTeam>> watchUserTeams(String userId) {
-    return _sb
-        .from('team_members')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', userId)
-        .asyncMap((rows) async {
-      final ids = (rows as List<dynamic>)
-          .map((r) => (r as Map<String, dynamic>)['team_id']?.toString() ?? '')
-          .where((id) => id.isNotEmpty)
-          .toSet();
-      final teams = <AppTeam>[];
-      for (final id in ids) {
-        final t = await _loadTeam(id);
-        if (t != null) teams.add(t);
-      }
-      return teams;
-    });
+    return Stream.fromFuture(fetchUserTeams(userId));
   }
 
   Future<List<AppTeam>> fetchUserTeams(String userId) async {
@@ -264,58 +252,81 @@ class TeamService {
     // Backend trigger handles team invitation notifications.
   }
 
+  /// Single-emission stream of the pending invitations sent to [userId].
+  /// Notifications already tell the user an invite arrived; the list itself is
+  /// fetched once per subscription and re-read on refresh.
   Stream<List<TeamInvite>> watchInvites(String userId) {
-    return _sb
-        .from('team_invites')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) async {
-      final invites = <TeamInvite>[];
-      for (final raw in rows as List<dynamic>) {
-        final row = raw as Map<String, dynamic>;
-        if ((row['user_id'] ?? '').toString() != userId) continue;
-        if ((row['status'] ?? '').toString() != 'pending') continue;
-        final teamId = (row['team_id'] ?? '').toString();
-        final team = await _sb.from('teams').select('name').eq('id', teamId).maybeSingle();
-        invites.add(TeamInvite.fromJson(<String, dynamic>{
-          'id': row['id'],
-          'teamId': teamId,
-          'teamName': (team?['name'] ?? '').toString(),
-          'userId': row['user_id'],
-          'invitedBy': row['invited_by'],
-          'status': row['status'],
-          'createdAt': row['created_at'],
-        }));
-      }
-      return invites;
-    });
+    return Stream.fromFuture(fetchInvites(userId));
   }
 
-  /// Streams the pending invitations a team has sent to players, for team
-  /// officers to review on the team detail page. RLS restricts reads to
-  /// involved users (invitee, inviter, or a team officer).
-  Stream<List<TeamInvite>> watchSentInvites(String teamId) {
-    return _sb
+  Future<List<TeamInvite>> fetchInvites(String userId) async {
+    final rows = await _sb
         .from('team_invites')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) {
-      final invites = <TeamInvite>[];
-      for (final raw in rows as List<dynamic>) {
-        final row = raw as Map<String, dynamic>;
-        if ((row['team_id'] ?? '').toString() != teamId) continue;
-        if ((row['status'] ?? '').toString() != 'pending') continue;
-        invites.add(TeamInvite.fromJson(<String, dynamic>{
-          'id': row['id'],
-          'teamId': row['team_id'],
-          'teamName': '',
-          'userId': row['user_id'],
-          'invitedBy': row['invited_by'],
-          'status': row['status'],
-          'createdAt': row['created_at'],
-        }));
-      }
-      invites.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return invites;
-    });
+        .select()
+        .eq('user_id', userId)
+        .eq('status', 'pending');
+    final invites = (rows as List<dynamic>).cast<Map<String, dynamic>>();
+    final teamNames = await _fetchTeamNames(
+      invites.map((row) => (row['team_id'] ?? '').toString()),
+    );
+    return invites.map((row) {
+      final teamId = (row['team_id'] ?? '').toString();
+      return TeamInvite.fromJson(<String, dynamic>{
+        'id': row['id'],
+        'teamId': teamId,
+        'teamName': teamNames[teamId] ?? '',
+        'userId': row['user_id'],
+        'invitedBy': row['invited_by'],
+        'status': row['status'],
+        'createdAt': row['created_at'],
+      });
+    }).toList();
+  }
+
+  /// Batch team-name lookup, replacing the per-row query these mappers used to
+  /// run for every invite / join request.
+  Future<Map<String, String>> _fetchTeamNames(Iterable<String> teamIds) async {
+    final ids = teamIds.where((id) => id.isNotEmpty).toSet().toList();
+    if (ids.isEmpty) return const {};
+    final rows = await _sb.from('teams').select('id,name').inFilter('id', ids);
+    return <String, String>{
+      for (final raw in rows as List<dynamic>)
+        (raw as Map<String, dynamic>)['id'].toString():
+            (raw['name'] ?? '').toString(),
+    };
+  }
+
+  /// The pending invitations a team has sent to players, for team officers to
+  /// review on the team detail page. RLS restricts reads to involved users
+  /// (invitee, inviter, or a team officer).
+  ///
+  /// Single-emission: the officer sending or retracting an invite refreshes
+  /// this list directly, so it does not need a live subscription.
+  Stream<List<TeamInvite>> watchSentInvites(String teamId) {
+    return Stream.fromFuture(fetchSentInvites(teamId));
+  }
+
+  Future<List<TeamInvite>> fetchSentInvites(String teamId) async {
+    final rows = await _sb
+        .from('team_invites')
+        .select()
+        .eq('team_id', teamId)
+        .eq('status', 'pending')
+        .order('created_at', ascending: false);
+    return (rows as List<dynamic>)
+        .map((raw) {
+          final row = raw as Map<String, dynamic>;
+          return TeamInvite.fromJson(<String, dynamic>{
+            'id': row['id'],
+            'teamId': row['team_id'],
+            'teamName': '',
+            'userId': row['user_id'],
+            'invitedBy': row['invited_by'],
+            'status': row['status'],
+            'createdAt': row['created_at'],
+          });
+        })
+        .toList(growable: false);
   }
 
   /// Retracts a pending invitation. Officer-only via RLS.
@@ -368,36 +379,40 @@ class TeamService {
     }
   }
 
+  /// Single-emission stream of a team's pending join requests. Officers are
+  /// notified when one arrives, and responding to one refreshes this list.
   Stream<List<TeamJoinRequest>> watchJoinRequests(String teamId) {
-    return _sb
-        .from('team_join_requests')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) {
-      final filtered = (rows as List<dynamic>).where((raw) {
-        final row = raw as Map<String, dynamic>;
-        return (row['team_id'] ?? '').toString() == teamId &&
-            (row['status'] ?? '').toString() == 'pending';
-      }).toList();
-      return _mapJoinRequests(filtered);
-    });
+    return Stream.fromFuture(fetchJoinRequests(teamId));
   }
 
-  Stream<TeamJoinRequest?> watchMyJoinRequest(
-      String teamId, String userId) {
-    return _sb
+  Future<List<TeamJoinRequest>> fetchJoinRequests(String teamId) async {
+    final rows = await _sb
         .from('team_join_requests')
-        .stream(primaryKey: ['id'])
-        .asyncMap((rows) async {
-      final filtered = (rows as List<dynamic>).where((raw) {
-        final row = raw as Map<String, dynamic>;
-        return (row['team_id'] ?? '').toString() == teamId &&
-            (row['user_id'] ?? '').toString() == userId;
-      }).toList();
-      final mapped = await _mapJoinRequests(filtered);
-      if (mapped.isEmpty) return null;
-      mapped.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return mapped.first;
-    });
+        .select()
+        .eq('team_id', teamId)
+        .eq('status', 'pending');
+    return _mapJoinRequests(rows as List<dynamic>);
+  }
+
+  /// Single-emission stream of the viewer's own join request for [teamId]
+  /// (most recent first), used to show "request pending" on the team page.
+  Stream<TeamJoinRequest?> watchMyJoinRequest(String teamId, String userId) {
+    return Stream.fromFuture(fetchMyJoinRequest(teamId, userId));
+  }
+
+  Future<TeamJoinRequest?> fetchMyJoinRequest(
+    String teamId,
+    String userId,
+  ) async {
+    final rows = await _sb
+        .from('team_join_requests')
+        .select()
+        .eq('team_id', teamId)
+        .eq('user_id', userId);
+    final mapped = await _mapJoinRequests(rows as List<dynamic>);
+    if (mapped.isEmpty) return null;
+    mapped.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return mapped.first;
   }
 
   Future<void> requestToJoinTeam({
