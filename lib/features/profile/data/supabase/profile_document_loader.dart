@@ -53,39 +53,53 @@ class ProfileDocumentLoader {
       return null;
     }
 
-    final settingsRow = await _client
-        .from('user_settings')
-        .select()
-        .eq('user_id', userId)
-        .maybeSingle();
+    // The remaining reads only depend on [userId] and are independent of each
+    // other, so run them concurrently instead of one sequential round-trip per
+    // query. This collapses ~10 serial network waits into a single batch, which
+    // is the dominant cost of post-login navigation. Future.wait triggers each
+    // Postgrest builder exactly once, so they all fire in parallel.
+    final results = await Future.wait<dynamic>([
+      _client
+          .from('user_settings')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle(),
+      _coinBalance(userId),
+      _friendIds(userId),
+      _client.from('user_badges').select('badge_id').eq('user_id', userId),
+      _ratingSnapshot(userId, 'overall'),
+      _ratingSnapshot(userId, 'match'),
+      _ratingSnapshot(userId, 'video'),
+      _client
+          .from('subscriptions')
+          .select('*, subscription_plans(code, name)')
+          .eq('user_id', userId)
+          .inFilter('status', ['trial', 'active'])
+          .order('starts_at', ascending: false)
+          .limit(1)
+          .maybeSingle(),
+      _client.from('challenges').select('id').eq('creator_id', userId),
+      _client.from('videos').select('id').eq('user_id', userId),
+    ]);
 
-    final coins = await _coinBalance(userId);
-    final friends = await _friendIds(userId);
+    final settingsRow = results[0] as Map<String, dynamic>?;
+    final coins = results[1] as int;
+    final friends = results[2] as List<String>;
 
-    final badgeRows = await _client
-        .from('user_badges')
-        .select('badge_id')
-        .eq('user_id', userId);
-    final badgeIds = (badgeRows as List<dynamic>)
+    final badgeRows = results[3] as List<dynamic>;
+    final badgeIds = badgeRows
         .map((r) => (r as Map<String, dynamic>)['badge_id'] as String)
         .toList();
 
-    final overall = await _ratingSnapshot(userId, 'overall');
-    final matchR = await _ratingSnapshot(userId, 'match');
-    final videoR = await _ratingSnapshot(userId, 'video');
+    final overall = results[4] as double?;
+    final matchR = results[5] as double?;
+    final videoR = results[6] as double?;
 
     final rating = overall ?? 3.0;
     final matchRating = matchR ?? rating;
     final videoRating = videoR ?? rating;
 
-    final subRow = await _client
-        .from('subscriptions')
-        .select('*, subscription_plans(code, name)')
-        .eq('user_id', userId)
-        .inFilter('status', ['trial', 'active'])
-        .order('starts_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
+    final subRow = results[7] as Map<String, dynamic>?;
 
     String subscriptionCode = 'free';
     bool subscriptionActive = false;
@@ -106,17 +120,9 @@ class ProfileDocumentLoader {
         (settingsRow?['locale'] ?? 'en').toString();
     final localeUi = localeRaw == 'ua' ? 'uk' : localeRaw;
 
-    final challengeRows = await _client
-        .from('challenges')
-        .select('id')
-        .eq('creator_id', userId);
-    final challengesCreated = (challengeRows as List<dynamic>).length;
+    final challengesCreated = (results[8] as List<dynamic>).length;
 
-    final videoRows = await _client
-        .from('videos')
-        .select('id')
-        .eq('user_id', userId);
-    final videosCount = (videoRows as List<dynamic>).length;
+    final videosCount = (results[9] as List<dynamic>).length;
 
     final firstName = profile['first_name'] as String? ?? '';
     final lastName = profile['last_name'] as String? ?? '';
