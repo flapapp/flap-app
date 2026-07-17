@@ -1,28 +1,19 @@
-import 'dart:async';
-
 import 'package:bloc/bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/auth/app_auth.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/interactions/interaction_store.dart';
-import '../../../../core/supabase/guard_supabase_realtime_stream.dart';
 import '../../data/models/challenge.dart' show computeChallengePrizePoolCoins;
 
-/// Loads challenge submissions and the current user's ratings via standard
-/// selects and keeps participant count, submission count, prize pool, and
-/// entry fee live by subscribing to Supabase realtime streams.
+/// Loads challenge submissions, the current user's ratings, and the header
+/// metadata (participant count, submission count, prize pool, entry fee) via
+/// standard selects.
 ///
-/// Why three streams instead of one query?
-///   * `challenges`              → entry fee can change (admin/edit) and
-///                                  recomputes the prize pool.
-///   * `challenge_participants`  → participant count drives the prize pool.
-///   * `challenge_submissions`   → submission count drives the videos chip
-///                                  on the detail page header.
-///
-/// All three are RLS-`select_all` for authenticated users (see
-/// `20260423000001_flap_initial.sql`), so the join is safe and stays
-/// reactive when other devices mutate the underlying rows.
+/// [load] fetches everything together, so a single [refresh] updates the whole
+/// page. The screen already refreshes after the two actions that can change
+/// these numbers — returning from the video player and from an upload — and
+/// the entry fee only moves on an admin/creator edit, which a reopen picks up.
 class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
   ChallengeDetailsCubit(
     this._challengeId, {
@@ -39,114 +30,32 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
            participantCount: initialParticipantCount ?? 0,
            entryFee: initialEntryFee ?? 0,
          ),
-       )) {
-    _subscribeRealtimeMetadata();
-  }
+       ));
 
   final String _challengeId;
   final String _challengeCreatorId;
   SupabaseClient get _sb => Supabase.instance.client;
 
-  StreamSubscription<List<Map<String, dynamic>>>? _challengeSub;
-  StreamSubscription<List<Map<String, dynamic>>>? _participantsSub;
-  StreamSubscription<List<Map<String, dynamic>>>? _submissionsSub;
-
-  /// Subscribes the cubit to live participant/submission counts and the
-  /// current entry fee for this challenge so the detail screen header
-  /// reflects the database state without manual refreshes.
-  void _subscribeRealtimeMetadata() {
-    if (_challengeId.isEmpty) return;
-
-    _challengeSub = guardSupabaseRealtimeStream(
-      _sb
-          .from('challenges')
-          .stream(primaryKey: ['id'])
-          .eq('id', _challengeId),
-    ).listen(_onChallengeRows, onError: (_) {});
-
-    _participantsSub = guardSupabaseRealtimeStream(
-      _sb
-          .from('challenge_participants')
-          .stream(primaryKey: ['challenge_id', 'user_id'])
-          .eq('challenge_id', _challengeId),
-    ).listen(_onParticipantsRows, onError: (_) {});
-
-    _submissionsSub = guardSupabaseRealtimeStream(
-      _sb
-          .from('challenge_submissions')
-          .stream(primaryKey: ['id'])
-          .eq('challenge_id', _challengeId),
-    ).listen(_onSubmissionsRows, onError: (_) {});
-  }
-
-  void _onChallengeRows(List<Map<String, dynamic>> rows) {
-    if (isClosed || rows.isEmpty) return;
-    final row = rows.first;
-    final entryFee = (row['entry_fee'] as num?)?.toInt() ?? state.entryFee;
-    if (entryFee == state.entryFee) return;
-    emit(state.copyWith(
-      entryFee: entryFee,
-      prizePool: computeChallengePrizePoolCoins(
-        participantCount: state.participantCount,
-        entryFee: entryFee,
-      ),
-    ));
-  }
-
-  void _onParticipantsRows(List<Map<String, dynamic>> rows) {
-    if (isClosed) return;
-    final ids = rows
-        .map((r) => r['user_id']?.toString() ?? '')
+  /// Entry fee (drives the prize pool) and the participant ids/count.
+  /// Submission count comes from the submissions [load] already fetches.
+  Future<({int entryFee, List<String> participantIds})> _fetchMetadata() async {
+    final challengeRow = await _sb
+        .from('challenges')
+        .select('entry_fee')
+        .eq('id', _challengeId)
+        .maybeSingle();
+    final participantRows = await _sb
+        .from('challenge_participants')
+        .select('user_id')
+        .eq('challenge_id', _challengeId);
+    final ids = (participantRows as List<dynamic>)
+        .map((r) => (r as Map<String, dynamic>)['user_id']?.toString() ?? '')
         .where((id) => id.isNotEmpty)
         .toList(growable: false);
-    final count = ids.length;
-    if (count == state.participantCount &&
-        _listEquals(ids, state.participantIds)) {
-      return;
-    }
-    emit(state.copyWith(
-      participantCount: count,
+    return (
+      entryFee: (challengeRow?['entry_fee'] as num?)?.toInt() ?? state.entryFee,
       participantIds: ids,
-      prizePool: computeChallengePrizePoolCoins(
-        participantCount: count,
-        entryFee: state.entryFee,
-      ),
-    ));
-  }
-
-  void _onSubmissionsRows(List<Map<String, dynamic>> rows) {
-    if (isClosed) return;
-    final count = rows.length;
-    if (count != state.submissionCount) {
-      emit(state.copyWith(submissionCount: count));
-    }
-
-    // Reload the full submission list (with ratings + submitter profiles) when
-    // the *set* of submissions changes — e.g. the current user just uploaded an
-    // entry — so the submissions grid and the upload dock update instantly
-    // instead of only the header count.
-    final liveIds = rows
-        .map((r) => r['id']?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toList(growable: false)
-      ..sort();
-    final loadedIds = state.submissions
-        .map((s) => s['id']?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toList(growable: false)
-      ..sort();
-    if (!state.isLoading && !_listEquals(liveIds, loadedIds)) {
-      unawaited(load(force: true));
-    }
-  }
-
-  static bool _listEquals(List<String> a, List<String> b) {
-    if (identical(a, b)) return true;
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
+    );
   }
 
   /// Loads submissions and rating data. Skips network if [force] is false
@@ -160,6 +69,9 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
     }
     emit(state.copyWith(isLoading: true, error: null));
     try {
+      // Header metadata, previously three realtime subscriptions.
+      final metadata = _challengeId.isEmpty ? null : await _fetchMetadata();
+
       final submissionsRows = await _sb
           .from('challenge_submissions')
           .select()
@@ -251,6 +163,9 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
         );
       }
 
+      final participantIds = metadata?.participantIds ?? state.participantIds;
+      final entryFee = metadata?.entryFee ?? state.entryFee;
+
       emit(
         state.copyWith(
           submissions: list,
@@ -259,6 +174,14 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
           isLoading: false,
           error: null,
           loadedChallengeId: _challengeId,
+          participantCount: participantIds.length,
+          participantIds: participantIds,
+          submissionCount: list.length,
+          entryFee: entryFee,
+          prizePool: computeChallengePrizePoolCoins(
+            participantCount: participantIds.length,
+            entryFee: entryFee,
+          ),
         ),
       );
     } catch (e) {
@@ -267,14 +190,6 @@ class ChallengeDetailsCubit extends Cubit<ChallengeDetailsState> {
   }
 
   Future<void> refresh() => load(force: true);
-
-  @override
-  Future<void> close() async {
-    await _challengeSub?.cancel();
-    await _participantsSub?.cancel();
-    await _submissionsSub?.cancel();
-    return super.close();
-  }
 
   Map<String, dynamic> _mapSubmissionRow(Map<String, dynamic> row) {
     final uid = row['user_id']?.toString() ?? '';
@@ -315,9 +230,9 @@ class ChallengeDetailsState {
   final String? error;
   final String? loadedChallengeId;
 
-  /// Live counts/values fed by realtime streams. The screen reads these
-  /// instead of the static `Challenge` entity passed via constructor so
-  /// header chips refresh as participants join or videos are uploaded.
+  /// Counts/values read by [ChallengeDetailsCubit.load]. The screen reads
+  /// these instead of the static `Challenge` entity passed via constructor,
+  /// so header chips reflect the database once the page loads or refreshes.
   final int participantCount;
   final List<String> participantIds;
   final int submissionCount;

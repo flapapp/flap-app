@@ -56,8 +56,8 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
   void initState() {
     super.initState();
     // Seed the cubit with the snapshot we already have from the card so the
-    // header is never blank for a frame; realtime streams overwrite it as
-    // soon as Supabase emits.
+    // header is never blank for a frame; `load()` overwrites it with the
+    // database values as soon as the queries return.
     _detailsCubit = ChallengeDetailsCubit(
       widget.challenge.id,
       challengeCreatorId: widget.challenge.creatorId,
