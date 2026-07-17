@@ -4,8 +4,6 @@ import '../../data/models/subscription.dart';
 abstract class SubscriptionsRepository {
   Future<Subscription?> getUserSubscription(String userId);
 
-  Stream<Subscription?> getUserSubscriptionStream(String userId);
-
   Future<bool> hasActiveSubscription([String? userId]);
 
   Future<SubscriptionType> getSubscriptionType([String? userId]);

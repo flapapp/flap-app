@@ -13,11 +13,6 @@ class SubscriptionsRepositoryImpl implements SubscriptionsRepository {
   }
 
   @override
-  Stream<Subscription?> getUserSubscriptionStream(String userId) {
-    return _service.getUserSubscriptionStream(userId);
-  }
-
-  @override
   Future<bool> hasActiveSubscription([String? userId]) {
     return _service.hasActiveSubscription(userId);
   }

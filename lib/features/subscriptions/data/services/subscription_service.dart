@@ -28,24 +28,6 @@ class SubscriptionService {
     }
   }
 
-  // Get user subscription stream
-  Stream<Subscription?> getUserSubscriptionStream(String userId) {
-    return _client
-        .from('subscriptions')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', userId)
-        .order('starts_at', ascending: false)
-        .map((rows) {
-          final active = rows
-              .where((row) => row['status'] == 'trial' || row['status'] == 'active')
-              .toList(growable: false);
-          if (active.isEmpty) {
-            return null;
-          }
-          return _toSubscription(active.first);
-        });
-  }
-
   // Check if user has active subscription
   Future<bool> hasActiveSubscription([String? userId]) async {
     userId ??= AppAuth.currentUserId;
