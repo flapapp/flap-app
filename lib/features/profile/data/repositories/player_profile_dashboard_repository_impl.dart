@@ -26,28 +26,24 @@ class PlayerProfileDashboardRepositoryImpl
 
   @override
   Future<PlayerProfileDashboardData> loadDashboard(String playerId) async {
-    final profile = await _profileRepository.fetchUserProfile(playerId);
-
-    final stats = await _matchStats.loadFinishedMatchStats(playerId);
-
-    var badges = <app_badge.Badge>[];
-    try {
-      badges = await _badges.getUserBadges(playerId);
-    } catch (_) {}
-
-    final videoMaps = await _videos.listVideosForUser(playerId, 10);
-
-    var teams = <AppTeam>[];
-    try {
-      teams = await _teams.fetchUserTeams(playerId);
-    } catch (_) {}
+    // These five reads are independent — run them concurrently instead of
+    // serially. Badges and teams keep their best-effort fallback via per-future
+    // catchError so one failing source can't sink the whole dashboard.
+    final profileFuture = _profileRepository.fetchUserProfile(playerId);
+    final statsFuture = _matchStats.loadFinishedMatchStats(playerId);
+    final badgesFuture = _badges
+        .getUserBadges(playerId)
+        .catchError((_) => <app_badge.Badge>[]);
+    final videosFuture = _videos.listVideosForUser(playerId, 10);
+    final teamsFuture =
+        _teams.fetchUserTeams(playerId).catchError((_) => <AppTeam>[]);
 
     return PlayerProfileDashboardData(
-      profile: profile,
-      matchStats: stats,
-      badges: badges,
-      videos: videoMaps,
-      teams: teams,
+      profile: await profileFuture,
+      matchStats: await statsFuture,
+      badges: await badgesFuture,
+      videos: await videosFuture,
+      teams: await teamsFuture,
     );
   }
 }

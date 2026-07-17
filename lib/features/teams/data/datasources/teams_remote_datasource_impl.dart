@@ -8,24 +8,25 @@ class TeamsRemoteDataSourceImpl implements TeamsRemoteDataSource {
 
   final SupabaseClient _client;
 
-  Future<Map<String, dynamic>?> _bundleTeam(String teamId) async {
-    final team = await _client
-        .from('teams')
-        .select()
-        .eq('id', teamId)
-        .maybeSingle();
-    if (team == null) {
-      return null;
-    }
-    final members = await _client
-        .from('team_members')
-        .select('user_id,role')
-        .eq('team_id', teamId);
-    final rows = (members as List<dynamic>).cast<Map<String, dynamic>>();
+  static const _statsColumns =
+      'wins,draws,losses,goals_for,goals_against,clean_sheets,'
+      'current_win_streak,current_unbeaten_streak,longest_win_streak,'
+      'recent_form,recent_matches,player_goals,'
+      'last_finished_match_at,updated_at';
+
+  /// Builds the legacy team bundle from already-fetched rows. Kept separate from
+  /// the queries so both the single-team and all-teams paths share it without
+  /// re-issuing per-team reads.
+  Map<String, dynamic> _composeBundle(
+    String teamId,
+    Map<String, dynamic> team,
+    List<Map<String, dynamic>> memberRows,
+    Map<String, dynamic>? statsRow,
+  ) {
     String captainId = '';
     final vice = <String>[];
     final memberIds = <String>[];
-    for (final r in rows) {
+    for (final r in memberRows) {
       final uid = r['user_id'] as String;
       memberIds.add(uid);
       final role = (r['role'] ?? 'member').toString();
@@ -36,19 +37,7 @@ class TeamsRemoteDataSourceImpl implements TeamsRemoteDataSource {
       }
     }
 
-    // Pull aggregated stats from `public.team_stats` so this bundle stays
-    // consistent with what the dedicated TeamStatsRemoteDataSource exposes.
-    final stats = await _client
-        .from('team_stats')
-        .select(
-          'wins,draws,losses,goals_for,goals_against,clean_sheets,'
-          'current_win_streak,current_unbeaten_streak,longest_win_streak,'
-          'recent_form,recent_matches,player_goals,'
-          'last_finished_match_at,updated_at',
-        )
-        .eq('team_id', teamId)
-        .maybeSingle();
-    final s = stats ?? const <String, dynamic>{};
+    final s = statsRow ?? const <String, dynamic>{};
 
     int asInt(dynamic v) {
       if (v is num) return v.toInt();
@@ -87,6 +76,27 @@ class TeamsRemoteDataSourceImpl implements TeamsRemoteDataSource {
     };
   }
 
+  Future<Map<String, dynamic>?> _bundleTeam(String teamId) async {
+    // The three reads are independent — run them concurrently. Stats are pulled
+    // from `public.team_stats` to stay consistent with TeamStatsRemoteDataSource.
+    final batch = await Future.wait<dynamic>([
+      _client.from('teams').select().eq('id', teamId).maybeSingle(),
+      _client.from('team_members').select('user_id,role').eq('team_id', teamId),
+      _client
+          .from('team_stats')
+          .select(_statsColumns)
+          .eq('team_id', teamId)
+          .maybeSingle(),
+    ]);
+    final team = batch[0] as Map<String, dynamic>?;
+    if (team == null) {
+      return null;
+    }
+    final members = (batch[1] as List<dynamic>).cast<Map<String, dynamic>>();
+    final stats = batch[2] as Map<String, dynamic>?;
+    return _composeBundle(teamId, team, members, stats);
+  }
+
   /// Single-emission stream: the team bundle is fetched once per subscription.
   /// Callers re-subscribe (pull-to-refresh, app resume, after a mutation) to
   /// pick up other users' roster/profile edits.
@@ -103,14 +113,38 @@ class TeamsRemoteDataSourceImpl implements TeamsRemoteDataSource {
   }
 
   Future<List<Map<String, dynamic>>> _fetchTeamsOrderedByWins() async {
-    final allRows = await _client.from('teams').select('id').order('name');
+    // Was N+1 (1 id query + 3 reads per team). Fetch the three collections once
+    // and join in memory, preserving the by-name order the hub ranks on top of.
+    final batch = await Future.wait<dynamic>([
+      _client.from('teams').select().order('name'),
+      _client.from('team_members').select('team_id,user_id,role'),
+      _client.from('team_stats').select('team_id,$_statsColumns'),
+    ]);
+    final teamRows = (batch[0] as List<dynamic>).cast<Map<String, dynamic>>();
+    final memberRows = (batch[1] as List<dynamic>).cast<Map<String, dynamic>>();
+    final statRows = (batch[2] as List<dynamic>).cast<Map<String, dynamic>>();
+
+    final membersByTeam = <String, List<Map<String, dynamic>>>{};
+    for (final m in memberRows) {
+      final tid = m['team_id'] as String?;
+      if (tid == null) continue;
+      (membersByTeam[tid] ??= <Map<String, dynamic>>[]).add(m);
+    }
+    final statsByTeam = <String, Map<String, dynamic>>{
+      for (final s in statRows)
+        if (s['team_id'] != null) s['team_id'].toString(): s,
+    };
+
     final out = <Map<String, dynamic>>[];
-    for (final raw in allRows as List<dynamic>) {
-      final id = (raw as Map<String, dynamic>)['id'] as String;
-      final bundle = await _bundleTeam(id);
-      if (bundle != null) {
-        out.add(bundle);
-      }
+    for (final team in teamRows) {
+      final id = team['id'] as String?;
+      if (id == null) continue;
+      out.add(_composeBundle(
+        id,
+        team,
+        membersByTeam[id] ?? const <Map<String, dynamic>>[],
+        statsByTeam[id],
+      ));
     }
     return out;
   }

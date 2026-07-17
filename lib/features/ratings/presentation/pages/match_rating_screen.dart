@@ -143,120 +143,161 @@ class _MatchRatingScreenState extends State<MatchRatingScreen> {
   }
 
   bool _isSubmitting = false;
-  // User profile cache (displayName, photoUrl)
+  // User profile cache (displayName, avatarUrl), pre-populated by a single
+  // batched fetch so player cards render synchronously without per-card futures.
 final Map<String, Map<String, String>> _userCache = {};
 
-Future<Map<String, String>> _getUserProfile(String userId) async {
-  if (_userCache.containsKey(userId)) {
-    return _userCache[userId]!;
-  }
+/// Batch-fetch all requested profiles in one round-trip and cache them.
+/// Replaces the previous N+1 per-player queries. Missing ids are cached as
+/// empty to avoid refetching.
+Future<void> _prefetchProfiles(List<String> ids) async {
+  final missing =
+      ids.where((id) => id.isNotEmpty && !_userCache.containsKey(id)).toList();
+  if (missing.isEmpty) return;
   try {
-    final row = await _sb
+    final rows = await _sb
         .from('profiles')
-        .select('display_name, avatar_url')
-        .eq('id', userId)
-        .maybeSingle();
-    if (row == null) {
-      _userCache[userId] = const {};
-      return const {};
+        .select('id, display_name, avatar_url')
+        .inFilter('id', missing);
+    for (final r in rows as List<dynamic>) {
+      final m = r as Map<String, dynamic>;
+      final id = (m['id'] as String?) ?? '';
+      if (id.isEmpty) continue;
+      _userCache[id] = <String, String>{
+        'displayName': (m['display_name'] as String?)?.trim() ?? '',
+        'avatarUrl': (m['avatar_url'] as String?)?.trim() ?? '',
+      };
     }
-final String displayName = (row['display_name'] as String?)?.trim() ?? '';
-final String avatarUrl = (row['avatar_url'] as String?)?.trim() ?? '';
-final profile = <String, String>{
-  'displayName': displayName,
-  'avatarUrl': avatarUrl,
-};
-_userCache[userId] = profile;
-return profile;
   } catch (_) {
-    _userCache[userId] = const {};
-    return const {};
+    // Fall through; misses are cached as empty below.
+  }
+  // Cache misses (and any error) as empty so cards don't retry per-frame.
+  for (final id in missing) {
+    _userCache.putIfAbsent(id, () => const {});
   }
 }
+
+/// Fetch the set of players this user has already rated for the match, so
+/// they can be excluded from the list. Runs concurrently with the profile
+/// prefetch. Degrades gracefully to an empty set on error.
+Future<Set<String>> _fetchAlreadyRatedIds(String? currentUserId) async {
+  final Set<String> ids = {};
+  if (currentUserId == null || currentUserId.isEmpty) return ids;
+  try {
+    final rows = await _sb
+        .from('match_player_ratings')
+        .select('player_id')
+        .eq('match_id', widget.match.id)
+        .eq('rated_by', currentUserId);
+    for (final d in rows as List<dynamic>) {
+      final pid = ((d as Map<String, dynamic>)['player_id'] as String?) ?? '';
+      if (pid.isNotEmpty) ids.add(pid);
+    }
+  } catch (_) {
+    // Best-effort: on failure, show all players rather than blocking forever.
+  }
+  return ids;
+}
   
+  // Roster ids derived synchronously from [widget.match]; reused by the
+  // background profile prefetch.
+  List<String> _rosterIds = const [];
+
     @override
 void initState() {
   super.initState();
-  
-  // Load players regardless of match status
-  // Status validated when saving ratings
-  _initializeRatings();
+
+  // The roster is derived entirely from [widget.match] (already in memory), so
+  // it can be shown on the very first frame with zero network on the critical
+  // path — this is what keeps navigation into this page instant. Names/avatars
+  // and the "already rated" filter are then applied in the background as their
+  // queries resolve (see below). Status is validated when saving ratings.
+  _seedRosterFromMatch();
+  _loadProfilesInBackground();
+  _filterAlreadyRatedInBackground();
 }
-  
-    Future<void> _initializeRatings() async {
-    // Initialize ratings for all players
-    // Fallback to participants when teamA/teamB missing
+
+  /// Synchronously builds the list of players to rate from the in-memory match
+  /// and seeds default ratings. Runs during initState (before the first build),
+  /// so players render immediately without any await. No network here.
+  void _seedRosterFromMatch() {
     _playerRatings.clear();
     final currentUserId = AppAuth.currentUserId;
-final participantsSet = widget.match.participants.toSet();
-final allTeams = widget.match.allTeams;
+    final participantsSet = widget.match.participants.toSet();
+    final allTeams = widget.match.allTeams;
 
-List<String> basePlayers = [];
-// Team matches list squad members via rosters; [participants] is often only the
-// organizer. Intersecting with [participants] would drop every teammate.
-var peersDerivedFromTeamRoster = false;
+    List<String> basePlayers = [];
+    // Team matches list squad members via rosters; [participants] is often only
+    // the organizer. Intersecting with [participants] would drop every teammate.
+    var peersDerivedFromTeamRoster = false;
 
-if (currentUserId != null && allTeams.isNotEmpty) {
-  MatchTeamEntity? myTeam;
-  try {
-    myTeam = allTeams.firstWhere((team) => team.playerIds.contains(currentUserId));
-  } catch (_) {
-    myTeam = null;
-  }
+    if (currentUserId != null && allTeams.isNotEmpty) {
+      MatchTeamEntity? myTeam;
+      try {
+        myTeam =
+            allTeams.firstWhere((team) => team.playerIds.contains(currentUserId));
+      } catch (_) {
+        myTeam = null;
+      }
 
-  if (myTeam != null) {
-    basePlayers = myTeam.playerIds.where((id) => id != currentUserId).toList();
-    peersDerivedFromTeamRoster = true;
-  }
-}
-
-if (basePlayers.isEmpty) {
-  basePlayers = widget.match.participants
-      .where((id) => id != currentUserId)
-      .toList();
-  peersDerivedFromTeamRoster = false;
-}
-
-final playersToRate = peersDerivedFromTeamRoster
-    ? basePlayers.toSet().toList()
-    : basePlayers
-          .where((id) => participantsSet.contains(id))
-          .toSet()
-          .toList();
-final sanitizedPlayers = playersToRate.where((id) =>
-  id != 'current_user_i' && id != 'current_user' && !id.startsWith('current_')
-).toList();
-
-// Exclude opponents already rated by this user (requires authenticated uid).
-    final Set<String> alreadyRatedIds = {};
-    if (currentUserId != null && currentUserId.isNotEmpty) {
-      final existingRows = await _sb
-          .from('match_player_ratings')
-          .select('player_id')
-          .eq('match_id', widget.match.id)
-          .eq('rated_by', currentUserId);
-      for (final d in existingRows as List<dynamic>) {
-        final pid =
-            ((d as Map<String, dynamic>)['player_id'] as String?) ?? '';
-        if (pid.isNotEmpty) alreadyRatedIds.add(pid);
+      if (myTeam != null) {
+        basePlayers =
+            myTeam.playerIds.where((id) => id != currentUserId).toList();
+        peersDerivedFromTeamRoster = true;
       }
     }
 
-        for (final playerId in sanitizedPlayers) {
-      if (currentUserId != null && playerId == currentUserId) {
-        continue;
-      }
-      if (alreadyRatedIds.contains(playerId)) {
-        continue;
-      }
+    if (basePlayers.isEmpty) {
+      basePlayers = widget.match.participants
+          .where((id) => id != currentUserId)
+          .toList();
+      peersDerivedFromTeamRoster = false;
+    }
+
+    final playersToRate = peersDerivedFromTeamRoster
+        ? basePlayers.toSet().toList()
+        : basePlayers
+            .where((id) => participantsSet.contains(id))
+            .toSet()
+            .toList();
+    final sanitizedPlayers = playersToRate
+        .where((id) =>
+            id != 'current_user_i' &&
+            id != 'current_user' &&
+            !id.startsWith('current_') &&
+            id != currentUserId)
+        .toList();
+
+    _rosterIds = sanitizedPlayers;
+    for (final playerId in sanitizedPlayers) {
       _simpleRating[playerId] = 2.5;
       _playerRatings[playerId] = {};
       for (final criterion in _criteria) {
         _playerRatings[playerId]![criterion] = 2.5; // default mid rating
       }
     }
-    setState(() {});
-   
+  }
+
+  /// Background: batch-fetch display names/avatars, then repaint the cards
+  /// (which read [_userCache] synchronously). Until this resolves, cards show
+  /// initials/placeholder — never a blank or spinning screen.
+  Future<void> _loadProfilesInBackground() async {
+    await _prefetchProfiles(_rosterIds);
+    if (mounted) setState(() {});
+  }
+
+  /// Background: drop opponents this user has already rated. Runs off the
+  /// critical path; the roster is already visible before this resolves.
+  Future<void> _filterAlreadyRatedInBackground() async {
+    final alreadyRatedIds =
+        await _fetchAlreadyRatedIds(AppAuth.currentUserId);
+    if (!mounted || alreadyRatedIds.isEmpty) return;
+    setState(() {
+      for (final id in alreadyRatedIds) {
+        _playerRatings.remove(id);
+        _simpleRating.remove(id);
+      }
+    });
   }
   
   @override
@@ -423,10 +464,11 @@ final sanitizedPlayers = playersToRate.where((id) =>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FutureBuilder<Map<String, String>>(
-            future: _getUserProfile(playerId),
-            builder: (context, snap) {
-              final profile = snap.data ?? const {};
+          Builder(
+            builder: (context) {
+              // Profiles are pre-fetched in a single batch during init, so this
+              // is a synchronous cache read — no per-card network round-trip.
+              final profile = _userCache[playerId] ?? const {};
               final displayName = (profile['displayName'] ?? '').trim();
               final avatarUrl = (profile['avatarUrl'] ?? '').trim();
               final initials = (displayName.isNotEmpty

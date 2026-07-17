@@ -166,18 +166,18 @@ class MatchService {
   }
 
   Future<List<Match>> fetchUserMatches(String userId) async {
-    final participantRows = await _sb
-        .from('match_participants')
-        .select('match_id')
-        .eq('user_id', userId);
-    final fromParticipants = (participantRows as List<dynamic>)
+    // The two participation sources are independent — fetch concurrently.
+    final results = await Future.wait<dynamic>([
+      _sb.from('match_participants').select('match_id').eq('user_id', userId),
+      _matchIdsFromUserTeamRosters(userId),
+    ]);
+    final fromParticipants = (results[0] as List<dynamic>)
         .map(
           (raw) => (raw as Map<String, dynamic>)['match_id']?.toString() ?? '',
         )
         .where((id) => id.isNotEmpty)
         .toSet();
-
-    final fromRosters = await _matchIdsFromUserTeamRosters(userId);
+    final fromRosters = results[1] as Set<String>;
 
     final ids = {...fromParticipants, ...fromRosters}.toList();
     if (ids.isEmpty) return <Match>[];
