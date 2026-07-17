@@ -1122,53 +1122,6 @@ class VideoUploadRouteArgs {
 }
 
 /// generated route for
-/// [VideosScreen]
-class VideosRoute extends PageRouteInfo<VideosRouteArgs> {
-  VideosRoute({
-    Key? key,
-    bool showOnlyMyVideos = false,
-    List<PageRouteInfo>? children,
-  }) : super(
-          VideosRoute.name,
-          args: VideosRouteArgs(
-            key: key,
-            showOnlyMyVideos: showOnlyMyVideos,
-          ),
-          initialChildren: children,
-        );
-
-  static const String name = 'VideosRoute';
-
-  static PageInfo page = PageInfo(
-    name,
-    builder: (data) {
-      final args =
-          data.argsAs<VideosRouteArgs>(orElse: () => const VideosRouteArgs());
-      return VideosScreen(
-        key: args.key,
-        showOnlyMyVideos: args.showOnlyMyVideos,
-      );
-    },
-  );
-}
-
-class VideosRouteArgs {
-  const VideosRouteArgs({
-    this.key,
-    this.showOnlyMyVideos = false,
-  });
-
-  final Key? key;
-
-  final bool showOnlyMyVideos;
-
-  @override
-  String toString() {
-    return 'VideosRouteArgs{key: $key, showOnlyMyVideos: $showOnlyMyVideos}';
-  }
-}
-
-/// generated route for
 /// [WelcomeScreen]
 class WelcomeRoute extends PageRouteInfo<void> {
   const WelcomeRoute({List<PageRouteInfo>? children})

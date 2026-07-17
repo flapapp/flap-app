@@ -39,7 +39,6 @@ import '../features/teams/presentation/pages/team_hub_screen.dart';
 import '../features/video/presentation/pages/video_main_screen.dart';
 import '../features/video/presentation/pages/video_player_screen.dart';
 import '../features/video/presentation/pages/video_upload_screen.dart';
-import '../features/video/presentation/pages/videos_screen.dart';
 import '../screens/welcome_screen.dart';
 import '../app_navigator_key.dart';
 
@@ -229,11 +228,6 @@ class AppRouter extends RootStackRouter {
     AutoRoute(
       path: '/challenge-video-player',
       page: ChallengeVideoPlayerRoute.page,
-      guards: [appAuthGuard, appAvatarGuard],
-    ),
-    AutoRoute(
-      path: '/videos',
-      page: VideosRoute.page,
       guards: [appAuthGuard, appAvatarGuard],
     ),
     AutoRoute(
