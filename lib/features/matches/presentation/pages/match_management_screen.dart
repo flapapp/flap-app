@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flap_app/core/supabase/supabase_date.dart';
+import 'package:flap_app/core/supabase/guard_supabase_realtime_stream.dart';
 
 import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
@@ -152,8 +153,11 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
       // on the profiles row (they're always 0), so derive real win/draw/loss
       // counts from finished match history — the same source the profile page
       // uses — and merge them in. Cached per user, so this runs once each.
-      final profileFuture =
-          _sb.from('profiles').select().eq('id', userId).maybeSingle();
+      final profileFuture = _sb
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
       final statsFuture = _matchStats.loadFinishedMatchStats(userId);
       final data = (await profileFuture) ?? const <String, dynamic>{};
       final stats = await statsFuture;
@@ -461,10 +465,14 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                   dividerColor: Colors.transparent,
                   labelColor: FlapColors.text,
                   unselectedLabelColor: FlapColors.muted,
-                  labelStyle:
-                      FlapText.sora(fontSize: 13.5, fontWeight: FontWeight.w600),
-                  unselectedLabelStyle:
-                      FlapText.sora(fontSize: 13.5, fontWeight: FontWeight.w600),
+                  labelStyle: FlapText.sora(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  unselectedLabelStyle: FlapText.sora(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                   indicator: BoxDecoration(
                     color: const Color(0x1AFFFFFF),
                     borderRadius: BorderRadius.circular(10),
@@ -499,59 +507,61 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   }
 
   Stream<List<_InviteHistoryItem>> _invitationHistoryStream() {
-    return _sb
-        .from('match_invites')
-        .stream(primaryKey: ['id'])
-        .eq('match_id', widget.match.id)
-        .asyncMap((rows) async {
-          final inviteRows = (rows as List<dynamic>)
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList(growable: false);
-          final userIds = inviteRows
-              .map((r) => (r['user_id'] ?? '').toString())
-              .where((id) => id.isNotEmpty)
-              .toSet()
-              .toList(growable: false);
+    return guardSupabaseRealtimeStream(
+      _sb
+          .from('match_invites')
+          .stream(primaryKey: ['id'])
+          .eq('match_id', widget.match.id)
+          .asyncMap((rows) async {
+            final inviteRows = (rows as List<dynamic>)
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList(growable: false);
+            final userIds = inviteRows
+                .map((r) => (r['user_id'] ?? '').toString())
+                .where((id) => id.isNotEmpty)
+                .toSet()
+                .toList(growable: false);
 
-          final profileById = <String, Map<String, dynamic>>{};
-          if (userIds.isNotEmpty) {
-            try {
-              final profiles = await _sb
-                  .from('profiles')
-                  .select('id,display_name,email')
-                  .inFilter('id', userIds);
-              for (final p in profiles as List<dynamic>) {
-                final row = Map<String, dynamic>.from(p as Map);
-                final id = (row['id'] ?? '').toString();
-                if (id.isNotEmpty) profileById[id] = row;
-              }
-            } catch (_) {}
-          }
+            final profileById = <String, Map<String, dynamic>>{};
+            if (userIds.isNotEmpty) {
+              try {
+                final profiles = await _sb
+                    .from('profiles')
+                    .select('id,display_name,email')
+                    .inFilter('id', userIds);
+                for (final p in profiles as List<dynamic>) {
+                  final row = Map<String, dynamic>.from(p as Map);
+                  final id = (row['id'] ?? '').toString();
+                  if (id.isNotEmpty) profileById[id] = row;
+                }
+              } catch (_) {}
+            }
 
-          final items =
-              inviteRows
-                  .map((r) {
-                    final userId = (r['user_id'] ?? '').toString();
-                    final p = profileById[userId];
-                    final label =
-                        (p?['display_name'] ??
-                                p?['email']?.toString().split('@').first ??
-                                userId)
-                            .toString();
-                    final email = (p?['email'] ?? '').toString();
-                    return _InviteHistoryItem(
-                      userId: userId,
-                      label: label,
-                      email: email,
-                      status: (r['status'] ?? 'pending').toString(),
-                      createdAt:
-                          asDateTimeOrNull(r['created_at']) ?? DateTime.now(),
-                    );
-                  })
-                  .toList(growable: false)
-                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return items;
-        });
+            final items =
+                inviteRows
+                    .map((r) {
+                      final userId = (r['user_id'] ?? '').toString();
+                      final p = profileById[userId];
+                      final label =
+                          (p?['display_name'] ??
+                                  p?['email']?.toString().split('@').first ??
+                                  userId)
+                              .toString();
+                      final email = (p?['email'] ?? '').toString();
+                      return _InviteHistoryItem(
+                        userId: userId,
+                        label: label,
+                        email: email,
+                        status: (r['status'] ?? 'pending').toString(),
+                        createdAt:
+                            asDateTimeOrNull(r['created_at']) ?? DateTime.now(),
+                      );
+                    })
+                    .toList(growable: false)
+                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            return items;
+          }),
+    );
   }
 
   Widget _buildInvitationsTab() {
@@ -829,7 +839,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                 _buildTeamCountSelector(m),
               ],
               const SizedBox(height: 20),
-              if (!m.isTeamMatch && !m.hasTeams && m.participants.isNotEmpty) ...[
+              if (!m.isTeamMatch &&
+                  !m.hasTeams &&
+                  m.participants.isNotEmpty) ...[
                 _buildConfirmedPlayersList(m),
                 const SizedBox(height: 16),
               ],
@@ -999,7 +1011,11 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         children: [
           Row(
             children: [
-              const Icon(Icons.verified_user, color: Color(0xFF4caf50), size: 20),
+              const Icon(
+                Icons.verified_user,
+                color: Color(0xFF4caf50),
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 tr('confirmed_players'),
@@ -1037,10 +1053,11 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                   final name =
                       (snap.data?['displayName'] ?? tr('player')) as String;
                   final avatarUrl =
-                      ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ?? '')
+                      ((snap.data?['avatarUrl'] ?? snap.data?['photoUrl']) ??
+                              '')
                           as String;
-                  final realRating =
-                      ((snap.data?['rating'] ?? 0.0) as num).toDouble();
+                  final realRating = ((snap.data?['rating'] ?? 0.0) as num)
+                      .toDouble();
                   final winRate = _calculateWinRateFromProfile(snap.data);
                   final isOrganizer = id == m.organizerId;
 
@@ -1220,7 +1237,8 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         final effectiveTeamAId = (m.teamAId ?? '').trim().isNotEmpty
             ? (m.teamAId ?? '').trim()
             : (invite?['requesting_team_id'] ?? '').toString();
-        final effectiveTeamBId = (invite?['target_team_id'] ?? '').toString().isNotEmpty
+        final effectiveTeamBId =
+            (invite?['target_team_id'] ?? '').toString().isNotEmpty
             ? (invite?['target_team_id'] ?? '').toString()
             : (m.teamBId ?? '').trim();
 
@@ -1234,8 +1252,14 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
             final infos =
                 snapshot.data?.infos ??
                 [
-                  _ClubInfo.fromTeam(m.teamA, fallbackLabel: tr('il_e18d322f14')),
-                  _ClubInfo.fromTeam(m.teamB, fallbackLabel: tr('il_aceaf5d9ac')),
+                  _ClubInfo.fromTeam(
+                    m.teamA,
+                    fallbackLabel: tr('il_e18d322f14'),
+                  ),
+                  _ClubInfo.fromTeam(
+                    m.teamB,
+                    fallbackLabel: tr('il_aceaf5d9ac'),
+                  ),
                 ];
             final ratings = snapshot.data?.ratings ?? _ratingsCache;
 
@@ -1269,12 +1293,18 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                     const SizedBox(height: 6),
                     Text(
                       '${tr('il_9f29530464')}: ${total.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '$playerCount ${tr('players').toLowerCase()}',
-                      style: const TextStyle(color: Colors.white54, fontSize: 11),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 11,
+                      ),
                     ),
                   ],
                 ),
@@ -1282,23 +1312,37 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
             }
 
             final rosterA =
-                m.teamRosters['teamA'] ?? m.teamA?.playerIds ?? const <String>[];
+                m.teamRosters['teamA'] ??
+                m.teamA?.playerIds ??
+                const <String>[];
             final rosterB =
-                m.teamRosters['teamB'] ?? m.teamB?.playerIds ?? const <String>[];
+                m.teamRosters['teamB'] ??
+                m.teamB?.playerIds ??
+                const <String>[];
             final rosterStatusesA =
                 m.teamRosterStatus['teamA'] ?? const <String, String>{};
             final rosterStatusesB =
                 m.teamRosterStatus['teamB'] ?? const <String, String>{};
-            final playerCountA =
-                rosterStatusesA.isNotEmpty
+            final playerCountA = rosterStatusesA.isNotEmpty
                 ? rosterStatusesA.length
-                : (rosterA.isNotEmpty ? rosterA.length : (infos[0].memberCount ?? 0));
-            final playerCountB =
-                rosterStatusesB.isNotEmpty
+                : (rosterA.isNotEmpty
+                      ? rosterA.length
+                      : (infos[0].memberCount ?? 0));
+            final playerCountB = rosterStatusesB.isNotEmpty
                 ? rosterStatusesB.length
-                : (rosterB.isNotEmpty ? rosterB.length : (infos[1].memberCount ?? 0));
-            final totalA = _teamTotalRating(rosterA, ratings, infos[0].rating ?? 0);
-            final totalB = _teamTotalRating(rosterB, ratings, infos[1].rating ?? 0);
+                : (rosterB.isNotEmpty
+                      ? rosterB.length
+                      : (infos[1].memberCount ?? 0));
+            final totalA = _teamTotalRating(
+              rosterA,
+              ratings,
+              infos[0].rating ?? 0,
+            );
+            final totalB = _teamTotalRating(
+              rosterB,
+              ratings,
+              infos[1].rating ?? 0,
+            );
 
             return Container(
               padding: const EdgeInsets.all(16),
@@ -1309,7 +1353,13 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
               ),
               child: Row(
                 children: [
-                  buildSide(infos[0], rosterA, playerCountA, totalA, effectiveTeamAId),
+                  buildSide(
+                    infos[0],
+                    rosterA,
+                    playerCountA,
+                    totalA,
+                    effectiveTeamAId,
+                  ),
                   Column(
                     children: [
                       Text(
@@ -1322,11 +1372,20 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                       const SizedBox(height: 4),
                       Text(
                         '$playerCountA-$playerCountB',
-                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
-                  buildSide(infos[1], rosterB, playerCountB, totalB, effectiveTeamBId),
+                  buildSide(
+                    infos[1],
+                    rosterB,
+                    playerCountB,
+                    totalB,
+                    effectiveTeamBId,
+                  ),
                 ],
               ),
             );
@@ -1352,8 +1411,16 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
     String? teamBId,
   }) async {
     final infos = await Future.wait([
-      _getClubInfo(teamAId ?? m.teamAId, m.teamA, fallbackLabel: tr('il_e18d322f14')),
-      _getClubInfo(teamBId ?? m.teamBId, m.teamB, fallbackLabel: tr('il_aceaf5d9ac')),
+      _getClubInfo(
+        teamAId ?? m.teamAId,
+        m.teamA,
+        fallbackLabel: tr('il_e18d322f14'),
+      ),
+      _getClubInfo(
+        teamBId ?? m.teamBId,
+        m.teamB,
+        fallbackLabel: tr('il_aceaf5d9ac'),
+      ),
     ]);
 
     final rosterA =
@@ -1489,12 +1556,19 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.info_outline, color: Colors.white54, size: 18),
+                  const Icon(
+                    Icons.info_outline,
+                    color: Colors.white54,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       tr('il_1cfd8a014c'),
-                      style: const TextStyle(color: Colors.white60, fontSize: 13),
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ],
@@ -1726,7 +1800,8 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         final effectiveTeamAId = (m.teamAId ?? '').trim().isNotEmpty
             ? (m.teamAId ?? '').trim()
             : (invite?['requesting_team_id'] ?? '').toString();
-        final effectiveTeamBId = (invite?['target_team_id'] ?? '').toString().isNotEmpty
+        final effectiveTeamBId =
+            (invite?['target_team_id'] ?? '').toString().isNotEmpty
             ? (invite?['target_team_id'] ?? '').toString()
             : (m.teamBId ?? '').trim();
         final rosterA =
@@ -1763,8 +1838,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
           ]),
           builder: (context, infoSnap) {
             final infos = infoSnap.data ?? const <_ClubInfo>[];
-            final teamAName = infos.isNotEmpty ? infos[0].name : (m.teamA?.name ?? tr('il_e18d322f14'));
-            final teamBName = infos.length > 1 ? infos[1].name : (m.teamB?.name ?? tr('il_aceaf5d9ac'));
+            final teamAName = infos.isNotEmpty
+                ? infos[0].name
+                : (m.teamA?.name ?? tr('il_e18d322f14'));
+            final teamBName = infos.length > 1
+                ? infos[1].name
+                : (m.teamB?.name ?? tr('il_aceaf5d9ac'));
             final teamALogo = infos.isNotEmpty ? infos[0].logoUrl : '';
             final teamBLogo = infos.length > 1 ? infos[1].logoUrl : '';
 
@@ -1804,7 +1883,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          bothConfirmed ? tr('il_5fa7aac537') : tr('il_331551b0de'),
+                          bothConfirmed
+                              ? tr('il_5fa7aac537')
+                              : tr('il_331551b0de'),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
@@ -1853,7 +1934,10 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         onPressed: () => _openOrganizerOpponentInviteFlow(m),
-                        icon: const Icon(Icons.group_add, color: Color(0xFF4caf50)),
+                        icon: const Icon(
+                          Icons.group_add,
+                          color: Color(0xFF4caf50),
+                        ),
                         label: Text(
                           tr('match_mgmt_invite_opponent_team'),
                           style: const TextStyle(
@@ -2132,40 +2216,52 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
     if (rows.isEmpty) return null;
     final hostTeamId = (match.teamAId ?? '').trim();
     final invitedTeamId = (match.teamBId ?? '').trim();
-    final valid = rows.where((row) {
-      final status = (row['status'] ?? '').toString();
-      return status == 'pending' || status == 'accepted' || status == 'declined';
-    }).toList(growable: false);
+    final valid = rows
+        .where((row) {
+          final status = (row['status'] ?? '').toString();
+          return status == 'pending' ||
+              status == 'accepted' ||
+              status == 'declined';
+        })
+        .toList(growable: false);
     if (valid.isEmpty) return null;
 
     List<Map<String, dynamic>> scoped = valid;
     if (hostTeamId.isNotEmpty) {
-      scoped = scoped.where((row) {
-        final requesting = (row['requesting_team_id'] ?? '').toString();
-        final target = (row['target_team_id'] ?? '').toString();
-        return requesting == hostTeamId && target != hostTeamId;
-      }).toList(growable: false);
+      scoped = scoped
+          .where((row) {
+            final requesting = (row['requesting_team_id'] ?? '').toString();
+            final target = (row['target_team_id'] ?? '').toString();
+            return requesting == hostTeamId && target != hostTeamId;
+          })
+          .toList(growable: false);
     }
     if (invitedTeamId.isNotEmpty) {
-      final byInvitedId = scoped.where((row) {
-        final target = (row['target_team_id'] ?? '').toString();
-        return target == invitedTeamId;
-      }).toList(growable: false);
+      final byInvitedId = scoped
+          .where((row) {
+            final target = (row['target_team_id'] ?? '').toString();
+            return target == invitedTeamId;
+          })
+          .toList(growable: false);
       if (byInvitedId.isNotEmpty) scoped = byInvitedId;
     }
     if (scoped.isEmpty) {
-      scoped = valid.where((row) {
-        final createdBy = (row['created_by'] ?? '').toString();
-        final requesting = (row['requesting_team_id'] ?? '').toString();
-        final target = (row['target_team_id'] ?? '').toString();
-        return createdBy == match.organizerId && requesting != target;
-      }).toList(growable: false);
+      scoped = valid
+          .where((row) {
+            final createdBy = (row['created_by'] ?? '').toString();
+            final requesting = (row['requesting_team_id'] ?? '').toString();
+            final target = (row['target_team_id'] ?? '').toString();
+            return createdBy == match.organizerId && requesting != target;
+          })
+          .toList(growable: false);
     }
     final pool = scoped.isNotEmpty ? scoped : valid;
     pool.sort((a, b) {
-      final aDate = DateTime.tryParse((a['created_at'] ?? '').toString()) ??
+      final aDate =
+          DateTime.tryParse((a['created_at'] ?? '').toString()) ??
           DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = DateTime.tryParse((b['created_at'] ?? '').toString()) ??
+      final bDate =
+          DateTime.tryParse((b['created_at'] ?? '').toString()) ??
           DateTime.fromMillisecondsSinceEpoch(0);
       return bDate.compareTo(aDate);
     });
@@ -2398,9 +2494,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   ) async {
     if (targetTeam.id == requestingTeamId) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('team_match_invite_failed'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(tr('team_match_invite_failed'))));
       }
       return;
     }
@@ -2414,9 +2510,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
         proposedRoster: roster,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('team_match_invite_sent'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('team_match_invite_sent'))));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2432,9 +2528,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
     final requestingId = await _resolveRequestingTeamIdForOrganizer(m);
     if (requestingId == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('team_match_invite_failed'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(tr('team_match_invite_failed'))));
       }
       return;
     }
@@ -2487,7 +2583,10 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
           }
         }
 
-        Future<void> loadTeamsForCaptain(String userId, StateSetter setS) async {
+        Future<void> loadTeamsForCaptain(
+          String userId,
+          StateSetter setS,
+        ) async {
           setS(() {
             teamsForCaptainLoading = true;
             pickedCaptainId = userId;
@@ -2537,12 +2636,15 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                             child: TabBarView(
                               children: [
                                 Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     const SizedBox(height: 12),
                                     TextField(
                                       controller: teamSearchCtrl,
-                                      style: const TextStyle(color: Colors.white),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
                                       decoration: InputDecoration(
                                         labelText: tr('il_c81e115cc3'),
                                         labelStyle: const TextStyle(
@@ -2569,7 +2671,8 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                           itemCount: 4,
                                           itemHeight: 56,
                                           padding: EdgeInsets.symmetric(
-                                              vertical: 4),
+                                            vertical: 4,
+                                          ),
                                           gap: 8,
                                           radius: 12,
                                         ),
@@ -2589,8 +2692,8 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                                 itemCount: teamResults.length,
                                                 separatorBuilder: (_, __) =>
                                                     const Divider(
-                                                  color: Colors.white12,
-                                                ),
+                                                      color: Colors.white12,
+                                                    ),
                                                 itemBuilder: (_, i) {
                                                   final t = teamResults[i];
                                                   return ListTile(
@@ -2621,12 +2724,15 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                   ],
                                 ),
                                 Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     const SizedBox(height: 12),
                                     TextField(
                                       controller: captainSearchCtrl,
-                                      style: const TextStyle(color: Colors.white),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
                                       decoration: InputDecoration(
                                         labelText: tr('il_4ae2b33364'),
                                         labelStyle: const TextStyle(
@@ -2658,13 +2764,15 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                         ),
                                       ),
                                     const SizedBox(height: 8),
-                                    if (captainLoading || teamsForCaptainLoading)
+                                    if (captainLoading ||
+                                        teamsForCaptainLoading)
                                       const Expanded(
                                         child: FlapLoadingList(
                                           itemCount: 4,
                                           itemHeight: 56,
                                           padding: EdgeInsets.symmetric(
-                                              vertical: 4),
+                                            vertical: 4,
+                                          ),
                                           gap: 8,
                                           radius: 12,
                                         ),
@@ -2687,8 +2795,8 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                                 itemCount: captainTeams.length,
                                                 separatorBuilder: (_, __) =>
                                                     const Divider(
-                                                  color: Colors.white12,
-                                                ),
+                                                      color: Colors.white12,
+                                                    ),
                                                 itemBuilder: (_, i) {
                                                   final t = captainTeams[i];
                                                   return ListTile(
@@ -2728,11 +2836,12 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                                 ),
                                               )
                                             : ListView.separated(
-                                                itemCount: captainResults.length,
+                                                itemCount:
+                                                    captainResults.length,
                                                 separatorBuilder: (_, __) =>
                                                     const Divider(
-                                                  color: Colors.white12,
-                                                ),
+                                                      color: Colors.white12,
+                                                    ),
                                                 itemBuilder: (_, i) {
                                                   final p = captainResults[i];
                                                   final name =
@@ -2740,10 +2849,9 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                                               tr('player'))
                                                           .toString();
                                                   return ListTile(
-                                                    leading:
-                                                        PlayerAvatarButton(
-                                                      userId:
-                                                          p['id'].toString(),
+                                                    leading: PlayerAvatarButton(
+                                                      userId: p['id']
+                                                          .toString(),
                                                       displayName: name,
                                                       avatarUrl:
                                                           (p['avatarUrl'] ?? '')
@@ -2756,10 +2864,11 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                                                         color: Colors.white,
                                                       ),
                                                     ),
-                                                    onTap: () => loadTeamsForCaptain(
-                                                      p['id'].toString(),
-                                                      setS,
-                                                    ),
+                                                    onTap: () =>
+                                                        loadTeamsForCaptain(
+                                                          p['id'].toString(),
+                                                          setS,
+                                                        ),
                                                   );
                                                 },
                                               ),

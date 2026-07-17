@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../application/notification_router.dart';
 import '../../data/models/notification.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/supabase/guard_supabase_realtime_stream.dart';
 import '../../../profile/data/services/user_settings_service.dart';
 import 'fcm_transport_service.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -15,7 +16,7 @@ import 'package:flap_app/core/config/supabase_env.dart';
 
 class NotificationService {
   NotificationService({FcmTransportService? transportService})
-      : _transportService = transportService ?? FcmTransportService();
+    : _transportService = transportService ?? FcmTransportService();
 
   SupabaseClient get _sb => Supabase.instance.client;
   final FcmTransportService _transportService;
@@ -160,7 +161,8 @@ class NotificationService {
     final type = data['type']?.toString() ?? '';
     final matchId =
         data['matchId']?.toString() ?? data['match_id']?.toString() ?? '';
-    final challengeId = data['challengeId']?.toString() ??
+    final challengeId =
+        data['challengeId']?.toString() ??
         data['challenge_id']?.toString() ??
         '';
     final videoId =
@@ -189,7 +191,8 @@ class NotificationService {
             if (rel.$1 != null) 'related_table': rel.$1,
             if (rel.$2 != null) 'related_record_id': rel.$2,
           },
-          'idempotency_key': _messageKey(notification.data) ??
+          'idempotency_key':
+              _messageKey(notification.data) ??
               '${notification.userId}|${notification.type.name}|${notification.createdAt.toUtc().millisecondsSinceEpoch}',
         },
       );
@@ -240,9 +243,7 @@ class NotificationService {
       for (final raw in rows as List<dynamic>) {
         try {
           notifications.add(
-            AppNotification.fromSupabase(
-              Map<String, dynamic>.from(raw as Map),
-            ),
+            AppNotification.fromSupabase(Map<String, dynamic>.from(raw as Map)),
           );
         } catch (e) {
           print('Error parsing notification: $e');
@@ -286,11 +287,12 @@ class NotificationService {
       }
 
       emit();
-      final subRt = _sb
-          .from('notifications')
-          .stream(primaryKey: ['id'])
-          .eq('user_id', currentUser.id)
-          .listen((_) => emit());
+      final subRt = guardSupabaseRealtimeStream(
+        _sb
+            .from('notifications')
+            .stream(primaryKey: ['id'])
+            .eq('user_id', currentUser.id),
+      ).listen((_) => emit());
       final subInv = _unreadCountInvalidate.stream.listen((_) => emit());
       controller.onCancel = () {
         subRt.cancel();
@@ -302,10 +304,13 @@ class NotificationService {
   Future<bool> markAsRead(String notificationId) async {
     try {
       if (!_hasSb) return false;
-      await _sb.from('notifications').update(<String, dynamic>{
-        'is_read': true,
-        'read_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', notificationId);
+      await _sb
+          .from('notifications')
+          .update(<String, dynamic>{
+            'is_read': true,
+            'read_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', notificationId);
       _emitUnreadCountRefresh();
       return true;
     } catch (e) {
@@ -319,10 +324,14 @@ class NotificationService {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null || !_hasSb) return false;
 
-      await _sb.from('notifications').update(<String, dynamic>{
-        'is_read': true,
-        'read_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('user_id', currentUser.id).eq('is_read', false);
+      await _sb
+          .from('notifications')
+          .update(<String, dynamic>{
+            'is_read': true,
+            'read_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('user_id', currentUser.id)
+          .eq('is_read', false);
       _emitUnreadCountRefresh();
       return true;
     } catch (e) {
@@ -344,7 +353,7 @@ class NotificationService {
   }
 
   // Helper methods for sending specific notifications
-  
+
   // Send friend request notification
   Future<bool> sendFriendRequestNotification({
     required String toUserId,
@@ -401,22 +410,23 @@ class NotificationService {
 
   // Send video vote notification
   Future<bool> sendVideoVoteNotification({
-  required String toUserId,
-  required String videoTitle,
-  required String voterName,
-  required double rating,
-}) async {
-  return emitDomainEvent(
-    eventType: 'video_vote_recorded',
-    payload: <String, dynamic>{
-      'to_user_id': toUserId,
-      'video_title': videoTitle,
-      'voter_name': voterName,
-      'rating': rating,
-    },
-    idempotencyKey: 'video_vote:$toUserId:$voterName:$videoTitle:${rating.toStringAsFixed(2)}',
-  );
-}
+    required String toUserId,
+    required String videoTitle,
+    required String voterName,
+    required double rating,
+  }) async {
+    return emitDomainEvent(
+      eventType: 'video_vote_recorded',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'video_title': videoTitle,
+        'voter_name': voterName,
+        'rating': rating,
+      },
+      idempotencyKey:
+          'video_vote:$toUserId:$voterName:$videoTitle:${rating.toStringAsFixed(2)}',
+    );
+  }
 
   // Send a rating change summary notification
   Future<bool> sendRatingChangedNotification({
@@ -455,7 +465,8 @@ class NotificationService {
         'from_user_name': fromUserName,
         'video_ids': videoIds,
       },
-      idempotencyKey: 'rating_request:$fromUserName:${videoIds.join(",")}:${toUserIds.join(",")}',
+      idempotencyKey:
+          'rating_request:$fromUserName:${videoIds.join(",")}:${toUserIds.join(",")}',
     );
   }
 
@@ -491,8 +502,10 @@ class NotificationService {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null || !_hasSb) return false;
 
-      final thirtyDaysAgo =
-          DateTime.now().subtract(const Duration(days: 30)).toUtc().toIso8601String();
+      final thirtyDaysAgo = DateTime.now()
+          .subtract(const Duration(days: 30))
+          .toUtc()
+          .toIso8601String();
 
       await _sb
           .from('notifications')
@@ -508,43 +521,44 @@ class NotificationService {
 
   // Challenge invitation notification
   Future<bool> sendChallengeInvitation({
-  required String toUserId,
-  required String challengeId,
-  required String challengeTitle,
-  required String creatorName,
-  required String challengeType,
-}) async {
-  return emitDomainEvent(
-    eventType: 'challenge_invite_created',
-    payload: <String, dynamic>{
-      'to_user_id': toUserId,
-      'challenge_id': challengeId,
-      'challenge_title': challengeTitle,
-      'creator_name': creatorName,
-      'challenge_type': challengeType,
-    },
-    idempotencyKey: 'challenge_invite:$challengeId:$toUserId',
-  );
-}
+    required String toUserId,
+    required String challengeId,
+    required String challengeTitle,
+    required String creatorName,
+    required String challengeType,
+  }) async {
+    return emitDomainEvent(
+      eventType: 'challenge_invite_created',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'challenge_id': challengeId,
+        'challenge_title': challengeTitle,
+        'creator_name': creatorName,
+        'challenge_type': challengeType,
+      },
+      idempotencyKey: 'challenge_invite:$challengeId:$toUserId',
+    );
+  }
 
   // Challenge submission notification
   Future<bool> sendChallengeSubmission({
-  required String toUserId,
-  required String challengeId,
-  required String challengeTitle,
-  required String participantName,
-}) async {
-  return emitDomainEvent(
-    eventType: 'challenge_submission_uploaded',
-    payload: <String, dynamic>{
-      'to_user_id': toUserId,
-      'challenge_id': challengeId,
-      'challenge_title': challengeTitle,
-      'participant_name': participantName,
-    },
-    idempotencyKey: 'challenge_submission:$challengeId:$toUserId:$participantName',
-  );
-}
+    required String toUserId,
+    required String challengeId,
+    required String challengeTitle,
+    required String participantName,
+  }) async {
+    return emitDomainEvent(
+      eventType: 'challenge_submission_uploaded',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'challenge_id': challengeId,
+        'challenge_title': challengeTitle,
+        'participant_name': participantName,
+      },
+      idempotencyKey:
+          'challenge_submission:$challengeId:$toUserId:$participantName',
+    );
+  }
 
   // Send challenge invitations to multiple users
   Future<bool> sendBulkChallengeInvitations({
@@ -636,93 +650,94 @@ class NotificationService {
       idempotencyKey: 'team_join:$requestId:$toUserId',
     );
   }
+
   Future<bool> sendMatchInvite({
-  required String toUserId,
-  required String matchId,
-  required String organizerName,
-  String? title,
-  String? body,
-}) async {
-  return emitDomainEvent(
-    eventType: 'match_invite_created',
-    payload: <String, dynamic>{
-      'to_user_id': toUserId,
-      'match_id': matchId,
-      'organizer_name': organizerName,
-      'title_override': title,
-      'body_override': body,
-    },
-    idempotencyKey: 'match_invite:$matchId:$toUserId',
-  );
-}
+    required String toUserId,
+    required String matchId,
+    required String organizerName,
+    String? title,
+    String? body,
+  }) async {
+    return emitDomainEvent(
+      eventType: 'match_invite_created',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'match_id': matchId,
+        'organizer_name': organizerName,
+        'title_override': title,
+        'body_override': body,
+      },
+      idempotencyKey: 'match_invite:$matchId:$toUserId',
+    );
+  }
 
-Future<bool> sendMatchApplicationSubmitted({
-  required String toOrganizerId,
-  required String matchId,
-  required String applicantName,
-}) async {
-  return emitDomainEvent(
-    eventType: 'match_application_submitted',
-    payload: <String, dynamic>{
-      'to_user_id': toOrganizerId,
-      'match_id': matchId,
-      'applicant_name': applicantName,
-    },
-    idempotencyKey: 'match_apply:$matchId:$toOrganizerId:$applicantName',
-  );
-}
+  Future<bool> sendMatchApplicationSubmitted({
+    required String toOrganizerId,
+    required String matchId,
+    required String applicantName,
+  }) async {
+    return emitDomainEvent(
+      eventType: 'match_application_submitted',
+      payload: <String, dynamic>{
+        'to_user_id': toOrganizerId,
+        'match_id': matchId,
+        'applicant_name': applicantName,
+      },
+      idempotencyKey: 'match_apply:$matchId:$toOrganizerId:$applicantName',
+    );
+  }
 
-Future<bool> sendMatchApplicationAccepted({
-  required String toUserId,
-  required String matchId,
-  required String organizerName,
-}) async {
-  return emitDomainEvent(
-    eventType: 'match_application_accepted',
-    payload: <String, dynamic>{
-      'to_user_id': toUserId,
-      'match_id': matchId,
-      'organizer_name': organizerName,
-    },
-    idempotencyKey: 'match_accept:$matchId:$toUserId',
-  );
-}
+  Future<bool> sendMatchApplicationAccepted({
+    required String toUserId,
+    required String matchId,
+    required String organizerName,
+  }) async {
+    return emitDomainEvent(
+      eventType: 'match_application_accepted',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'match_id': matchId,
+        'organizer_name': organizerName,
+      },
+      idempotencyKey: 'match_accept:$matchId:$toUserId',
+    );
+  }
 
-Future<bool> sendMatchApplicationRejected({
-  required String toUserId,
-  required String matchId,
-  required String organizerName,
-}) async {
-  return emitDomainEvent(
-    eventType: 'match_application_rejected',
-    payload: <String, dynamic>{
-      'to_user_id': toUserId,
-      'match_id': matchId,
-      'organizer_name': organizerName,
-    },
-    idempotencyKey: 'match_reject:$matchId:$toUserId',
-  );
-}
+  Future<bool> sendMatchApplicationRejected({
+    required String toUserId,
+    required String matchId,
+    required String organizerName,
+  }) async {
+    return emitDomainEvent(
+      eventType: 'match_application_rejected',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'match_id': matchId,
+        'organizer_name': organizerName,
+      },
+      idempotencyKey: 'match_reject:$matchId:$toUserId',
+    );
+  }
 
-Future<bool> sendMatchFinished({
-  required String toUserId,
-  required String matchId,
-  required String teamAName,
-  required String teamBName,
-  required int teamAScore,
-  required int teamBScore,
-}) async {
-  return emitDomainEvent(
-    eventType: 'match_finished',
-    payload: <String, dynamic>{
-      'to_user_id': toUserId,
-      'match_id': matchId,
-      'team_a_name': teamAName,
-      'team_b_name': teamBName,
-      'team_a_score': teamAScore,
-      'team_b_score': teamBScore,
-    },
-    idempotencyKey: 'match_finished:$matchId:$toUserId',
-  );
-}
+  Future<bool> sendMatchFinished({
+    required String toUserId,
+    required String matchId,
+    required String teamAName,
+    required String teamBName,
+    required int teamAScore,
+    required int teamBScore,
+  }) async {
+    return emitDomainEvent(
+      eventType: 'match_finished',
+      payload: <String, dynamic>{
+        'to_user_id': toUserId,
+        'match_id': matchId,
+        'team_a_name': teamAName,
+        'team_b_name': teamBName,
+        'team_a_score': teamAScore,
+        'team_b_score': teamBScore,
+      },
+      idempotencyKey: 'match_finished:$matchId:$toUserId',
+    );
+  }
 }

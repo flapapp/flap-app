@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/supabase/supabase_app_storage.dart';
+import '../../../../core/supabase/guard_supabase_realtime_stream.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -153,10 +154,12 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   }
 
   Stream<Match?> _liveMatchStream() {
-    return _sb
-        .from('matches')
-        .stream(primaryKey: ['id'])
-        .asyncMap((_) => _matchRepo.fetchMatchById(widget.match.id));
+    return guardSupabaseRealtimeStream(
+      _sb
+          .from('matches')
+          .stream(primaryKey: ['id'])
+          .asyncMap((_) => _matchRepo.fetchMatchById(widget.match.id)),
+    );
   }
 
   /// Live rows for this match's participants (accepted + waiting list), ordered
@@ -164,11 +167,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   /// the open-spots count and waiting list, updating in real time as players
   /// join, leave, or are moved.
   Stream<List<Map<String, dynamic>>> _participantRowsStream() {
-    return _sb
-        .from('match_participants')
-        .stream(primaryKey: ['id'])
-        .eq('match_id', widget.match.id)
-        .order('applied_at');
+    return guardSupabaseRealtimeStream(
+      _sb
+          .from('match_participants')
+          .stream(primaryKey: ['id'])
+          .eq('match_id', widget.match.id)
+          .order('applied_at'),
+    );
   }
 
   Future<Map<String, dynamic>> _fetchUserProfile(String userId) async {
@@ -306,7 +311,6 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               _buildParticipantsSection(),
               SizedBox(height: 20),
             ],
-
           ],
         ),
       ),
@@ -338,10 +342,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         top: false,
         // mainAxisSize.min so the dock hugs its content height (the bottom
         // bar otherwise hands the action column a full-screen height budget).
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [action],
-        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [action]),
       ),
     );
   }
@@ -356,10 +357,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     final IconData statusIcon = m.isTeamMatch
         ? Icons.shield_outlined
         : m.status == MatchStatus.open
-            ? Icons.check_circle_outline
-            : m.status == MatchStatus.full
-                ? Icons.people_alt_outlined
-                : Icons.sports_soccer;
+        ? Icons.check_circle_outline
+        : m.status == MatchStatus.full
+        ? Icons.people_alt_outlined
+        : Icons.sports_soccer;
 
     return Container(
       width: double.infinity,
@@ -434,8 +435,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
-  Widget _detailPill(IconData icon, String text,
-      {Color iconColor = FlapColors.text}) {
+  Widget _detailPill(
+    IconData icon,
+    String text, {
+    Color iconColor = FlapColors.text,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
@@ -448,8 +452,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         children: [
           Icon(icon, size: 12, color: iconColor),
           const SizedBox(width: 4),
-          Text(text,
-              style: FlapText.sora(fontSize: 11, fontWeight: FontWeight.w700)),
+          Text(
+            text,
+            style: FlapText.sora(fontSize: 11, fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );
@@ -489,7 +495,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     );
   }
 
-  Widget _detailAppBarIcon(IconData icon, VoidCallback onTap, {String? tooltip}) {
+  Widget _detailAppBarIcon(
+    IconData icon,
+    VoidCallback onTap, {
+    String? tooltip,
+  }) {
     final btn = GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1009,8 +1019,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              tr('match_photos_by',
-                                  namedArgs: {'name': photo.uploaderName}),
+                              tr(
+                                'match_photos_by',
+                                namedArgs: {'name': photo.uploaderName},
+                              ),
                               style: const TextStyle(color: Colors.white70),
                             ),
                           ],
@@ -1057,8 +1069,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       if (uid == null) {
         throw Exception(tr('team_error_not_signed_in'));
       }
-      final fileName =
-          'photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileName = 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final objectPath = '$uid/${widget.match.id}/$fileName';
       final bytes = await pickedFile.readAsBytes();
       final url = await SupabaseAppStorage.uploadPublicBytes(
@@ -1134,9 +1145,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       await SupabaseAppStorage.tryRemovePublicObject(_sb, photo.imageUrl);
       if (!mounted) return;
       _refreshMatchPhotos();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('match_photos_deleted'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('match_photos_deleted'))));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1151,12 +1162,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   Widget _buildInfoSection() {
     final m = widget.match;
     final locale = context.locale.toString();
-    final dateStr =
-        DateFormat('EEE, d MMM yyyy', locale).format(m.scheduledDateTime);
+    final dateStr = DateFormat(
+      'EEE, d MMM yyyy',
+      locale,
+    ).format(m.scheduledDateTime);
     final isOrganizer = AppAuth.currentUserId == m.organizerId;
     final city = localizeCity(m.city);
-    final locationValue =
-        city.isNotEmpty ? '${m.location}, $city' : m.location;
+    final locationValue = city.isNotEmpty ? '${m.location}, $city' : m.location;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -1246,8 +1258,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style:
-                      FlapText.sora(fontSize: 14.5, fontWeight: FontWeight.w600),
+                  style: FlapText.sora(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -1263,9 +1277,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         : tr('il_d161440e8d');
     final teamBName = (match.teamB?.name.isNotEmpty ?? false)
         ? match.teamB!.name
-        : (match.teamBId != null
-              ? tr('il_6b3e8cd77f')
-              : tr('il_324df4ad19'));
+        : (match.teamBId != null ? tr('il_6b3e8cd77f') : tr('il_324df4ad19'));
 
     final rosterA =
         match.teamRosters['teamA'] ??
@@ -1280,8 +1292,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     final rosterStatusB =
         match.teamRosterStatus['teamB'] ?? const <String, String>{};
 
-    final hasScore =
-        match.teamAScore != null && match.teamBScore != null;
+    final hasScore = match.teamAScore != null && match.teamBScore != null;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1298,8 +1309,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               Expanded(
                 child: Text(
                   tr('il_4f76cec7a7'),
-                  style:
-                      FlapText.sora(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: FlapText.sora(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               _buildTeamStatusChip(),
@@ -1396,11 +1409,16 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text('VS',
-                    style: FlapText.cond(fontSize: 20, color: FlapColors.muted)),
+                Text(
+                  'VS',
+                  style: FlapText.cond(fontSize: 20, color: FlapColors.muted),
+                ),
                 const SizedBox(height: 6),
-                const Icon(Icons.sports_soccer,
-                    size: 20, color: FlapColors.muted),
+                const Icon(
+                  Icons.sports_soccer,
+                  size: 20,
+                  color: FlapColors.muted,
+                ),
               ],
             ),
           ),
@@ -1523,9 +1541,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         final inviteStatus = (invite?['status'] ?? '').toString();
         final canChangePending = isOrganizer && inviteStatus == 'pending';
         final canInviteFresh = isOrganizer && invite == null;
-        final creatorTeamId = ((match.teamAId ?? widget.match.teamAId) ?? '').toString();
-        final creatorTeamIdFromRequest =
-            (invite?['requesting_team_id'] ?? '').toString();
+        final creatorTeamId = ((match.teamAId ?? widget.match.teamAId) ?? '')
+            .toString();
+        final creatorTeamIdFromRequest = (invite?['requesting_team_id'] ?? '')
+            .toString();
         final effectiveCreatorTeamId = creatorTeamId.isNotEmpty
             ? creatorTeamId
             : creatorTeamIdFromRequest;
@@ -1557,7 +1576,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                     : _getTeam(effectiveCreatorTeamId),
                 builder: (context, creatorSnap) {
                   final creatorTeam = creatorSnap.data;
-                  final creatorTeamName = creatorTeam?.name ??
+                  final creatorTeamName =
+                      creatorTeam?.name ??
                       (match.teamA?.name.isNotEmpty == true
                           ? match.teamA!.name
                           : tr('il_d161440e8d'));
@@ -1574,7 +1594,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                         const CircleAvatar(
                           radius: 18,
                           backgroundColor: Colors.white12,
-                          child: Icon(Icons.groups, color: Colors.white70, size: 18),
+                          child: Icon(
+                            Icons.groups,
+                            color: Colors.white70,
+                            size: 18,
+                          ),
                         ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -1608,10 +1632,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 )
               else
                 FutureBuilder<AppTeam?>(
-                  future: invitedTeamId.isEmpty ? Future.value(null) : _getTeam(invitedTeamId),
+                  future: invitedTeamId.isEmpty
+                      ? Future.value(null)
+                      : _getTeam(invitedTeamId),
                   builder: (context, teamSnap) {
                     final invitedTeam = teamSnap.data;
-                    final teamName = invitedTeam?.name ??
+                    final teamName =
+                        invitedTeam?.name ??
                         (invite['target_team_id'] ?? '').toString();
                     final statusLabel = _teamInviteStatusLabel(inviteStatus);
                     final accepted = inviteStatus == 'accepted';
@@ -1639,14 +1666,18 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                             ),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
-                                color: _teamInviteStatusColor(inviteStatus)
-                                    .withValues(alpha: 0.18),
+                                color: _teamInviteStatusColor(
+                                  inviteStatus,
+                                ).withValues(alpha: 0.18),
                                 borderRadius: BorderRadius.circular(999),
                                 border: Border.all(
-                                  color: _teamInviteStatusColor(inviteStatus)
-                                      .withValues(alpha: 0.38),
+                                  color: _teamInviteStatusColor(
+                                    inviteStatus,
+                                  ).withValues(alpha: 0.38),
                                 ),
                               ),
                               child: Text(
@@ -1665,8 +1696,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                           accepted
                               ? 'Invitation accepted.'
                               : 'Invitation not accepted yet.',
-                          style:
-                              const TextStyle(color: Colors.white70, fontSize: 12),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     );
@@ -1683,7 +1716,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                     ),
                     icon: const Icon(Icons.search, color: Colors.white),
                     label: Text(
-                      canInviteFresh ? tr('il_7ec0bce7a1') : tr('il_1f6c4a2d9e'),
+                      canInviteFresh
+                          ? tr('il_7ec0bce7a1')
+                          : tr('il_1f6c4a2d9e'),
                       style: const TextStyle(color: Colors.white),
                     ),
                     style: OutlinedButton.styleFrom(
@@ -1709,42 +1744,54 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     if (rows.isEmpty) return null;
     final hostTeamId = (match.teamAId ?? widget.match.teamAId ?? '').trim();
     final invitedTeamId = (match.teamBId ?? widget.match.teamBId ?? '').trim();
-    final valid = rows.where((row) {
-      final status = (row['status'] ?? '').toString();
-      return status == 'pending' || status == 'accepted' || status == 'declined';
-    }).toList(growable: false);
+    final valid = rows
+        .where((row) {
+          final status = (row['status'] ?? '').toString();
+          return status == 'pending' ||
+              status == 'accepted' ||
+              status == 'declined';
+        })
+        .toList(growable: false);
     if (valid.isEmpty) return null;
 
     List<Map<String, dynamic>> scoped = valid;
     if (hostTeamId.isNotEmpty) {
-      scoped = scoped.where((row) {
-        final requesting = (row['requesting_team_id'] ?? '').toString();
-        final target = (row['target_team_id'] ?? '').toString();
-        return requesting == hostTeamId && target != hostTeamId;
-      }).toList(growable: false);
+      scoped = scoped
+          .where((row) {
+            final requesting = (row['requesting_team_id'] ?? '').toString();
+            final target = (row['target_team_id'] ?? '').toString();
+            return requesting == hostTeamId && target != hostTeamId;
+          })
+          .toList(growable: false);
     }
     if (invitedTeamId.isNotEmpty) {
-      final byInvitedId = scoped.where((row) {
-        final target = (row['target_team_id'] ?? '').toString();
-        return target == invitedTeamId;
-      }).toList(growable: false);
+      final byInvitedId = scoped
+          .where((row) {
+            final target = (row['target_team_id'] ?? '').toString();
+            return target == invitedTeamId;
+          })
+          .toList(growable: false);
       if (byInvitedId.isNotEmpty) {
         scoped = byInvitedId;
       }
     }
     if (scoped.isEmpty) {
-      scoped = valid.where((row) {
-        final createdBy = (row['created_by'] ?? '').toString();
-        final requesting = (row['requesting_team_id'] ?? '').toString();
-        final target = (row['target_team_id'] ?? '').toString();
-        return createdBy == match.organizerId && requesting != target;
-      }).toList(growable: false);
+      scoped = valid
+          .where((row) {
+            final createdBy = (row['created_by'] ?? '').toString();
+            final requesting = (row['requesting_team_id'] ?? '').toString();
+            final target = (row['target_team_id'] ?? '').toString();
+            return createdBy == match.organizerId && requesting != target;
+          })
+          .toList(growable: false);
     }
     final pool = scoped.isNotEmpty ? scoped : valid;
     pool.sort((a, b) {
-      final aDate = DateTime.tryParse((a['created_at'] ?? '').toString()) ??
+      final aDate =
+          DateTime.tryParse((a['created_at'] ?? '').toString()) ??
           DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = DateTime.tryParse((b['created_at'] ?? '').toString()) ??
+      final bDate =
+          DateTime.tryParse((b['created_at'] ?? '').toString()) ??
           DateTime.fromMillisecondsSinceEpoch(0);
       return bDate.compareTo(aDate);
     });
@@ -1767,8 +1814,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     }
 
     final initialTargetId = (currentInvite?['target_team_id'] ?? '').toString();
-    final initialTeam =
-        initialTargetId.isEmpty ? null : await _getTeam(initialTargetId);
+    final initialTeam = initialTargetId.isEmpty
+        ? null
+        : await _getTeam(initialTargetId);
     if (!mounted) return;
 
     final selectedTeam = await Navigator.of(context).push<AppTeam>(
@@ -2182,13 +2230,16 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                             backgroundColor: const Color(0xFF4caf50),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
-                          child: (_isProcessingRosterAction &&
+                          child:
+                              (_isProcessingRosterAction &&
                                   _rosterActionAccept == true)
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white),
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
                                 )
                               : Text(
                                   playerStatus == 'confirmed'
@@ -2209,13 +2260,16 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                             side: const BorderSide(color: Colors.white24),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
-                          child: (_isProcessingRosterAction &&
+                          child:
+                              (_isProcessingRosterAction &&
                                   _rosterActionAccept == false)
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white),
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
                                 )
                               : Text(
                                   playerStatus == 'declined'
@@ -2834,8 +2888,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               Expanded(
                 child: Text(
                   tr('players'),
-                  style:
-                      FlapText.sora(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: FlapText.sora(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               Text.rich(
@@ -2844,14 +2900,17 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                     TextSpan(
                       text: '$filled',
                       style: FlapText.sora(
-                          fontSize: 13, fontWeight: FontWeight.w700),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     TextSpan(
                       text: '/$cap',
                       style: FlapText.sora(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: FlapColors.muted),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: FlapColors.muted,
+                      ),
                     ),
                   ],
                 ),
@@ -2932,10 +2991,15 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           Text(
             isFull
                 ? tr('match_tag_full')
-                : tr('match_spots_open_badge',
-                    namedArgs: {'count': '$openCount'}),
+                : tr(
+                    'match_spots_open_badge',
+                    namedArgs: {'count': '$openCount'},
+                  ),
             style: FlapText.sora(
-                fontSize: 12, fontWeight: FontWeight.w700, color: color),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
           ),
         ],
       ),
@@ -2955,23 +3019,31 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.hourglass_top_rounded,
-                  size: 18, color: FlapColors.gold),
+              const Icon(
+                Icons.hourglass_top_rounded,
+                size: 18,
+                color: FlapColors.gold,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   tr('match_waiting_list_title'),
-                  style:
-                      FlapText.sora(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: FlapText.sora(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               Text(
-                tr('match_waiting_list_total_badge',
-                    namedArgs: {'count': '${waiting.length}'}),
+                tr(
+                  'match_waiting_list_total_badge',
+                  namedArgs: {'count': '${waiting.length}'},
+                ),
                 style: FlapText.sora(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: FlapColors.gold),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: FlapColors.gold,
+                ),
               ),
             ],
           ),
@@ -2979,7 +3051,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           Text(
             tr('match_waiting_list_subtitle'),
             style: FlapText.sora(
-                fontSize: 11.5, color: FlapColors.muted, height: 1.25),
+              fontSize: 11.5,
+              color: FlapColors.muted,
+              height: 1.25,
+            ),
           ),
           const SizedBox(height: 14),
           for (int i = 0; i < waiting.length; i++) ...[
@@ -2997,15 +3072,17 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       future: _sb.from('profiles').select().eq('id', userId).maybeSingle(),
       builder: (context, snapshot) {
         final data = snapshot.data;
-        final displayName = (data?['display_name'] ??
-                data?['first_name'] ??
-                data?['author_name'] ??
-                tr('player'))
-            .toString()
-            .trim();
+        final displayName =
+            (data?['display_name'] ??
+                    data?['first_name'] ??
+                    data?['author_name'] ??
+                    tr('player'))
+                .toString()
+                .trim();
         final firstName = displayName.split(RegExp(r'\s+')).first;
-        final positionLabel =
-            positionLabelForDisplay(data?['position'] as String?);
+        final positionLabel = positionLabelForDisplay(
+          data?['position'] as String?,
+        );
         return GestureDetector(
           onTap: () => _openPlayerProfile(userId, displayName),
           child: Container(
@@ -3029,9 +3106,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   child: Text(
                     '$position',
                     style: FlapText.sora(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: FlapColors.gold),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: FlapColors.gold,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -3052,7 +3130,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: FlapText.sora(
-                            fontSize: 13.5, fontWeight: FontWeight.w600),
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -3060,15 +3140,19 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: FlapText.sora(
-                            fontSize: 11, color: FlapColors.muted),
+                          fontSize: 11,
+                          color: FlapColors.muted,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 6),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0x12E7C25A),
                     borderRadius: BorderRadius.circular(8),
@@ -3076,9 +3160,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   child: Text(
                     tr('match_waiting'),
                     style: FlapText.sora(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                        color: FlapColors.gold),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: FlapColors.gold,
+                    ),
                   ),
                 ),
               ],
@@ -3098,15 +3183,17 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           .maybeSingle(),
       builder: (context, snapshot) {
         final data = snapshot.data;
-        final displayName = (data?['display_name'] ??
-                data?['first_name'] ??
-                data?['author_name'] ??
-                tr('player'))
-            .toString()
-            .trim();
+        final displayName =
+            (data?['display_name'] ??
+                    data?['first_name'] ??
+                    data?['author_name'] ??
+                    tr('player'))
+                .toString()
+                .trim();
         final firstName = displayName.split(RegExp(r'\s+')).first;
-        final positionLabel =
-            positionLabelForDisplay(data?['position'] as String?);
+        final positionLabel = positionLabelForDisplay(
+          data?['position'] as String?,
+        );
         final rating = data != null ? _profileOverallRatingFromRow(data) : 0.0;
         final isOrganizer = participantId == widget.match.organizerId;
         return GestureDetector(
@@ -3141,15 +3228,19 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: FlapText.sora(
-                            fontSize: 13.5, fontWeight: FontWeight.w600),
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         positionLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style:
-                            FlapText.sora(fontSize: 11, color: FlapColors.muted),
+                        style: FlapText.sora(
+                          fontSize: 11,
+                          color: FlapColors.muted,
+                        ),
                       ),
                     ],
                   ),
@@ -3159,13 +3250,18 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.star_rounded,
-                          size: 13, color: FlapColors.gold),
+                      const Icon(
+                        Icons.star_rounded,
+                        size: 13,
+                        color: FlapColors.gold,
+                      ),
                       const SizedBox(width: 2),
                       Text(
                         rating.toStringAsFixed(2),
                         style: FlapText.cond(
-                            fontSize: 15, color: FlapColors.gold),
+                          fontSize: 15,
+                          color: FlapColors.gold,
+                        ),
                       ),
                     ],
                   ),
@@ -3197,11 +3293,15 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: joinable ? const Color(0x294CAF50) : const Color(0x0DFFFFFF),
+              color: joinable
+                  ? const Color(0x294CAF50)
+                  : const Color(0x0DFFFFFF),
             ),
-            child: Icon(Icons.add,
-                size: 18,
-                color: joinable ? FlapColors.greenBright : FlapColors.muted),
+            child: Icon(
+              Icons.add,
+              size: 18,
+              color: joinable ? FlapColors.greenBright : FlapColors.muted,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -3865,7 +3965,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : Text(tr('reject')),
                     ),
@@ -3923,9 +4025,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       onPressed: _isRespondingTeamInvite
                           ? null
                           : () => _respondTeamMatchInvite(
-                                requestId: (invite?['id'] ?? '').toString(),
-                                accept: true,
-                              ),
+                              requestId: (invite?['id'] ?? '').toString(),
+                              accept: true,
+                            ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF4caf50),
                         foregroundColor: Colors.white,
@@ -3949,9 +4051,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       onPressed: _isRespondingTeamInvite
                           ? null
                           : () => _respondTeamMatchInvite(
-                                requestId: (invite?['id'] ?? '').toString(),
-                                accept: false,
-                              ),
+                              requestId: (invite?['id'] ?? '').toString(),
+                              accept: false,
+                            ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.redAccent,
                         foregroundColor: Colors.white,
@@ -3965,7 +4067,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : Text(tr('reject')),
                     ),
@@ -3989,7 +4093,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         .eq('user_id', userId)
         .inFilter('role', ['captain', 'vice_captain']);
     final teamIds = (officerRows as List<dynamic>)
-        .map((row) => (row as Map<String, dynamic>)['team_id']?.toString() ?? '')
+        .map(
+          (row) => (row as Map<String, dynamic>)['team_id']?.toString() ?? '',
+        )
         .where((id) => id.isNotEmpty)
         .toSet()
         .toList();
@@ -4005,9 +4111,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         .toList(growable: false);
     if (rows.isEmpty) return null;
     rows.sort((a, b) {
-      final aDate = DateTime.tryParse((a['created_at'] ?? '').toString()) ??
+      final aDate =
+          DateTime.tryParse((a['created_at'] ?? '').toString()) ??
           DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = DateTime.tryParse((b['created_at'] ?? '').toString()) ??
+      final bDate =
+          DateTime.tryParse((b['created_at'] ?? '').toString()) ??
           DateTime.fromMillisecondsSinceEpoch(0);
       return bDate.compareTo(aDate);
     });
@@ -4039,8 +4147,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(accept ? tr('il_d585866af0') : tr('il_d3bcba9446')),
-          backgroundColor:
-              accept ? const Color(0xFF4caf50) : Colors.orangeAccent,
+          backgroundColor: accept
+              ? const Color(0xFF4caf50)
+              : Colors.orangeAccent,
         ),
       );
     } catch (e) {
@@ -4824,8 +4933,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         return FutureBuilder<Map<String, dynamic>>(
           future: _fetchUserProfile(id),
           builder: (context, snap) {
-            final profile = snap.data ??
-                {'displayName': tr('player'), 'avatarUrl': ''};
+            final profile =
+                snap.data ?? {'displayName': tr('player'), 'avatarUrl': ''};
             final displayName = (profile['displayName'] as String).trim();
             final avatarUrl = (profile['avatarUrl'] as String).trim();
             final initials =
