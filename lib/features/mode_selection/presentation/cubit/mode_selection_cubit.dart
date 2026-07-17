@@ -26,11 +26,21 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
 
   final Random _random = Random();
 
+  /// Shared in-flight profile fetch so the initial profile-document load and the
+  /// greeting update reuse a single network round-trip instead of each issuing
+  /// their own `fetchUserProfile` (the loader is a multi-query batch).
+  Future<UserProfile?>? _profileFuture;
+
+  Future<UserProfile?> _fetchProfileOnce(String userId) =>
+      _profileFuture ??= _profileRepository.fetchUserProfile(userId);
+
   void _init() {
     final uid = AppAuth.currentUserId;
     if (uid != null) {
-      _loadProfileDocumentIfNeeded(uid);
+      // Prime hero stats first so the greeting can reuse the same future rather
+      // than triggering a second (expensive) match-stats query.
       _primeHeroStats(uid);
+      _loadProfileDocumentIfNeeded(uid);
     }
     _updateGreetingFromProfile(uid);
     loadNews();
@@ -39,7 +49,7 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
   /// One-time fetch; skips if [ModeSelectionState.profileDocument] is already set.
   Future<void> _loadProfileDocumentIfNeeded(String userId) async {
     if (state.profileDocument != null) return;
-    final p = await _profileRepository.fetchUserProfile(userId);
+    final p = await _fetchProfileOnce(userId);
     emit(state.copyWith(profileDocument: p?.document));
   }
 
@@ -47,7 +57,8 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
   Future<void> refreshProfileDocument() async {
     final uid = AppAuth.currentUserId;
     if (uid == null) return;
-    final p = await _profileRepository.fetchUserProfile(uid);
+    final future = _profileFuture = _profileRepository.fetchUserProfile(uid);
+    final p = await future;
     emit(state.copyWith(profileDocument: p?.document));
     await _updateGreetingFromProfile(uid, preloaded: p);
   }
@@ -91,7 +102,7 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
       return;
     }
 
-    final profile = preloaded ?? await _profileRepository.fetchUserProfile(uid);
+    final profile = preloaded ?? await _fetchProfileOnce(uid);
     final data = profile?.document;
     final name = data != null
         ? (data['displayName'] ??
@@ -108,9 +119,14 @@ class ModeSelectionCubit extends Cubit<ModeSelectionState> {
     }
     var matchesStr = '0';
     try {
-      final raw = await _matchStatsRepository.loadFinishedMatchStats(uid);
-      matchesStr =
-          '${ModeHeroStats.fromParticipationMap(raw).finishedMatchesPlayed}';
+      // Reuse the hero-stats future primed in _init when available; only fall
+      // back to a fresh query if it hasn't been started (e.g. no uid at init).
+      final heroFuture = state.heroStatsFuture;
+      final stats = heroFuture != null
+          ? await heroFuture
+          : ModeHeroStats.fromParticipationMap(
+              await _matchStatsRepository.loadFinishedMatchStats(uid));
+      matchesStr = '${stats.finishedMatchesPlayed}';
     } catch (_) {}
 
     emit(

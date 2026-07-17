@@ -21,10 +21,13 @@ class MatchParticipationStatsRemoteDataSourceImpl
     try {
       final goalsFuture = _sumParticipantGoals(userId);
 
-      final participantIds = await _finishedMatchIdsFromParticipants(userId);
-      final rosterIds = await _finishedMatchIdsFromTeamRosters(userId);
+      // The two id sources are independent — fetch them concurrently.
+      final idResults = await Future.wait([
+        _finishedMatchIdsFromParticipants(userId),
+        _finishedMatchIdsFromTeamRosters(userId),
+      ]);
       final matchIds =
-          {...participantIds, ...rosterIds}.toList(growable: false);
+          {...idResults[0], ...idResults[1]}.toList(growable: false);
       if (matchIds.isEmpty) {
         final g = await goalsFuture;
         return {..._empty, 'totalGoals': g};
@@ -42,10 +45,16 @@ class MatchParticipationStatsRemoteDataSourceImpl
       var losses = 0;
       final recent = <String>[];
 
-      for (final raw in (matchRows as List<dynamic>)) {
-        final m = raw as Map<String, dynamic>;
-        final mid = m['id'] as String;
-        final outcome = await _outcomeForUser(mid, userId, matchRow: m);
+      // Resolve each match outcome concurrently. Future.wait preserves list
+      // order, so `recent` still reflects finished_at-descending order below.
+      final rows = (matchRows as List<dynamic>).cast<Map<String, dynamic>>();
+      final outcomes = await Future.wait(
+        rows.map(
+          (m) => _outcomeForUser(m['id'] as String, userId, matchRow: m),
+        ),
+      );
+
+      for (final outcome in outcomes) {
         if (outcome == null) {
           continue;
         }

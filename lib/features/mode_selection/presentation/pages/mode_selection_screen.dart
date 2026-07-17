@@ -173,6 +173,14 @@ class _ModeSelectionBodyState extends State<_ModeSelectionBody> {
               _buildHeader(context),
               Expanded(
                 child: BlocBuilder<ModeSelectionCubit, ModeSelectionState>(
+                  // The home body reads these fields only; skip rebuilds driven
+                  // solely by ratingLineText (consumed elsewhere).
+                  buildWhen: (a, b) =>
+                      a.profileDocument != b.profileDocument ||
+                      a.greetingText != b.greetingText ||
+                      a.heroStatsFuture != b.heroStatsFuture ||
+                      a.newsItems != b.newsItems ||
+                      a.newsLoading != b.newsLoading,
                   builder: (context, state) {
                     final cubit = context.read<ModeSelectionCubit>();
                     final data = state.profileDocument;

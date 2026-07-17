@@ -27,12 +27,17 @@ class ModeNewsRepositoryImpl implements ModeNewsRepository {
   @override
   Future<List<ModeNewsItem>> loadFeed({int limit = 3}) async {
     try {
-      final results = await Future.wait<ModeNewsItem?>([
+      // Run the highlights and the team-join movement concurrently. The feed
+      // only renders `limit` items after the merge/sort, so there's no point
+      // fetching more joins than that.
+      final highlightsFuture = Future.wait<ModeNewsItem?>([
         _remote.fetchLatestMatchHighlight(),
         _remote.fetchLatestVideoHighlight(),
         _remote.fetchLatestTeamHighlight(),
       ]);
-      final movement = await _remote.fetchRecentTeamJoins(limit: 20);
+      final movementFuture = _remote.fetchRecentTeamJoins(limit: limit);
+      final results = await highlightsFuture;
+      final movement = await movementFuture;
 
       final available = <ModeNewsItem>[
         ...results.whereType<ModeNewsItem>(),

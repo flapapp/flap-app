@@ -209,21 +209,39 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
           .order('joined_at', ascending: false)
           .limit(limit);
 
-      final list = rows as List<dynamic>;
+      final list = (rows as List<dynamic>).cast<Map<String, dynamic>>();
+      if (list.isEmpty) {
+        return const [];
+      }
+
+      // Enrich in two batch reads instead of a team + profile query per row
+      // (was N+1: up to 2×limit sequential round-trips). Collect the ids once,
+      // then resolve teams and profiles concurrently.
+      final teamIds = <String>{};
+      final userIds = <String>{};
+      for (final m in list) {
+        final t = m['team_id'] as String?;
+        final u = m['user_id'] as String?;
+        if (t != null) teamIds.add(t);
+        if (u != null) userIds.add(u);
+      }
+
+      final batch = await Future.wait([
+        _teamsByIds(teamIds.toList(growable: false)),
+        _profilesByIds(userIds.toList(growable: false)),
+      ]);
+      final teams = batch[0];
+      final profiles = batch[1];
+
       final out = <ModeNewsItem>[];
-      for (final raw in list) {
-        final m = raw as Map<String, dynamic>;
+      for (final m in list) {
         final teamId = m['team_id'] as String?;
         final userId = m['user_id'] as String?;
         if (teamId == null || userId == null) {
           continue;
         }
-        final teamRow = await _client
-            .from('teams')
-            .select('name,logo_url')
-            .eq('id', teamId)
-            .maybeSingle();
-        final userRow = await _profileRow(userId);
+        final teamRow = teams[teamId];
+        final userRow = profiles[userId];
         final teamName = (teamRow?['name'] ?? tr('il_5985039f10')).toString();
         final userName = _profileDisplayName(userRow);
         out.add(
@@ -244,5 +262,41 @@ class ModeDashboardRemoteDataSourceImpl implements ModeDashboardRemoteDataSource
     } catch (_) {
       return const [];
     }
+  }
+
+  /// Batch-reads teams by id, keyed by `id`. Empty in → empty out (no query).
+  Future<Map<String, Map<String, dynamic>>> _teamsByIds(
+    List<String> ids,
+  ) async {
+    if (ids.isEmpty) return const {};
+    final rows = await _client
+        .from('teams')
+        .select('id,name,logo_url')
+        .inFilter('id', ids);
+    final map = <String, Map<String, dynamic>>{};
+    for (final raw in rows as List<dynamic>) {
+      final m = raw as Map<String, dynamic>;
+      final id = m['id'] as String?;
+      if (id != null) map[id] = m;
+    }
+    return map;
+  }
+
+  /// Batch-reads profiles by id, keyed by `id`. Empty in → empty out (no query).
+  Future<Map<String, Map<String, dynamic>>> _profilesByIds(
+    List<String> ids,
+  ) async {
+    if (ids.isEmpty) return const {};
+    final rows = await _client
+        .from('profiles')
+        .select('id,display_name,first_name,last_name')
+        .inFilter('id', ids);
+    final map = <String, Map<String, dynamic>>{};
+    for (final raw in rows as List<dynamic>) {
+      final m = raw as Map<String, dynamic>;
+      final id = m['id'] as String?;
+      if (id != null) map[id] = m;
+    }
+    return map;
   }
 }
