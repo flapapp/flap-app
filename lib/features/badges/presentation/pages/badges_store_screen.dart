@@ -53,7 +53,7 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
         await _badgesRepo.initializeDefaultBadges();
 
         final results = await Future.wait([
-          _badgesRepo.getAvailableBadges().first,
+          _badgesRepo.getAvailableBadges(),
           _badgesRepo.getUserBadgeIds(currentUser.id),
           coinBalance(Supabase.instance.client, currentUser.id),
         ]);

@@ -8,13 +8,8 @@ class BadgesRepositoryImpl implements BadgesRepository {
   final BadgeService _badges;
 
   @override
-  Stream<List<Badge>> getAvailableBadges() {
+  Future<List<Badge>> getAvailableBadges() {
     return _badges.getAvailableBadges();
-  }
-
-  @override
-  Stream<List<Badge>> getBadgesByCategory(String category) {
-    return _badges.getBadgesByCategory(category);
   }
 
   @override

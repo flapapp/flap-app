@@ -2,9 +2,7 @@ import '../../data/models/badge.dart';
 
 /// Badge catalog, ownership, purchases, and activity awards (domain).
 abstract class BadgesRepository {
-  Stream<List<Badge>> getAvailableBadges();
-
-  Stream<List<Badge>> getBadgesByCategory(String category);
+  Future<List<Badge>> getAvailableBadges();
 
   Future<List<String>> getUserBadgeIds(String userId);
 

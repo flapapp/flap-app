@@ -9,29 +9,19 @@ class BadgeService {
   static Future<void>? _initializationFuture;
   final SupabaseClient _sb = Supabase.instance.client;
 
-  Stream<List<Badge>> getAvailableBadges() {
-    return _sb
+  /// The purchasable badge catalog. `.order` defaults to descending, so this
+  /// lists priciest first — matching what the store showed when this was a
+  /// stream. Filtering `is_available` server-side keeps the rest off the wire.
+  Future<List<Badge>> getAvailableBadges() async {
+    final rows = await _sb
         .from('badges')
-        .stream(primaryKey: ['id'])
-        .order('price')
-        .map((rows) => rows
-            .where((r) => r['is_available'] == true)
-            .map(_badgeFromRow)
-            .map((b) => b.copyWith(price: _resolveEffectiveBadgePrice(b)))
-            .toList(growable: false));
-  }
-
-  Stream<List<Badge>> getBadgesByCategory(String category) {
-    return _sb
-        .from('badges')
-        .stream(primaryKey: ['id'])
-        .order('price')
-        .map((rows) => rows
-            .where((r) => r['is_available'] == true)
-            .where((r) => (r['category'] ?? '').toString() == category)
-            .map(_badgeFromRow)
-            .map((b) => b.copyWith(price: _resolveEffectiveBadgePrice(b)))
-            .toList(growable: false));
+        .select()
+        .eq('is_available', true)
+        .order('price');
+    return (rows as List<dynamic>)
+        .map((r) => _badgeFromRow(r as Map<String, dynamic>))
+        .map((b) => b.copyWith(price: _resolveEffectiveBadgePrice(b)))
+        .toList(growable: false);
   }
 
   Future<List<String>> getUserBadges(String userId) async {
