@@ -9,16 +9,41 @@ subscription and one-time **FL Coin** purchases:
   writes subscription state to the `subscriptions` table and credits purchased
   FL Coins. **The only place premium access is granted or coins are minted.**
 
+## Two environments (sandbox + live)
+
+Paddle has fully separate **sandbox** and **live** dashboards with their own
+tokens, product/price IDs and webhook secrets. This project supports both at
+once:
+
+- **App side** — both credential sets are committed in `paddle_config.dart`, and
+  the active one is chosen at build time by the `PADDLE_ENV` dart-define
+  (defaults to sandbox). No code edits to switch:
+
+  ```bash
+  flutter run                                    # sandbox (default)
+  flutter run   --dart-define=PADDLE_ENV=production
+  flutter build --dart-define=PADDLE_ENV=production
+  ```
+
+- **Server side** — the single deployed `paddle-webhook` holds both
+  environments' secrets. Each incoming event is matched to an environment by
+  which webhook secret verifies its signature, so sandbox and live can post to
+  the same URL simultaneously.
+
+Repeat the dashboard setup below **once per environment** (sandbox first, then
+live) and keep the two sets of IDs straight.
+
 ## One-time setup
 
-### 1. Paddle dashboard (sandbox first)
+### 1. Paddle dashboard (repeat for sandbox, then live)
 
 1. Create a **Product** ("Flap Premium") with two **Prices**:
    - Monthly — $1.00, billing period 1 month.
    - Yearly — $10.00, billing period 1 year.
    - Add a **21-day free trial** to each price (Trial period).
 2. Copy the two **price IDs** (`pri_...`) and the **client-side token**
-   (Developer Tools → Authentication).
+   (Developer Tools → Authentication). Sandbox tokens are prefixed `test_`,
+   live tokens `live_`.
 2b. Create a second **Product** ("FL Coins") with ONE **one-time** Price of
    **$1.00 USD** (no billing period). This single price is the $1 coin unit —
    packs are bought as `quantity` N of it, which is what keeps the rate at
@@ -31,14 +56,26 @@ subscription and one-time **FL Coin** purchases:
 
 ### 2. App config
 
-Put the **non-secret** values in `lib/features/subscriptions/data/paddle_config.dart`:
+Put the **non-secret** values for each environment in
+`lib/features/subscriptions/data/paddle_config.dart` — `_sandbox` holds the test
+IDs, `_production` the live ones:
 
 ```dart
-static const String env = 'sandbox';
-static const String clientToken = 'test_xxx';   // client-side token
-static const String priceMonthly = 'pri_xxx';
-static const String priceYearly  = 'pri_xxx';
-static const String priceCoins   = 'pri_xxx';   // the $1 one-time coin price
+static const PaddleEnvCredentials _sandbox = PaddleEnvCredentials(
+  name: 'sandbox',
+  clientToken: 'test_xxx',
+  priceMonthly: 'pri_xxx',
+  priceYearly:  'pri_xxx',
+  priceCoins:   'pri_xxx',   // the $1 one-time coin price
+);
+
+static const PaddleEnvCredentials _production = PaddleEnvCredentials(
+  name: 'production',
+  clientToken: 'live_xxx',
+  priceMonthly: 'pri_xxx',
+  priceYearly:  'pri_xxx',
+  priceCoins:   'pri_xxx',
+);
 ```
 
 ### 3. Deploy the functions (public — no JWT)
@@ -53,16 +90,24 @@ supabase functions deploy paddle-webhook  --no-verify-jwt
 
 ### 4. Function secrets (SECRET — never commit)
 
+Set the per-environment secrets. Set only the environments you use — the webhook
+picks whichever verifies each request:
+
 ```bash
 supabase secrets set \
-  PADDLE_WEBHOOK_SECRET=pdl_ntfset_xxx \
-  PADDLE_ENV=sandbox \
-  PADDLE_COIN_PRICE_ID=pri_xxx     # same $1 coin price as PaddleConfig.priceCoins
+  PADDLE_WEBHOOK_SECRET_SANDBOX=pdl_ntfset_xxx \
+  PADDLE_COIN_PRICE_ID_SANDBOX=pri_xxx \
+  PADDLE_WEBHOOK_SECRET_LIVE=pdl_ntfset_xxx \
+  PADDLE_COIN_PRICE_ID_LIVE=pri_xxx
 # Optional: override the 10-coins-per-$1 rate (must match the app's copy)
 # supabase secrets set PADDLE_COINS_PER_UNIT=10
 # Optional: let paddle-checkout read the token from a secret instead of the URL
 # supabase secrets set PADDLE_CLIENT_TOKEN=test_xxx
 ```
+
+Legacy single-environment secrets (`PADDLE_WEBHOOK_SECRET`,
+`PADDLE_COIN_PRICE_ID`) are still honoured as a fallback, so existing
+deployments keep working until you migrate to the `_SANDBOX`/`_LIVE` names.
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.
 
@@ -84,8 +129,9 @@ webhook events and update the same row — the app just re-reads it on resume.
 1. Buy Coins screen opens checkout for `priceCoins` with `quantity` = dollars.
 2. Payment completes → Paddle fires `transaction.completed` with no
    `subscription_id`.
-3. The webhook sums the quantity of line items matching `PADDLE_COIN_PRICE_ID`
-   and multiplies by `PADDLE_COINS_PER_UNIT` (10). **The coin count comes only
+3. The webhook sums the quantity of line items matching the coin price for the
+   verifying environment (`PADDLE_COIN_PRICE_ID_SANDBOX` / `_LIVE`) and
+   multiplies by `PADDLE_COINS_PER_UNIT` (10). **The coin count comes only
    from Paddle's signed payload** — `custom_data` is client-controlled, so it
    supplies just `user_id`, never an amount.
 4. `credit_coin_purchase()` (service-role only, `security definer`) writes the
@@ -101,5 +147,10 @@ hand.
 
 ## Going live
 
-Flip `env`/`PADDLE_ENV` to `production`, swap in the production client token +
-price IDs + webhook secret, and redeploy.
+1. Fill `_production` in `paddle_config.dart` with the live client token and
+   price IDs.
+2. Set `PADDLE_WEBHOOK_SECRET_LIVE` and `PADDLE_COIN_PRICE_ID_LIVE` (the webhook
+   is already deployed; no redeploy needed to add live support).
+3. Build the app with `--dart-define=PADDLE_ENV=production`.
+
+Sandbox keeps working the whole time — the two environments run side by side.
