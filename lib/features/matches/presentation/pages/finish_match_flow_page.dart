@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import '../../../subscriptions/presentation/premium_gate.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../widgets/player_avatar_button.dart';
@@ -179,7 +180,8 @@ class _FinishMatchFlowPageState extends State<FinishMatchFlowPage> {
     setState(() => _step = 0);
   }
 
-  void _submitScoresStep(_FinishFlowData flow) {
+  Future<void> _submitScoresStep(_FinishFlowData flow) async {
+    if (!await PremiumGate.ensure(context)) return;
     final a = int.tryParse(_scoreAController.text.trim());
     final b = int.tryParse(_scoreBController.text.trim());
     if (a == null || b == null || a < 0 || b < 0) {

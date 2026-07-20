@@ -3,6 +3,7 @@ import 'package:easy_localization/easy_localization.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import '../../../subscriptions/presentation/premium_gate.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
@@ -402,6 +403,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   }
 
   Future<void> _sendFriendRequest() async {
+    if (!await PremiumGate.ensure(context)) return;
     try {
       if (!mounted) return;
       setState(() {

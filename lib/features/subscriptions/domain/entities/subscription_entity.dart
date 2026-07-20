@@ -1,19 +1,35 @@
 import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
 
+/// The app now has a single paid plan. [free] users get view-only access;
+/// [premium] users (whether trialing or paying) get full access.
 @JsonEnum()
 enum SubscriptionType {
   free,
-  europa,
-  champions,
+  premium,
 }
 
+/// Lifecycle states, mirrored from Paddle via the webhook.
+///
+/// - [trial]/[active] mean the user currently has premium access.
+/// - [pastDue] means a renewal payment failed; access is treated as lapsed
+///   until Paddle recovers the payment (the webhook flips it back to active).
+/// - [expired]/[cancelled] mean no access.
 @JsonEnum()
 enum SubscriptionStatus {
   active,
+  trial,
+  @JsonValue('past_due')
+  pastDue,
   expired,
   cancelled,
-  trial,
+}
+
+/// How a premium subscription is billed.
+@JsonEnum()
+enum BillingInterval {
+  monthly,
+  yearly,
 }
 
 class SubscriptionEntity extends Equatable {
@@ -28,6 +44,9 @@ class SubscriptionEntity extends Equatable {
     this.isActive = true,
     this.trialEndDate,
     this.autoRenew = false,
+    this.billingInterval,
+    this.paddleSubscriptionId,
+    this.currentPeriodEnd,
     required this.features,
   });
 
@@ -41,6 +60,9 @@ class SubscriptionEntity extends Equatable {
   final bool isActive;
   final DateTime? trialEndDate;
   final bool autoRenew;
+  final BillingInterval? billingInterval;
+  final String? paddleSubscriptionId;
+  final DateTime? currentPeriodEnd;
   final Map<String, dynamic> features;
 
   @override
@@ -55,6 +77,9 @@ class SubscriptionEntity extends Equatable {
         isActive,
         trialEndDate,
         autoRenew,
+        billingInterval,
+        paddleSubscriptionId,
+        currentPeriodEnd,
         features,
       ];
 }

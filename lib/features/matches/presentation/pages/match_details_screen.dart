@@ -4,6 +4,7 @@ import '../../../../core/supabase/supabase_app_storage.dart';
 import '../../../../core/supabase/guard_supabase_realtime_stream.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import '../../../subscriptions/presentation/premium_gate.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../router/app_router.dart';
@@ -4272,6 +4273,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   void _joinMatch() async {
     // Prevent double taps while request in flight.
     if (_isJoining) return;
+    if (!await PremiumGate.ensure(context)) return;
 
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;

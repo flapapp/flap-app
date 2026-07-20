@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import '../../../subscriptions/presentation/premium_gate.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -1051,6 +1052,7 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   Future<void> _createMatch() async {
     if (_isCreating) return;
     if (!_formKey.currentState!.validate()) return;
+    if (!await PremiumGate.ensure(context)) return;
     setState(() => _isCreating = true);
 
     try {

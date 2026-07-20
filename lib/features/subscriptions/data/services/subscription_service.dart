@@ -2,331 +2,77 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/core/auth/app_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/supabase/coin_ledger.dart';
 import '../../data/models/subscription.dart';
 
+/// Reads subscription state from Supabase. All *writes* to a premium
+/// subscription happen server-side in the `paddle-webhook` edge function — the
+/// client never grants itself premium. The only client-side mutation is a soft
+/// cancel (turning off auto-renew); Paddle emits the authoritative state change
+/// via the webhook afterwards.
 class SubscriptionService {
   final SupabaseClient _client = Supabase.instance.client;
 
-  // Get user's current subscription
+  /// The user's current subscription, or an in-memory free placeholder when
+  /// they have no active premium row. Never writes a free row to the DB.
   Future<Subscription?> getUserSubscription(String userId) async {
     try {
       final row = await _activeSubscriptionRow(userId);
-      if (row == null) {
-        // Create default free subscription
-        return await _createFreeSubscription(userId);
-      }
+      if (row == null) return _freePlaceholder(userId);
       return _toSubscription(row);
-    } catch (e) {
-      print('Error getting user subscription: $e');
-      try {
-        return await _createFreeSubscription(userId);
-      } catch (createError) {
-        print('Failed to create fallback free subscription: $createError');
-        return null;
-      }
+    } catch (_) {
+      // Fail closed to view-only rather than blocking the UI on a read error.
+      return _freePlaceholder(userId);
     }
   }
 
-  // Check if user has active subscription
+  /// Whether the user currently has premium access (trialing or active).
   Future<bool> hasActiveSubscription([String? userId]) async {
     userId ??= AppAuth.currentUserId;
     if (userId == null) return false;
-
     final subscription = await getUserSubscription(userId);
-    return subscription != null && 
-           subscription.isActive && 
-           subscription.type != SubscriptionType.free;
+    return subscription?.isPremiumActive ?? false;
   }
 
-  // Get subscription type
   Future<SubscriptionType> getSubscriptionType([String? userId]) async {
     userId ??= AppAuth.currentUserId;
     if (userId == null) return SubscriptionType.free;
-
     final subscription = await getUserSubscription(userId);
     return subscription?.type ?? SubscriptionType.free;
   }
 
-  // Create free subscription for new users
-  Future<Subscription> _createFreeSubscription(String userId) async {
-    final planId = await _resolvePlanId(SubscriptionType.free);
+  /// Soft-cancels the active subscription by turning off auto-renew. The
+  /// account keeps premium access until the end of the current period; Paddle
+  /// sends `subscription.canceled`/`subscription.updated` which the webhook
+  /// applies as the final state.
+  Future<void> cancelSubscription() async {
+    final currentUser = AppAuth.currentUser;
+    if (currentUser == null) {
+      throw Exception(tr('submission_error_not_signed_in'));
+    }
+
+    final row = await _activeSubscriptionRow(currentUser.id);
+    if (row == null) {
+      throw Exception(tr('subscription_error_no_active_subscription'));
+    }
+
+    await _client.from('subscriptions').update({
+      'auto_renew': false,
+      'cancelled_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', row['id']);
+  }
+
+  Subscription _freePlaceholder(String userId) {
     final now = DateTime.now();
-    final subscription = Subscription(
+    return Subscription(
       id: '',
       userId: userId,
       type: SubscriptionType.free,
       status: SubscriptionStatus.active,
       startDate: now,
-      endDate: now.add(const Duration(days: 365 * 10)), // 10 years
+      endDate: now,
       price: 0,
-      isActive: true,
-      features: {},
+      features: const {},
     );
-
-    final inserted = await _client
-        .from('subscriptions')
-        .insert(subscription.toSupabase(planId))
-        .select('id')
-        .single();
-    return subscription.copyWith(id: inserted['id'].toString());
-  }
-
-  // Start Champions League trial
-  Future<Subscription?> startChampionsTrialSubscription() async {
-    try {
-      final currentUser = AppAuth.currentUser;
-      if (currentUser == null) {
-        throw Exception(tr('submission_error_not_signed_in'));
-      }
-
-      // Check if user already had trial
-      final existingSubscriptions = await _client
-          .from('subscriptions')
-          .select('trial_ends_at, subscription_plans!inner(code)')
-          .eq('user_id', currentUser.id)
-          .eq('subscription_plans.code', 'champions');
-
-      for (final row in existingSubscriptions as List<dynamic>) {
-        final map = row as Map<String, dynamic>;
-        if (map['trial_ends_at'] != null) {
-          throw Exception(tr('subscription_error_trial_already_used'));
-        }
-      }
-
-      // Deactivate current subscription
-      await _deactivateCurrentSubscription(currentUser.id);
-      final planId = await _resolvePlanId(SubscriptionType.champions);
-
-      // Create trial subscription
-      final now = DateTime.now();
-      final trialEndDate = now.add(const Duration(days: 30)); // 30 days trial
-      
-      final subscription = Subscription(
-        id: '',
-        userId: currentUser.id,
-        type: SubscriptionType.champions,
-        status: SubscriptionStatus.trial,
-        startDate: now,
-        endDate: trialEndDate,
-        price: 0,
-        isActive: true,
-        trialEndDate: trialEndDate,
-        features: {},
-      );
-
-      final inserted = await _client
-          .from('subscriptions')
-          .insert(subscription.toSupabase(planId))
-          .select('id')
-          .single();
-      final newSubscription = subscription.copyWith(id: inserted['id'].toString());
-
-      // Award trial coins
-      await _awardMonthlyCoins(currentUser.id, SubscriptionType.champions);
-
-      return newSubscription;
-    } catch (e) {
-      print('Error starting trial subscription: $e');
-      rethrow;
-    }
-  }
-
-  // Purchase subscription (mock implementation)
-  Future<Subscription?> purchaseSubscription(SubscriptionType type) async {
-    try {
-      final currentUser = AppAuth.currentUser;
-      if (currentUser == null) {
-        throw Exception(tr('submission_error_not_signed_in'));
-      }
-
-      // Deactivate current subscription
-      await _deactivateCurrentSubscription(currentUser.id);
-      final planId = await _resolvePlanId(type);
-
-      // Create new subscription
-      final now = DateTime.now();
-      final endDate = now.add(const Duration(days: 30)); // 30 days
-      
-      final subscription = Subscription(
-        id: '',
-        userId: currentUser.id,
-        type: type,
-        status: SubscriptionStatus.active,
-        startDate: now,
-        endDate: endDate,
-        price: type == SubscriptionType.europa ? 49 : 89,
-        isActive: true,
-        autoRenew: true,
-        features: {},
-      );
-
-      final inserted = await _client
-          .from('subscriptions')
-          .insert(subscription.toSupabase(planId))
-          .select('id')
-          .single();
-      final newSubscription = subscription.copyWith(id: inserted['id'].toString());
-
-      // Award monthly coins
-      await _awardMonthlyCoins(currentUser.id, type);
-
-      return newSubscription;
-    } catch (e) {
-      print('Error purchasing subscription: $e');
-      rethrow;
-    }
-  }
-
-  // Deactivate current subscription
-  Future<void> _deactivateCurrentSubscription(String userId) async {
-    await _client
-        .from('subscriptions')
-        .update({'status': 'expired'})
-        .eq('user_id', userId)
-        .inFilter('status', ['trial', 'active']);
-  }
-
-  // Award monthly coins based on subscription type
-  Future<void> _awardMonthlyCoins(String userId, SubscriptionType type) async {
-    int coinsToAward = 0;
-    
-    switch (type) {
-      case SubscriptionType.europa:
-        coinsToAward = 30;
-        break;
-      case SubscriptionType.champions:
-        coinsToAward = 60;
-        break;
-      default:
-        return;
-    }
-
-    if (coinsToAward > 0) {
-      await insertCoinTransaction(
-        Supabase.instance.client,
-        userId,
-        'subscription_bonus',
-        coinsToAward,
-        tr('il_c4dbbb91b5'),
-      );
-    }
-  }
-
-  // Cancel subscription
-  Future<void> cancelSubscription() async {
-    try {
-      final currentUser = AppAuth.currentUser;
-      if (currentUser == null) {
-        throw Exception(tr('submission_error_not_signed_in'));
-      }
-
-      final subscription = await getUserSubscription(currentUser.id);
-      if (subscription == null || subscription.type == SubscriptionType.free) {
-        throw Exception(tr('subscription_error_no_active_subscription'));
-      }
-
-      // Update subscription status
-      await _client
-          .from('subscriptions')
-          .update({
-            'status': 'cancelled',
-            'auto_renew': false,
-            'cancelled_at': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', subscription.id);
-
-      // Create free subscription
-      await _createFreeSubscription(currentUser.id);
-    } catch (e) {
-      print('Error cancelling subscription: $e');
-      rethrow;
-    }
-  }
-
-  // Check if feature is available for user
-  Future<bool> hasFeature(String feature, [String? userId]) async {
-    userId ??= AppAuth.currentUserId;
-    if (userId == null) return false;
-
-    final subscription = await getUserSubscription(userId);
-    return subscription?.hasFeature(feature) ?? false;
-  }
-
-  // Get challenge limit for user
-  Future<int> getChallengeLimit([String? userId]) async {
-    userId ??= AppAuth.currentUserId;
-    if (userId == null) return 1;
-
-    final subscription = await getUserSubscription(userId);
-    switch (subscription?.type ?? SubscriptionType.free) {
-      case SubscriptionType.champions:
-        return -1; // Unlimited
-      case SubscriptionType.europa:
-        return 5;
-      default:
-        return 1;
-    }
-  }
-
-  // Check if user can create more challenges this month
-  Future<bool> canCreateChallenge([String? userId]) async {
-    userId ??= AppAuth.currentUserId;
-    if (userId == null) return false;
-
-    final limit = await getChallengeLimit(userId);
-    if (limit == -1) return true; // Unlimited
-
-    // Count challenges created this month
-    final now = DateTime.now();
-    final monthStart = DateTime(now.year, now.month, 1);
-    
-    final rows = await _client
-        .from('challenges')
-        .select('id')
-        .eq('creator_id', userId)
-        .gte('created_at', monthStart.toUtc().toIso8601String());
-
-    return (rows as List<dynamic>).length < limit;
-  }
-
-  // Get subscription benefits text
-  String getSubscriptionBenefits(SubscriptionType type) {
-    switch (type) {
-      case SubscriptionType.europa:
-        return tr('subscription_benefits_europa');
-      case SubscriptionType.champions:
-        return tr('subscription_benefits_champions');
-      default:
-        return tr('subscription_benefits_free');
-    }
-  }
-
-  // LEGACY METHODS FOR COMPATIBILITY
-  Future<Subscription?> getCurrent() async {
-    final userId = AppAuth.currentUserId;
-    if (userId == null) return null;
-    return getUserSubscription(userId);
-  }
-
-  Future<void> grantChampionsTrialIfMissing() async {
-    final userId = AppAuth.currentUserId;
-    if (userId == null) return;
-
-    try {
-      final subscription = await getUserSubscription(userId);
-      if (subscription != null && subscription.type != SubscriptionType.free) return;
-
-      await startChampionsTrialSubscription();
-    } catch (e) {
-      print('Failed to grant champions trial during bootstrap: $e');
-    }
-  }
-
-  Future<Subscription?> getActiveSubscription() async {
-    final userId = AppAuth.currentUserId;
-    if (userId == null) return null;
-    return getUserSubscription(userId);
   }
 
   Future<Map<String, dynamic>?> _activeSubscriptionRow(String userId) async {
@@ -343,45 +89,6 @@ class SubscriptionService {
   Subscription _toSubscription(Map<String, dynamic> row) {
     final plan = row['subscription_plans'] as Map<String, dynamic>?;
     final code = (plan?['code'] ?? 'free').toString();
-    return Subscription.fromSupabase(row: row, planCode: _normalizePlanCode(code));
-  }
-
-  String _normalizePlanCode(String code) {
-    if (code == 'champions_league') return 'champions';
-    return code;
-  }
-
-  String _planCodeForType(SubscriptionType type) {
-    switch (type) {
-      case SubscriptionType.champions:
-        return 'champions';
-      case SubscriptionType.europa:
-        return 'europa';
-      case SubscriptionType.free:
-        return 'free';
-    }
-  }
-
-  Future<String> _resolvePlanId(SubscriptionType type) async {
-    final code = _planCodeForType(type);
-    final row = await _client
-        .from('subscription_plans')
-        .select('id, code')
-        .eq('code', code)
-        .maybeSingle();
-    if (row != null) {
-      return row['id'].toString();
-    }
-    if (type == SubscriptionType.champions) {
-      final alt = await _client
-          .from('subscription_plans')
-          .select('id, code')
-          .eq('code', 'champions_league')
-          .maybeSingle();
-      if (alt != null) {
-        return alt['id'].toString();
-      }
-    }
-    throw Exception('Subscription plan "$code" not found');
+    return Subscription.fromSupabase(row: row, planCode: code);
   }
 }

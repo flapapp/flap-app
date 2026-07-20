@@ -19,6 +19,12 @@ Subscription _$SubscriptionFromJson(Map<String, dynamic> json) => Subscription(
           ? null
           : DateTime.parse(json['trialEndDate'] as String),
       autoRenew: json['autoRenew'] as bool? ?? false,
+      billingInterval: $enumDecodeNullable(
+          _$BillingIntervalEnumMap, json['billingInterval']),
+      paddleSubscriptionId: json['paddleSubscriptionId'] as String?,
+      currentPeriodEnd: json['currentPeriodEnd'] == null
+          ? null
+          : DateTime.parse(json['currentPeriodEnd'] as String),
       features: json['features'] as Map<String, dynamic>,
     );
 
@@ -34,18 +40,26 @@ Map<String, dynamic> _$SubscriptionToJson(Subscription instance) =>
       'isActive': instance.isActive,
       'trialEndDate': instance.trialEndDate?.toIso8601String(),
       'autoRenew': instance.autoRenew,
+      'billingInterval': _$BillingIntervalEnumMap[instance.billingInterval],
+      'paddleSubscriptionId': instance.paddleSubscriptionId,
+      'currentPeriodEnd': instance.currentPeriodEnd?.toIso8601String(),
       'features': instance.features,
     };
 
 const _$SubscriptionTypeEnumMap = {
   SubscriptionType.free: 'free',
-  SubscriptionType.europa: 'europa',
-  SubscriptionType.champions: 'champions',
+  SubscriptionType.premium: 'premium',
 };
 
 const _$SubscriptionStatusEnumMap = {
   SubscriptionStatus.active: 'active',
+  SubscriptionStatus.trial: 'trial',
+  SubscriptionStatus.pastDue: 'past_due',
   SubscriptionStatus.expired: 'expired',
   SubscriptionStatus.cancelled: 'cancelled',
-  SubscriptionStatus.trial: 'trial',
+};
+
+const _$BillingIntervalEnumMap = {
+  BillingInterval.monthly: 'monthly',
+  BillingInterval.yearly: 'yearly',
 };

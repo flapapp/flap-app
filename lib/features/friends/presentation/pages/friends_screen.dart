@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import '../../../subscriptions/presentation/premium_gate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flap_app/city_localization.dart';
@@ -957,6 +958,7 @@ class _FriendsScreenState extends State<FriendsScreen>
   }
 
   void _sendFriendRequest(String userId) async {
+    if (!await PremiumGate.ensure(context)) return;
     try {
       await _friendsRepo.sendFriendRequest(userId);
       await _friendsPageCubit.refreshAll();

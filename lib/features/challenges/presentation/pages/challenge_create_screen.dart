@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import '../../../subscriptions/presentation/premium_gate.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'package:flutter/foundation.dart';
@@ -1329,6 +1330,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    if (!await PremiumGate.ensure(context)) return;
 
     if (_selectedVideoFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(

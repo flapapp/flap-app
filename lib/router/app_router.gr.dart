@@ -811,7 +811,7 @@ class SubscriptionRoute extends PageRouteInfo<void> {
   static PageInfo page = PageInfo(
     name,
     builder: (data) {
-      return SubscriptionScreen();
+      return const SubscriptionScreen();
     },
   );
 }

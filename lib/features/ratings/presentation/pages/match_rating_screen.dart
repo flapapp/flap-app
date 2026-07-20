@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import '../../../subscriptions/presentation/premium_gate.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
@@ -569,6 +570,7 @@ void initState() {
 
     // Save all ratings
   Future<void> _submitAllRatings() async {
+    if (!await PremiumGate.ensure(context)) return;
     setState(() {
       _isSubmitting = true;
     });

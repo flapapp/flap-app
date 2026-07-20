@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import '../../../subscriptions/presentation/premium_gate.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'package:image_picker/image_picker.dart';
@@ -627,6 +628,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     if (!_formKey.currentState!.validate() || _pickedVideo == null) {
       return;
     }
+    if (!await PremiumGate.ensure(context)) return;
     // Category & difficulty are chip selections (not form fields), so validate
     // them manually for regular (non-challenge) uploads.
     if (widget.challengeId == null) {

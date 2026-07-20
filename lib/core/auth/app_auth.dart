@@ -9,6 +9,7 @@ import '../settings/app_settings_cubit.dart';
 import '../../features/notifications/data/services/notification_service.dart';
 import '../../features/profile/data/services/user_settings_service.dart';
 import '../../features/profile/presentation/bloc/profile_bloc.dart';
+import '../../features/subscriptions/domain/subscription_access.dart';
 import '../../widgets/team_crest.dart';
 import '../../widgets/video_preview_box.dart';
 
@@ -72,6 +73,13 @@ abstract final class AppAuth {
     // a fresh bloc with the initial (empty) state.
     _guard(() {
       if (sl.isRegistered<ProfileBloc>()) sl.resetLazySingleton<ProfileBloc>();
+    });
+
+    // Cached premium-access state — must clear or the next user inherits it.
+    _guard(() {
+      if (sl.isRegistered<SubscriptionAccess>()) {
+        sl<SubscriptionAccess>().clear();
+      }
     });
 
     // Static image caches that may hold other users' / teams' content.

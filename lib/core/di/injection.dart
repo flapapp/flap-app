@@ -109,6 +109,7 @@ import '../../features/stats/data/repositories/stats_repository_impl.dart';
 import '../../features/stats/domain/repositories/stats_repository.dart';
 import '../../features/subscriptions/data/repositories/subscriptions_repository_impl.dart';
 import '../../features/subscriptions/domain/repositories/subscriptions_repository.dart';
+import '../../features/subscriptions/domain/subscription_access.dart';
 import '../../features/teams/data/datasources/teams_remote_datasource.dart';
 import '../../features/teams/data/datasources/teams_remote_datasource_impl.dart';
 import '../../features/teams/data/repositories/teams_repository_impl.dart';
@@ -256,6 +257,9 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<SubscriptionService>(() => SubscriptionService())
     ..registerLazySingleton<SubscriptionsRepository>(
       () => SubscriptionsRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<SubscriptionAccess>(
+      () => SubscriptionAccess(sl()),
     )
     ..registerLazySingleton<StatsRepository>(
       () => StatsRepositoryImpl(Supabase.instance.client),

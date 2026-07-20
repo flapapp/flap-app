@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import '../../../subscriptions/presentation/premium_gate.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
@@ -434,6 +435,7 @@ class _VideoPageState extends State<_VideoPage>
   }
 
   Future<void> _submitVote() async {
+    if (!await PremiumGate.ensure(context)) return;
     if (_isChallengeSubmission) {
       return _submitChallengeVote();
     }
@@ -513,6 +515,7 @@ class _VideoPageState extends State<_VideoPage>
   }
 
   Future<void> _submitChallengeVote() async {
+    if (!await PremiumGate.ensure(context)) return;
     final currentUser = AppAuth.currentUser;
     if (currentUser == null || !_isChallengeSubmission) return;
     if (_hasVoted) return;
@@ -740,6 +743,7 @@ class _VideoPageState extends State<_VideoPage>
   }
 
   Future<void> _toggleLike() async {
+    if (!await PremiumGate.ensure(context)) return;
     final currentUser = AppAuth.currentUser;
     if (currentUser == null) return;
     final store = sl<InteractionStore>();
@@ -774,7 +778,8 @@ class _VideoPageState extends State<_VideoPage>
 
   Future<void> _addComment() async {
     if (_commentController.text.trim().isEmpty) return;
-    
+    if (!await PremiumGate.ensure(context)) return;
+
     // Ensure videoId is non-empty
     if (widget.videoId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

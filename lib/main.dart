@@ -15,7 +15,7 @@ import 'core/di/injection.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart' hide AuthState;
 import 'router/app_router.dart';
 import 'features/badges/domain/repositories/badges_repository.dart';
-import 'features/subscriptions/domain/repositories/subscriptions_repository.dart';
+import 'features/subscriptions/domain/subscription_access.dart';
 import 'features/notifications/data/services/notification_service.dart';
 import 'core/settings/app_settings_cubit.dart';
 import 'features/profile/data/services/user_settings_service.dart';
@@ -69,17 +69,17 @@ Future<void> _bootstrapAppServices() async {
     print('Failed to initialize badges: $e');
   }
 
+  // Load the user's premium access state so view-only gating is ready. Refresh
+  // again whenever a session is (re)established.
   try {
-    final uid = AppAuth.currentUserId;
-    if (uid != null) {
-      await sl<SubscriptionsRepository>().grantChampionsTrialIfMissing();
-    } else {
-      AppAuth.onAuthStateChange.listen((state) async {
-        if (state.session?.user.id != null) {
-          await sl<SubscriptionsRepository>().grantChampionsTrialIfMissing();
-        }
-      });
+    if (AppAuth.currentUserId != null) {
+      await sl<SubscriptionAccess>().refresh();
     }
+    AppAuth.onAuthStateChange.listen((state) {
+      if (state.session?.user.id != null) {
+        sl<SubscriptionAccess>().refresh();
+      }
+    });
   } catch (_) {}
 
   await _initMessaging();
@@ -102,13 +102,14 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   StreamSubscription<AuthState>? _authSubscription;
   var _skipFirstAuthEvent = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (AppAuth.currentUserId != null) {
       unawaited(sl<AppSettingsCubit>().load(forceRefresh: true));
     }
@@ -132,7 +133,18 @@ class _MyAppState extends State<MyApp> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Restore subscription access when the user returns to the app (e.g. after
+    // completing checkout in an external flow or a renewal while backgrounded).
+    if (state == AppLifecycleState.resumed && AppAuth.currentUserId != null) {
+      sl<SubscriptionAccess>().refresh();
+    }
+    super.didChangeAppLifecycleState(state);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_authSubscription?.cancel());
     super.dispose();
   }

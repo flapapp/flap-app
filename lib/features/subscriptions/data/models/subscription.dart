@@ -7,6 +7,13 @@ export '../../domain/entities/subscription_entity.dart';
 
 part 'subscription.g.dart';
 
+/// Display price of the premium plan, in whole US dollars.
+const int kPremiumMonthlyPrice = 1;
+const int kPremiumYearlyPrice = 10;
+
+/// Length of the free trial offered on the premium plan.
+const int kTrialDurationDays = 21;
+
 @JsonSerializable(explicitToJson: true)
 class Subscription extends SubscriptionEntity {
   const Subscription({
@@ -20,6 +27,9 @@ class Subscription extends SubscriptionEntity {
     super.isActive = true,
     super.trialEndDate,
     super.autoRenew = false,
+    super.billingInterval,
+    super.paddleSubscriptionId,
+    super.currentPeriodEnd,
     required super.features,
   });
 
@@ -41,29 +51,49 @@ class Subscription extends SubscriptionEntity {
       return DateTime.tryParse(raw.toString());
     }
 
+    final statusRaw = (row['status'] ?? 'expired').toString();
+    final billingRaw = row['billing_interval']?.toString();
+
     return Subscription(
       id: (row['id'] ?? '').toString(),
       userId: (row['user_id'] ?? '').toString(),
-      type: SubscriptionType.values.firstWhere(
-        (e) => e.toString().split('.').last == planCode,
-        orElse: () => SubscriptionType.free,
-      ),
-      status: SubscriptionStatus.values.firstWhere(
-        (e) => e.toString().split('.').last == (row['status'] ?? 'expired'),
-        orElse: () => SubscriptionStatus.expired,
-      ),
+      type: planCode == 'premium'
+          ? SubscriptionType.premium
+          : SubscriptionType.free,
+      status: _statusFromString(statusRaw),
       startDate: parseDate('starts_at'),
       endDate: parseDate('ends_at'),
       price: ((row['subscription_plans'] as Map<String, dynamic>?)?['price_monthly']
                   as num?)
               ?.toInt() ??
           0,
-      isActive: ((row['status'] ?? '').toString() == 'active') ||
-          ((row['status'] ?? '').toString() == 'trial'),
+      isActive: statusRaw == 'active' || statusRaw == 'trial',
       trialEndDate: parseNullableDate('trial_ends_at'),
       autoRenew: row['auto_renew'] == true,
+      billingInterval: billingRaw == 'yearly'
+          ? BillingInterval.yearly
+          : billingRaw == 'monthly'
+              ? BillingInterval.monthly
+              : null,
+      paddleSubscriptionId: row['paddle_subscription_id']?.toString(),
+      currentPeriodEnd: parseNullableDate('current_period_end'),
       features: const <String, dynamic>{},
     );
+  }
+
+  static SubscriptionStatus _statusFromString(String raw) {
+    switch (raw) {
+      case 'active':
+        return SubscriptionStatus.active;
+      case 'trial':
+        return SubscriptionStatus.trial;
+      case 'past_due':
+        return SubscriptionStatus.pastDue;
+      case 'cancelled':
+        return SubscriptionStatus.cancelled;
+      default:
+        return SubscriptionStatus.expired;
+    }
   }
 
   factory Subscription.fromJson(Map<String, dynamic> json) =>
@@ -71,133 +101,94 @@ class Subscription extends SubscriptionEntity {
 
   Map<String, dynamic> toJson() => _$SubscriptionToJson(this);
 
-  // Convert to Map for Supabase subscriptions table
+  // Convert to Map for the Supabase subscriptions table.
   Map<String, dynamic> toSupabase(String planId) {
     return {
       'user_id': userId,
       'plan_id': planId,
-      'status': status.toString().split('.').last,
+      'status': _statusToString(status),
       'starts_at': startDate.toUtc().toIso8601String(),
       'ends_at': endDate.toUtc().toIso8601String(),
       'trial_ends_at': trialEndDate?.toUtc().toIso8601String(),
       'auto_renew': autoRenew,
+      if (billingInterval != null)
+        'billing_interval':
+            billingInterval == BillingInterval.yearly ? 'yearly' : 'monthly',
+      if (paddleSubscriptionId != null)
+        'paddle_subscription_id': paddleSubscriptionId,
+      if (currentPeriodEnd != null)
+        'current_period_end': currentPeriodEnd!.toUtc().toIso8601String(),
     };
   }
 
-  // Subscription info
-  String get name {
-    return _getLocalizedName(type);
-  }
-
-  static String _getLocalizedName(SubscriptionType type) {
-    switch (type) {
-      case SubscriptionType.europa:
-        return 'Europa League';
-      case SubscriptionType.champions:
-        return 'Champions League';
-      default:
-        return tr('il_f411a1fb62');
+  static String _statusToString(SubscriptionStatus status) {
+    switch (status) {
+      case SubscriptionStatus.pastDue:
+        return 'past_due';
+      case SubscriptionStatus.active:
+        return 'active';
+      case SubscriptionStatus.trial:
+        return 'trial';
+      case SubscriptionStatus.cancelled:
+        return 'cancelled';
+      case SubscriptionStatus.expired:
+        return 'expired';
     }
   }
 
-  String get description {
-    return _getLocalizedDescription(type);
-  }
+  // --- Display helpers -------------------------------------------------------
 
-  static String _getLocalizedDescription(SubscriptionType type) {
-    switch (type) {
-      case SubscriptionType.europa:
-        return tr('il_32ba7323a7');
-      case SubscriptionType.champions:
-        return tr('il_7132e3d7a7');
-      default:
-        return tr('il_d345e00054');
-    }
-  }
+  String get name => type == SubscriptionType.premium
+      ? tr('subscription_premium_name')
+      : tr('subscription_free_name');
 
-  int get monthlyPrice {
-    switch (type) {
-      case SubscriptionType.europa:
-        return 49;
-      case SubscriptionType.champions:
-        return 89;
-      default:
-        return 0;
-    }
-  }
+  String get description => type == SubscriptionType.premium
+      ? tr('subscription_premium_desc')
+      : tr('subscription_free_desc');
 
-  List<String> get featuresList {
-    return _getLocalizedFeaturesList(type);
-  }
+  int get monthlyPrice =>
+      type == SubscriptionType.premium ? kPremiumMonthlyPrice : 0;
 
-  static List<String> _getLocalizedFeaturesList(SubscriptionType type) {
-    switch (type) {
-      case SubscriptionType.europa:
-        return [
-          tr('il_f2f4f86869'),
-          tr('il_dc674ca73a'),
-          tr('il_b04fa216ad'),
-          tr('il_b30a0e36fb'),
-          tr('il_fc39298e1f'),
-          tr('il_7adcd6836d'),
+  List<String> get featuresList => type == SubscriptionType.premium
+      ? [
+          tr('subscription_feature_create'),
+          tr('subscription_feature_rate'),
+          tr('subscription_feature_join'),
+          tr('subscription_feature_interact'),
+          tr('subscription_feature_challenges'),
+        ]
+      : [
+          tr('subscription_feature_browse'),
+          tr('subscription_feature_profiles'),
+          tr('subscription_feature_leaderboards'),
         ];
-      case SubscriptionType.champions:
-        return [
-          tr('il_1042932b5f'),
-          tr('il_19c8cd536b'),
-          tr('il_4b497c5b9c'),
-          tr('il_9f37ff73d7'),
-          tr('il_98d22bd207'),
-          tr('il_2eae371829'),
-          tr('il_ee166fb067'),
-          tr('il_713b30da5a'),
-        ];
-      default:
-        return [
-          tr('il_fcf2dcb27a'),
-          tr('il_2b49688a56'),
-          tr('il_1d741d8cfc'),
-          tr('il_7f19034ddd'),
-        ];
-    }
-  }
 
-  bool get isTrialAvailable {
-    return type == SubscriptionType.champions && trialEndDate == null;
-  }
+  /// True while the subscription currently grants premium access.
+  ///
+  /// A paid `active` plan always grants access; a `trial` grants access only
+  /// while it hasn't lapsed. The date check is what blocks activities the moment
+  /// the signup trial's window closes (the nightly cron flips the row to
+  /// `expired` afterwards, but access must end immediately — not on the next
+  /// cron run).
+  bool get isPremiumActive =>
+      type == SubscriptionType.premium &&
+      (status == SubscriptionStatus.active ||
+          (status == SubscriptionStatus.trial &&
+              trialEndDate != null &&
+              trialEndDate!.isAfter(DateTime.now())));
 
-  bool get isInTrial {
-    return status == SubscriptionStatus.trial && 
-           trialEndDate != null && 
-           trialEndDate!.isAfter(DateTime.now());
-  }
+  bool get isInTrial =>
+      status == SubscriptionStatus.trial &&
+      trialEndDate != null &&
+      trialEndDate!.isAfter(DateTime.now());
 
+  bool get isPastDue => status == SubscriptionStatus.pastDue;
+
+  /// Days remaining in the current access window (trial or paid period).
   int get daysLeft {
-    if (!isActive) return 0;
-    final targetDate = isInTrial ? trialEndDate! : endDate;
-    return targetDate.difference(DateTime.now()).inDays.clamp(0, 9999);
-  }
-
-  // Check if user has specific feature
-  bool hasFeature(String feature) {
-    switch (type) {
-      case SubscriptionType.champions:
-        return true; // Champions tier includes all features
-      case SubscriptionType.europa:
-        return [
-          'visible_ratings',
-          'comments',
-          'extended_filters',
-          'blue_badge',
-          'monthly_coins',
-          'challenge_limit_5',
-        ].contains(feature);
-      default:
-        return [
-          'basic_functionality',
-          'challenge_limit_1',
-        ].contains(feature);
-    }
+    if (!isPremiumActive) return 0;
+    final target = isInTrial ? trialEndDate! : (currentPeriodEnd ?? endDate);
+    return target.difference(DateTime.now()).inDays.clamp(0, 9999);
   }
 
   // Copy with changes
@@ -212,6 +203,9 @@ class Subscription extends SubscriptionEntity {
     bool? isActive,
     DateTime? trialEndDate,
     bool? autoRenew,
+    BillingInterval? billingInterval,
+    String? paddleSubscriptionId,
+    DateTime? currentPeriodEnd,
     Map<String, dynamic>? features,
   }) {
     return Subscription(
@@ -225,6 +219,9 @@ class Subscription extends SubscriptionEntity {
       isActive: isActive ?? this.isActive,
       trialEndDate: trialEndDate ?? this.trialEndDate,
       autoRenew: autoRenew ?? this.autoRenew,
+      billingInterval: billingInterval ?? this.billingInterval,
+      paddleSubscriptionId: paddleSubscriptionId ?? this.paddleSubscriptionId,
+      currentPeriodEnd: currentPeriodEnd ?? this.currentPeriodEnd,
       features: features ?? this.features,
     );
   }

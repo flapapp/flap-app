@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import '../../../subscriptions/presentation/premium_gate.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -814,6 +815,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
   }
 
   void _joinChallenge(String challengeId) async {
+    if (!await PremiumGate.ensure(context)) return;
     try {
       final currentUser = AppAuth.currentUser;
       if (currentUser == null) return;

@@ -23,52 +23,7 @@ class SubscriptionsRepositoryImpl implements SubscriptionsRepository {
   }
 
   @override
-  Future<Subscription?> startChampionsTrialSubscription() {
-    return _service.startChampionsTrialSubscription();
-  }
-
-  @override
-  Future<Subscription?> purchaseSubscription(SubscriptionType type) {
-    return _service.purchaseSubscription(type);
-  }
-
-  @override
   Future<void> cancelSubscription() {
     return _service.cancelSubscription();
-  }
-
-  @override
-  Future<bool> hasFeature(String feature, [String? userId]) {
-    return _service.hasFeature(feature, userId);
-  }
-
-  @override
-  Future<int> getChallengeLimit([String? userId]) {
-    return _service.getChallengeLimit(userId);
-  }
-
-  @override
-  Future<bool> canCreateChallenge([String? userId]) {
-    return _service.canCreateChallenge(userId);
-  }
-
-  @override
-  String getSubscriptionBenefits(SubscriptionType type) {
-    return _service.getSubscriptionBenefits(type);
-  }
-
-  @override
-  Future<Subscription?> getCurrent() {
-    return _service.getCurrent();
-  }
-
-  @override
-  Future<void> grantChampionsTrialIfMissing() {
-    return _service.grantChampionsTrialIfMissing();
-  }
-
-  @override
-  Future<Subscription?> getActiveSubscription() {
-    return _service.getActiveSubscription();
   }
 }
