@@ -86,6 +86,25 @@ class BadgesStoreRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [BuyCoinsScreen]
+class BuyCoinsRoute extends PageRouteInfo<void> {
+  const BuyCoinsRoute({List<PageRouteInfo>? children})
+      : super(
+          BuyCoinsRoute.name,
+          initialChildren: children,
+        );
+
+  static const String name = 'BuyCoinsRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const BuyCoinsScreen();
+    },
+  );
+}
+
+/// generated route for
 /// [ChallengeCreateScreen]
 class ChallengeCreateRoute extends PageRouteInfo<void> {
   const ChallengeCreateRoute({List<PageRouteInfo>? children})

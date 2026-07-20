@@ -2227,5 +2227,21 @@
   "subscription_upsell_body": "Оформіть Flap Premium, щоб створювати, оцінювати, приєднуватися та взаємодіяти. Переглядати все можна безкоштовно.",
   "subscription_upsell_body_feature": "Оформіть Flap Premium, щоб {}. Переглядати все можна безкоштовно.",
   "subscription_upsell_cta": "Переглянути плани",
-  "subscription_upsell_dismiss": "Можливо, пізніше"
+  "subscription_upsell_dismiss": "Можливо, пізніше",
+  "coins_buy_title": "Купити FL Coins",
+  "coins_current_balance": "Ваш баланс",
+  "coins_choose_pack": "Оберіть суму",
+  "coins_rate_note": "Ви завжди отримуєте {} FL Coins за кожен $1.",
+  "coins_pack_amount": "{} FL Coins",
+  "coins_buy_cta": "Купити {} FL Coins · ${}",
+  "coins_credit_note": "Монети буде зараховано на ваш рахунок одразу після підтвердження оплати.",
+  "coins_purchase_success": "{} FL Coins додано до вашого балансу!",
+  "coins_purchase_pending": "Платіж отримано. Монети надійдуть найближчим часом.",
+  "coins_purchase_cancelled": "Покупку скасовано",
+  "coins_purchase_failed": "Не вдалося здійснити оплату. Спробуйте ще раз.",
+  "coins_amount_question": "Скільки FL Coins?",
+  "coins_unit_label": "FL Coins",
+  "coins_adjusted": "Скориговано до {} FL Coins",
+  "coins_you_receive": "Ви отримаєте",
+  "coins_total": "Разом"
 }

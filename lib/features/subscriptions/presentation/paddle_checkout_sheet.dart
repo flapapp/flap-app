@@ -16,25 +16,64 @@ enum CheckoutResult { success, cancelled, failed }
 class PaddleCheckoutSheet extends StatefulWidget {
   const PaddleCheckoutSheet({
     super.key,
-    required this.interval,
+    required this.priceId,
+    this.quantity = 1,
+    this.configured = true,
   });
 
-  final BillingInterval interval;
+  /// Paddle price to check out.
+  final String priceId;
+
+  /// Units of [priceId] to buy. Used by FL Coin packs (N x the $1 coin price).
+  final int quantity;
+
+  /// Whether the Paddle values this flow needs have been filled in; when false
+  /// the sheet shows the "payments not configured" placeholder instead.
+  final bool configured;
 
   /// Opens the checkout and returns the outcome (never null — a dismissed
   /// sheet resolves to [CheckoutResult.cancelled]).
   static Future<CheckoutResult> open(
     BuildContext context, {
-    required BillingInterval interval,
+    required String priceId,
+    int quantity = 1,
+    bool configured = true,
   }) async {
     final result = await Navigator.of(context).push<CheckoutResult>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => PaddleCheckoutSheet(interval: interval),
+        builder: (_) => PaddleCheckoutSheet(
+          priceId: priceId,
+          quantity: quantity,
+          configured: configured,
+        ),
       ),
     );
     return result ?? CheckoutResult.cancelled;
   }
+
+  /// Convenience entry point for the premium subscription flow.
+  static Future<CheckoutResult> openSubscription(
+    BuildContext context, {
+    required BillingInterval interval,
+  }) =>
+      open(
+        context,
+        priceId: PaddleConfig.priceIdFor(interval),
+        configured: PaddleConfig.isConfigured,
+      );
+
+  /// Convenience entry point for buying [units] x $1 worth of FL Coins.
+  static Future<CheckoutResult> openCoins(
+    BuildContext context, {
+    required int units,
+  }) =>
+      open(
+        context,
+        priceId: PaddleConfig.priceCoins,
+        quantity: units,
+        configured: PaddleConfig.isCoinsConfigured,
+      );
 
   @override
   State<PaddleCheckoutSheet> createState() => _PaddleCheckoutSheetState();
@@ -90,8 +129,8 @@ class _PaddleCheckoutSheetState extends State<PaddleCheckoutSheet> {
       ),
       body: Stack(
         children: [
-          if (!PaddleConfig.isConfigured)
-            _ConfigMissing()
+          if (!widget.configured)
+            const _ConfigMissing()
           else
             InAppWebView(
               // Load our own HTML (built client-side) rather than a hosted URL:
@@ -99,7 +138,10 @@ class _PaddleCheckoutSheetState extends State<PaddleCheckoutSheet> {
               // responses, which blocks Paddle.js. baseUrl gives the page a
               // real https origin for Paddle's postMessage handshake.
               initialData: InAppWebViewInitialData(
-                data: buildPaddleCheckoutHtml(interval: widget.interval),
+                data: buildPaddleCheckoutHtml(
+                  priceId: widget.priceId,
+                  quantity: widget.quantity,
+                ),
                 mimeType: 'text/html',
                 encoding: 'utf-8',
                 baseUrl: WebUri(PaddleConfig.checkoutBaseUrl),
@@ -135,7 +177,7 @@ class _PaddleCheckoutSheetState extends State<PaddleCheckoutSheet> {
                 }
               },
             ),
-          if (_loading && PaddleConfig.isConfigured)
+          if (_loading && widget.configured)
             const Center(
               child: CircularProgressIndicator(color: FlapColors.green),
             ),
@@ -154,6 +196,8 @@ class _PaddleCheckoutSheetState extends State<PaddleCheckoutSheet> {
 }
 
 class _ConfigMissing extends StatelessWidget {
+  const _ConfigMissing();
+
   @override
   Widget build(BuildContext context) {
     return Center(

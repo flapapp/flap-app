@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../router/app_router.dart';
 import '../../domain/repositories/badges_repository.dart';
 import '../../data/models/badge.dart' as app_badge;
 import 'package:flap_app/core/auth/app_auth.dart';
@@ -75,6 +76,12 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
     }
   }
 
+  /// Coins bought there land via the Paddle webhook, so refresh on return.
+  Future<void> _openBuyCoins() async {
+    await context.router.push(const BuyCoinsRoute());
+    if (mounted) await _loadData();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -139,29 +146,35 @@ class _BadgesStoreScreenState extends State<BadgesStoreScreen>
             ),
           ),
           const SizedBox(width: 12),
-          // Coin balance pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: FlapColors.gold.withOpacity(0.13),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: FlapColors.gold.withOpacity(0.5)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.monetization_on_rounded,
-                    color: FlapColors.gold, size: 16),
-                const SizedBox(width: 5),
-                Text(
-                  _userCoins.toString(),
-                  style: FlapText.sora(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: FlapColors.gold,
+          // Coin balance pill — doubles as the entry point for buying coins.
+          GestureDetector(
+            onTap: _openBuyCoins,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: FlapColors.gold.withOpacity(0.13),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: FlapColors.gold.withOpacity(0.5)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.monetization_on_rounded,
+                      color: FlapColors.gold, size: 16),
+                  const SizedBox(width: 5),
+                  Text(
+                    _userCoins.toString(),
+                    style: FlapText.sora(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: FlapColors.gold,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 5),
+                  const Icon(Icons.add_circle_rounded,
+                      color: FlapColors.gold, size: 15),
+                ],
+              ),
             ),
           ),
         ],

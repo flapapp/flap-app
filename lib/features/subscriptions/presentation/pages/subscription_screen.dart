@@ -37,8 +37,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final result =
-          await PaddleCheckoutSheet.open(context, interval: _interval);
+      final result = await PaddleCheckoutSheet.openSubscription(
+        context,
+        interval: _interval,
+      );
       if (!mounted) return;
 
       switch (result) {

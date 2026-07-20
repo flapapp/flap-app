@@ -2227,5 +2227,21 @@
   "subscription_upsell_body": "Subscribe to Flap Premium to create, rate, join and interact. You can browse everything for free.",
   "subscription_upsell_body_feature": "Subscribe to Flap Premium to {}. You can browse everything for free.",
   "subscription_upsell_cta": "See plans",
-  "subscription_upsell_dismiss": "Maybe later"
+  "subscription_upsell_dismiss": "Maybe later",
+  "coins_buy_title": "Buy FL Coins",
+  "coins_current_balance": "Your balance",
+  "coins_choose_pack": "Choose an amount",
+  "coins_rate_note": "You always get {} FL Coins for every $1.",
+  "coins_pack_amount": "{} FL Coins",
+  "coins_buy_cta": "Buy {} FL Coins · ${}",
+  "coins_credit_note": "Coins are added to your account as soon as the payment is confirmed.",
+  "coins_purchase_success": "{} FL Coins added to your balance!",
+  "coins_purchase_pending": "Payment received. Your coins will arrive shortly.",
+  "coins_purchase_cancelled": "Purchase cancelled",
+  "coins_purchase_failed": "Payment failed. Please try again.",
+  "coins_amount_question": "How many FL Coins?",
+  "coins_unit_label": "FL Coins",
+  "coins_adjusted": "Adjusted to {} FL Coins",
+  "coins_you_receive": "You'll receive",
+  "coins_total": "Total"
 }

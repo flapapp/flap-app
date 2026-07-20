@@ -23,6 +23,27 @@ abstract final class PaddleConfig {
   static const String priceMonthly = 'pri_01kxrxjaayrrpwkr3nw6bw0cjr';
   static const String priceYearly = 'pri_01kxrxk5gh8w4xzkhbwjjnh1e6';
 
+  /// Paddle price ID for the one-time FL Coin unit: a $1 USD one-time price.
+  /// Checkout buys several at once through `quantity`, so this single price
+  /// covers every coin pack. The webhook must have the SAME id configured as
+  /// `PADDLE_COIN_PRICE_ID` or purchases will not be credited.
+  static const String priceCoins = 'pri_01ky0343zcz77yeppx1xn1tke3';
+
+  /// FL Coins granted per $1 unit purchased. Must match the webhook's
+  /// `PADDLE_COINS_PER_UNIT`; the server value is authoritative.
+  static const int coinsPerUnit = 10;
+
+  /// Largest number of $1 units a single checkout may buy. Paddle enforces a
+  /// per-line-item maximum quantity (100 by default); keep this at or below the
+  /// value configured on the coin price or checkout will reject the order.
+  static const int maxCoinUnits = 100;
+
+  /// Bounds and step for the coin quantity selector, all derived from the rate
+  /// so coins always stay a whole number of $1 units.
+  static const int minCoins = coinsPerUnit; // one $1 unit
+  static const int maxCoins = maxCoinUnits * coinsPerUnit;
+  static const int coinStep = coinsPerUnit;
+
   static bool get isSandbox => env == 'sandbox';
 
   /// True once the placeholders have been replaced with real values.
@@ -30,6 +51,10 @@ abstract final class PaddleConfig {
       !clientToken.startsWith('__') &&
       !priceMonthly.startsWith('__') &&
       !priceYearly.startsWith('__');
+
+  /// Coin purchases need the client token plus the one-time coin price.
+  static bool get isCoinsConfigured =>
+      !clientToken.startsWith('__') && !priceCoins.startsWith('__');
 
   static String priceIdFor(BillingInterval interval) =>
       interval == BillingInterval.yearly ? priceYearly : priceMonthly;

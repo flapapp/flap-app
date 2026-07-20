@@ -1,6 +1,5 @@
 import 'package:flap_app/core/auth/app_auth.dart';
 
-import 'models/subscription.dart';
 import 'paddle_config.dart';
 
 /// Escapes a value for safe interpolation inside a single-quoted JS string.
@@ -21,9 +20,17 @@ String _escapeJs(String value) => value
 /// HTML as source and blocks Paddle.js. Loading it as `initialData` sidesteps
 /// both: the page is ours, carries no restrictive CSP, and Paddle.js loads from
 /// its own CDN. The client token and price IDs are non-secret.
-String buildPaddleCheckoutHtml({required BillingInterval interval}) {
+///
+/// [quantity] buys several units of the same price — that's how FL Coin packs
+/// work (N x the $1 coin price). What the user is actually charged, and what
+/// the webhook credits, is derived server-side from Paddle's own payload.
+String buildPaddleCheckoutHtml({
+  required String priceId,
+  int quantity = 1,
+}) {
   final token = _escapeJs(PaddleConfig.clientToken);
-  final priceId = _escapeJs(PaddleConfig.priceIdFor(interval));
+  final escapedPriceId = _escapeJs(priceId);
+  final qty = quantity < 1 ? 1 : quantity;
   final userId = _escapeJs(AppAuth.currentUserId ?? '');
   final email = _escapeJs(AppAuth.currentUserEmail ?? '');
   final env = _escapeJs(PaddleConfig.env);
@@ -65,7 +72,7 @@ String buildPaddleCheckoutHtml({required BillingInterval interval}) {
       function dump(o){ try { return JSON.stringify(o, function(k,v){ return v===undefined?'<undef>':v; }); } catch(e){ try { return 'keys:'+Object.keys(o).join(','); } catch(e2){ return String(o); } } }
       window.onerror = function (m, s, l, c) { console.error('[paddle] onerror: ' + m + ' @' + l + ':' + c); };
       try {
-        console.error('[paddle] cfg env=$env tokenLen=' + '$token'.length + ' priceId=$priceId origin=' + location.origin);
+        console.error('[paddle] cfg env=$env tokenLen=' + '$token'.length + ' priceId=$escapedPriceId qty=$qty origin=' + location.origin);
         if (${isSandbox ? 'true' : 'false'}) { Paddle.Environment.set('sandbox'); }
         Paddle.Initialize({
           token: '$token',
@@ -83,7 +90,7 @@ String buildPaddleCheckoutHtml({required BillingInterval interval}) {
         });
         console.error('[paddle] initialized, version=' + (window.Paddle && Paddle.version));
         Paddle.Checkout.open({
-          items: [{ priceId: '$priceId', quantity: 1 }],
+          items: [{ priceId: '$escapedPriceId', quantity: $qty }],
           customer: $customer,
           customData: { user_id: '$userId' },
           settings: { displayMode: 'overlay', theme: 'dark' }

@@ -1075,7 +1075,7 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
             ),
           ),
           OutlinedButton.icon(
-            onPressed: _showSettings,
+            onPressed: _openBuyCoins,
             style: OutlinedButton.styleFrom(
               foregroundColor: FlapColors.text,
               side: const BorderSide(color: FlapColors.borderStrong),
@@ -1723,6 +1723,12 @@ class _ProfileScreenBodyState extends State<_ProfileScreenBody> {
 
   Future<void> _openBadgesStore() async {
     await context.router.push(const BadgesStoreRoute());
+    if (!mounted) return;
+    await _overviewCubit.refreshProfileSnapshot();
+  }
+
+  Future<void> _openBuyCoins() async {
+    await context.router.push(const BuyCoinsRoute());
     if (!mounted) return;
     await _overviewCubit.refreshProfileSnapshot();
   }

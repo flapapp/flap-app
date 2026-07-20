@@ -12,6 +12,13 @@
 //
 // Handled events: subscription.created / .activated / .updated / .trialing /
 // .canceled / .past_due, and transaction.completed / .payment_failed.
+//
+// transaction.completed does double duty: for a subscription transaction it
+// seeds the user <-> paddle mapping, and for a one-time transaction containing
+// the FL Coin price it credits coins (10 coins per $1 unit). Set the coin price
+// id alongside the other secrets:
+//
+//   supabase secrets set PADDLE_COIN_PRICE_ID=pri_...
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -21,6 +28,11 @@ const supabase = createClient(
 );
 
 const WEBHOOK_SECRET = Deno.env.get("PADDLE_WEBHOOK_SECRET") ?? "";
+
+// The Paddle price representing one $1 FL Coin unit. Checkout buys N of these
+// via `quantity`, so coins = quantity * COINS_PER_UNIT.
+const COIN_PRICE_ID = Deno.env.get("PADDLE_COIN_PRICE_ID") ?? "";
+const COINS_PER_UNIT = Number(Deno.env.get("PADDLE_COINS_PER_UNIT") ?? "10");
 
 // Signature-timestamp tolerance. The HMAC IS the authentication — a valid
 // signature can only come from Paddle. This window only bounds replay of a
@@ -220,6 +232,69 @@ async function handleSubscriptionEvent(data: any): Promise<void> {
   }
 }
 
+// How many FL Coins a completed transaction bought, derived ONLY from Paddle's
+// signed payload. The quantity of the configured coin price is the source of
+// truth — never `custom_data`, which the client controls and could inflate.
+// deno-lint-ignore no-explicit-any
+function coinsInTransaction(data: any): number {
+  if (!COIN_PRICE_ID) return 0;
+
+  // `details.line_items` is the settled view; `items` is the requested one.
+  // Prefer the former and fall back so we work across payload shapes.
+  const lineItems: any[] = Array.isArray(data?.details?.line_items)
+    ? data.details.line_items
+    : Array.isArray(data?.items)
+    ? data.items
+    : [];
+
+  let units = 0;
+  for (const item of lineItems) {
+    const priceId = item?.price_id ?? item?.price?.id;
+    if (priceId !== COIN_PRICE_ID) continue;
+    const qty = Number(item?.quantity ?? 0);
+    if (Number.isFinite(qty) && qty > 0) units += qty;
+  }
+  if (units <= 0) return 0;
+  return Math.floor(units * COINS_PER_UNIT);
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleCoinPurchase(data: any): Promise<boolean> {
+  const coins = coinsInTransaction(data);
+  if (coins <= 0) return false;
+
+  const txnId: string | undefined = data?.id;
+  const userId: string | undefined = data?.custom_data?.user_id;
+  if (!txnId || !userId) {
+    // custom_data.user_id is the only link back to the app account. Without it
+    // the payment can't be attributed; log loudly so it can be granted by hand.
+    console.log(
+      `[wh] coin purchase txn=${txnId} coins=${coins} has no ` +
+        `custom_data.user_id — cannot credit`,
+    );
+    return true;
+  }
+
+  const grandTotal = Number(data?.details?.totals?.grand_total ?? 0);
+  const { data: credited, error } = await supabase.rpc("credit_coin_purchase", {
+    p_user_id: userId,
+    p_paddle_transaction_id: txnId,
+    p_coins: coins,
+    p_amount_cents: Number.isFinite(grandTotal) ? Math.round(grandTotal) : 0,
+    p_currency: data?.currency_code ?? "USD",
+    p_paddle_customer_id: data?.customer_id ?? null,
+  });
+
+  // Throw so the outer handler returns 500 and Paddle retries — a dropped
+  // credit means the user paid and got nothing.
+  if (error) throw new Error(`credit_coin_purchase failed: ${error.message}`);
+
+  console.log(
+    `[wh] credited ${credited} FL Coins to user=${userId} txn=${txnId}`,
+  );
+  return true;
+}
+
 // deno-lint-ignore no-explicit-any
 async function handleTransactionEvent(
   eventType: string,
@@ -227,7 +302,23 @@ async function handleTransactionEvent(
 ): Promise<void> {
   const paddleSubId: string | undefined = data?.subscription_id;
   const txnId: string | undefined = data?.id;
-  if (!paddleSubId) return;
+
+  // One-time FL Coin purchases carry no subscription_id. Check for them before
+  // the subscription-only early return below.
+  if (eventType === "transaction.completed") {
+    if (await handleCoinPurchase(data)) return;
+  }
+
+  if (!paddleSubId) {
+    // Neither a subscription nor a recognised coin purchase. Most often this
+    // means PADDLE_COIN_PRICE_ID is unset or points at the wrong price, which
+    // would silently swallow paid coin orders — so say so.
+    console.log(
+      `[wh] ${eventType} txn=${txnId} has no subscription_id and no coin ` +
+        `line items (coinPriceConfigured=${!!COIN_PRICE_ID}) — ignored`,
+    );
+    return;
+  }
 
   const nowIso = new Date().toISOString();
   if (eventType === "transaction.payment_failed") {

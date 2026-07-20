@@ -10,6 +10,7 @@ import 'guards/guest_guard.dart';
 import '../features/admin/presentation/pages/admin_screen.dart';
 import '../features/auth/presentation/pages/auth_bootstrap_page.dart';
 import '../features/badges/presentation/pages/badges_store_screen.dart';
+import '../features/coins/presentation/pages/buy_coins_screen.dart';
 import '../features/challenges/presentation/pages/challenge_create_screen.dart';
 import '../features/challenges/presentation/pages/challenge_details_screen.dart';
 import '../features/challenges/presentation/pages/challenge_list_screen.dart';
@@ -218,6 +219,11 @@ class AppRouter extends RootStackRouter {
     AutoRoute(
       path: '/badges-store',
       page: BadgesStoreRoute.page,
+      guards: [appAuthGuard, appAvatarGuard],
+    ),
+    AutoRoute(
+      path: '/buy-coins',
+      page: BuyCoinsRoute.page,
       guards: [appAuthGuard, appAvatarGuard],
     ),
     AutoRoute(
