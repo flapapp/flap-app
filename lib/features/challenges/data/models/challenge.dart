@@ -182,6 +182,61 @@ Map<String, dynamic> mapChallengeRowForListUi(
   };
 }
 
+/// Time left until the deadline of the challenge's *current* phase, derived
+/// from its `status`:
+///   * recruiting → submission deadline
+///   * submission → voting deadline
+///   * voting     → end date
+///   * completed  → `null` (nothing left to count down)
+///
+/// Returns `null` when completed or when the relevant deadline is missing. A
+/// negative [Duration] means the phase deadline has already passed. Accepts
+/// both snake_case (`submission_deadline`) and camelCase (`submissionDeadline`)
+/// keys so it works on raw Supabase rows and the [mapChallengeRowForListUi]
+/// shape alike.
+Duration? challengePhaseTimeRemainingFromRow(Map<String, dynamic> row) {
+  final status = (row['status'] ?? 'recruiting').toString();
+  DateTime? deadline;
+  switch (status) {
+    case 'completed':
+      return null;
+    case 'submission':
+      deadline = _challengeDateTimeOrNull(row['voting_deadline']) ??
+          _challengeDateTimeOrNull(row['votingDeadline']);
+      break;
+    case 'voting':
+      deadline = _challengeDateTimeOrNull(row['ends_at']) ??
+          _challengeDateTimeOrNull(row['end_date']) ??
+          _challengeDateTimeOrNull(row['endDate']);
+      break;
+    case 'recruiting':
+    default:
+      deadline = _challengeDateTimeOrNull(row['submission_deadline']) ??
+          _challengeDateTimeOrNull(row['submissionDeadline']);
+  }
+  if (deadline == null) return null;
+  return deadline.difference(DateTime.now());
+}
+
+/// Localized compact countdown label for a phase's [remaining] time (from
+/// [challengePhaseTimeRemainingFromRow] or the model's `timeUntil*` getters):
+///   * `> 0` days  → "3 d"
+///   * `> 0` hours → "5 h"
+///   * `> 0` min   → "12 min"
+///   * imminent    → "Almost time!"
+///   * `null` / past deadline → "Completed"
+String challengePhaseCountdownLabel(Duration? remaining) {
+  if (remaining == null || remaining.isNegative) return tr('il_22a970d2e5');
+  if (remaining.inDays > 0) return '${remaining.inDays} ${tr('il_18ac3e7343')}';
+  if (remaining.inHours > 0) {
+    return '${remaining.inHours} ${tr('il_aaa9402664')}';
+  }
+  if (remaining.inMinutes > 0) {
+    return '${remaining.inMinutes} ${tr('il_1f6fa6f69d')}';
+  }
+  return tr('il_5a2f1ea47f');
+}
+
 /// Same date resolution as [challengeDurationDaysFromRow]; prefers span over raw `duration`.
 String challengeDurationDisplayFromRow(Map<String, dynamic> row) {
   final (start, end) = _challengeStartEndFromRow(row);

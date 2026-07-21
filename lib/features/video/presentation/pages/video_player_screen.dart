@@ -933,6 +933,14 @@ class _VideoPageState extends State<_VideoPage>
     );
   }
 
+  /// The challenge "main"/creator clip is pushed with no video record
+  /// (`videoId` empty) and no submission author, so it's a preview to watch,
+  /// not a social post. In that case strip the like/comment/vote/share rail,
+  /// the author caption, and the legibility scrims so only the video shows.
+  bool get _chromeless =>
+      widget.videoId.isEmpty &&
+      (widget.submissionUserId == null || widget.submissionUserId!.isEmpty);
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -1029,24 +1037,26 @@ class _VideoPageState extends State<_VideoPage>
                   ),
                 ),
 
-                // Top + bottom legibility scrims.
-                IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.45),
-                          Colors.transparent,
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.55),
-                        ],
-                        stops: const [0.0, 0.22, 0.62, 1.0],
+                // Top + bottom legibility scrims (only needed behind the
+                // overlay chrome, so skipped for a chromeless preview).
+                if (!_chromeless)
+                  IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.45),
+                            Colors.transparent,
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.55),
+                          ],
+                          stops: const [0.0, 0.22, 0.62, 1.0],
+                        ),
                       ),
                     ),
                   ),
-                ),
 
                 // Center play affordance — shown only when the user paused, so
                 // the transient non-playing frame at a loop boundary never
@@ -1075,23 +1085,25 @@ class _VideoPageState extends State<_VideoPage>
                   },
                 ),
 
-                // Right action rail.
-                Positioned(
-                  right: 12,
-                  bottom: 128,
-                  child: _buildRail(),
-                ),
-
-                // Bottom creator caption.
-                Positioned(
-                  left: 16,
-                  right: 84,
-                  bottom: 28,
-                  child: SafeArea(
-                    top: false,
-                    child: _buildPlayerCaption(),
+                // Right action rail — Like / Comment / Vote / Share.
+                if (!_chromeless)
+                  Positioned(
+                    right: 12,
+                    bottom: 128,
+                    child: _buildRail(),
                   ),
-                ),
+
+                // Bottom creator caption (the author / user section).
+                if (!_chromeless)
+                  Positioned(
+                    left: 16,
+                    right: 84,
+                    bottom: 28,
+                    child: SafeArea(
+                      top: false,
+                      child: _buildPlayerCaption(),
+                    ),
+                  ),
               ],
             )
           : _buildPlayerSkeleton(),

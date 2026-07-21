@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/supabase/supabase_app_storage.dart';
 import '../../../../constants/video_categories.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../router/app_router.dart';
 import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/video_preview_box.dart';
 import '../../../challenges/domain/repositories/challenges_repository.dart';
@@ -624,6 +625,15 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     );
   }
 
+  /// Human-readable text for an error surfaced in a snackbar. Thrown
+  /// [Exception]s stringify as "Exception: <message>"; strip that prefix so the
+  /// user sees just the (already localized) message.
+  String _cleanErrorMessage(Object error) {
+    const prefix = 'Exception: ';
+    final text = error.toString();
+    return text.startsWith(prefix) ? text.substring(prefix.length) : text;
+  }
+
   Future<void> _uploadVideo() async {
     if (!_formKey.currentState!.validate() || _pickedVideo == null) {
       return;
@@ -641,6 +651,34 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
       if ((_selectedDifficulty ?? '').isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('il_efd7187705'))),
+        );
+        return;
+      }
+    }
+
+    // Challenge entries cost the entry fee (charged on first submission).
+    // Verify affordability up front — before the upload spinner — so an
+    // under-funded entrant gets a clean, friendly message instead of the video
+    // uploading and then failing. addVideoToChallenge re-checks authoritatively
+    // at write time.
+    final challengeUser = AppAuth.currentUser;
+    if (widget.challengeId != null && challengeUser != null) {
+      try {
+        await sl<ChallengesRepository>()
+            .ensureCanAffordChallengeEntry(widget.challengeId!, challengeUser.id);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_cleanErrorMessage(e)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: tr('notif_buy_coins'),
+              textColor: Colors.white,
+              onPressed: () => context.router.push(const BuyCoinsRoute()),
+            ),
+          ),
         );
         return;
       }
@@ -759,11 +797,11 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
 
     } catch (e) {
       print('[video_upload] ERROR uploading video: $e');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(tr('il_ef709be5c7', args: [e.toString()])),
+            content: Text(tr('il_ef709be5c7', args: [_cleanErrorMessage(e)])),
             backgroundColor: Colors.red,
           ),
         );

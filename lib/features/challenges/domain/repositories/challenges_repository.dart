@@ -42,6 +42,11 @@ abstract class ChallengesRepository {
 
   Future<bool> addVideoToChallenge(String challengeId, String userId);
 
+  /// Pre-flight check that [userId] can cover the challenge entry fee before a
+  /// video upload begins. Throws the insufficient-coins error otherwise; a
+  /// no-op for re-entrants and free challenges.
+  Future<void> ensureCanAffordChallengeEntry(String challengeId, String userId);
+
   Future<void> checkAndFinishChallenges();
 
   Future<void> deleteOldFinishedChallenges();

@@ -192,26 +192,33 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.local_fire_department, size: 13, color: accent),
-                const SizedBox(width: 6),
-                Text(
-                  _stageLabel(status),
-                  style: FlapText.sora(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: accent),
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(9),
                 ),
-              ],
-            ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.local_fire_department, size: 13, color: accent),
+                    const SizedBox(width: 6),
+                    Text(
+                      _stageLabel(status),
+                      style: FlapText.sora(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: accent),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildCountdownChip(status, accent),
+            ],
           ),
           const SizedBox(height: 12),
           Text(
@@ -232,6 +239,53 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
             _buildCreatorVideo(),
           ],
           _buildStageTimeline(status.index),
+        ],
+      ),
+    );
+  }
+
+  /// Time left until the current phase's deadline; `null` once completed.
+  Duration? _phaseTimeRemaining(ChallengeStatus status) {
+    switch (status) {
+      case ChallengeStatus.recruiting:
+        return widget.challenge.timeUntilSubmission;
+      case ChallengeStatus.submission:
+        return widget.challenge.timeUntilVoting;
+      case ChallengeStatus.voting:
+        return widget.challenge.timeUntilEnd;
+      case ChallengeStatus.completed:
+        return null;
+    }
+  }
+
+  /// Countdown chip shown for every stage: the remaining time in the current
+  /// phase, or "Completed" once the challenge has ended.
+  Widget _buildCountdownChip(ChallengeStatus status, Color accent) {
+    final completed = status == ChallengeStatus.completed;
+    final remaining = _phaseTimeRemaining(status);
+    final label = challengePhaseCountdownLabel(remaining);
+    final color = completed ? FlapColors.muted : accent;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: FlapColors.surface,
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: FlapColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            completed ? Icons.check_circle_rounded : Icons.schedule_rounded,
+            size: 13,
+            color: color,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: FlapText.sora(
+                fontSize: 11.5, fontWeight: FontWeight.w700, color: color),
+          ),
         ],
       ),
     );
@@ -402,10 +456,9 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           children: [
             Expanded(
               child: _statPill(
-                value: '${state.prizePool}',
+                value: '${state.prizePool} FL',
                 label: tr('challenge_prize_pool'),
                 valueColor: FlapColors.gold,
-                icon: Icons.monetization_on,
               ),
             ),
             const SizedBox(width: 10),
@@ -923,52 +976,32 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
     return BlocBuilder<ChallengeDetailsCubit, ChallengeDetailsState>(
       builder: (context, state) {
         final myId = AppAuth.currentUserId ?? '';
+        final isOwner = myId.isNotEmpty && myId == widget.challenge.creatorId;
         final alreadySubmitted = myId.isNotEmpty &&
             state.submissions.any(
               (s) => (s['userId'] ?? '').toString() == myId,
             );
+        // The creator hosts the challenge; they don't enter it, so show a host
+        // message instead of an upload CTA or the "already submitted" banner
+        // (their reference clip counts as a submission row).
+        if (isOwner) {
+          return _dockMessage(
+            Icons.emoji_events_rounded,
+            tr('challenge_host_dock_message'),
+          );
+        }
+        // Submissions close once voting begins: hide the upload CTA for
+        // players who never entered (those who did still see the confirmation
+        // below). The service enforces this too — this just keeps the UI honest.
+        if (!alreadySubmitted &&
+            widget.challenge.status == ChallengeStatus.voting) {
+          return const SizedBox.shrink();
+        }
         // Once entered, replace the upload CTA with a confirmation message.
         if (alreadySubmitted) {
-          return Container(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-            decoration: const BoxDecoration(
-              color: FlapColors.bg,
-              border: Border(top: BorderSide(color: FlapColors.border)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Container(
-                height: 54,
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: FlapColors.green.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                      color: FlapColors.green.withValues(alpha: 0.45)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.check_circle_rounded,
-                        color: FlapColors.greenBright, size: 19),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        tr('challenge_error_already_submitted_video'),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: FlapText.sora(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
-                            color: FlapColors.greenBright),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          return _dockMessage(
+            Icons.check_circle_rounded,
+            tr('challenge_error_already_submitted_video'),
           );
         }
 
@@ -1009,6 +1042,50 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
           ),
         );
       },
+    );
+  }
+
+  /// Non-interactive dock banner (host notice / entry confirmation) shown in
+  /// place of the upload CTA. Matches the CTA's footprint and green styling.
+  Widget _dockMessage(IconData icon, String message) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      decoration: const BoxDecoration(
+        color: FlapColors.bg,
+        border: Border(top: BorderSide(color: FlapColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          height: 54,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: FlapColors.green.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: FlapColors.green.withValues(alpha: 0.45)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: FlapColors.greenBright, size: 19),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: FlapText.sora(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: FlapColors.greenBright),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

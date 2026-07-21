@@ -98,6 +98,11 @@ class ChallengesRepositoryImpl implements ChallengesRepository {
   }
 
   @override
+  Future<void> ensureCanAffordChallengeEntry(String challengeId, String userId) {
+    return _challenges.ensureCanAffordChallengeEntry(challengeId, userId);
+  }
+
+  @override
   Future<void> checkAndFinishChallenges() {
     return _challenges.checkAndFinishChallenges();
   }

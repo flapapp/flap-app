@@ -224,11 +224,23 @@ class _VideoMainScreenState extends State<VideoMainScreen>
     );
   }
 
+  Future<void> _settleDueChallengesThenLoad() async {
+    try {
+      await sl<ChallengesRepository>().checkAndFinishChallenges();
+    } catch (_) {
+      // Best-effort; the cron sweep is the authoritative path.
+    }
+    if (mounted) _loadChallengesList();
+  }
+
   @override
   void initState() {
     super.initState();
     _challengesListCubit = ChallengesListCubit(sl<ChallengesRepository>());
-    _loadChallengesList();
+    // Settle any challenge whose voting window has closed, then load the list
+    // so freshly-completed challenges show their final state. A pg_cron job
+    // does the same server-side every minute; this is just an immediacy nudge.
+    _settleDueChallengesThenLoad();
     _videoFeedSyncSub = sl<VideoFeedSync>().onMutated.listen((_) {
       if (mounted) {
         _invalidateVideoFeedCaches();
@@ -370,7 +382,12 @@ Widget build(BuildContext context) {
 
           // Content based on selected tab
           Expanded(
-            child: _buildContent(),
+            child: RefreshIndicator(
+              onRefresh: _refreshCurrentTab,
+              color: FlapColors.greenBright,
+              backgroundColor: FlapColors.card,
+              child: _buildContent(),
+            ),
           ),
         ],
       ),
@@ -1476,6 +1493,60 @@ Widget build(BuildContext context) {
     return _cachedMyListFuture = _loadFeedForMyList();
   }
 
+  /// Re-fetches the currently visible tab from the server. Returns a future
+  /// that completes when the fresh data has loaded so [RefreshIndicator] keeps
+  /// its spinner up for the duration. Errors are swallowed so the gesture
+  /// always resolves (the tab's own error state renders the failure).
+  Future<void> _refreshCurrentTab() async {
+    if (!mounted) return;
+
+    // Challenges (both the tab and the "my challenges" entry mode) reload via
+    // the cubit, which the BlocBuilder reflects automatically.
+    if (_showOnlyMyChallenges || _selectedTab == 'challenges') {
+      final onlyMine = _showOnlyMyChallenges ? AppAuth.currentUserId : null;
+      await _challengesListCubit.load(onlyCreatorUserId: onlyMine, limit: 20);
+      return;
+    }
+
+    // Video feeds are FutureBuilder-driven: drop the cached future, build a
+    // fresh one, rebuild so the FutureBuilder picks it up, then await it.
+    late final Future<List<Map<String, dynamic>>> pending;
+    if (_showOnlyMyVideos) {
+      _cachedMyListKey = null;
+      _cachedMyListFuture = null;
+      pending = _memoizedMyListFuture();
+    } else if (_selectedTab == 'trending') {
+      _cachedTrendingListKey = null;
+      _cachedTrendingListFuture = null;
+      pending = _memoizedTrendingListFuture();
+    } else {
+      _cachedAllListKey = null;
+      _cachedAllListFuture = null;
+      pending = _memoizedAllListFuture();
+    }
+    setState(() {});
+    try {
+      await pending;
+    } catch (_) {
+      // Surfaced by the tab's error state; nothing else to do here.
+    }
+  }
+
+  /// Makes a non-scrolling state (empty / error message) respond to the
+  /// pull-to-refresh gesture — [RefreshIndicator] only fires when it has a
+  /// scrollable descendant that can overscroll.
+  Widget _pullable(Widget child) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   Widget _buildContent() {
   if (_showOnlyMyVideos) {
     return _buildMyVideosList();
@@ -1506,7 +1577,7 @@ Widget build(BuildContext context) {
         }
 
         if (snapshot.hasError) {
-          return Center(
+          return _pullable(Center(
             child: Text(
               tr(
                 'il_24ffa7c8c5',
@@ -1514,13 +1585,13 @@ Widget build(BuildContext context) {
               ),
               style: const TextStyle(color: Colors.white),
             ),
-          );
+          ));
         }
 
         final docs = snapshot.data ?? const <Map<String, dynamic>>[];
         _currentFeedDocs = docs; // used as the TikTok-style player playlist
         if (docs.isEmpty) {
-          return Center(
+          return _pullable(Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -1566,13 +1637,14 @@ Widget build(BuildContext context) {
                 ),
               ],
             ),
-          );
+          ));
         }
 
         return GridView.builder(
           key: PageStorageKey<String>(
             'videos-grid-$_selectedTab-${_showOnlyMyVideos ? "mine" : "all"}',
           ),
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
@@ -2039,14 +2111,14 @@ Widget build(BuildContext context) {
     return BlocBuilder<ChallengesListCubit, ChallengesListState>(
       builder: (context, listState) {
         if (listState.status == ChallengesListStatus.error) {
-          return Center(
+          return _pullable(Center(
             child: Text(
               tr(
                 'il_3a6e650bec',
                 args: [listState.errorMessage ?? ''],
               ),
             ),
-          );
+          ));
         }
 
         if (listState.isLoading && listState.items.isEmpty) {
@@ -2056,7 +2128,7 @@ Widget build(BuildContext context) {
         final challenges = listState.items;
 
         if (challenges.isEmpty) {
-          return Center(
+          return _pullable(Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -2099,11 +2171,12 @@ Widget build(BuildContext context) {
                 ),
               ],
             ),
-          );
+          ));
         }
 
         return ListView.builder(
           key: const PageStorageKey<String>('challenges-list'),
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           itemCount: challenges.length,
           itemBuilder: (context, index) {
@@ -2126,9 +2199,6 @@ Widget build(BuildContext context) {
     final currentParticipants = challenge['currentParticipants'] ?? 0;
     final prizePool = (challenge['prizePool'] ?? 0.0).toDouble();
     final entryFee = challenge['entryFee'] ?? 10;
-    final durationLabel = challengeDurationDisplayFromRow(
-      Map<String, dynamic>.from(challenge),
-    );
     final creatorId = (challenge['creatorId'] ?? '').toString();
     String creatorThumbnailUrl =
         (challenge['creatorThumbnailUrl'] ?? challenge['thumbnailUrl'] ?? '')
@@ -2147,8 +2217,13 @@ Widget build(BuildContext context) {
         (votingDeadline != null && DateTime.now().isAfter(votingDeadline));
     final displayStatus = isCompleted ? 'completed' : status;
     final stage = _challengeStageStyle(displayStatus);
-    final timeLeft =
-        isCompleted ? tr('challenge_status_completed') : durationLabel;
+    // Countdown to the current phase's deadline (recruiting → submission,
+    // submission → voting, voting → end); "Completed" once the challenge ends.
+    final timeLeft = isCompleted
+        ? tr('challenge_status_completed')
+        : challengePhaseCountdownLabel(
+            challengePhaseTimeRemainingFromRow(challenge),
+          );
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -2192,32 +2267,15 @@ Widget build(BuildContext context) {
                       ),
                     ),
                   ),
-                  // Completed challenges already show "Completed" in the
-                  // top-right time pill, so skip the duplicate stage chip.
-                  if (!isCompleted)
-                    Positioned(
-                      top: 12,
-                      left: 12,
-                      child: _challengeStageChip(stage),
-                    ),
+                  // Single indicator: current phase plus, while the challenge
+                  // is still running, the countdown to that phase's deadline
+                  // (completed challenges just read "Completed").
                   Positioned(
                     top: 12,
-                    right: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 9, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        timeLeft,
-                        style: FlapText.sora(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFFE2E8E3),
-                        ),
-                      ),
+                    left: 12,
+                    child: _challengeStageChip(
+                      stage,
+                      timeLabel: isCompleted ? null : timeLeft,
                     ),
                   ),
                 ],
@@ -2316,7 +2374,8 @@ Widget build(BuildContext context) {
   }
 
   Widget _challengeStageChip(
-      ({Color bg, Color fg, IconData icon, String label}) s) {
+      ({Color bg, Color fg, IconData icon, String label}) s,
+      {String? timeLabel}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -2329,7 +2388,7 @@ Widget build(BuildContext context) {
           Icon(s.icon, size: 12, color: s.fg),
           const SizedBox(width: 6),
           Text(
-            s.label,
+            timeLabel == null ? s.label : '${s.label} · $timeLabel',
             style: FlapText.sora(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -2656,20 +2715,20 @@ Widget build(BuildContext context) {
         }
 
         if (snapshot.hasError) {
-          return Center(
+          return _pullable(Center(
             child: Text(
               tr(
                 'il_3a6e650bec',
                 args: [snapshot.error?.toString() ?? ''],
               ),
             ),
-          );
+          ));
         }
 
         final videos = snapshot.data ?? const <Map<String, dynamic>>[];
 
         if (videos.isEmpty) {
-          return Center(
+          return _pullable(Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -2689,11 +2748,12 @@ Widget build(BuildContext context) {
                 ),
               ],
             ),
-          );
+          ));
         }
 
         return ListView.builder(
           key: const PageStorageKey<String>('trending-videos-list'),
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           itemCount: videos.length,
           itemBuilder: (context, index) {
