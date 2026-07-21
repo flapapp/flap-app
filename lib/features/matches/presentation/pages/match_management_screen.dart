@@ -10,6 +10,7 @@ import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/flap/flap_kit.dart';
 import '../../../../core/di/injection.dart';
 import '../../application/match_management_actions_use_case.dart';
+import '../../domain/entities/match_team_config.dart';
 import '../../domain/repositories/matches_repository.dart';
 import '../../data/models/match.dart';
 import '../../../teams/domain/repositories/teams_repository.dart';
@@ -80,7 +81,7 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
   final Map<int, TextEditingController> _goalsControllers = {};
   Map<String, double> _ratingsCache = {};
   Match? _latestMatch;
-  int _teamCount = 2;
+  int _teamCount = kMinMatchTeams;
   final List<Color> _teamColors = [
     const Color(0xFF5C97E0),
     const Color(0xFF8E24AA),
@@ -832,7 +833,8 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
                 const SizedBox(height: 12),
                 _buildTeamConfirmationCard(m, isOrganizer),
               ],
-              if (!m.isTeamMatch &&
+              if (matchTeamCountIsSelectable &&
+                  !m.isTeamMatch &&
                   m.participants.length >= 2 &&
                   _canManageTeams(m)) ...[
                 const SizedBox(height: 12),
@@ -927,8 +929,8 @@ class _MatchManagementScreenState extends State<MatchManagementScreen>
     return Wrap(
       spacing: 8,
       runSpacing: 4,
-      children: List.generate(3, (index) {
-        final value = index + 2;
+      children: List.generate(kMaxMatchTeams - kMinMatchTeams + 1, (index) {
+        final value = kMinMatchTeams + index;
         final enabled = m.participants.length >= value;
         return ChoiceChip(
           label: Text(tr('il_7b7e87fdbe', namedArgs: {'value': '$value'})),

@@ -43,7 +43,6 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
   double _cost = 0.0;
   bool _autoBalance = true;
   bool _isPrivate = false;
-  int _numberOfTeams = 2; // 2, 3 or 4 teams
   final Set<String> _selectedInviteFriendIds = <String>{};
   final Map<String, Map<String, dynamic>> _selectedInviteUsers =
       <String, Map<String, dynamic>>{};
@@ -245,80 +244,6 @@ class CreateMatchScreenState extends State<CreateMatchScreen> {
                           );
                         },
                       ),
-
-                      // Number of teams
-                      if (_autoBalance) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: FlapColors.surface,
-                            borderRadius:
-                                BorderRadius.circular(FlapRadii.tile),
-                            border: Border.all(color: FlapColors.border),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                tr('il_9be39530da'),
-                                style: FlapText.sora(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: FlapColors.text,
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [2, 3, 4].map((teamOption) {
-                                  final isSelected =
-                                      _numberOfTeams == teamOption;
-                                  return GestureDetector(
-                                    onTap: () => setState(
-                                        () => _numberOfTeams = teamOption),
-                                    child: AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 160),
-                                      width: 70,
-                                      height: 70,
-                                      decoration: BoxDecoration(
-                                        gradient: isSelected
-                                            ? FlapColors.primaryButton
-                                            : null,
-                                        color: isSelected
-                                            ? null
-                                            : FlapColors.surface2,
-                                        borderRadius:
-                                            BorderRadius.circular(16),
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? Colors.transparent
-                                              : FlapColors.border,
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          teamOption.toString(),
-                                          style: FlapText.cond(
-                                            fontSize: 30,
-                                            fontWeight: FontWeight.w800,
-                                            color: isSelected
-                                                ? FlapColors.onGreen
-                                                : FlapColors.text,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
 
                       const SizedBox(height: 12),
                       _teamModeSwitch(),
