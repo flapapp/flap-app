@@ -53,7 +53,11 @@ class NotificationService {
   // Initialize notifications
   Future<void> initialize() async {
     try {
-      if (!await sl<UserSettingsService>().isNotificationsEnabled()) {
+      print('[PUSH] NotificationService.initialize() called');
+      final enabled = await sl<UserSettingsService>().isNotificationsEnabled();
+      print('[PUSH] isNotificationsEnabled=$enabled');
+      if (!enabled) {
+        print('[PUSH] abort: notifications disabled in user settings');
         await _clearNotificationTokens();
         return;
       }

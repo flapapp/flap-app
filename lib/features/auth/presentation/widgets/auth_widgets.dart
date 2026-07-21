@@ -6,8 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../theme/flap_tokens.dart';
 
 /// Legal document URLs surfaced from the auth flow.
-const String kTermsUrl = 'https://flap.blog/terms';
-const String kPrivacyUrl = 'https://flap.blog/privacy';
+const String kTermsUrl = 'https://flapp.fun/terms';
+const String kPrivacyUrl = 'https://flapp.fun/privacy';
 
 Future<void> openExternalUrl(String url) async {
   final uri = Uri.parse(url);

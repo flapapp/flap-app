@@ -45,8 +45,15 @@ class FcmTransportService {
     required NotificationTapHandler onNotificationTap,
     required TokenHandler onToken,
   }) async {
-    if (kIsWeb || _initialized) return;
-    if (Firebase.apps.isEmpty) return;
+    debugPrint('[PUSH] FcmTransportService.initialize() called');
+    if (kIsWeb || _initialized) {
+      debugPrint('[PUSH] abort: kIsWeb=$kIsWeb initialized=$_initialized');
+      return;
+    }
+    if (Firebase.apps.isEmpty) {
+      debugPrint('[PUSH] abort: Firebase.apps is EMPTY (Firebase not initialized)');
+      return;
+    }
     _initialized = true;
 
     final settings = await _messaging.requestPermission(
@@ -55,7 +62,10 @@ class FcmTransportService {
       sound: true,
       provisional: false,
     );
+    // TEMP push diagnostics — remove once iOS delivery is confirmed.
+    debugPrint('[PUSH] authorizationStatus=${settings.authorizationStatus}');
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
+      debugPrint('[PUSH] permission denied — aborting FCM init');
       return;
     }
 
@@ -74,7 +84,17 @@ class FcmTransportService {
       await onNotificationTap(initialMessage.data);
     }
 
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      // On a real device this is null until registerForRemoteNotifications
+      // succeeds. Null here => APNs registration failed (usually a missing
+      // Push Notifications capability / stale provisioning profile), and FCM
+      // getToken() will also return null.
+      final apns = await _messaging.getAPNSToken();
+      debugPrint('[PUSH] APNs token=${apns ?? "NULL (APNs registration failed)"}');
+    }
+
     final token = await _messaging.getToken();
+    debugPrint('[PUSH] FCM token=${token ?? "NULL"}');
     if (token != null && token.isNotEmpty) {
       await onToken(token);
     }

@@ -34,6 +34,11 @@ class _FriendsScreenState extends State<FriendsScreen>
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
 
+  // In-flight friend-request actions, so buttons can show a spinner.
+  final Set<String> _sendingUserIds = {};
+  // requestId -> 'accept' | 'reject' | 'cancel'
+  final Map<String, String> _pendingRequestActions = {};
+
   @override
   void initState() {
     super.initState();
@@ -300,23 +305,23 @@ class _FriendsScreenState extends State<FriendsScreen>
                                 fontSize: 11.5, color: FlapColors.muted2),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          width: 5,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: Color(friend.onlineStatusColor),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          friend.onlineStatus,
-                          style: FlapText.sora(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(friend.onlineStatusColor)),
-                        ),
+                        // const SizedBox(width: 8),
+                        // Container(
+                        //   width: 5,
+                        //   height: 5,
+                        //   decoration: BoxDecoration(
+                        //     color: Color(friend.onlineStatusColor),
+                        //     shape: BoxShape.circle,
+                        //   ),
+                        // ),
+                        // const SizedBox(width: 5),
+                        // Text(
+                        //   friend.onlineStatus,
+                        //   style: FlapText.sora(
+                        //       fontSize: 11.5,
+                        //       fontWeight: FontWeight.w600,
+                        //       color: Color(friend.onlineStatusColor)),
+                        // ),
                       ],
                     ),
                   ],
@@ -481,29 +486,41 @@ class _FriendsScreenState extends State<FriendsScreen>
           ],
           const SizedBox(height: 14),
           if (isIncoming)
-            Row(
-              children: [
-                Expanded(
-                  child: _outlinedButton(
-                    label: tr('reject'),
-                    color: FlapColors.red,
-                    onTap: () => _respondToRequest(request.id, false),
+            Builder(builder: (context) {
+              final busy = _pendingRequestActions.containsKey(request.id);
+              return Row(
+                children: [
+                  Expanded(
+                    child: _outlinedButton(
+                      label: tr('reject'),
+                      color: FlapColors.red,
+                      loading: _pendingRequestActions[request.id] == 'reject',
+                      onTap: busy
+                          ? null
+                          : () => _respondToRequest(request.id, false),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _gradientButton(
-                    label: tr('accept'),
-                    onTap: () => _respondToRequest(request.id, true),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _gradientButton(
+                      label: tr('accept'),
+                      loading: _pendingRequestActions[request.id] == 'accept',
+                      onTap: busy
+                          ? null
+                          : () => _respondToRequest(request.id, true),
+                    ),
                   ),
-                ),
-              ],
-            )
+                ],
+              );
+            })
           else
             _outlinedButton(
               label: tr('cancel'),
               color: FlapColors.muted,
-              onTap: () => _cancelRequest(request.id),
+              loading: _pendingRequestActions[request.id] == 'cancel',
+              onTap: _pendingRequestActions.containsKey(request.id)
+                  ? null
+                  : () => _cancelRequest(request.id),
             ),
         ],
       ),
@@ -567,22 +584,36 @@ class _FriendsScreenState extends State<FriendsScreen>
     );
   }
 
-  Widget _gradientButton({required String label, required VoidCallback onTap}) {
+  Widget _gradientButton({
+    required String label,
+    required VoidCallback? onTap,
+    bool loading = false,
+  }) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 46,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          gradient: FlapColors.primaryButton,
-          borderRadius: BorderRadius.circular(13),
-        ),
-        child: Text(
-          label,
-          style: FlapText.sora(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: FlapColors.onGreen),
+      onTap: loading ? null : onTap,
+      child: Opacity(
+        opacity: onTap == null && !loading ? 0.55 : 1,
+        child: Container(
+          height: 46,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            gradient: FlapColors.primaryButton,
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: loading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2.2, color: FlapColors.onGreen),
+                )
+              : Text(
+                  label,
+                  style: FlapText.sora(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: FlapColors.onGreen),
+                ),
         ),
       ),
     );
@@ -591,22 +622,33 @@ class _FriendsScreenState extends State<FriendsScreen>
   Widget _outlinedButton({
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
+    bool loading = false,
   }) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 46,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: color.withValues(alpha: 0.45)),
-        ),
-        child: Text(
-          label,
-          style: FlapText.sora(
-              fontSize: 14, fontWeight: FontWeight.w700, color: color),
+      onTap: loading ? null : onTap,
+      child: Opacity(
+        opacity: onTap == null && !loading ? 0.55 : 1,
+        child: Container(
+          height: 46,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: color.withValues(alpha: 0.45)),
+          ),
+          child: loading
+              ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2.2, color: color),
+                )
+              : Text(
+                  label,
+                  style: FlapText.sora(
+                      fontSize: 14, fontWeight: FontWeight.w700, color: color),
+                ),
         ),
       ),
     );
@@ -835,6 +877,8 @@ class _FriendsScreenState extends State<FriendsScreen>
                                           .first ??
                                       'U')
                                   .toString();
+                              final sending =
+                                  _sendingUserIds.contains(userId);
                               final canAdd = pageState.canSendFriendRequestTo(
                                 userId,
                                 AppAuth.currentUser?.id,
@@ -902,8 +946,9 @@ class _FriendsScreenState extends State<FriendsScreen>
                                     ),
                                     const SizedBox(width: 8),
                                     GestureDetector(
-                                      onTap: canAdd
-                                          ? () => _sendFriendRequest(userId)
+                                      onTap: (canAdd && !sending)
+                                          ? () => _sendFriendRequest(
+                                              userId, setState)
                                           : null,
                                       child: Container(
                                         width: 38,
@@ -923,13 +968,24 @@ class _FriendsScreenState extends State<FriendsScreen>
                                                 : FlapColors.border,
                                           ),
                                         ),
-                                        child: Icon(
-                                          Icons.person_add_alt_1_rounded,
-                                          color: canAdd
-                                              ? FlapColors.greenBright
-                                              : FlapColors.muted2,
-                                          size: 18,
-                                        ),
+                                        child: sending
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  color:
+                                                      FlapColors.greenBright,
+                                                ),
+                                              )
+                                            : Icon(
+                                                Icons.person_add_alt_1_rounded,
+                                                color: canAdd
+                                                    ? FlapColors.greenBright
+                                                    : FlapColors.muted2,
+                                                size: 18,
+                                              ),
                                       ),
                                     ),
                                   ],
@@ -957,11 +1013,15 @@ class _FriendsScreenState extends State<FriendsScreen>
     );
   }
 
-  void _sendFriendRequest(String userId) async {
+  void _sendFriendRequest(
+      String userId, void Function(VoidCallback) setDialogState) async {
+    if (_sendingUserIds.contains(userId)) return;
     if (!await PremiumGate.ensure(context)) return;
+    setDialogState(() => _sendingUserIds.add(userId));
     try {
       await _friendsRepo.sendFriendRequest(userId);
       await _friendsPageCubit.refreshAll();
+      _sendingUserIds.remove(userId);
       if (!mounted) return;
       Navigator.of(context).pop();
       if (!mounted) return;
@@ -972,6 +1032,7 @@ class _FriendsScreenState extends State<FriendsScreen>
         ),
       );
     } catch (e) {
+      setDialogState(() => _sendingUserIds.remove(userId));
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}))),
@@ -980,6 +1041,9 @@ class _FriendsScreenState extends State<FriendsScreen>
   }
 
   void _respondToRequest(String requestId, bool accept) async {
+    if (_pendingRequestActions.containsKey(requestId)) return;
+    setState(() =>
+        _pendingRequestActions[requestId] = accept ? 'accept' : 'reject');
     try {
       await _friendsRepo.respondToFriendRequest(requestId, accept);
       await _friendsPageCubit.refreshAll();
@@ -1000,10 +1064,18 @@ class _FriendsScreenState extends State<FriendsScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}))),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _pendingRequestActions.remove(requestId));
+      } else {
+        _pendingRequestActions.remove(requestId);
+      }
     }
   }
 
   void _cancelRequest(String requestId) async {
+    if (_pendingRequestActions.containsKey(requestId)) return;
+    setState(() => _pendingRequestActions[requestId] = 'cancel');
     try {
       await _friendsRepo.cancelFriendRequest(requestId);
       await _friendsPageCubit.refreshAll();
@@ -1019,6 +1091,12 @@ class _FriendsScreenState extends State<FriendsScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(tr('il_e69e7edfdf', namedArgs: {'e': e.toString()}))),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _pendingRequestActions.remove(requestId));
+      } else {
+        _pendingRequestActions.remove(requestId);
+      }
     }
   }
 
