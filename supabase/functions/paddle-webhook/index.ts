@@ -157,6 +157,50 @@ async function verifySignature(
   return null;
 }
 
+// Deliver an in-app + push notification to a user via the auth-independent
+// system enqueue RPC. Never throws: a failed notification must not fail the
+// webhook (a 500 makes Paddle retry and could re-provision), so we only log.
+async function notifyUser(
+  userId: string | undefined | null,
+  typeCode: string,
+  title: string,
+  message: string,
+  idempotencyKey: string,
+  // deno-lint-ignore no-explicit-any
+  data: Record<string, any> = {},
+): Promise<void> {
+  if (!userId) return;
+  try {
+    const { error } = await supabase.rpc("enqueue_notification_system", {
+      p_target_user_id: userId,
+      p_type_code: typeCode,
+      p_title: title,
+      p_message: message,
+      p_data: { type: typeCode, ...data },
+      p_action_url: "/subscription",
+      p_related_table: "subscriptions",
+      p_related_record_id: null,
+      p_idempotency_key: idempotencyKey,
+    });
+    if (error) {
+      console.log(`[wh] notify ${typeCode} user=${userId} failed: ${error.message}`);
+    }
+  } catch (e) {
+    console.log(`[wh] notify ${typeCode} user=${userId} threw: ${String(e)}`);
+  }
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 let cachedPremiumPlanId: string | null = null;
 async function premiumPlanId(): Promise<string> {
   if (cachedPremiumPlanId) return cachedPremiumPlanId;
@@ -276,12 +320,16 @@ async function handleSubscriptionEvent(data: any): Promise<void> {
   }
 
   // Upsert by paddle_subscription_id (select-then-update/insert; the unique
-  // index is partial so we can't use ON CONFLICT directly).
+  // index is partial so we can't use ON CONFLICT directly). The status here is
+  // this subscription's PRIOR state (the single-active invariant above only
+  // touched OTHER rows), so it drives transition-based notifications below.
   const { data: existing } = await supabase
     .from("subscriptions")
-    .select("id")
+    .select("id, status")
     .eq("paddle_subscription_id", paddleSubId)
     .maybeSingle();
+
+  const prevStatus = (existing?.status as string | undefined) ?? null;
 
   if (existing) {
     await supabase.from("subscriptions").update(row).eq("id", existing.id);
@@ -289,6 +337,40 @@ async function handleSubscriptionEvent(data: any): Promise<void> {
     await supabase
       .from("subscriptions")
       .insert({ ...row, starts_at: data?.started_at ?? nowIso });
+  }
+
+  // Notify only on meaningful state transitions (Paddle sends many updates).
+  const wasActive = prevStatus === "active" || prevStatus === "trial";
+  if (isActiveState && !wasActive) {
+    // Item 7: first grant of access (new subscription or reactivation).
+    await notifyUser(
+      userId,
+      "premium_activated",
+      "Welcome to Premium!",
+      status === "trial"
+        ? "Your Premium free trial is now active — enjoy full access."
+        : "Your Premium subscription is now active — enjoy full access.",
+      `premium_activated:${paddleSubId}`,
+    );
+  } else if (status === "cancelled" && prevStatus !== "cancelled") {
+    // Item 11: cancelled (access usually continues until the period end).
+    const until = periodEnd ? ` You'll keep access until ${formatDate(periodEnd)}.` : "";
+    await notifyUser(
+      userId,
+      "subscription_cancelled",
+      "Subscription cancelled",
+      `Your Premium subscription was cancelled.${until}`,
+      `subscription_cancelled:${paddleSubId}`,
+    );
+  } else if (status === "expired" && prevStatus !== "expired") {
+    // Item 11: access has ended.
+    await notifyUser(
+      userId,
+      "subscription_expired",
+      "Premium ended",
+      "Your Premium access has ended. Resubscribe anytime to regain full access.",
+      `subscription_expired:${paddleSubId}`,
+    );
   }
 }
 
@@ -387,6 +469,19 @@ async function handleTransactionEvent(
       .from("subscriptions")
       .update({ status: "past_due", updated_at: nowIso })
       .eq("paddle_subscription_id", paddleSubId);
+    // Item 10: tell the user so they can fix their payment method.
+    const { data: subRow } = await supabase
+      .from("subscriptions")
+      .select("user_id")
+      .eq("paddle_subscription_id", paddleSubId)
+      .maybeSingle();
+    await notifyUser(
+      subRow?.user_id as string | undefined,
+      "payment_failed",
+      "Payment failed",
+      "We couldn't process your Premium payment. Update your payment method to keep your subscription.",
+      `payment_failed:${txnId ?? paddleSubId}`,
+    );
     return;
   }
 
@@ -399,11 +494,17 @@ async function handleTransactionEvent(
 
   const { data: existing } = await supabase
     .from("subscriptions")
-    .select("id")
+    .select("id, user_id, paddle_transaction_id")
     .eq("paddle_subscription_id", paddleSubId)
     .maybeSingle();
 
   if (existing) {
+    // A completed transaction on a row that already recorded a DIFFERENT prior
+    // transaction is a recurring renewal (the first payment leaves it null, so
+    // the initial charge is not mistaken for a renewal). Item 9.
+    const priorTxn = existing.paddle_transaction_id as string | null;
+    const isRenewal = !!priorTxn && !!txnId && priorTxn !== txnId;
+
     await supabase
       .from("subscriptions")
       .update({
@@ -412,6 +513,16 @@ async function handleTransactionEvent(
         updated_at: nowIso,
       })
       .eq("id", existing.id);
+
+    if (isRenewal) {
+      await notifyUser(
+        existing.user_id as string | undefined,
+        "subscription_renewed",
+        "Subscription renewed",
+        "Your Premium subscription renewed — thanks for staying with us!",
+        `subscription_renewed:${txnId}`,
+      );
+    }
     return;
   }
 

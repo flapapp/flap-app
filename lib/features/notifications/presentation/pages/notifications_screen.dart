@@ -455,6 +455,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Icons.sports_score_rounded;
       case NotificationType.teamJoinRequest:
         return Icons.group_add_rounded;
+      case NotificationType.subscriptionUpdate:
+        return Icons.workspace_premium_rounded;
+      case NotificationType.matchUpdate:
+        return Icons.event_rounded;
+      case NotificationType.teamUpdate:
+        return Icons.groups_rounded;
+      case NotificationType.videoInteraction:
+        return Icons.forum_rounded;
     }
   }
 
@@ -468,11 +476,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case NotificationType.teamInvite:
       case NotificationType.teamMatchReady:
       case NotificationType.teamJoinRequest:
+      case NotificationType.matchUpdate:
         return FlapColors.blue;
       case NotificationType.friendAccepted:
       case NotificationType.challengeCompleted:
       case NotificationType.matchInvite:
       case NotificationType.teamMatchRequest:
+      case NotificationType.teamUpdate:
         return FlapColors.greenBright;
       case NotificationType.challengeInvitation:
       case NotificationType.teamRosterInvite:
@@ -483,6 +493,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case NotificationType.badgeEndorsed:
       case NotificationType.coinsEarned:
       case NotificationType.ratingChanged:
+      case NotificationType.subscriptionUpdate:
+      case NotificationType.videoInteraction:
         return FlapColors.gold;
     }
   }

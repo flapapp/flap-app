@@ -226,10 +226,60 @@ class ChallengeService {
           tr('coin_ledger_challenge_entry_fee', namedArgs: {'title': challenge.title}),
         );
       }
+
+      // Tell the creator someone joined their challenge (item 27).
+      await _notifyCreatorOfJoin(challenge, currentUser.id);
       return true;
     } catch (e) {
       print('Error joining challenge: $e');
       rethrow;
+    }
+  }
+
+  /// Notifies a challenge's creator when a new participant joins. Uses the
+  /// backend enqueue RPC (auth'd caller may target another user); a failed
+  /// notification never fails the join.
+  Future<void> _notifyCreatorOfJoin(
+    Challenge challenge,
+    String joinerId,
+  ) async {
+    final creatorId = challenge.creatorId;
+    if (creatorId.isEmpty || creatorId == joinerId) return;
+    try {
+      final joinerRow = await _sb
+          .from('profiles')
+          .select('display_name, nickname, first_name, last_name')
+          .eq('id', joinerId)
+          .maybeSingle();
+      final joinerName = (joinerRow?['display_name'] ??
+              joinerRow?['nickname'] ??
+              '${joinerRow?['first_name'] ?? ''} ${joinerRow?['last_name'] ?? ''}'
+                  .trim() ??
+              tr('player'))
+          .toString()
+          .trim();
+      final name = joinerName.isEmpty ? tr('player') : joinerName;
+
+      await _sb.rpc(
+        'enqueue_notification_backend',
+        params: <String, dynamic>{
+          'p_target_user_id': creatorId,
+          'p_type_code': 'challenge_joined',
+          'p_title': tr('notif_challenge_joined_title'),
+          'p_message': tr('notif_challenge_joined_body',
+              namedArgs: {'name': name, 'title': challenge.title}),
+          'p_data': <String, dynamic>{
+            'challengeId': challenge.id,
+            'challengeTitle': challenge.title,
+          },
+          'p_related_table': 'challenges',
+          'p_related_record_id': challenge.id,
+          'p_action_url': '/challenge-details/${challenge.id}',
+          'p_idempotency_key': 'challenge_joined:${challenge.id}:$joinerId',
+        },
+      );
+    } catch (_) {
+      // A failed notification must not fail the join.
     }
   }
 
@@ -394,11 +444,43 @@ class ChallengeService {
       if (challenge.creatorId != currentUser.id) {
         throw Exception(tr('challenge_error_only_creator_delete'));
       }
+      // Capture participants BEFORE the delete cascades them away, so we can
+      // tell them the challenge was cancelled (item 26).
+      final recipients = challenge.participants
+          .where((id) => id.isNotEmpty && id != currentUser.id)
+          .toSet();
       await _sb.from('challenges').delete().eq('id', challengeId);
+      await _notifyChallengeCancelled(challenge, recipients);
       return true;
     } catch (e) {
       print('Error deleting challenge: $e');
       rethrow;
+    }
+  }
+
+  /// Notifies participants that a challenge they entered was cancelled. The
+  /// challenge row is already gone, so no deep link is attached.
+  Future<void> _notifyChallengeCancelled(
+    Challenge challenge,
+    Set<String> recipients,
+  ) async {
+    for (final userId in recipients) {
+      try {
+        await _sb.rpc(
+          'enqueue_notification_backend',
+          params: <String, dynamic>{
+            'p_target_user_id': userId,
+            'p_type_code': 'challenge_cancelled',
+            'p_title': tr('notif_challenge_cancelled_title'),
+            'p_message': tr('notif_challenge_cancelled_body',
+                namedArgs: {'title': challenge.title}),
+            'p_data': <String, dynamic>{'challengeTitle': challenge.title},
+            'p_idempotency_key': 'challenge_cancelled:${challenge.id}:$userId',
+          },
+        );
+      } catch (_) {
+        // Best-effort per recipient; keep notifying the rest.
+      }
     }
   }
 

@@ -41,6 +41,9 @@ class AppNotification extends AppNotificationEntity {
       case 'challenge_invitation':
         return NotificationType.challengeInvitation;
       case 'challenge_update':
+      case 'challenge_joined':
+      case 'challenge_cancelled':
+      case 'challenge_deadline':
         return NotificationType.challengeUpdate;
       case 'challenge_result':
         return NotificationType.challengeResult;
@@ -72,6 +75,32 @@ class AppNotification extends AppNotificationEntity {
         return NotificationType.teamMatchReady;
       case 'team_join_request':
         return NotificationType.teamJoinRequest;
+      case 'premium_activated':
+      case 'subscription_renewed':
+      case 'payment_failed':
+      case 'subscription_cancelled':
+      case 'subscription_expired':
+      case 'trial_ending':
+      case 'subscription_update':
+        return NotificationType.subscriptionUpdate;
+      case 'match_cancelled':
+      case 'match_updated':
+      case 'match_full':
+      case 'match_reminder':
+        return NotificationType.matchUpdate;
+      case 'team_join_approved':
+      case 'team_join_rejected':
+      case 'team_invite_accepted':
+      case 'team_invite_declined':
+      case 'team_role_changed':
+        return NotificationType.teamUpdate;
+      case 'friend_declined':
+      case 'friend_request_declined':
+        return NotificationType.friendRequest;
+      case 'video_like':
+      case 'video_comment':
+      case 'video_comment_reply':
+        return NotificationType.videoInteraction;
     }
     return NotificationType.values.firstWhere(
       (e) => e.toString().split('.').last == c,
@@ -198,6 +227,14 @@ class AppNotification extends AppNotificationEntity {
         return 0xFF00BCD4;
       case NotificationType.teamJoinRequest:
         return 0xFF42A5F5;
+      case NotificationType.subscriptionUpdate:
+        return 0xFF7E57C2; // Premium purple
+      case NotificationType.matchUpdate:
+        return 0xFF2196F3; // Blue
+      case NotificationType.teamUpdate:
+        return 0xFF00BCD4; // Team cyan
+      case NotificationType.videoInteraction:
+        return 0xFF9C27B0; // Purple
     }
   }
 

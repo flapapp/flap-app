@@ -70,10 +70,20 @@ class NotificationRouter {
       case 'challenge_update':
       case 'challenge_result':
       case 'challenge_completed':
+      case 'challenge_joined':
+      case 'challenge_cancelled':
+      case 'challenge_deadline':
         final id = pickString(data, ['challengeId', 'challenge_id']);
         if (id != null) return _openChallengeById(id);
         break;
       case 'video_vote':
+        _router?.push(VideoMainRoute());
+        return _router != null;
+      case 'video_like':
+      case 'video_comment':
+      case 'video_comment_reply':
+        final vid = pickString(data, ['videoId', 'video_id']);
+        if (vid != null) return _openVideoById(vid);
         _router?.push(VideoMainRoute());
         return _router != null;
       case 'match_invite':
@@ -93,6 +103,13 @@ class NotificationRouter {
         final id = pickString(data, ['matchId', 'match_id']);
         if (id != null) return _openMatchRatingById(id);
         break;
+      case 'match_cancelled':
+      case 'match_updated':
+      case 'match_full':
+      case 'match_reminder':
+        final id = pickString(data, ['matchId', 'match_id']);
+        if (id != null) return _openMatchDetailsById(id);
+        break;
       case 'team_match_request':
       case 'team_roster_invite':
         final id = pickString(data, ['matchId', 'match_id']);
@@ -108,7 +125,21 @@ class NotificationRouter {
       case 'rating_changed':
         _router?.push(const ProfileRoute());
         return _router != null;
+      case 'premium_activated':
+      case 'subscription_renewed':
+      case 'payment_failed':
+      case 'subscription_cancelled':
+      case 'subscription_expired':
+      case 'trial_ending':
+      case 'subscription_update':
+        _router?.push(const SubscriptionRoute());
+        return _router != null;
       case 'team_join_request':
+      case 'team_join_approved':
+      case 'team_join_rejected':
+      case 'team_invite_accepted':
+      case 'team_invite_declined':
+      case 'team_role_changed':
         final tid = pickString(data, ['teamId', 'team_id']);
         if (tid != null) {
           _router?.push(TeamDetailsRoute(teamId: tid));
@@ -201,6 +232,26 @@ class NotificationRouter {
       case NotificationType.coinsEarned:
         _router?.push(const ProfileRoute());
         return _router != null;
+      case NotificationType.subscriptionUpdate:
+        _router?.push(const SubscriptionRoute());
+        return _router != null;
+      case NotificationType.matchUpdate:
+        final id = readMatchId();
+        if (id != null) return _openMatchDetailsById(id);
+        break;
+      case NotificationType.teamUpdate:
+        final id = readTeamId();
+        if (id != null) {
+          _router?.push(TeamDetailsRoute(teamId: id));
+          return _router != null;
+        }
+        _router?.push(const TeamHubRoute());
+        return _router != null;
+      case NotificationType.videoInteraction:
+        final vid = pickString(data, ['videoId', 'video_id']);
+        if (vid != null) return _openVideoById(vid);
+        _router?.push(VideoMainRoute());
+        return _router != null;
     }
     return false;
   }
@@ -230,6 +281,10 @@ class NotificationRouter {
     }
     if (path == '/teams') {
       _router?.push(const TeamHubRoute());
+      return _router != null;
+    }
+    if (path == '/subscription') {
+      _router?.push(const SubscriptionRoute());
       return _router != null;
     }
     if (path == '/match_management' || path == '/match-management') {

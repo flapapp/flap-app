@@ -22,6 +22,10 @@ enum NotificationType {
   teamMatchReady,
   teamRosterInvite,
   teamJoinRequest,
+  subscriptionUpdate,
+  matchUpdate,
+  teamUpdate,
+  videoInteraction,
 }
 
 class AppNotificationEntity extends Equatable {

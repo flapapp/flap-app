@@ -217,6 +217,66 @@ class TeamService {
           .eq('user_id', memberId)
           .eq('role', 'vice_captain');
     }
+    await _notifyTeamRoleChanged(
+      teamId: teamId,
+      memberId: memberId,
+      typeCode: addAsVice ? 'team_vice_added' : 'team_vice_removed',
+    );
+  }
+
+  /// Notifies a member when their team role changes (promoted/demoted vice, or
+  /// handed the captaincy). Uses the backend enqueue RPC (auth'd caller may
+  /// target another user); a failed notification never fails the role change.
+  Future<void> _notifyTeamRoleChanged({
+    required String teamId,
+    required String memberId,
+    required String typeCode,
+  }) async {
+    try {
+      final teamRow = await _sb
+          .from('teams')
+          .select('name')
+          .eq('id', teamId)
+          .maybeSingle();
+      final teamName = (teamRow?['name'] ?? tr('team')).toString();
+
+      final String title;
+      final String message;
+      switch (typeCode) {
+        case 'team_vice_added':
+          title = tr('notif_team_vice_added_title');
+          message =
+              tr('notif_team_vice_added_body', namedArgs: {'teamName': teamName});
+          break;
+        case 'team_vice_removed':
+          title = tr('notif_team_vice_removed_title');
+          message = tr('notif_team_vice_removed_body',
+              namedArgs: {'teamName': teamName});
+          break;
+        default: // team_new_captain
+          title = tr('notif_team_new_captain_title');
+          message = tr('notif_team_new_captain_body',
+              namedArgs: {'teamName': teamName});
+      }
+
+      await _sb.rpc(
+        'enqueue_notification_backend',
+        params: <String, dynamic>{
+          'p_target_user_id': memberId,
+          'p_type_code': 'team_role_changed',
+          'p_title': title,
+          'p_message': message,
+          'p_data': <String, dynamic>{'teamId': teamId, 'teamName': teamName},
+          'p_related_table': 'teams',
+          'p_related_record_id': teamId,
+          'p_action_url': '/teams',
+          'p_idempotency_key':
+              '$typeCode:$teamId:$memberId:${DateTime.now().toUtc().millisecondsSinceEpoch}',
+        },
+      );
+    } catch (_) {
+      // A failed notification must not fail the role change.
+    }
   }
 
   Future<void> updateTeamInfo({
@@ -393,6 +453,60 @@ class TeamService {
         userName: userName,
       );
     }
+
+    // Tell the inviter whether their invite was accepted or declined.
+    await _notifyInviteOutcome(invite: invite, accept: accept);
+  }
+
+  /// Notifies the team officer who sent an invite of the invitee's response.
+  Future<void> _notifyInviteOutcome({
+    required TeamInvite invite,
+    required bool accept,
+  }) async {
+    if (invite.invitedBy.isEmpty) return;
+    try {
+      final responderRow = await _sb
+          .from('profiles')
+          .select('display_name, nickname, first_name, last_name')
+          .eq('id', invite.userId)
+          .maybeSingle();
+      final responderName = (responderRow?['display_name'] ??
+              responderRow?['nickname'] ??
+              '${responderRow?['first_name'] ?? ''} ${responderRow?['last_name'] ?? ''}'
+                  .trim() ??
+              tr('player'))
+          .toString()
+          .trim();
+      final name = responderName.isEmpty ? tr('player') : responderName;
+
+      await _sb.rpc(
+        'enqueue_notification_backend',
+        params: <String, dynamic>{
+          'p_target_user_id': invite.invitedBy,
+          'p_type_code':
+              accept ? 'team_invite_accepted' : 'team_invite_declined',
+          'p_title': accept
+              ? tr('notif_team_invite_accepted_title')
+              : tr('notif_team_invite_declined_title'),
+          'p_message': accept
+              ? tr('notif_team_invite_accepted_body',
+                  namedArgs: {'name': name, 'teamName': invite.teamName})
+              : tr('notif_team_invite_declined_body',
+                  namedArgs: {'name': name, 'teamName': invite.teamName}),
+          'p_data': <String, dynamic>{
+            'teamId': invite.teamId,
+            'teamName': invite.teamName,
+          },
+          'p_related_table': 'teams',
+          'p_related_record_id': invite.teamId,
+          'p_action_url': '/teams',
+          'p_idempotency_key':
+              'team_invite_${accept ? 'accepted' : 'declined'}:${invite.id}',
+        },
+      );
+    } catch (_) {
+      // A failed notification must not fail the response action.
+    }
   }
 
   /// Single-emission stream of a team's pending join requests. Officers are
@@ -518,6 +632,46 @@ class TeamService {
         userId: request.userId,
         userName: request.userName,
       );
+    }
+
+    // Tell the requester the outcome of their join request.
+    await _notifyJoinRequestOutcome(request: request, accept: accept);
+  }
+
+  /// Notifies the player who asked to join whether they were approved or not.
+  /// Uses the backend enqueue RPC (auth'd caller may target another user), the
+  /// same path badge endorsements use.
+  Future<void> _notifyJoinRequestOutcome({
+    required TeamJoinRequest request,
+    required bool accept,
+  }) async {
+    try {
+      await _sb.rpc(
+        'enqueue_notification_backend',
+        params: <String, dynamic>{
+          'p_target_user_id': request.userId,
+          'p_type_code': accept ? 'team_join_approved' : 'team_join_rejected',
+          'p_title': accept
+              ? tr('notif_team_join_approved_title')
+              : tr('notif_team_join_rejected_title'),
+          'p_message': accept
+              ? tr('notif_team_join_approved_body',
+                  namedArgs: {'teamName': request.teamName})
+              : tr('notif_team_join_rejected_body',
+                  namedArgs: {'teamName': request.teamName}),
+          'p_data': <String, dynamic>{
+            'teamId': request.teamId,
+            'teamName': request.teamName,
+          },
+          'p_related_table': 'teams',
+          'p_related_record_id': request.teamId,
+          'p_action_url': '/teams',
+          'p_idempotency_key':
+              'team_join_${accept ? 'approved' : 'rejected'}:${request.id}',
+        },
+      );
+    } catch (_) {
+      // A failed notification must not fail the response action.
     }
   }
 
@@ -803,6 +957,12 @@ class TeamService {
           .eq('team_id', teamId)
           .eq('user_id', nextCaptain)
           .eq('role', 'vice_captain');
+      // The departing captain handed the captaincy to this member.
+      await _notifyTeamRoleChanged(
+        teamId: teamId,
+        memberId: nextCaptain,
+        typeCode: 'team_new_captain',
+      );
     }
     await _sb
         .from('team_members')

@@ -54,4 +54,8 @@ const _$NotificationTypeEnumMap = {
   NotificationType.teamMatchReady: 'teamMatchReady',
   NotificationType.teamRosterInvite: 'teamRosterInvite',
   NotificationType.teamJoinRequest: 'teamJoinRequest',
+  NotificationType.subscriptionUpdate: 'subscriptionUpdate',
+  NotificationType.matchUpdate: 'matchUpdate',
+  NotificationType.teamUpdate: 'teamUpdate',
+  NotificationType.videoInteraction: 'videoInteraction',
 };
