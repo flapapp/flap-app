@@ -5,16 +5,29 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/auth/app_auth.dart';
+import '../../../../core/purchases/app_store_products.dart';
+import '../../../../core/purchases/iap_service.dart';
 import '../../../../theme/flap_tokens.dart';
 import '../../../subscriptions/data/paddle_config.dart';
 import '../../../subscriptions/presentation/paddle_checkout_sheet.dart';
 import '../../data/coin_purchase_service.dart';
 
-/// Buy FL Coins at a flat 10 coins per $1 USD with a flexible quantity picker.
+/// Buy FL Coins in units of 10 with a flexible quantity picker.
 ///
-/// The screen only opens Paddle checkout and then waits: the coins themselves
-/// are credited by the `paddle-webhook` edge function, so a completed checkout
-/// is a promise of coins, not proof of them.
+/// Two purchase paths, chosen by platform, but the same picker either way —
+/// both stores can buy several units of one price/product in one transaction:
+///   * iOS uses StoreKit, because App Store guideline 3.1.1 requires in-app
+///     purchase for digital content. Apple caps the per-purchase quantity, so
+///     `AppStoreProducts.purchasePlanFor` pays with the largest denomination
+///     that divides the amount, and the picker only offers amounts that can be
+///     charged exactly. Each 10 coins is $1.29 there rather than $1: Apple take
+///     15–30%, and the price shown is always the App Store's own, in the
+///     buyer's currency.
+///   * Everywhere else opens Paddle checkout with a quantity of the $1 price.
+///
+/// Either way the screen only *starts* a purchase and then waits: the coins are
+/// credited server-side (`appstore-verify` / `paddle-webhook`), so a completed
+/// payment is a promise of coins, not proof of them.
 @RoutePage()
 class BuyCoinsScreen extends StatefulWidget {
   const BuyCoinsScreen({super.key});
@@ -46,14 +59,38 @@ class _BuyCoinsScreenState extends State<BuyCoinsScreen>
   bool _loadingBalance = true;
   bool _busy = false;
 
+  /// Whether this platform buys through StoreKit (iOS) rather than Paddle.
+  bool get _useStoreKit => IapService.isSupported;
+
   /// The amount that will actually be purchased: [_coins] snapped to a valid
-  /// multiple of the step and clamped to the min/max bounds.
-  int get _effectiveCoins => CoinMath.normalize(_coins);
+  /// multiple of the step and clamped to the min/max bounds. On StoreKit it is
+  /// snapped further, to an amount a denomination can charge exactly — see
+  /// [AppStoreProducts.purchasePlanFor].
+  int get _effectiveCoins {
+    final normalized = CoinMath.normalize(_coins);
+    if (!_useStoreKit) return normalized;
+    return _nearestBuyable(normalized);
+  }
+
+  /// The buyable amount closest to [coins], preferring the one at or below it
+  /// so the user is never charged more than they asked for.
+  static int _nearestBuyable(int coins) {
+    final buyable = AppStoreProducts.buyableCoinAmounts;
+    if (buyable.contains(coins)) return coins;
+    final atOrBelow = buyable.where((c) => c <= coins);
+    return atOrBelow.isNotEmpty ? atOrBelow.last : buyable.first;
+  }
 
   /// True when the typed amount had to be adjusted to become valid.
   bool get _wasAdjusted => _coins > 0 && _coins != _effectiveCoins;
 
   bool get _canBuy => !_busy && _coins >= PaddleConfig.minCoins;
+
+  /// The App Store's localized total for the selected amount ("£8.99"), or null
+  /// before products have loaded. Never show a hardcoded dollar amount on iOS:
+  /// Apple charges in the user's own currency and price tier.
+  String? get _storePrice =>
+      _useStoreKit ? IapService.instance.coinPriceFor(_effectiveCoins) : null;
 
   @override
   void initState() {
@@ -63,6 +100,19 @@ class _BuyCoinsScreenState extends State<BuyCoinsScreen>
       if (!_focus.hasFocus) _commit(_effectiveCoins);
     });
     _loadBalance();
+    if (_useStoreKit) _loadStorePrices();
+  }
+
+  /// Pull the App Store's localized prices so the packs can show real amounts.
+  Future<void> _loadStorePrices() async {
+    try {
+      await IapService.instance.loadProducts();
+    } catch (e) {
+      debugPrint('[coins] store price load failed: $e');
+    }
+    // Prices only affect labels, so a failure here degrades to the USD
+    // fallback rather than blocking the screen.
+    if (mounted) setState(() {});
   }
 
   @override
@@ -116,7 +166,26 @@ class _BuyCoinsScreenState extends State<BuyCoinsScreen>
 
   void _step(int deltaCoins) {
     HapticFeedback.selectionClick();
-    _commit(_effectiveCoins + deltaCoins);
+    _commit(_stepTarget(deltaCoins));
+  }
+
+  /// Where a `+`/`-` press should land.
+  ///
+  /// Off StoreKit that is simply one step away. On StoreKit the buyable amounts
+  /// are not evenly spaced — fine-grained up to 100, then coarser — so a fixed
+  /// step would land on an unbuyable value, get snapped back, and leave the
+  /// button looking dead. Move to the next buyable amount instead.
+  int _stepTarget(int deltaCoins) {
+    final current = _effectiveCoins;
+    if (!_useStoreKit) return current + deltaCoins;
+
+    final buyable = AppStoreProducts.buyableCoinAmounts
+        .where((c) => c >= PaddleConfig.minCoins && c <= PaddleConfig.maxCoins)
+        .toList();
+    if (deltaCoins > 0) {
+      return buyable.firstWhere((c) => c > current, orElse: () => current);
+    }
+    return buyable.lastWhere((c) => c < current, orElse: () => current);
   }
 
   void _bump() {
@@ -147,8 +216,30 @@ class _BuyCoinsScreenState extends State<BuyCoinsScreen>
       }
 
       if (!mounted) return;
-      final result =
-          await PaddleCheckoutSheet.openCoins(context, units: units);
+
+      final CheckoutResult result;
+      if (_useStoreKit) {
+        // StoreKit presents Apple's own payment sheet; there is no webview and
+        // no redirect to intercept. The outcome is mapped onto the same
+        // CheckoutResult the Paddle path returns so the handling below is
+        // shared.
+        final outcome = await IapService.instance.buyCoins(coins);
+        switch (outcome) {
+          case PurchaseOutcome.success:
+            result = CheckoutResult.success;
+          case PurchaseOutcome.cancelled:
+            result = CheckoutResult.cancelled;
+          case PurchaseOutcome.failed:
+            result = CheckoutResult.failed;
+          case PurchaseOutcome.pending:
+            // Charged, but fulfilment isn't confirmed. Treated as success so
+            // the "coins on their way" branch below runs — calling this a
+            // failure would be wrong, the purchase is not lost.
+            result = CheckoutResult.success;
+        }
+      } else {
+        result = await PaddleCheckoutSheet.openCoins(context, units: units);
+      }
       if (!mounted) return;
       debugPrint('[coins] checkout result=$result baseline=$before '
           'units=$units expected=+$coins');
@@ -356,7 +447,12 @@ class _BuyCoinsScreenState extends State<BuyCoinsScreen>
           ),
           const SizedBox(height: 4),
           Text(
-            tr('coins_rate_note', args: ['${PaddleConfig.coinsPerUnit}']),
+            // Paddle sells at a flat 10-per-$1, so the rate can be stated
+            // outright. The App Store cannot: it charges its own tier in the
+            // buyer's currency, so promising a dollar rate would be a lie.
+            _useStoreKit
+                ? tr('coins_rate_note_store')
+                : tr('coins_rate_note', args: ['${PaddleConfig.coinsPerUnit}']),
             style: FlapText.sora(fontSize: 12, color: FlapColors.muted),
           ),
           const SizedBox(height: 16),
@@ -574,14 +670,26 @@ class _BuyCoinsScreenState extends State<BuyCoinsScreen>
                 style: FlapText.sora(fontSize: 12, color: FlapColors.muted),
               ),
               const SizedBox(height: 3),
-              _animatedInt(
-                CoinMath.priceUsd(_effectiveCoins),
-                prefix: '\$',
-                style: FlapText.cond(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: FlapColors.greenBright),
-              ),
+              // On StoreKit the total is whatever Apple charges in the user's
+              // currency, so it is shown verbatim rather than counted up from
+              // the USD rate.
+              if (_storePrice != null)
+                Text(
+                  _storePrice!,
+                  style: FlapText.cond(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: FlapColors.greenBright),
+                )
+              else
+                _animatedInt(
+                  CoinMath.priceUsd(_effectiveCoins),
+                  prefix: '\$',
+                  style: FlapText.cond(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: FlapColors.greenBright),
+                ),
             ],
           ),
         ],
@@ -622,10 +730,15 @@ class _BuyCoinsScreenState extends State<BuyCoinsScreen>
                       strokeWidth: 2.4, color: FlapColors.onGreen),
                 )
               : Text(
-                  tr('coins_buy_cta', args: [
-                    _fmt(_effectiveCoins),
-                    '${CoinMath.priceUsd(_effectiveCoins)}',
-                  ]),
+                  // The App Store price already carries its own currency
+                  // symbol, so it needs the variant without the literal "$".
+                  _storePrice != null
+                      ? tr('coins_buy_cta_price',
+                          args: [_fmt(_effectiveCoins), _storePrice!])
+                      : tr('coins_buy_cta', args: [
+                          _fmt(_effectiveCoins),
+                          '${CoinMath.priceUsd(_effectiveCoins)}',
+                        ]),
                   style: FlapText.sora(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,

@@ -60,6 +60,8 @@ dependencies:
   flutter_local_notifications: ^17.2.3
   rxdart: ^0.28.0
   flutter_inappwebview: ^6.1.5
+  in_app_purchase: ^3.3.0
+  in_app_purchase_storekit: ^0.4.11
 
 dev_dependencies:
   flutter_test:

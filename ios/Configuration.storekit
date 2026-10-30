@@ -1,0 +1,142 @@
+{
+  "identifier": "FLAP0001",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "1.29",
+      "familyShareable": false,
+      "internalID": "1000000010",
+      "localizations": [
+        {
+          "description": "10 FL Coins for challenges and badges.",
+          "displayName": "10 FL Coins",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.flap.flapapp.coins.10",
+      "referenceName": "Flap Coins 0010",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "6.45",
+      "familyShareable": false,
+      "internalID": "1000000050",
+      "localizations": [
+        {
+          "description": "50 FL Coins for challenges and badges.",
+          "displayName": "50 FL Coins",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.flap.flapapp.coins.50",
+      "referenceName": "Flap Coins 0050",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "12.90",
+      "familyShareable": false,
+      "internalID": "1000000100",
+      "localizations": [
+        {
+          "description": "100 FL Coins for challenges and badges.",
+          "displayName": "100 FL Coins",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.flap.flapapp.coins.100",
+      "referenceName": "Flap Coins 0100",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "64.50",
+      "familyShareable": false,
+      "internalID": "1000000500",
+      "localizations": [
+        {
+          "description": "500 FL Coins for challenges and badges.",
+          "displayName": "500 FL Coins",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.flap.flapapp.coins.500",
+      "referenceName": "Flap Coins 0500",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "129.00",
+      "familyShareable": false,
+      "internalID": "1000001000",
+      "localizations": [
+        {
+          "description": "1000 FL Coins for challenges and badges.",
+          "displayName": "1000 FL Coins",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.flap.flapapp.coins.1000",
+      "referenceName": "Flap Coins 1000",
+      "type": "Consumable"
+    }
+  ],
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storeKitErrors": [],
+    "_storefront": "USA"
+  },
+  "subscriptionGroups": [
+    {
+      "id": "2000000001",
+      "localizations": [],
+      "name": "Flap Premium",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "1.00",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "3000000001",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "Full access to Flap, billed monthly.",
+              "displayName": "Premium Monthly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.flap.flapapp.premium.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Flap Premium Monthly",
+          "subscriptionGroupID": "2000000001",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "10.00",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "3000000002",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "Full access to Flap, billed yearly.",
+              "displayName": "Premium Yearly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.flap.flapapp.premium.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Flap Premium Yearly",
+          "subscriptionGroupID": "2000000001",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

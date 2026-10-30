@@ -17,6 +17,7 @@ import 'router/app_router.dart';
 import 'features/badges/domain/repositories/badges_repository.dart';
 import 'features/subscriptions/domain/subscription_access.dart';
 import 'features/notifications/data/services/notification_service.dart';
+import 'core/purchases/iap_service.dart';
 import 'core/settings/app_settings_cubit.dart';
 import 'features/profile/data/services/user_settings_service.dart';
 import 'features/notifications/data/services/fcm_transport_service.dart';
@@ -81,6 +82,17 @@ Future<void> _bootstrapAppServices() async {
       }
     });
   } catch (_) {}
+
+  // Start listening for StoreKit transactions (iOS only; a no-op elsewhere).
+  // This has to happen at launch rather than when the store screen opens:
+  // StoreKit redelivers any transaction that was never finished — an app killed
+  // mid-purchase, or one whose server fulfilment failed last time — and those
+  // arrive unprompted on the purchase stream.
+  try {
+    await IapService.instance.init();
+  } catch (e) {
+    print('Failed to initialize IapService: $e');
+  }
 
   await _initMessaging();
 }

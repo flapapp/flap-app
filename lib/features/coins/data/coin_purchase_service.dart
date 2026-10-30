@@ -8,8 +8,11 @@ import '../../subscriptions/data/paddle_config.dart';
 /// ([PaddleConfig.coinsPerUnit] each), so every amount here is a multiple of
 /// [PaddleConfig.coinStep].
 abstract final class CoinMath {
-  /// Quick-select amounts shown as chips. All within the min/max bounds.
-  static const List<int> presets = <int>[10, 50, 100, 500];
+  /// Quick-select amounts shown as chips. All within the min/max bounds, and
+  /// all exactly purchasable on StoreKit too (each matches a coin denomination,
+  /// so `AppStoreProducts.purchasePlanFor` charges quantity 1). 1000 is the
+  /// ceiling: [PaddleConfig.maxCoins].
+  static const List<int> presets = <int>[10, 50, 100, 500, 1000];
 
   /// Snaps [coins] to the nearest valid amount: a multiple of the step, clamped
   /// to [PaddleConfig.minCoins]..[PaddleConfig.maxCoins].

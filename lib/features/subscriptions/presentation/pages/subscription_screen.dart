@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/purchases/app_store_products.dart';
+import '../../../../core/purchases/iap_service.dart';
 import '../../../../theme/flap_tokens.dart';
 import '../../../../widgets/flap/flap_kit.dart';
 import '../../data/models/subscription.dart';
@@ -24,12 +26,38 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   BillingInterval _interval = BillingInterval.monthly;
   bool _busy = false;
 
+  /// Whether this platform subscribes through StoreKit (iOS) rather than
+  /// Paddle. App Store guideline 3.1.1 requires in-app purchase for digital
+  /// content, so iOS cannot use the webview checkout.
+  bool get _useStoreKit => IapService.isSupported;
+
   @override
   void initState() {
     super.initState();
     // Refresh in the background; the UI reacts via the ValueListenableBuilder.
     _access.refresh();
+    if (_useStoreKit) _loadStorePrices();
   }
+
+  /// Pull the App Store's localized subscription prices. Failure only costs us
+  /// the price labels, so it never blocks the screen.
+  Future<void> _loadStorePrices() async {
+    try {
+      await IapService.instance.loadProducts();
+    } catch (e) {
+      debugPrint('[subscription] store price load failed: $e');
+    }
+    if (mounted) setState(() {});
+  }
+
+  /// The App Store's localized price for [interval], or null before products
+  /// load. Apple charges in the user's own currency, so this must win over any
+  /// hardcoded amount whenever it is available.
+  String? _storePrice(BillingInterval interval) => _useStoreKit
+      ? IapService.instance.priceFor(
+          AppStoreProducts.premiumFor(yearly: interval == BillingInterval.yearly),
+        )
+      : null;
 
   // --- Actions ---------------------------------------------------------------
 
@@ -37,10 +65,32 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final result = await PaddleCheckoutSheet.openSubscription(
-        context,
-        interval: _interval,
-      );
+      final CheckoutResult result;
+      if (_useStoreKit) {
+        // Apple's own payment sheet — no webview, no redirect to intercept.
+        // Mapped onto CheckoutResult so the handling below stays shared.
+        final outcome = await IapService.instance.buyPremium(
+          yearly: _interval == BillingInterval.yearly,
+        );
+        switch (outcome) {
+          case PurchaseOutcome.success:
+            result = CheckoutResult.success;
+          case PurchaseOutcome.cancelled:
+            result = CheckoutResult.cancelled;
+          case PurchaseOutcome.failed:
+            result = CheckoutResult.failed;
+          case PurchaseOutcome.pending:
+            // Charged but not yet confirmed. Success here routes into the
+            // poll-then-"pending" branch, which says the right thing; calling
+            // it a failure would be wrong, the purchase is not lost.
+            result = CheckoutResult.success;
+        }
+      } else {
+        result = await PaddleCheckoutSheet.openSubscription(
+          context,
+          interval: _interval,
+        );
+      }
       if (!mounted) return;
 
       switch (result) {
@@ -64,6 +114,32 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       }
     } catch (e) {
       if (mounted) _snack(tr('subscription_checkout_failed'), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Re-deliver a subscription this Apple ID already owns.
+  ///
+  /// `restorePurchases` replays the transactions onto the purchase stream,
+  /// where IapService verifies each one server-side exactly as it would a fresh
+  /// purchase — so the outcome is read from our own subscription state rather
+  /// than from StoreKit.
+  Future<void> _restorePurchases() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await IapService.instance.restore();
+      final becamePremium = await _access.refreshUntilPremium();
+      if (!mounted) return;
+      _snack(
+        becamePremium
+            ? tr('subscription_restore_done')
+            : tr('subscription_restore_none'),
+        success: becamePremium,
+      );
+    } catch (e) {
+      if (mounted) _snack(tr('subscription_restore_none'), success: false);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -293,6 +369,22 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             onTap: _busy ? null : _startCheckout,
             busy: _busy,
           ),
+
+          // Apple requires a way to restore a subscription the Apple ID
+          // already owns (new device, reinstall). Paddle has no equivalent —
+          // there the row is keyed to the account, not the device.
+          if (_useStoreKit)
+            TextButton(
+              onPressed: _busy ? null : _restorePurchases,
+              child: Text(
+                tr('subscription_restore_cta'),
+                style: FlapText.sora(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: FlapColors.muted,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -305,8 +397,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           child: _billingOption(
             interval: BillingInterval.monthly,
             title: tr('subscription_billing_monthly'),
-            price: tr('subscription_price_monthly',
-                args: ['$kPremiumMonthlyPrice']),
+            // The App Store price already carries its own currency symbol, so
+            // it replaces the formatted USD string outright rather than being
+            // substituted into it.
+            price: _storePrice(BillingInterval.monthly) ??
+                tr('subscription_price_monthly',
+                    args: ['$kPremiumMonthlyPrice']),
             subtitle: tr('subscription_per_month'),
           ),
         ),
@@ -315,8 +411,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           child: _billingOption(
             interval: BillingInterval.yearly,
             title: tr('subscription_billing_yearly'),
-            price: tr('subscription_price_yearly',
-                args: ['$kPremiumYearlyPrice']),
+            price: _storePrice(BillingInterval.yearly) ??
+                tr('subscription_price_yearly',
+                    args: ['$kPremiumYearlyPrice']),
             subtitle: tr('subscription_per_year'),
             badge: tr('subscription_best_value'),
           ),
