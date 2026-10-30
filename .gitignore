@@ -49,3 +49,6 @@ Cursor/**
 # Supabase CLI local cache (link state, pooler URL, service versions)
 supabase/.temp/
 supabase/.env.firebase.local
+
+# Node dependencies
+node_modules/
